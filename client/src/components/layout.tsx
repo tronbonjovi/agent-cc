@@ -8,6 +8,7 @@ import { SearchTrigger } from "@/components/global-search";
 import { SyncIndicator } from "@/components/sync-indicator";
 import { UpdateIndicator } from "@/components/update-indicator";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { MoodPlayerProvider } from "@/components/mood-player";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -111,6 +112,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
+    <MoodPlayerProvider>
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
       <aside className={cn(
@@ -263,5 +265,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </main>
     </div>
+    </MoodPlayerProvider>
   );
 }

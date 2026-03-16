@@ -12,6 +12,7 @@ import {
   Radio, Terminal, Keyboard, Download,
 } from "lucide-react";
 import { useLiveData } from "@/hooks/use-agents";
+import { MoodPlayerButton } from "@/components/mood-player";
 import type { EntityType } from "@shared/types";
 
 const entityTypes: EntityType[] = ["project", "mcp", "skill", "plugin", "markdown", "config"];
@@ -81,11 +82,14 @@ export default function Dashboard() {
     <div className="p-6 space-y-6 max-w-[1400px]">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gradient">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {status?.totalEntities || 0} entities across {Object.keys(counts).length} types
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gradient">Dashboard</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {status?.totalEntities || 0} entities across {Object.keys(counts).length} types
+            </p>
+          </div>
+          <MoodPlayerButton />
         </div>
         <Button
           variant="outline"

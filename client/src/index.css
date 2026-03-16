@@ -469,6 +469,12 @@ pre code {
   background-clip: text;
 }
 
+/* Mood player equalizer bars */
+@keyframes equalizer {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
 /* Enhanced live pulse via pseudo-element */
 .live-pulse {
   position: relative;
