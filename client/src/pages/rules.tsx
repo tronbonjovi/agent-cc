@@ -11,16 +11,19 @@ import {
   GitBranch,
   Brain,
   Globe,
+  ExternalLink,
 } from "lucide-react";
+import { useLocation } from "wouter";
 
 interface ProjectRules {
   claudeMd: string | null;
+  claudeMdId: string | null;
   projectSettings: object | null;
   globalSettings: object | null;
-  skills: string[];
+  skills: { name: string; markdownId: string }[];
   hooks: { project: object | null; global: object | null };
   mcpServers: { project: object | null; global: object | null };
-  memoryFiles: string[];
+  memoryFiles: { name: string; markdownId: string }[];
 }
 
 interface ProjectRulesEntry {
@@ -59,13 +62,26 @@ function EmptyState({ text }: { text: string }) {
   return <p className="text-xs text-muted-foreground/60 italic">{text}</p>;
 }
 
-function ClaudeMdSection({ content }: { content: string | null }) {
+function ClaudeMdSection({ content, markdownId, onNavigate }: { content: string | null; markdownId: string | null; onNavigate: (path: string) => void }) {
   return (
     <div className="border-l-[3px] border-l-blue-500/50 pl-3 space-y-2">
-      <SectionHeader icon={FileText} label="CLAUDE.md" color="text-blue-400" />
+      <div className="flex items-center justify-between">
+        <SectionHeader icon={FileText} label="CLAUDE.md" color="text-blue-400" />
+        {markdownId && (
+          <button
+            onClick={() => onNavigate(`/markdown/${markdownId}`)}
+            className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+          >
+            <ExternalLink className="h-3 w-3" /> Open
+          </button>
+        )}
+      </div>
       {content ? (
         <ScrollArea className="max-h-72">
-          <pre className="bg-muted/50 border border-border/50 rounded-md p-3 text-[11px] font-mono leading-relaxed whitespace-pre-wrap break-words">
+          <pre
+            className="bg-muted/50 border border-border/50 rounded-md p-3 text-[11px] font-mono leading-relaxed whitespace-pre-wrap break-words cursor-pointer hover:border-blue-500/30 transition-colors"
+            onClick={() => markdownId && onNavigate(`/markdown/${markdownId}`)}
+          >
             {content}
           </pre>
         </ScrollArea>
@@ -76,7 +92,7 @@ function ClaudeMdSection({ content }: { content: string | null }) {
   );
 }
 
-function SkillsSection({ skills }: { skills: string[] }) {
+function SkillsSection({ skills, onNavigate }: { skills: { name: string; markdownId: string }[]; onNavigate: (path: string) => void }) {
   return (
     <div className="border-l-[3px] border-l-orange-500/50 pl-3 space-y-2">
       <SectionHeader icon={Wand2} label="Skills" color="text-orange-400" />
@@ -84,11 +100,13 @@ function SkillsSection({ skills }: { skills: string[] }) {
         <div className="flex flex-wrap gap-1.5">
           {skills.map((skill) => (
             <Badge
-              key={skill}
+              key={skill.name}
               variant="outline"
-              className="text-[10px] border-orange-500/30 text-orange-400"
+              className="text-[10px] border-orange-500/30 text-orange-400 cursor-pointer hover:bg-orange-500/10 transition-colors"
+              onClick={() => onNavigate(`/markdown/${skill.markdownId}`)}
             >
-              {skill}
+              {skill.name}
+              <ExternalLink className="h-2.5 w-2.5 ml-1 opacity-50" />
             </Badge>
           ))}
         </div>
@@ -162,7 +180,7 @@ function HooksSection({ hooks }: { hooks: object | null }) {
   );
 }
 
-function MemoryFilesSection({ files }: { files: string[] }) {
+function MemoryFilesSection({ files, onNavigate }: { files: { name: string; markdownId: string }[]; onNavigate: (path: string) => void }) {
   return (
     <div className="border-l-[3px] border-l-pink-500/50 pl-3 space-y-2">
       <SectionHeader
@@ -174,11 +192,13 @@ function MemoryFilesSection({ files }: { files: string[] }) {
         <ul className="space-y-1">
           {files.map((file) => (
             <li
-              key={file}
-              className="text-xs font-mono text-muted-foreground flex items-center gap-1.5"
+              key={file.name}
+              className="text-xs font-mono text-muted-foreground flex items-center gap-1.5 cursor-pointer hover:text-pink-400 transition-colors"
+              onClick={() => onNavigate(`/markdown/${file.markdownId}`)}
             >
               <FileText className="h-3 w-3 text-pink-400/60 flex-shrink-0" />
-              {file}
+              {file.name}
+              <ExternalLink className="h-2.5 w-2.5 opacity-40" />
             </li>
           ))}
         </ul>
@@ -266,9 +286,11 @@ function GlobalSection({ projects }: { projects: ProjectRulesEntry[] }) {
 function ProjectColumn({
   project,
   index,
+  onNavigate,
 }: {
   project: ProjectRulesEntry;
   index: number;
+  onNavigate: (path: string) => void;
 }) {
   return (
     <Card
@@ -293,12 +315,12 @@ function ProjectColumn({
       <CardContent>
         <ScrollArea className="max-h-[calc(100vh-14rem)]">
           <div className="space-y-5 pr-3">
-            <ClaudeMdSection content={project.rules.claudeMd} />
-            <SkillsSection skills={project.rules.skills} />
+            <ClaudeMdSection content={project.rules.claudeMd} markdownId={project.rules.claudeMdId} onNavigate={onNavigate} />
+            <SkillsSection skills={project.rules.skills} onNavigate={onNavigate} />
             <McpServersSection servers={project.rules.mcpServers.project} />
             <ProjectSettingsSection settings={project.rules.projectSettings} />
             <HooksSection hooks={project.rules.hooks.project} />
-            <MemoryFilesSection files={project.rules.memoryFiles} />
+            <MemoryFilesSection files={project.rules.memoryFiles} onNavigate={onNavigate} />
           </div>
         </ScrollArea>
       </CardContent>
@@ -307,6 +329,7 @@ function ProjectColumn({
 }
 
 export default function Rules() {
+  const [, setLocation] = useLocation();
   const { data: projects, isLoading } = useQuery<ProjectRulesEntry[]>({
     queryKey: ["/api/projects/rules"],
   });
@@ -331,7 +354,7 @@ export default function Rules() {
       {projects && projects.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {projects.map((project, i) => (
-            <ProjectColumn key={project.id} project={project} index={i} />
+            <ProjectColumn key={project.id} project={project} index={i} onNavigate={setLocation} />
           ))}
         </div>
       ) : (

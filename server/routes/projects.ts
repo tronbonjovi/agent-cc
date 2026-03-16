@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
+import { entityId } from "../scanner/utils";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -62,8 +63,11 @@ router.get("/api/projects/rules", (_req: Request, res: Response) => {
 
     // 1. CLAUDE.md content
     let claudeMd: string | null = null;
+    let claudeMdId: string | null = null;
+    const claudeMdPath = path.join(projectPath, "CLAUDE.md").replace(/\\/g, "/");
     try {
-      claudeMd = fs.readFileSync(path.join(projectPath, "CLAUDE.md"), "utf-8");
+      claudeMd = fs.readFileSync(claudeMdPath, "utf-8");
+      claudeMdId = entityId(`markdown:${claudeMdPath}`);
     } catch {
       claudeMd = null;
     }
@@ -78,15 +82,15 @@ router.get("/api/projects/rules", (_req: Request, res: Response) => {
     }
 
     // 3. Skills — list subdirs of .claude/skills/ that contain SKILL.md
-    const skills: string[] = [];
+    const skills: { name: string; markdownId: string }[] = [];
     try {
       const skillsDir = path.join(projectPath, ".claude", "skills");
       const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
       for (const entry of entries) {
         if (entry.isDirectory()) {
-          const skillMdPath = path.join(skillsDir, entry.name, "SKILL.md");
+          const skillMdPath = path.join(skillsDir, entry.name, "SKILL.md").replace(/\\/g, "/");
           if (fs.existsSync(skillMdPath)) {
-            skills.push(entry.name);
+            skills.push({ name: entry.name, markdownId: entityId(`markdown:${skillMdPath}`) });
           }
         }
       }
@@ -114,15 +118,19 @@ router.get("/api/projects/rules", (_req: Request, res: Response) => {
     }
 
     // 6. Memory files
-    const memoryFiles: string[] = [];
+    const memoryFiles: { name: string; markdownId: string }[] = [];
     try {
       const encodedKey = projectPath.replace(/\//g, "-");
-      const memoryDir = path.join(os.homedir(), ".claude", "projects", encodedKey, "memory");
+      const memoryDir = path.join(os.homedir(), ".claude", "projects", encodedKey, "memory").replace(/\\/g, "/");
       const entries = fs.readdirSync(memoryDir);
-      memoryFiles.push(...entries.filter((e) => {
-        const stat = fs.statSync(path.join(memoryDir, e));
-        return stat.isFile();
-      }));
+      for (const e of entries) {
+        const fullPath = path.join(memoryDir, e).replace(/\\/g, "/");
+        try {
+          if (fs.statSync(fullPath).isFile()) {
+            memoryFiles.push({ name: e, markdownId: entityId(`markdown:${fullPath}`) });
+          }
+        } catch {}
+      }
     } catch {
       // no memory directory
     }
@@ -133,6 +141,7 @@ router.get("/api/projects/rules", (_req: Request, res: Response) => {
       path: projectPath,
       rules: {
         claudeMd,
+        claudeMdId,
         projectSettings,
         globalSettings,
         skills,
