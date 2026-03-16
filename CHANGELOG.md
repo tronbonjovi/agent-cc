@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-16
+
+### Added
+- **Onboarding wizard** -- 3-step first-launch setup (welcome, scan results, tips)
+- **Theme system** -- 4 themes: Dark, Light, Glass, System (follows OS). Switcher in sidebar.
+- **Stats page** (`/stats`) -- sessions-per-day chart, top projects, agent/model distribution
+- **Export/Import** (`GET /api/export`, `POST /api/import`) for backup and restore
+- **Keyboard shortcuts** -- press `G` then `D`/`S`/`A`/`G`/`L`/`M`/`P`/`K` to navigate
+- **Dashboard enhancements** -- active session count, keyboard hints, 6 quick actions
+- npm global install with shebang (`npm install -g claude-command-center`)
+
+### Fixed
+- Onboarding "Get Started" button not closing dialog (staleTime: Infinity cache issue)
+
 ## [1.1.0] - 2026-03-16
 
 ### Added
