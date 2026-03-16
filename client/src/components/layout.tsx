@@ -25,6 +25,7 @@ import {
   MessageSquare,
   Bot,
   Radio,
+  BarChart3,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
@@ -55,6 +56,7 @@ const navSections = [
       { path: "/discovery", label: "Discovery", icon: Search, countKey: null },
       { path: "/config", label: "Config", icon: Settings, countKey: "config" as const },
       { path: "/activity", label: "Activity", icon: Activity, countKey: null },
+      { path: "/stats", label: "Stats", icon: BarChart3, countKey: null },
       { path: "/settings", label: "Settings", icon: SlidersHorizontal, countKey: null },
     ],
   },

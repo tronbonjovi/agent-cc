@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { GlobalSearch } from "@/components/global-search";
 import { useAppSettings } from "@/hooks/use-settings";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import ProjectDetail from "@/pages/project-detail";
@@ -22,6 +23,7 @@ import Sessions from "@/pages/sessions";
 import Agents from "@/pages/agents";
 import Live from "@/pages/live";
 import SettingsPage from "@/pages/settings";
+import Stats from "@/pages/stats";
 import NotFound from "@/pages/not-found";
 
 function DynamicTitle() {
@@ -33,6 +35,7 @@ function DynamicTitle() {
 }
 
 function Router() {
+  useKeyboardShortcuts();
   return (
     <Layout>
       <DynamicTitle />
@@ -53,6 +56,7 @@ function Router() {
         <Route path="/agents" component={Agents} />
         <Route path="/live" component={Live} />
         <Route path="/settings" component={SettingsPage} />
+        <Route path="/stats" component={Stats} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

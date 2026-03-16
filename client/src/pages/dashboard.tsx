@@ -9,7 +9,9 @@ import {
   RefreshCw, Clock, HardDrive, Cpu, Activity, Database,
   FolderOpen, Server, Wand2, FileText, GitBranch, Search,
   ExternalLink, BarChart3, Zap, CheckCircle2, AlertCircle, Loader2,
+  Radio, Terminal, Keyboard, Download,
 } from "lucide-react";
+import { useLiveData } from "@/hooks/use-agents";
 import type { EntityType } from "@shared/types";
 
 const entityTypes: EntityType[] = ["project", "mcp", "skill", "plugin", "markdown", "config"];
@@ -36,9 +38,11 @@ function relativeTime(dateStr: string): string {
 
 const quickActions = [
   { label: "View Graph", description: "Explore entity relationships", icon: GitBranch, path: "/graph", color: "text-indigo-400", bg: "bg-indigo-500/10" },
-  { label: "Search GitHub", description: "Discover MCP servers", icon: Search, path: "/discovery", color: "text-emerald-400", bg: "bg-emerald-500/10" },
+  { label: "Live View", description: "Active sessions & agents", icon: Radio, path: "/live", color: "text-green-400", bg: "bg-green-500/10" },
   { label: "Edit CLAUDE.md", description: "Project instructions", icon: FileText, path: "/markdown", color: "text-blue-400", bg: "bg-blue-500/10" },
-  { label: "MCP Servers", description: "Manage connections", icon: Server, path: "/mcps", color: "text-green-400", bg: "bg-green-500/10" },
+  { label: "Stats", description: "Usage analytics", icon: BarChart3, path: "/stats", color: "text-amber-400", bg: "bg-amber-500/10" },
+  { label: "Export Data", description: "Download backup", icon: Download, path: "/api/export", color: "text-cyan-400", bg: "bg-cyan-500/10" },
+  { label: "Search GitHub", description: "Discover MCP servers", icon: Search, path: "/discovery", color: "text-emerald-400", bg: "bg-emerald-500/10" },
 ];
 
 export default function Dashboard() {
@@ -48,8 +52,10 @@ export default function Dashboard() {
   const { data: entities } = useEntities();
   const { data: projects } = useProjects();
   const rescan = useRescan();
+  const { data: liveData } = useLiveData();
 
   const counts = (status?.entityCounts || {}) as Record<string, number>;
+  const activeSessions = liveData?.stats?.activeSessionCount || 0;
 
   // Session stats from projects
   const totalSessions = (projects || []).reduce((sum, p) => sum + ((p.data as any).sessionCount || 0), 0);
@@ -112,6 +118,12 @@ export default function Dashboard() {
           <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
           <span className="text-xs text-muted-foreground">Watcher</span>
         </div>
+        {activeSessions > 0 && (
+          <button onClick={() => setLocation("/live")} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs text-green-400 font-medium">{activeSessions} active session{activeSessions !== 1 ? "s" : ""}</span>
+          </button>
+        )}
         <div className="flex-1" />
         <span className="text-[11px] text-muted-foreground font-mono">
           {status?.lastScanAt ? `Last scan: ${relativeTime(status.lastScanAt)}` : ""}
@@ -141,11 +153,17 @@ export default function Dashboard() {
               Quick Actions
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2">
+          <CardContent className="grid grid-cols-2 lg:grid-cols-3 gap-2">
             {quickActions.map((action) => (
               <button
                 key={action.path}
-                onClick={() => setLocation(action.path)}
+                onClick={() => {
+                  if (action.path.startsWith("/api/")) {
+                    window.open(action.path, "_blank");
+                  } else {
+                    setLocation(action.path);
+                  }
+                }}
                 className="flex items-center gap-2.5 rounded-lg border border-border/50 px-3 py-3 text-xs hover:bg-accent/50 hover:scale-[1.02] transition-all text-left group gradient-border"
               >
                 <div className={`rounded-lg p-1.5 ${action.bg}`}>
@@ -253,6 +271,22 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Keyboard Shortcuts Hint */}
+      <div className="flex items-center gap-3 px-4 py-2 rounded-lg border border-border/30 bg-card/30">
+        <Keyboard className="h-3.5 w-3.5 text-muted-foreground/50" />
+        <span className="text-[11px] text-muted-foreground/50">
+          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">Ctrl+K</kbd> search
+          <span className="mx-2 text-border">|</span>
+          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">G</kbd> then
+          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">D</kbd>ashboard
+          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">S</kbd>essions
+          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">G</kbd>raph
+          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">L</kbd>ive
+          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">A</kbd>gents
+          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">M</kbd>cps
+        </span>
       </div>
 
       {/* Recent Changes */}
