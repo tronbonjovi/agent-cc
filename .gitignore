@@ -4,4 +4,25 @@ data/
 *.db
 *.db-journal
 .env
+.env.*
+!.env.example
 .update-prefs.json
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Debug
+*.log
+npm-debug.log*
+
+# Local data
+*.tmp

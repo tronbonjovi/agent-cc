@@ -347,18 +347,41 @@ function ActiveSessionCard({
             )}
 
             {/* Meta row */}
-            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-              <span className="font-mono truncate max-w-[300px]">{session.cwd.replace(/\\/g, "/")}</span>
-              <span className="text-muted-foreground/30">/</span>
+            <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground flex-wrap">
               <Clock className="h-3 w-3 flex-shrink-0" />
               <span className="tabular-nums">{runningDuration(session.startedAt, tick)}</span>
+              {session.contextUsage?.model && (
+                <>
+                  <span className="text-muted-foreground/30">|</span>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{shortModel(session.contextUsage.model)}</Badge>
+                </>
+              )}
+              {(session.messageCount ?? 0) > 0 && (
+                <>
+                  <span className="text-muted-foreground/30">|</span>
+                  <span className="tabular-nums">{session.messageCount} msgs</span>
+                </>
+              )}
+              {(session.sizeBytes ?? 0) > 0 && (
+                <>
+                  <span className="text-muted-foreground/30">|</span>
+                  <span className="tabular-nums">{session.sizeBytes! > 1048576 ? `${(session.sizeBytes! / 1048576).toFixed(1)} MB` : `${Math.round(session.sizeBytes! / 1024)} KB`}</span>
+                </>
+              )}
+              {(session.costEstimate ?? 0) > 0 && (
+                <>
+                  <span className="text-muted-foreground/30">|</span>
+                  <span className="tabular-nums text-amber-400/70">${session.costEstimate! < 0.01 ? "<0.01" : session.costEstimate!.toFixed(2)}</span>
+                </>
+              )}
               {session.projectKey && (
                 <>
-                  <span className="text-muted-foreground/30">/</span>
+                  <span className="text-muted-foreground/30">|</span>
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0">{session.projectKey.split("--").pop()}</Badge>
                 </>
               )}
             </div>
+            <div className="text-[10px] text-muted-foreground/40 mt-0.5 font-mono truncate">{session.cwd.replace(/\\/g, "/")}</div>
 
             {/* Context usage */}
             {session.contextUsage && (

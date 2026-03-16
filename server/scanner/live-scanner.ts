@@ -52,46 +52,111 @@ function readTailLines(filePath: string, chunkSize = 65536): string[] {
   }
 }
 
-/** Read context usage from the last assistant message in a session JSONL */
-function getContextUsageFromFile(filePath: string): ActiveSession["contextUsage"] {
-  const lines = readTailLines(filePath);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    try {
-      const record = JSON.parse(trimmed);
-      if (record.type === "assistant" && record.message?.usage) {
-        const u = record.message.usage;
-        const model = record.message.model || "";
-        const tokensUsed = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
-        const maxTokens = getMaxTokens(model);
-        return {
-          tokensUsed,
-          maxTokens,
-          percentage: Math.round((tokensUsed / maxTokens) * 100),
-          model,
-        };
-      }
-    } catch {}
+/** Cost per million tokens by model (USD) — input/output */
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  opus:   { input: 15, output: 75 },
+  sonnet: { input: 3, output: 15 },
+  haiku:  { input: 0.8, output: 4 },
+};
+
+function getModelPricing(model: string): { input: number; output: number } {
+  for (const [key, pricing] of Object.entries(MODEL_PRICING)) {
+    if (model.includes(key)) return pricing;
   }
-  return undefined;
+  return MODEL_PRICING.sonnet; // default
 }
 
-/** Read the last user message from a session JSONL */
-function getLastUserMessage(filePath: string): string | undefined {
-  const lines = readTailLines(filePath);
-  for (const line of lines) {
+interface SessionDetails {
+  contextUsage?: ActiveSession["contextUsage"];
+  lastMessage?: string;
+  messageCount: number;
+  sizeBytes: number;
+  costEstimate: number;
+}
+
+/** Extract all session details in a single pass over the tail of the JSONL */
+function getSessionDetails(filePath: string): SessionDetails {
+  let contextUsage: ActiveSession["contextUsage"];
+  let lastMessage: string | undefined;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let model = "";
+  let sizeBytes = 0;
+
+  try {
+    sizeBytes = fs.statSync(filePath).size;
+  } catch {}
+
+  // Read the tail for context usage (last assistant message)
+  const tailLines = readTailLines(filePath, 65536);
+  for (const line of tailLines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
       const record = JSON.parse(trimmed);
-      if (record.type === "user" && record.message) {
-        const text = extractText(record.message.content || "");
-        if (text) return text.replace(/\n/g, " ").trim().slice(0, 200);
+      if (!contextUsage && record.type === "assistant" && record.message?.usage) {
+        const u = record.message.usage;
+        model = record.message.model || "";
+        const tokensUsed = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+        const maxTokens = getMaxTokens(model);
+        contextUsage = { tokensUsed, maxTokens, percentage: Math.round((tokensUsed / maxTokens) * 100), model };
       }
     } catch {}
   }
-  return undefined;
+
+  // Read larger tail for last human message + count messages + total tokens for cost
+  const bigLines = readTailLines(filePath, Math.min(sizeBytes, 1048576));
+  let messageCount = 0;
+  let foundLastMsg = false;
+
+  for (const line of bigLines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const record = JSON.parse(trimmed);
+
+      // Count human user messages and assistant messages
+      if (record.type === "assistant") {
+        messageCount++;
+        const u = record.message?.usage;
+        if (u) {
+          totalInputTokens += (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+          totalOutputTokens += u.output_tokens || 0;
+          if (!model && record.message?.model) model = record.message.model;
+        }
+      }
+
+      // Find last human text message
+      if (!foundLastMsg && record.type === "user") {
+        const content = record.message?.content;
+        if (typeof content === "string" && content.length > 5) {
+          lastMessage = content.replace(/\n/g, " ").trim().slice(0, 200);
+          foundLastMsg = true;
+        } else if (Array.isArray(content)) {
+          for (const item of content) {
+            if (item?.type === "text" && typeof item.text === "string" && item.text.length > 5) {
+              lastMessage = item.text.replace(/\n/g, " ").trim().slice(0, 200);
+              foundLastMsg = true;
+              break;
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Estimate cost (note: we only have partial data from the tail chunk)
+  const pricing = getModelPricing(model);
+  // Cache reads are 90% cheaper
+  const costEstimate = (totalInputTokens / 1_000_000 * pricing.input * 0.1) + (totalOutputTokens / 1_000_000 * pricing.output);
+
+  return {
+    contextUsage,
+    lastMessage,
+    messageCount,
+    sizeBytes,
+    costEstimate: Math.round(costEstimate * 1000) / 1000, // 3 decimal places
+  };
 }
 
 /** Get real-time live data — called on-demand per request, not during full scan */
@@ -155,11 +220,15 @@ export function getLiveData(): LiveData {
       active.projectKey = cached.projectKey;
     }
 
-    // 2c. Extract context usage + last user message from session JSONL
+    // 2c. Extract context usage, last message, message count, size, cost from session JSONL
     const sessionFile = findSessionFile(active.sessionId, projectsDir);
     if (sessionFile) {
-      active.contextUsage = getContextUsageFromFile(sessionFile);
-      active.lastMessage = getLastUserMessage(sessionFile);
+      const details = getSessionDetails(sessionFile);
+      active.contextUsage = details.contextUsage;
+      active.lastMessage = details.lastMessage;
+      active.messageCount = details.messageCount;
+      active.sizeBytes = details.sizeBytes;
+      active.costEstimate = details.costEstimate;
     }
   }
 

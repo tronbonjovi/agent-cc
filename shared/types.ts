@@ -262,6 +262,9 @@ export interface ActiveSession {
     percentage: number;
     model?: string;
   };
+  messageCount?: number;
+  sizeBytes?: number;
+  costEstimate?: number;  // USD
 }
 
 export interface ActiveAgent {
