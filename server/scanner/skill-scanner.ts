@@ -1,18 +1,67 @@
 import type { Entity } from "@shared/types";
-import { entityId, safeReadText, getFileStat, CLAUDE_DIR, now, listDirs, fileExists, getExtraPaths } from "./utils";
+import { entityId, safeReadText, getFileStat, CLAUDE_DIR, now, listDirs, fileExists, dirExists, getExtraPaths, discoverProjectDirs } from "./utils";
 import path from "path";
+import fs from "fs";
 import matter from "gray-matter";
 
 export function scanSkills(): Entity[] {
   const results: Entity[] = [];
-  const skillsDir = path.join(CLAUDE_DIR, "skills").replace(/\\/g, "/");
-  const skillDirs = [...listDirs(skillsDir)];
+  const seen = new Set<string>();
+  const skillDirs: string[] = [];
 
-  // Extra skill dirs from settings
-  for (const extraDir of getExtraPaths().extraSkillDirs) {
-    for (const sub of listDirs(extraDir.replace(/\\/g, "/"))) {
-      if (!skillDirs.includes(sub)) skillDirs.push(sub);
+  function addSkillDirs(parentDir: string) {
+    for (const sub of listDirs(parentDir)) {
+      if (!seen.has(sub)) {
+        seen.add(sub);
+        skillDirs.push(sub);
+      }
     }
+  }
+
+  // 1. Global skills: ~/.claude/skills/
+  addSkillDirs(path.join(CLAUDE_DIR, "skills").replace(/\\/g, "/"));
+
+  // 2. Plugin skills: ~/.claude/plugins/marketplaces/*/plugins/*/skills/
+  const marketplacesDir = path.join(CLAUDE_DIR, "plugins", "marketplaces").replace(/\\/g, "/");
+  if (dirExists(marketplacesDir)) {
+    for (const mktDir of listDirs(marketplacesDir)) {
+      // Check both plugins/ subfolder and direct plugin dirs
+      const pluginsSubDir = path.join(mktDir, "plugins").replace(/\\/g, "/");
+      const searchDirs = dirExists(pluginsSubDir) ? [pluginsSubDir, mktDir] : [mktDir];
+      for (const searchDir of searchDirs) {
+        for (const pluginDir of listDirs(searchDir)) {
+          const skillsInPlugin = path.join(pluginDir, "skills").replace(/\\/g, "/");
+          if (dirExists(skillsInPlugin)) {
+            addSkillDirs(skillsInPlugin);
+          }
+        }
+      }
+    }
+    // Also check external_plugins within marketplaces
+    for (const mktDir of listDirs(marketplacesDir)) {
+      const extDir = path.join(mktDir, "external_plugins").replace(/\\/g, "/");
+      if (dirExists(extDir)) {
+        for (const pluginDir of listDirs(extDir)) {
+          const skillsInPlugin = path.join(pluginDir, "skills").replace(/\\/g, "/");
+          if (dirExists(skillsInPlugin)) {
+            addSkillDirs(skillsInPlugin);
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Project-local skills: <project>/.claude/skills/
+  for (const projectDir of discoverProjectDirs()) {
+    const projectSkillsDir = path.join(projectDir, ".claude", "skills").replace(/\\/g, "/");
+    if (dirExists(projectSkillsDir)) {
+      addSkillDirs(projectSkillsDir);
+    }
+  }
+
+  // 4. Extra skill dirs from settings
+  for (const extraDir of getExtraPaths().extraSkillDirs) {
+    addSkillDirs(extraDir.replace(/\\/g, "/"));
   }
 
   for (const skillDir of skillDirs) {

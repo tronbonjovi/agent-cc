@@ -74,18 +74,61 @@ function getMaxTokens(model: string): number {
   return 200000; // default
 }
 
-/** Find the session JSONL file across all project dirs */
+/** Find the session JSONL file across all project dirs.
+ *  Claude Code creates a new JSONL file (with a new session ID) after context
+ *  compaction, but the runtime metadata in ~/.claude/sessions/<pid>.json still
+ *  references the *original* session ID.  To handle this we first look for an
+ *  exact match; if that file is stale (>5 min old) we fall back to the most
+ *  recently modified JSONL in the same project directory — which is very likely
+ *  the continuation of the same session. */
 function findSessionFile(sessionId: string, projectsDir: string): string | null {
   if (!dirExists(projectsDir)) return null;
   try {
     const dirs = fs.readdirSync(projectsDir, { withFileTypes: true });
     for (const dir of dirs) {
       if (!dir.isDirectory()) continue;
-      const jsonlPath = path.join(projectsDir, dir.name, `${sessionId}.jsonl`).replace(/\\/g, "/");
-      if (fs.existsSync(jsonlPath)) return jsonlPath;
+      const projectPath = path.join(projectsDir, dir.name).replace(/\\/g, "/");
+      const exactPath = path.join(projectPath, `${sessionId}.jsonl`).replace(/\\/g, "/");
+
+      if (fs.existsSync(exactPath)) {
+        // If the exact match is fresh enough, use it
+        try {
+          const stat = fs.statSync(exactPath);
+          if (Date.now() - stat.mtime.getTime() < 300_000) return exactPath;
+        } catch {
+          return exactPath;
+        }
+
+        // Exact match is stale — look for a newer JSONL in the same project dir
+        const newestInDir = findNewestJsonl(projectPath);
+        return newestInDir || exactPath;
+      }
     }
   } catch {}
   return null;
+}
+
+/** Return the most recently modified .jsonl file in a directory */
+function findNewestJsonl(dirPath: string): string | null {
+  try {
+    let newest: string | null = null;
+    let newestMtime = 0;
+    const files = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const f of files) {
+      if (!f.isFile() || !f.name.endsWith(".jsonl")) continue;
+      const full = path.join(dirPath, f.name).replace(/\\/g, "/");
+      try {
+        const mt = fs.statSync(full).mtime.getTime();
+        if (mt > newestMtime) {
+          newestMtime = mt;
+          newest = full;
+        }
+      } catch {}
+    }
+    return newest;
+  } catch {
+    return null;
+  }
 }
 
 /** Read the tail of a JSONL file and return lines in reverse order */

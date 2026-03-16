@@ -86,25 +86,60 @@ export function now(): string {
   return new Date().toISOString();
 }
 
-/** Discover project directories under HOME that have project markers */
+/** Check whether a directory has common project marker files */
+function hasProjectMarkers(dirPath: string): boolean {
+  return (
+    fileExists(path.join(dirPath, "CLAUDE.md")) ||
+    fileExists(path.join(dirPath, ".mcp.json")) ||
+    dirExists(path.join(dirPath, ".git")) ||
+    fileExists(path.join(dirPath, "package.json")) ||
+    fileExists(path.join(dirPath, "pyproject.toml")) ||
+    fileExists(path.join(dirPath, "requirements.txt")) ||
+    fileExists(path.join(dirPath, "Cargo.toml")) ||
+    fileExists(path.join(dirPath, "go.mod"))
+  );
+}
+
+/** Well-known container directories that typically hold project subdirectories */
+const PROJECT_CONTAINER_NAMES = new Set([
+  "projects", "repos", "repositories", "src", "source",
+  "code", "developer", "dev", "workspace", "workspaces", "git",
+]);
+
+/** Discover project directories under HOME that have project markers.
+ *  Scans direct children of HOME, and also one level deeper inside
+ *  well-known container directories (e.g. ~/Projects, ~/Developer). */
 export function discoverProjectDirs(): string[] {
   const results: string[] = [];
+  const seen = new Set<string>();
+
+  function addIfProject(dirPath: string) {
+    if (seen.has(dirPath)) return;
+    seen.add(dirPath);
+    if (hasProjectMarkers(dirPath)) {
+      results.push(dirPath);
+    }
+  }
+
   try {
     const entries = fs.readdirSync(HOME, { withFileTypes: true });
     for (const e of entries) {
       if (!e.isDirectory() || e.name.startsWith(".") || e.name === "node_modules") continue;
       const full = path.join(HOME, e.name).replace(/\\/g, "/");
-      if (
-        fileExists(path.join(full, "CLAUDE.md")) ||
-        fileExists(path.join(full, ".mcp.json")) ||
-        dirExists(path.join(full, ".git")) ||
-        fileExists(path.join(full, "package.json")) ||
-        fileExists(path.join(full, "pyproject.toml")) ||
-        fileExists(path.join(full, "requirements.txt")) ||
-        fileExists(path.join(full, "Cargo.toml")) ||
-        fileExists(path.join(full, "go.mod"))
-      ) {
-        results.push(full);
+
+      // Check if this top-level dir is itself a project
+      addIfProject(full);
+
+      // If it's a well-known container directory, also scan its children
+      if (PROJECT_CONTAINER_NAMES.has(e.name.toLowerCase())) {
+        try {
+          const children = fs.readdirSync(full, { withFileTypes: true });
+          for (const child of children) {
+            if (!child.isDirectory() || child.name.startsWith(".") || child.name === "node_modules") continue;
+            const childFull = path.join(full, child.name).replace(/\\/g, "/");
+            addIfProject(childFull);
+          }
+        } catch {}
       }
     }
   } catch {}
