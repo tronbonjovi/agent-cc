@@ -26,6 +26,7 @@ import Agents from "@/pages/agents";
 import Live from "@/pages/live";
 import SettingsPage from "@/pages/settings";
 import Stats from "@/pages/stats";
+import Rules from "@/pages/rules";
 import CostDashboard from "@/pages/cost-dashboard";
 import MessageHistory from "@/pages/message-history";
 import NotFound from "@/pages/not-found";
@@ -62,6 +63,7 @@ function Router() {
         <Route path="/agents" component={Agents} />
         <Route path="/live" component={Live} />
         <Route path="/settings" component={SettingsPage} />
+        <Route path="/rules" component={Rules} />
         <Route path="/stats" component={Stats} />
         <Route path="/costs" component={CostDashboard} />
         <Route path="/messages" component={MessageHistory} />

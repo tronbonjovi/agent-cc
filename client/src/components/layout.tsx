@@ -29,6 +29,7 @@ import {
   Radio,
   BarChart3,
   DollarSign,
+  BookOpen,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
@@ -58,6 +59,7 @@ const navSections = [
       { path: "/live", label: "Live", icon: Radio, countKey: null },
       { path: "/graph", label: "Graph", icon: GitBranch, countKey: null },
       { path: "/discovery", label: "Discovery", icon: Search, countKey: null },
+      { path: "/rules", label: "Rules", icon: BookOpen, countKey: null },
       { path: "/config", label: "Config", icon: Settings, countKey: "config" as const },
       { path: "/activity", label: "Activity", icon: Activity, countKey: null },
       { path: "/stats", label: "Stats", icon: BarChart3, countKey: null },

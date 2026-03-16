@@ -104,7 +104,7 @@ export function scanMarkdown(): Entity[] {
     }
   }
 
-  // SKILL.md files
+  // SKILL.md files — global skills
   const skillsDir = path.join(CLAUDE_DIR, "skills").replace(/\\/g, "/");
   if (dirExists(skillsDir)) {
     try {
@@ -113,6 +113,43 @@ export function scanMarkdown(): Entity[] {
         if (!dir.isDirectory()) continue;
         addMarkdownFile(path.join(skillsDir, dir.name, "SKILL.md").replace(/\\/g, "/"));
       }
+    } catch {}
+  }
+
+  // SKILL.md files — project-local skills (<project>/.claude/skills/*/SKILL.md)
+  for (const projDir of discoverProjectDirs()) {
+    const projSkillsDir = path.join(projDir, ".claude", "skills").replace(/\\/g, "/");
+    if (dirExists(projSkillsDir)) {
+      try {
+        const dirs = fs.readdirSync(projSkillsDir, { withFileTypes: true });
+        for (const dir of dirs) {
+          if (!dir.isDirectory()) continue;
+          addMarkdownFile(path.join(projSkillsDir, dir.name, "SKILL.md").replace(/\\/g, "/"));
+        }
+      } catch {}
+    }
+  }
+
+  // SKILL.md files — plugin skills
+  const marketplacesDir = path.join(CLAUDE_DIR, "plugins", "marketplaces").replace(/\\/g, "/");
+  if (dirExists(marketplacesDir)) {
+    try {
+      // Recursively find all SKILL.md files under marketplaces
+      const findSkillMds = (dir: string) => {
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.name === "node_modules" || entry.name === ".git") continue;
+            const full = path.join(dir, entry.name).replace(/\\/g, "/");
+            if (entry.isFile() && entry.name === "SKILL.md") {
+              addMarkdownFile(full);
+            } else if (entry.isDirectory()) {
+              findSkillMds(full);
+            }
+          }
+        } catch {}
+      };
+      findSkillMds(marketplacesDir);
     } catch {}
   }
 
