@@ -183,6 +183,22 @@ export function buildRelationships(
     }
   }
 
+  // === Project <-> Plugin relationships (installed plugins are globally available) ===
+  for (const plugin of plugins) {
+    // Skip marketplace container entities — only link actual plugins
+    if (plugin.tags.includes("marketplace")) continue;
+    for (const project of projects) {
+      storage.addRelationship({
+        sourceId: project.id,
+        sourceType: "project",
+        targetId: plugin.id,
+        targetType: "plugin",
+        relation: "uses",
+      });
+    }
+    connectedPlugins.add(plugin.id);
+  }
+
   // === Project <-> Markdown relationships ===
   for (const md of markdowns) {
     // CLAUDE.md files -> match by project directory
