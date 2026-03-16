@@ -226,7 +226,18 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/update/apply — run git pull + npm install + npm run build
+/** Detect if running from npm global install vs git clone */
+function isNpmInstall(): boolean {
+  // If there's no .git directory, it's an npm install
+  try {
+    fs.statSync(path.join(PROJECT_ROOT, ".git"));
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+// POST /api/update/apply — run update steps based on install method
 router.post("/api/update/apply", (_req: Request, res: Response) => {
   if (updateInProgress) {
     res.status(409).json({ error: "Update already in progress" });
@@ -234,9 +245,6 @@ router.post("/api/update/apply", (_req: Request, res: Response) => {
   }
 
   updateInProgress = true;
-  const remoteBranch = detectRemoteBranch();
-  const branch = remoteBranch.replace("origin/", "");
-
   const steps: UpdateApplyResult["steps"] = [];
   let failed = false;
 
@@ -260,14 +268,27 @@ router.post("/api/update/apply", (_req: Request, res: Response) => {
   };
 
   try {
-    runStep("git pull", `git pull origin ${branch}`, 30000);
-    runStep("npm install", "npm install", 120000);
-    runStep("npm run build", "npm run build", 120000);
+    if (isNpmInstall()) {
+      // npm global install — update via npm
+      runStep("npm update", "npm update -g claude-command-center", 120000);
+    } else {
+      // git clone — update via git pull + rebuild
+      const remoteBranch = detectRemoteBranch();
+      const branch = remoteBranch.replace("origin/", "");
+      runStep("git pull", `git pull origin ${branch}`, 30000);
+      runStep("npm install", "npm install", 120000);
+      runStep("npm run build", "npm run build", 120000);
+    }
 
     const success = !failed;
     if (success) {
-      // Clear cache so next status check is fresh
       cachedStatus = null;
+
+      // Schedule auto-restart after response is sent
+      setTimeout(() => {
+        console.log("[update] Restarting server...");
+        process.exit(0); // Process manager or user restarts
+      }, 2000);
     }
 
     res.json({
