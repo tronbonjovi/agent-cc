@@ -14,6 +14,7 @@ import {
   Activity,
   Terminal,
   Check,
+  GitBranch,
 } from "lucide-react";
 import type { ActiveSession, AgentExecution } from "@shared/types";
 
@@ -79,6 +80,37 @@ function useTick(ms: number): number {
     return () => clearInterval(id);
   }, [ms]);
   return tick;
+}
+
+const STATUS_CONFIG: Record<string, { dotClass: string; borderClass: string; cardClass: string; label: string }> = {
+  thinking: {
+    dotClass: "bg-green-500 animate-pulse drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]",
+    borderClass: "border-green-500/20",
+    cardClass: "",
+    label: "Thinking",
+  },
+  waiting: {
+    dotClass: "bg-yellow-500 drop-shadow-[0_0_4px_rgba(234,179,8,0.5)]",
+    borderClass: "border-yellow-500/20",
+    cardClass: "",
+    label: "Waiting",
+  },
+  idle: {
+    dotClass: "bg-muted-foreground/50",
+    borderClass: "",
+    cardClass: "",
+    label: "Idle",
+  },
+  stale: {
+    dotClass: "bg-muted-foreground/30",
+    borderClass: "",
+    cardClass: "opacity-60",
+    label: "Stale",
+  },
+};
+
+function getStatusConfig(status?: string) {
+  return STATUS_CONFIG[status || ""] || STATUS_CONFIG.thinking;
 }
 
 export default function Live() {
@@ -163,10 +195,28 @@ export default function Live() {
       <div className={`flex items-center gap-4 px-4 py-3 rounded-xl border bg-card ${hasActive ? "live-border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.08)]" : ""}`}>
         <div className="flex items-center gap-2">
           <Monitor className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm">
-            <span className="font-mono font-bold">{stats?.activeSessionCount ?? 0}</span>
-            <span className="text-muted-foreground ml-1">session{(stats?.activeSessionCount ?? 0) !== 1 ? "s" : ""}</span>
-          </span>
+          {(() => {
+            const thinkingCount = activeSessions.filter(s => s.status === "thinking").length;
+            const waitingCount = activeSessions.filter(s => s.status === "waiting").length;
+            const idleCount = activeSessions.filter(s => s.status === "idle").length;
+            const staleCount = activeSessions.filter(s => s.status === "stale").length;
+            const noStatusCount = activeSessions.filter(s => !s.status).length;
+            const total = stats?.activeSessionCount ?? 0;
+            const parts: string[] = [];
+            if (thinkingCount + noStatusCount > 0) parts.push(`${thinkingCount + noStatusCount} thinking`);
+            if (waitingCount > 0) parts.push(`${waitingCount} waiting`);
+            if (idleCount > 0) parts.push(`${idleCount} idle`);
+            if (staleCount > 0) parts.push(`${staleCount} stale`);
+            return (
+              <span className="text-sm">
+                <span className="font-mono font-bold">{total}</span>
+                <span className="text-muted-foreground ml-1">
+                  {total !== 1 ? "sessions" : "session"}
+                  {parts.length > 0 && hasActive && ` — ${parts.join(", ")}`}
+                </span>
+              </span>
+            );
+          })()}
           {hasActive && (
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           )}
@@ -300,20 +350,30 @@ function ActiveSessionCard({
   const lastMsg = session.lastMessage ? shortSummary(session.lastMessage, 12) : null;
   const firstMsg = session.firstMessage ? shortSummary(session.firstMessage, 8) : null;
   const isCopied = copiedId === session.sessionId;
+  const sc = getStatusConfig(session.status);
 
   return (
     <Card
-      className={`animate-fade-in-up ${isNew ? "ring-2 ring-green-500/40 shadow-[0_0_20px_rgba(34,197,94,0.2)]" : ""}`}
+      className={`animate-fade-in-up ${sc.cardClass} ${sc.borderClass ? `border ${sc.borderClass}` : ""} ${isNew ? "ring-2 ring-green-500/40 shadow-[0_0_20px_rgba(34,197,94,0.2)]" : ""}`}
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <span className="mt-1 w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0 drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
+          <div className="mt-1 flex flex-col items-center gap-0.5 flex-shrink-0">
+            <span className={`w-2.5 h-2.5 rounded-full ${sc.dotClass}`} />
+            <span className="text-[9px] text-muted-foreground/60 leading-none">{sc.label}</span>
+          </div>
           <div className="flex-1 min-w-0">
             {/* Title row */}
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium truncate">{title}</span>
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">PID {session.pid}</Badge>
+              {session.permissionMode === "bypass" && (
+                <Badge className="text-[10px] px-1.5 py-0 flex-shrink-0 bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/20">BYPASS</Badge>
+              )}
+              {session.permissionMode === "auto-accept" && (
+                <Badge className="text-[10px] px-1.5 py-0 flex-shrink-0 bg-yellow-500/20 text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/20">AUTO</Badge>
+              )}
               <div className="ml-auto flex-shrink-0">
                 <Button
                   size="sm"
@@ -378,6 +438,13 @@ function ActiveSessionCard({
                 <>
                   <span className="text-muted-foreground/30">|</span>
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0">{session.projectKey.split("--").pop()}</Badge>
+                </>
+              )}
+              {session.gitBranch && (
+                <>
+                  <span className="text-muted-foreground/30">|</span>
+                  <GitBranch className="h-3 w-3 flex-shrink-0" />
+                  <span className="tabular-nums">{session.gitBranch}</span>
                 </>
               )}
             </div>

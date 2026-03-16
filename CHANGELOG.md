@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-03-16
+
+### Added
+- **Cost Analytics page** (`/costs`) -- daily cost chart (30 days), per-model and per-project breakdown, cache savings calculation, plan limit comparison ($100/$200 thresholds)
+- **Error Breakdown** on cost page -- categorizes tool errors, compilation failures, test failures, permission denials, network errors with counts and examples
+- **Message History page** (`/messages`) -- chronological timeline of all user instructions across sessions, expandable conversation view with tool name badges
+- **Session status detection** -- thinking (green pulse), waiting (yellow), idle (grey), stale (dimmed) based on JSONL file mtime
+- **Permission mode badges** -- BYPASS (red) and AUTO (yellow) badges on active sessions in Live view
+- **Git branch display** -- shows current branch per session in Live view (reads .git/HEAD directly)
+- **Plan comparison** -- visual bar comparing monthly spend against Max $100/mo and $200/mo plan limits
+- **Session messages API** (`GET /api/sessions/:id/messages`) -- paginated conversation with role, content, model, token count, tool names
+
 ## [1.2.1] - 2026-03-16
 
 ### Added

@@ -16,6 +16,7 @@ import customGraphRouter from "./custom-graph";
 import aiSuggestRouter from "./ai-suggest";
 import statsRouter from "./stats";
 import exportRouter from "./export";
+import costAnalyticsRouter from "./cost-analytics";
 import { spawn } from "child_process";
 import { platform } from "os";
 import path from "path";
@@ -70,6 +71,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.use(aiSuggestRouter);
   app.use(statsRouter);
   app.use(exportRouter);
+  app.use(costAnalyticsRouter);
 
   // Actions — open-folder and open-file share identical logic
   const handleOpen = (req: import("express").Request, res: import("express").Response) => {

@@ -5,6 +5,61 @@ import { getCachedExecutions } from "./agent-scanner";
 import { getCachedSessions } from "./session-scanner";
 import type { LiveData, ActiveSession } from "@shared/types";
 
+/** Status thresholds (ms) */
+const STATUS_THINKING_MS = 10_000;    // <10s = thinking
+const STATUS_WAITING_MS  = 60_000;    // 10-60s = waiting
+const STATUS_IDLE_MS     = 600_000;   // 1-10min = idle
+// >10min = stale
+
+/** Determine session status based on JSONL file mtime */
+function getSessionStatus(sessionFile: string, nowMs: number): ActiveSession["status"] {
+  try {
+    const stat = fs.statSync(sessionFile);
+    const ageMs = nowMs - stat.mtime.getTime();
+    if (ageMs <= STATUS_THINKING_MS) return "thinking";
+    if (ageMs <= STATUS_WAITING_MS) return "waiting";
+    if (ageMs <= STATUS_IDLE_MS) return "idle";
+    return "stale";
+  } catch {
+    return "stale";
+  }
+}
+
+/** Read permission mode from ~/.claude/settings.json */
+function getPermissionMode(): ActiveSession["permissionMode"] {
+  try {
+    const settingsPath = path.join(CLAUDE_DIR, "settings.json").replace(/\\/g, "/");
+    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    const allow = settings?.permissions?.allow;
+    if (Array.isArray(allow)) {
+      if (allow.some((p: string) => p === "*" || p === "Bash(*)")) return "bypass";
+      if (allow.length > 5) return "auto-accept";
+    }
+    return "default";
+  } catch {
+    return "default";
+  }
+}
+
+/** Read git branch from <cwd>/.git/HEAD without running git */
+function getGitBranch(cwd: string): string | undefined {
+  if (!cwd) return undefined;
+  try {
+    const headPath = path.join(cwd, ".git", "HEAD").replace(/\\/g, "/");
+    const content = fs.readFileSync(headPath, "utf-8").trim();
+    if (content.startsWith("ref: refs/heads/")) {
+      return content.slice("ref: refs/heads/".length);
+    }
+    // Detached HEAD — return short hash
+    if (/^[a-f0-9]{40}$/i.test(content)) {
+      return content.slice(0, 8);
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Max context windows by model family */
 const MODEL_MAX_TOKENS: Record<string, number> = {
   "opus": 1000000,
@@ -212,6 +267,8 @@ export function getLiveData(): LiveData {
   // 2b. Enrich active sessions from cached session data (zero filesystem cost)
   const cachedSessions = getCachedSessions();
   const sessionMap = new Map(cachedSessions.map(s => [s.id, s]));
+  const permissionMode = getPermissionMode();
+
   for (const active of activeSessions) {
     const cached = sessionMap.get(active.sessionId);
     if (cached) {
@@ -229,7 +286,18 @@ export function getLiveData(): LiveData {
       active.messageCount = details.messageCount;
       active.sizeBytes = details.sizeBytes;
       active.costEstimate = details.costEstimate;
+
+      // 2d. Detect session status from JSONL mtime
+      active.status = getSessionStatus(sessionFile, nowMs);
+    } else {
+      active.status = "stale";
     }
+
+    // 2e. Permission mode (global, same for all sessions)
+    active.permissionMode = permissionMode;
+
+    // 2f. Git branch from cwd
+    active.gitBranch = getGitBranch(active.cwd);
   }
 
   // 3. Get recent activity from cached executions

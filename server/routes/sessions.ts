@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { getCachedSessions, getCachedStats, removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
-import { decodeProjectKey, readMessageTimeline } from "../scanner/utils";
+import { CLAUDE_DIR, decodeProjectKey, dirExists, readMessageTimeline } from "../scanner/utils";
 import { SessionIdSchema, SessionListSchema, IdsArraySchema, validate, qstr } from "./validation";
 import { TRASH_DIR, MAX_SESSIONS_RESPONSE } from "../config";
 
@@ -153,6 +153,142 @@ router.get("/api/sessions/:id", (req: Request, res: Response) => {
   const records = readMessageTimeline(session.filePath);
 
   res.json({ ...session, records });
+});
+
+/** Find the JSONL file for a session across all project dirs */
+function findSessionJsonl(sessionId: string): string | null {
+  const projectsDir = path.join(CLAUDE_DIR, "projects").replace(/\\/g, "/");
+  if (!dirExists(projectsDir)) return null;
+  try {
+    const dirs = fs.readdirSync(projectsDir, { withFileTypes: true });
+    for (const dir of dirs) {
+      if (!dir.isDirectory()) continue;
+      const jsonlPath = path.join(projectsDir, dir.name, `${sessionId}.jsonl`).replace(/\\/g, "/");
+      if (fs.existsSync(jsonlPath)) return jsonlPath;
+    }
+  } catch {}
+  return null;
+}
+
+interface SessionMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  model?: string;
+  tokenCount?: number;
+  hasToolUse?: boolean;
+  toolNames?: string[];
+}
+
+/** Extract text content from a message content field, skipping tool_result items */
+function extractMessageText(content: unknown, skipToolResults: boolean): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const textParts: string[] = [];
+    for (const item of content) {
+      if (item == null || typeof item !== "object") continue;
+      if (skipToolResults && item.type === "tool_result") continue;
+      if (item.type === "text" && typeof item.text === "string") {
+        textParts.push(item.text);
+      }
+    }
+    return textParts.join("\n");
+  }
+  return "";
+}
+
+/** Extract tool_use block names from a content array */
+function extractToolNames(content: unknown): string[] {
+  if (!Array.isArray(content)) return [];
+  const names: string[] = [];
+  for (const item of content) {
+    if (item != null && typeof item === "object" && item.type === "tool_use" && typeof item.name === "string") {
+      names.push(item.name);
+    }
+  }
+  return names;
+}
+
+/** Parse an entire session JSONL file into conversation messages */
+function parseSessionMessages(filePath: string, offset: number, limit: number): { messages: SessionMessage[]; totalMessages: number } {
+  const allMessages: SessionMessage[] = [];
+
+  try {
+    const data = fs.readFileSync(filePath, "utf-8");
+    const lines = data.split("\n");
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const record = JSON.parse(trimmed);
+
+        if (record.type === "user") {
+          const msg = record.message;
+          if (!msg || typeof msg !== "object") continue;
+          const text = extractMessageText(msg.content, true);
+          if (!text) continue;
+          allMessages.push({
+            role: "user",
+            content: text.slice(0, 500),
+            timestamp: record.timestamp || "",
+          });
+        } else if (record.type === "assistant") {
+          const msg = record.message;
+          if (!msg || typeof msg !== "object") continue;
+          const text = extractMessageText(msg.content, false);
+          const toolNames = extractToolNames(msg.content);
+
+          const message: SessionMessage = {
+            role: "assistant",
+            content: text.slice(0, 500),
+            timestamp: record.timestamp || "",
+          };
+
+          if (msg.model) message.model = msg.model;
+          if (msg.usage?.input_tokens) message.tokenCount = msg.usage.input_tokens;
+          if (toolNames.length > 0) {
+            message.hasToolUse = true;
+            message.toolNames = toolNames;
+          }
+
+          allMessages.push(message);
+        }
+      } catch {
+        // Malformed JSON line — skip
+      }
+    }
+  } catch {
+    // File unreadable
+  }
+
+  const totalMessages = allMessages.length;
+  const sliced = allMessages.slice(offset, offset + limit);
+  return { messages: sliced, totalMessages };
+}
+
+/** GET /api/sessions/:id/messages — Conversation message history */
+router.get("/api/sessions/:id/messages", (req: Request, res: Response) => {
+  const idResult = SessionIdSchema.safeParse(req.params.id);
+  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+
+  const sessionId = idResult.data;
+
+  // Find the JSONL file
+  const jsonlPath = findSessionJsonl(sessionId);
+  if (!jsonlPath) return res.status(404).json({ message: "Session file not found" });
+
+  // Pagination
+  const offset = Math.max(0, parseInt(qstr(req.query.offset) || "0", 10) || 0);
+  const limit = Math.min(200, Math.max(1, parseInt(qstr(req.query.limit) || "200", 10) || 200));
+
+  const { messages, totalMessages } = parseSessionMessages(jsonlPath, offset, limit);
+
+  res.json({
+    sessionId,
+    totalMessages,
+    messages,
+  });
 });
 
 /** DELETE /api/sessions/:id — Delete a single session (moves to trash) */

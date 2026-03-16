@@ -24,9 +24,11 @@ import {
   ChevronRight,
   Activity,
   MessageSquare,
+  MessageSquareText,
   Bot,
   Radio,
   BarChart3,
+  DollarSign,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
@@ -51,6 +53,7 @@ const navSections = [
     label: "Tools",
     items: [
       { path: "/sessions", label: "Sessions", icon: MessageSquare, countKey: "session" as const },
+      { path: "/messages", label: "Messages", icon: MessageSquareText, countKey: null },
       { path: "/agents", label: "Agents", icon: Bot, countKey: "agent" as const },
       { path: "/live", label: "Live", icon: Radio, countKey: null },
       { path: "/graph", label: "Graph", icon: GitBranch, countKey: null },
@@ -58,6 +61,7 @@ const navSections = [
       { path: "/config", label: "Config", icon: Settings, countKey: "config" as const },
       { path: "/activity", label: "Activity", icon: Activity, countKey: null },
       { path: "/stats", label: "Stats", icon: BarChart3, countKey: null },
+      { path: "/costs", label: "Costs", icon: DollarSign, countKey: null },
       { path: "/settings", label: "Settings", icon: SlidersHorizontal, countKey: null },
     ],
   },

@@ -26,6 +26,8 @@ import Agents from "@/pages/agents";
 import Live from "@/pages/live";
 import SettingsPage from "@/pages/settings";
 import Stats from "@/pages/stats";
+import CostDashboard from "@/pages/cost-dashboard";
+import MessageHistory from "@/pages/message-history";
 import NotFound from "@/pages/not-found";
 
 function DynamicTitle() {
@@ -61,6 +63,8 @@ function Router() {
         <Route path="/live" component={Live} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/stats" component={Stats} />
+        <Route path="/costs" component={CostDashboard} />
+        <Route path="/messages" component={MessageHistory} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

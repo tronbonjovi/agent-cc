@@ -265,6 +265,9 @@ export interface ActiveSession {
   messageCount?: number;
   sizeBytes?: number;
   costEstimate?: number;  // USD
+  status?: "thinking" | "waiting" | "idle" | "stale";
+  permissionMode?: "default" | "auto-accept" | "bypass";
+  gitBranch?: string;
 }
 
 export interface ActiveAgent {
