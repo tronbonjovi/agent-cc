@@ -5,6 +5,7 @@ import {
   useCheckForUpdate,
   useApplyUpdate,
   useUpdatePrefs,
+  useRestartServer,
 } from "@/hooks/use-update";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -28,9 +29,13 @@ export function UpdateIndicator({ collapsed }: { collapsed: boolean }) {
   const { data: status } = useUpdateStatus();
   const checkMutation = useCheckForUpdate();
   const applyMutation = useApplyUpdate();
+  const restartMutation = useRestartServer();
   const prefsMutation = useUpdatePrefs();
   const [expanded, setExpanded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+
+  const isRestarting = restartMutation.isPending;
 
   const prefs = status?.prefs ?? { enabled: true, autoUpdate: false, dismissedCommit: null };
   const isChecking = checkMutation.isPending;
@@ -283,10 +288,51 @@ export function UpdateIndicator({ collapsed }: { collapsed: boolean }) {
             </div>
           )}
 
-          {isDone && (
-            <div className="text-[11px] text-emerald-400 flex items-center gap-2">
-              <RotateCcw className="h-3.5 w-3.5" />
-              Restart the server to apply
+          {isDone && !showRestartConfirm && (
+            <Button
+              size="sm"
+              className="w-full gap-1.5 text-xs h-7 bg-emerald-600 hover:bg-emerald-700"
+              onClick={() => setShowRestartConfirm(true)}
+              disabled={isRestarting}
+            >
+              <RotateCcw className={`h-3 w-3 ${isRestarting ? "animate-spin" : ""}`} />
+              {isRestarting ? "Restarting..." : "Restart Now"}
+            </Button>
+          )}
+          {isDone && showRestartConfirm && !isRestarting && (
+            <div className="space-y-2 border border-yellow-500/30 rounded-md p-2 bg-yellow-500/5">
+              <p className="text-[10px] text-yellow-400">
+                The server will briefly go offline. The page will auto-reload when it's back.
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                If it doesn't come back, restart manually:
+              </p>
+              <code className="text-[9px] text-muted-foreground/70 block bg-muted/30 rounded px-1.5 py-1 font-mono">
+                npm run dev
+              </code>
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  className="flex-1 gap-1 text-[10px] h-6 bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => restartMutation.mutate()}
+                >
+                  <RotateCcw className="h-2.5 w-2.5" />
+                  Confirm Restart
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-[10px] h-6 px-2"
+                  onClick={() => setShowRestartConfirm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+          {isRestarting && (
+            <div className="text-[10px] text-muted-foreground animate-pulse">
+              Waiting for server to come back...
             </div>
           )}
 

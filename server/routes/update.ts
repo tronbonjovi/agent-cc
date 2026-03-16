@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
@@ -294,6 +294,61 @@ router.post("/api/update/apply", (_req: Request, res: Response) => {
   } finally {
     updateInProgress = false;
   }
+});
+
+// POST /api/update/restart — restart the server process
+router.post("/api/update/restart", (_req: Request, res: Response) => {
+  const isNpm = isNpmInstall();
+
+  // Determine how to restart based on install method
+  let cmd: string;
+  let args: string[];
+
+  if (isNpm) {
+    // npm global: re-run the bin entry
+    cmd = process.execPath; // node
+    args = [path.join(PROJECT_ROOT, "dist", "index.cjs")];
+  } else if (process.env.NODE_ENV === "production") {
+    // git clone, production: node dist/index.cjs
+    cmd = process.execPath;
+    args = [path.join(PROJECT_ROOT, "dist", "index.cjs")];
+  } else {
+    // git clone, dev: npx tsx server/index.ts
+    cmd = process.execPath;
+    args = [
+      path.join(PROJECT_ROOT, "node_modules", ".bin", "tsx"),
+      path.join(PROJECT_ROOT, "server", "index.ts"),
+    ];
+  }
+
+  // Pass through PORT and HOST env vars
+  const env = { ...process.env };
+  env.COMMAND_CENTER_RESTARTED = "true";
+
+  res.json({ message: "Restarting server...", cmd: path.basename(cmd), mode: isNpm ? "npm" : "dev" });
+
+  // Give the response time to send, then spawn new process and exit
+  setTimeout(() => {
+    try {
+      console.log(`[update] Spawning new server: ${cmd} ${args.join(" ")}`);
+      const child = spawn(cmd, args, {
+        cwd: PROJECT_ROOT,
+        env,
+        detached: true,
+        stdio: "ignore",
+      });
+      child.unref();
+
+      // Give the new process a moment to start before exiting
+      setTimeout(() => {
+        console.log("[update] Old server exiting...");
+        process.exit(0);
+      }, 1500);
+    } catch (err) {
+      console.error("[update] Failed to spawn new server:", err);
+      // Don't exit — old server stays alive
+    }
+  }, 500);
 });
 
 export default router;

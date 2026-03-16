@@ -40,6 +40,34 @@ export function useApplyUpdate() {
   });
 }
 
+export function useRestartServer() {
+  return useMutation<{ message: string }>({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/update/restart");
+      return res.json();
+    },
+    onSuccess: () => {
+      // Server will die and respawn. Poll until it's back, then reload.
+      const poll = setInterval(async () => {
+        try {
+          const resp = await fetch("/health");
+          if (resp.ok) {
+            clearInterval(poll);
+            window.location.reload();
+          }
+        } catch {
+          // Server still restarting
+        }
+      }, 1500);
+      // Stop polling after 30s — show manual restart instructions
+      setTimeout(() => {
+        clearInterval(poll);
+        document.title = "Restart failed — restart manually";
+      }, 30000);
+    },
+  });
+}
+
 export function useUpdatePrefs() {
   const qc = useQueryClient();
   return useMutation<UpdatePreferences, Error, Partial<UpdatePreferences>>({
