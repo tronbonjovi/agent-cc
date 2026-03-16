@@ -15,7 +15,12 @@
     "claude",
     "claude-code",
     "mcp",
-    "dashboard"
+    "dashboard",
+    "developer-tools",
+    "typescript",
+    "react",
+    "anthropic",
+    "ai-agents"
   ],
   "scripts": {
     "dev": "tsx server/index.ts",
@@ -23,7 +28,8 @@
     "start": "node dist/index.cjs",
     "check": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",
-    "test:watch": "vitest --config vitest.config.ts"
+    "test:watch": "vitest --config vitest.config.ts",
+    "prepublishOnly": "npm run check && npm test && npm run build"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
