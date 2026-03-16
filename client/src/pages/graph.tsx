@@ -42,6 +42,7 @@ import {
   Focus,
   MessageSquare,
   Box,
+  Globe,
   Network,
   LayoutGrid,
   TreePine,
@@ -100,13 +101,14 @@ const allGraphTypes: { type: string; label: string; icon: any; color: string }[]
   ...allEntityTypes.map((t) => ({ type: t, label: entityConfig[t].label, icon: entityConfig[t].icon, color: entityColors[t] })),
   { type: "session", label: "Sessions", icon: MessageSquare, color: "#06b6d4" },
   { type: "custom", label: "Custom", icon: Box, color: "#f59e0b" },
+  { type: "api", label: "APIs", icon: Globe, color: "#f97316" },
 ];
 
 export default function GraphPage() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try { return (localStorage.getItem("graph-view") as ViewMode) || "graph"; } catch { return "graph"; }
   });
-  const [activeTypes, setActiveTypes] = useState<string[]>(["project", "mcp", "skill", "plugin", "custom"]);
+  const [activeTypes, setActiveTypes] = useState<string[]>(["project", "mcp", "skill", "plugin", "custom", "api"]);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [legendVisible, setLegendVisible] = useState(true);
@@ -115,7 +117,29 @@ export default function GraphPage() {
   const [layoutDir, setLayoutDir] = useState<"TB" | "LR">(() => {
     try { return (localStorage.getItem("graph-layout") as "TB" | "LR") || "TB"; } catch { return "TB"; }
   });
-  const { data: graphData, isLoading } = useGraphData(activeTypes);
+  // "api" is a client-side filter (subType of custom), not a server type.
+  // Ensure "custom" is in the server request when "api" is active.
+  const serverTypes = useMemo(() => {
+    const types = activeTypes.filter((t) => t !== "api");
+    if (activeTypes.includes("api") && !types.includes("custom")) {
+      types.push("custom");
+    }
+    return types;
+  }, [activeTypes]);
+  const showApis = activeTypes.includes("api");
+  const { data: rawGraphData, isLoading } = useGraphData(serverTypes);
+
+  // Filter out API nodes client-side when toggle is off
+  const graphData = useMemo(() => {
+    if (!rawGraphData || showApis) return rawGraphData;
+    const apiNodeIds = new Set(
+      rawGraphData.nodes.filter((n) => n.subType === "api").map((n) => n.id)
+    );
+    return {
+      nodes: rawGraphData.nodes.filter((n) => !apiNodeIds.has(n.id)),
+      edges: rawGraphData.edges.filter((e) => !apiNodeIds.has(e.source) && !apiNodeIds.has(e.target)),
+    };
+  }, [rawGraphData, showApis]);
   const [, setLocation] = useLocation();
   const [rfInstance, setRfInstance] = useState<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -144,7 +168,7 @@ export default function GraphPage() {
   };
 
   const resetTypes = () => {
-    setActiveTypes(["project", "mcp", "skill", "plugin", "custom"]);
+    setActiveTypes(["project", "mcp", "skill", "plugin", "custom", "api"]);
     setSelectedNode(null);
     setSearchQuery("");
   };
@@ -450,7 +474,9 @@ export default function GraphPage() {
           {/* Type filters */}
           {allGraphTypes.map(({ type, label, icon: Icon, color }) => {
             const active = activeTypes.includes(type);
-            const count = nodes.filter((n) => (n.data as unknown as GraphNode).type === type).length;
+            const count = type === "api"
+              ? (rawGraphData?.nodes || []).filter((n) => n.subType === "api").length
+              : nodes.filter((n) => (n.data as unknown as GraphNode).type === type).length;
             return (
               <Button
                 key={type}
