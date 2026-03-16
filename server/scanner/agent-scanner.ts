@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs";
 import matter from "gray-matter";
-import { CLAUDE_DIR, HOME, entityId, safeReadJson, dirExists, fileExists } from "./utils";
+import { CLAUDE_DIR, entityId, safeReadJson, dirExists, fileExists, readHead, readTailTs, extractText } from "./utils";
 import type { AgentDefinition, AgentExecution, AgentStats } from "@shared/types";
 
 // Module-level cache
@@ -19,77 +19,26 @@ export function getCachedDefinitions(): AgentDefinition[] { return cachedDefinit
 export function getCachedExecutions(): AgentExecution[] { return cachedExecutions; }
 export function getCachedAgentStats(): AgentStats { return cachedAgentStats; }
 
-/** Read first N JSON lines from file (reads only first 64KB chunk) */
-function readHead(filePath: string, n: number = 5): any[] {
-  try {
-    const stat = fs.statSync(filePath);
-    const chunkSize = Math.min(65536, stat.size);
-    const buf = Buffer.alloc(chunkSize);
-    const fd = fs.openSync(filePath, "r");
-    fs.readSync(fd, buf, 0, chunkSize, 0);
-    fs.closeSync(fd);
-    const lines = buf.toString("utf-8").split("\n");
-    const records: any[] = [];
-    const limit = n * 3;
-    for (let i = 0; i < Math.min(lines.length, limit); i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      try {
-        records.push(JSON.parse(line));
-        if (records.length >= n) break;
-      } catch {}
-    }
-    return records;
-  } catch {
-    return [];
-  }
-}
-
-/** Binary-seek last 4096 bytes to get last timestamp */
-function readTailTs(filePath: string): string | null {
-  try {
-    const stat = fs.statSync(filePath);
-    if (stat.size === 0) return null;
-    const chunkSize = Math.min(4096, stat.size);
-    const buf = Buffer.alloc(chunkSize);
-    const fd = fs.openSync(filePath, "r");
-    fs.readSync(fd, buf, 0, chunkSize, Math.max(0, stat.size - chunkSize));
-    fs.closeSync(fd);
-    const lines = buf.toString("utf-8").split("\n").reverse();
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        const d = JSON.parse(trimmed);
-        if (d.timestamp) return d.timestamp;
-      } catch {}
-    }
-  } catch {}
-  return null;
-}
-
-/** Handle string and [{type:"text", text:"..."}] content shapes */
-function extractText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .filter((item: any) => item?.type === "text")
-      .map((item: any) => item.text || "")
-      .join(" ");
-  }
-  return "";
-}
-
 /** Scan agent definition .md files from plugins and user agents dir */
 export function scanAgentDefinitions(): AgentDefinition[] {
   const defs: AgentDefinition[] = [];
+  const seenNames = new Set<string>();
 
   // Plugin agents: ~/.claude/plugins/marketplaces/*/plugins/*/agents/*.md
+  // Sort marketplaces so "official" comes first (wins dedup)
   const marketplacesDir = path.join(CLAUDE_DIR, "plugins/marketplaces").replace(/\\/g, "/");
   if (dirExists(marketplacesDir)) {
     try {
-      for (const market of fs.readdirSync(marketplacesDir, { withFileTypes: true })) {
-        if (!market.isDirectory()) continue;
+      const markets = fs.readdirSync(marketplacesDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .sort((a, b) => {
+          // Prioritize "official" marketplaces first
+          const aOff = a.name.includes("official") ? 0 : 1;
+          const bOff = b.name.includes("official") ? 0 : 1;
+          return aOff - bOff || a.name.localeCompare(b.name);
+        });
+
+      for (const market of markets) {
         const pluginsDir = path.join(marketplacesDir, market.name, "plugins").replace(/\\/g, "/");
         if (!dirExists(pluginsDir)) continue;
         for (const plugin of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
@@ -99,12 +48,23 @@ export function scanAgentDefinitions(): AgentDefinition[] {
           for (const agentFile of fs.readdirSync(agentsDir, { withFileTypes: true })) {
             if (!agentFile.isFile() || !agentFile.name.endsWith(".md")) continue;
             const filePath = path.join(agentsDir, agentFile.name).replace(/\\/g, "/");
-            const def = parseDefinition(filePath, "plugin", plugin.name);
-            if (def) defs.push(def);
+            const def = parseDefinition(filePath, "plugin", plugin.name, market.name);
+            if (def) {
+              // Deduplicate: skip agents with same name+plugin across different marketplaces
+              // (e.g. "code-reviewer" from "feature-dev" in both official and code-plugins)
+              // But keep agents with same name from DIFFERENT plugins in the same marketplace
+              // (e.g. "code-reviewer" from "feature-dev" vs "code-reviewer" from "pr-review-toolkit")
+              const dedupeKey = `${def.name}::${plugin.name}::${agentFile.name}`;
+              if (seenNames.has(dedupeKey)) continue;
+              seenNames.add(dedupeKey);
+              defs.push(def);
+            }
           }
         }
       }
-    } catch {}
+    } catch (err) {
+      console.warn("[agent-scanner] Failed to scan plugin agents:", (err as Error).message);
+    }
   }
 
   // User agents: ~/.claude/agents/*.md
@@ -117,18 +77,66 @@ export function scanAgentDefinitions(): AgentDefinition[] {
         const def = parseDefinition(filePath, "user");
         if (def) defs.push(def);
       }
-    } catch {}
+    } catch (err) {
+      console.warn("[agent-scanner] Failed to scan user agents:", (err as Error).message);
+    }
   }
 
   cachedDefinitions = defs;
   return defs;
 }
 
-function parseDefinition(filePath: string, source: "plugin" | "user" | "project", pluginName?: string): AgentDefinition | null {
+/** Map marketplace directory names to display labels */
+const MARKETPLACE_LABELS: Record<string, string> = {
+  "claude-plugins-official": "Anthropic Official",
+};
+
+function marketplaceLabel(dirName: string): string {
+  return MARKETPLACE_LABELS[dirName] || dirName.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/** Fallback frontmatter parser for files that break gray-matter (unquoted YAML values with colons) */
+function parseFrontmatterFallback(raw: string): { data: Record<string, string>; content: string } {
+  // Find the frontmatter block between --- markers
+  const startIdx = raw.indexOf("---");
+  if (startIdx < 0) return { data: {}, content: raw };
+  const afterStart = raw.indexOf("\n", startIdx) + 1;
+  const endIdx = raw.indexOf("\n---", afterStart);
+  if (endIdx < 0) return { data: {}, content: raw };
+
+  const fmBlock = raw.slice(afterStart, endIdx);
+  const contentStart = raw.indexOf("\n", endIdx + 1);
+  const content = contentStart >= 0 ? raw.slice(contentStart + 1) : "";
+  const data: Record<string, string> = {};
+
+  for (const line of fmBlock.split(/\r?\n/)) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx < 0) continue;
+    const key = line.slice(0, colonIdx).trim();
+    const value = line.slice(colonIdx + 1).trim();
+    if (key && value) data[key] = value;
+  }
+
+  return { data, content };
+}
+
+function parseDefinition(filePath: string, source: "plugin" | "user" | "project", pluginName?: string, marketplaceDirName?: string): AgentDefinition | null {
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
-    const parsed = matter(raw);
-    const fm = parsed.data;
+
+    // Try gray-matter first, fall back to regex parser if YAML is malformed
+    let fm: Record<string, any>;
+    let content: string;
+    try {
+      const parsed = matter(raw);
+      fm = parsed.data;
+      content = parsed.content;
+    } catch {
+      const fallback = parseFrontmatterFallback(raw);
+      fm = fallback.data;
+      content = fallback.content;
+    }
+
     const name = fm.name || path.basename(filePath, ".md");
     const tools = typeof fm.tools === "string"
       ? fm.tools.split(",").map((t: string) => t.trim()).filter(Boolean)
@@ -143,8 +151,9 @@ function parseDefinition(filePath: string, source: "plugin" | "user" | "project"
       tools,
       source,
       pluginName,
+      marketplace: marketplaceDirName ? marketplaceLabel(marketplaceDirName) : undefined,
       filePath: filePath.replace(/\\/g, "/"),
-      content: parsed.content.trim().slice(0, 3000),
+      content: content.trim().slice(0, 3000),
       writable: source !== "plugin",
     };
   } catch {
@@ -188,9 +197,13 @@ export function scanAgentExecutions(): { executions: AgentExecution[]; stats: Ag
             }
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn(`[agent-scanner] Failed to scan project ${dir.name}:`, (err as Error).message);
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.warn("[agent-scanner] Failed to read projects dir:", (err as Error).message);
+  }
 
   // Sort newest first
   executions.sort((a, b) => {
@@ -236,7 +249,9 @@ function scanSubagentsDir(
         }
       }
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[agent-scanner] Failed to scan subagents at ${subagentsPath}:`, (err as Error).message);
+  }
 }
 
 function parseExecution(filePath: string, projectKey: string): AgentExecution | null {

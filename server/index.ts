@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { runFullScan } from "./scanner/index";
 import { startWatcher } from "./scanner/watcher";
+import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -67,8 +68,9 @@ app.use((req, res, next) => {
   }
 
   const port = parseInt(process.env.PORT || "5100", 10);
-  httpServer.listen({ port, host: "0.0.0.0" }, () => {
-    log(`Command Center serving on port ${port}`);
+  const host = process.env.HOST || "127.0.0.1";
+  httpServer.listen({ port, host }, () => {
+    log(`${storage.getAppSettings().appName} serving on port ${port}`);
   });
 
   // Run initial scan and start watcher

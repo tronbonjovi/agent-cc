@@ -2,6 +2,18 @@ import { storage } from "../storage";
 import type { Entity } from "@shared/types";
 import { decodeProjectKey } from "./utils";
 
+/** Safely get a string property from entity data */
+function getStr(entity: Entity, key: string): string {
+  const val = entity.data[key];
+  return typeof val === "string" ? val : "";
+}
+
+/** Safely get a string array property from entity data */
+function getStrArr(entity: Entity, key: string): string[] {
+  const val = entity.data[key];
+  return Array.isArray(val) ? val.filter((v): v is string => typeof v === "string") : [];
+}
+
 export function buildRelationships(
   projects: Entity[],
   mcps: Entity[],
@@ -11,18 +23,19 @@ export function buildRelationships(
 ): void {
   const projectByDir = new Map<string, Entity>();
   for (const p of projects) {
-    projectByDir.set((p.data as any).dirName || (p.data as any).projectKey, p);
+    const dirName = getStr(p, "dirName") || getStr(p, "projectKey");
+    if (dirName) projectByDir.set(dirName, p);
   }
 
   // === Project <-> MCP relationships ===
   for (const mcp of mcps) {
     const isPlugin = mcp.tags.includes("plugin");
-    const sourceFile = (mcp.data as any).sourceFile as string;
+    const sourceFile = getStr(mcp, "sourceFile");
 
     // MCP defined in a project's .mcp.json (not root)
     if (!isPlugin && !sourceFile.endsWith("/.mcp.json")) {
       for (const project of projects) {
-        const dirName = (project.data as any).dirName;
+        const dirName = getStr(project, "dirName");
         if (dirName && sourceFile.includes(`/${dirName}/`)) {
           storage.addRelationship({
             sourceId: project.id,
@@ -37,9 +50,11 @@ export function buildRelationships(
 
     // Root MCPs: infer project by matching command/args paths
     if (!isPlugin && sourceFile.endsWith("/.mcp.json")) {
-      const ref = `${(mcp.data as any).command || ""} ${((mcp.data as any).args || []).join(" ")}`;
+      const command = getStr(mcp, "command");
+      const args = getStrArr(mcp, "args");
+      const ref = `${command} ${args.join(" ")}`;
       for (const project of projects) {
-        const dirName = (project.data as any).dirName;
+        const dirName = getStr(project, "dirName");
         if (dirName && ref.includes(dirName)) {
           storage.addRelationship({
             sourceId: project.id,
@@ -74,10 +89,9 @@ export function buildRelationships(
 
   // === Project <-> Skill relationships (content-based inference) ===
   for (const skill of skills) {
-    const content = ((skill.data as any).content as string) || "";
-    const skillName = skill.name.toLowerCase();
+    const content = getStr(skill, "content");
     for (const project of projects) {
-      const dirName = (project.data as any).dirName as string;
+      const dirName = getStr(project, "dirName");
       if (dirName && (content.includes(dirName) || content.includes(project.name))) {
         storage.addRelationship({
           sourceId: project.id,
@@ -87,7 +101,7 @@ export function buildRelationships(
           relation: "has_skill",
         });
         // Annotate skill with projectName for frontend display
-        (skill.data as any).projectName = project.name;
+        skill.data.projectName = project.name;
       }
     }
   }
@@ -97,7 +111,7 @@ export function buildRelationships(
     // CLAUDE.md files -> match by project directory
     if (md.name === "CLAUDE.md") {
       for (const project of projects) {
-        const dirName = (project.data as any).dirName;
+        const dirName = getStr(project, "dirName");
         if (dirName && md.path.includes(`/${dirName}/`)) {
           storage.addRelationship({
             sourceId: project.id,
@@ -111,7 +125,7 @@ export function buildRelationships(
     }
 
     // Memory files -> link to project via decoded project key
-    const category = (md.data as any).category;
+    const category = getStr(md, "category");
     if (category === "memory" && md.path.includes("/memory/")) {
       const match = md.path.match(/\/projects\/([^/]+)\/memory\//);
       if (match) {

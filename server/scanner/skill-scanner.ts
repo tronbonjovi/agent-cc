@@ -1,12 +1,19 @@
 import type { Entity } from "@shared/types";
-import { entityId, safeReadText, getFileStat, CLAUDE_DIR, now, listDirs, fileExists } from "./utils";
+import { entityId, safeReadText, getFileStat, CLAUDE_DIR, now, listDirs, fileExists, getExtraPaths } from "./utils";
 import path from "path";
 import matter from "gray-matter";
 
 export function scanSkills(): Entity[] {
   const results: Entity[] = [];
   const skillsDir = path.join(CLAUDE_DIR, "skills").replace(/\\/g, "/");
-  const skillDirs = listDirs(skillsDir);
+  const skillDirs = [...listDirs(skillsDir)];
+
+  // Extra skill dirs from settings
+  for (const extraDir of getExtraPaths().extraSkillDirs) {
+    for (const sub of listDirs(extraDir.replace(/\\/g, "/"))) {
+      if (!skillDirs.includes(sub)) skillDirs.push(sub);
+    }
+  }
 
   for (const skillDir of skillDirs) {
     const skillFile = path.join(skillDir, "SKILL.md").replace(/\\/g, "/");

@@ -71,6 +71,6 @@ export function useAgentStats() {
 export function useLiveData() {
   return useQuery<LiveData>({
     queryKey: ["/api/live"],
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
 }

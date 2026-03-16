@@ -1,11 +1,12 @@
 import { useLocation } from "wouter";
-import { useProjects } from "@/hooks/use-entities";
+import { useProjects, useRescan } from "@/hooks/use-entities";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { HealthIndicator } from "@/components/health-indicator";
 import { useState } from "react";
-import { Search, FolderOpen, FileText, Server, Wand2, HardDrive, MessageSquare } from "lucide-react";
+import { Search, FolderOpen, FileText, Server, Wand2, HardDrive, MessageSquare, RefreshCw, Settings } from "lucide-react";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + " B";
@@ -16,6 +17,7 @@ function formatBytes(bytes: number): string {
 export default function Projects() {
   const [, setLocation] = useLocation();
   const { data: projects, isLoading } = useProjects();
+  const rescan = useRescan();
   const [search, setSearch] = useState("");
 
   const filtered = (projects || [])
@@ -88,15 +90,15 @@ export default function Projects() {
                         {/* Entity breakdown bar */}
                         {total > 0 && (
                           <div className="flex items-center gap-1 mt-2">
-                            <div className="flex h-1 rounded-full overflow-hidden w-32">
+                            <div className="flex h-1.5 rounded-full overflow-hidden w-32">
                               {project.mcpCount > 0 && (
-                                <div className="bg-green-500" style={{ width: `${(project.mcpCount / total) * 100}%` }} />
+                                <div className="bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]" style={{ width: `${(project.mcpCount / total) * 100}%` }} />
                               )}
                               {project.skillCount > 0 && (
-                                <div className="bg-orange-500" style={{ width: `${(project.skillCount / total) * 100}%` }} />
+                                <div className="bg-orange-500 shadow-[0_0_4px_rgba(249,115,22,0.4)]" style={{ width: `${(project.skillCount / total) * 100}%` }} />
                               )}
                               {project.markdownCount > 0 && (
-                                <div className="bg-slate-500" style={{ width: `${(project.markdownCount / total) * 100}%` }} />
+                                <div className="bg-slate-500 shadow-[0_0_4px_rgba(100,116,139,0.4)]" style={{ width: `${(project.markdownCount / total) * 100}%` }} />
                               )}
                             </div>
                           </div>
@@ -140,7 +142,25 @@ export default function Projects() {
             );
           })}
           {filtered.length === 0 && (
-            <div className="text-muted-foreground text-center py-12">No projects found</div>
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <FolderOpen className="h-12 w-12 text-muted-foreground/30" />
+              <div className="text-center space-y-1">
+                <p className="text-muted-foreground font-medium">No projects found</p>
+                <p className="text-xs text-muted-foreground/70">
+                  Scanner looks in HOME for directories with CLAUDE.md, .mcp.json, .git, or package.json
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} className="gap-1.5">
+                  <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
+                  Rescan
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setLocation("/settings")} className="gap-1.5">
+                  <Settings className="h-3.5 w-3.5" />
+                  Configure Paths
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       )}

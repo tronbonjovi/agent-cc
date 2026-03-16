@@ -4,6 +4,15 @@ import { entityConfig } from "@/components/entity-badge";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
+const entityHex: Record<EntityType, string> = {
+  project: "#3b82f6",
+  mcp: "#22c55e",
+  plugin: "#a855f7",
+  skill: "#f97316",
+  markdown: "#64748b",
+  config: "#14b8a6",
+};
+
 interface StatCardProps {
   type: EntityType;
   count: number;
@@ -16,15 +25,25 @@ interface StatCardProps {
 export function StatCard({ type, count, subtitle, onClick, trend, trendValue }: StatCardProps) {
   const config = entityConfig[type];
   const Icon = config.icon;
+  const hex = entityHex[type];
 
   return (
     <Card
       className={cn(
-        "cursor-pointer card-hover group overflow-hidden relative",
+        "cursor-pointer card-hover group overflow-hidden relative gradient-border",
       )}
       onClick={onClick}
     >
-      <div className={cn("absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity", config.bg)} />
+      {/* Top-edge gradient line */}
+      <div
+        className="absolute top-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ background: `linear-gradient(90deg, ${hex}80, transparent)` }}
+      />
+      {/* Radial gradient overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity"
+        style={{ background: `radial-gradient(circle at top right, ${hex}30, transparent 70%)` }}
+      />
       <CardContent className="p-4 relative">
         <div className="flex items-center justify-between">
           <div>
@@ -41,7 +60,7 @@ export function StatCard({ type, count, subtitle, onClick, trend, trendValue }: 
               </div>
             )}
           </div>
-          <div className={cn("rounded-xl p-3 transition-transform group-hover:scale-110", config.bg)}>
+          <div className={cn("rounded-xl p-3 transition-all group-hover:scale-110 group-hover:shadow-[0_0_16px_currentColor/0.2]", config.bg)}>
             <Icon className={cn("h-5 w-5", config.color)} />
           </div>
         </div>

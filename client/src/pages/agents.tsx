@@ -29,6 +29,9 @@ import {
   ChevronRight,
   Plus,
   Clock,
+  Copy,
+  Check,
+  Info,
 } from "lucide-react";
 import type { AgentDefinition, AgentExecution } from "@shared/types";
 
@@ -93,10 +96,10 @@ export default function Agents() {
   const { data: stats } = useAgentStats();
 
   const statCards = [
-    { label: "Total Executions", value: stats?.totalExecutions ?? 0, icon: Bot, color: "text-cyan-400" },
-    { label: "Sessions w/ Agents", value: stats?.sessionsWithAgents ?? 0, icon: MessageSquare, color: "text-blue-400" },
-    { label: "Agent Types", value: Object.keys(stats?.byType || {}).length, icon: Tags, color: "text-purple-400" },
-    { label: "Definitions", value: stats?.totalDefinitions ?? 0, icon: FileCode, color: "text-green-400" },
+    { label: "Total Executions", value: stats?.totalExecutions ?? 0, icon: Bot, color: "text-cyan-400", tooltip: "How many times agents have been spawned across all sessions. Each time Claude Code launches a subagent (Explore, Plan, etc.), it counts as one execution." },
+    { label: "Sessions w/ Agents", value: stats?.sessionsWithAgents ?? 0, icon: MessageSquare, color: "text-blue-400", tooltip: "Number of Claude Code sessions that used at least one subagent. Shows how often agent-assisted workflows are used." },
+    { label: "Agent Types", value: Object.keys(stats?.byType || {}).length, icon: Tags, color: "text-purple-400", tooltip: "Distinct agent types used (e.g. Explore, Plan, general-purpose). These are the built-in subagent roles Claude Code can spawn." },
+    { label: "Definitions", value: stats?.totalDefinitions ?? 0, icon: FileCode, color: "text-green-400", tooltip: "Agent definition files (.md) discovered from plugins and user agents. These define what agents are available for Claude Code to use." },
   ];
 
   return (
@@ -105,22 +108,29 @@ export default function Agents() {
       <div>
         <h1 className="text-2xl font-bold">Agents</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          {stats?.totalExecutions ?? 0} executions across {stats?.sessionsWithAgents ?? 0} sessions
+          {stats?.totalDefinitions ?? 0} definitions, {stats?.totalExecutions ?? 0} subagent executions across {stats?.sessionsWithAgents ?? 0} sessions
         </p>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {statCards.map((s, i) => (
-          <div key={s.label} className="rounded-xl border bg-card p-4 animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
+          <div key={s.label} className="rounded-xl border bg-card p-4 animate-fade-in-up gradient-border group relative" style={{ animationDelay: `${i * 50}ms` }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">{s.label}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">{s.label}</p>
+                  <Info className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors cursor-help" />
+                </div>
                 <p className="text-2xl font-bold font-mono mt-1">{s.value}</p>
               </div>
               <div className="rounded-xl bg-muted/50 p-2.5">
                 <s.icon className={`h-5 w-5 ${s.color}`} />
               </div>
+            </div>
+            {/* Tooltip */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-lg text-xs text-muted-foreground max-w-[240px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+              {s.tooltip}
             </div>
           </div>
         ))}
@@ -151,9 +161,42 @@ export default function Agents() {
   );
 }
 
+const GROUP_DESCRIPTIONS: Record<string, string> = {
+  "Anthropic Official": "Bundled with Claude Code's official plugin marketplace. These are specialized subagents that Claude Code can spawn for tasks like code review, architecture planning, and SDK verification. They run only when explicitly invoked by a plugin or skill — not automatically.",
+  "Your Agents": "Custom agents you created. These live in ~/.claude/agents/ and can be used as subagent types in your skills and workflows.",
+};
+
+function getGroupDescription(label: string): string | undefined {
+  return GROUP_DESCRIPTIONS[label];
+}
+
+/** Group definitions by marketplace / source */
+function groupDefinitions(defs: AgentDefinition[]): { label: string; description?: string; defs: AgentDefinition[] }[] {
+  const groups: Map<string, AgentDefinition[]> = new Map();
+  for (const def of defs) {
+    const key = def.marketplace || (def.source === "user" ? "Your Agents" : def.pluginName || "Other");
+    const arr = groups.get(key) || [];
+    arr.push(def);
+    groups.set(key, arr);
+  }
+  // Sort: user agents first, then alphabetical
+  return Array.from(groups.entries())
+    .sort((a, b) => {
+      if (a[0] === "Your Agents") return -1;
+      if (b[0] === "Your Agents") return 1;
+      return a[0].localeCompare(b[0]);
+    })
+    .map(([label, defs]) => ({
+      label,
+      description: getGroupDescription(label),
+      defs,
+    }));
+}
+
 function DefinitionsTab() {
   const { data: definitions, isLoading } = useAgentDefinitions();
   const [createOpen, setCreateOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const createAgent = useCreateAgentDefinition();
   const [form, setForm] = useState({ name: "", description: "", model: "sonnet", color: "", tools: "", content: "" });
 
@@ -173,7 +216,18 @@ function DefinitionsTab() {
     });
   };
 
+  const toggleGroup = (label: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  };
+
   if (isLoading) return <ListSkeleton rows={4} />;
+
+  const groups = definitions ? groupDefinitions(definitions) : [];
 
   return (
     <div className="space-y-4">
@@ -183,13 +237,44 @@ function DefinitionsTab() {
         </Button>
       </div>
 
-      {!definitions || definitions.length === 0 ? (
+      {groups.length === 0 ? (
         <div className="text-muted-foreground text-center py-12">No agent definitions found</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {definitions.map((def, i) => (
-            <DefinitionCard key={def.id} def={def} index={i} />
-          ))}
+        <div className="space-y-6">
+          {groups.map(group => {
+            const isCollapsed = collapsedGroups.has(group.label);
+            return (
+              <div key={group.label}>
+                <button
+                  onClick={() => toggleGroup(group.label)}
+                  className="flex items-center gap-2 mb-1 group/header hover:opacity-80 transition-opacity"
+                >
+                  {isCollapsed
+                    ? <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+                    : <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
+                  }
+                  <h3 className="text-sm font-semibold">{group.label}</h3>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/20 text-muted-foreground">
+                    {group.defs.length}
+                  </Badge>
+                </button>
+                {group.description && !isCollapsed && (
+                  <div className="flex items-start gap-1.5 mb-3 ml-6">
+                    <Info className="h-3 w-3 text-muted-foreground/40 mt-0.5 flex-shrink-0" />
+                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{group.description}</p>
+                  </div>
+                )}
+                {!group.description && <div className="mb-3" />}
+                {!isCollapsed && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {group.defs.map((def, i) => (
+                      <DefinitionCard key={def.id} def={def} index={i} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -235,6 +320,28 @@ function DefinitionsTab() {
   );
 }
 
+function CopyNameButton({ name }: { name: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(name);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="p-1 rounded hover:bg-muted/80 transition-colors opacity-0 group-hover:opacity-100"
+      title="Copy agent name"
+    >
+      {copied
+        ? <Check className="h-3 w-3 text-green-400" />
+        : <Copy className="h-3 w-3 text-muted-foreground/50" />
+      }
+    </button>
+  );
+}
+
 function DefinitionCard({ def, index }: { def: AgentDefinition; index: number }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -252,6 +359,7 @@ function DefinitionCard({ def, index }: { def: AgentDefinition; index: number })
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{def.name}</span>
+              <CopyNameButton name={def.name} />
               {!def.writable && <Lock className="h-3 w-3 text-muted-foreground/50" />}
               <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
                 def.source === "plugin" ? "border-purple-500/30 text-purple-400" : "border-green-500/30 text-green-400"
@@ -268,16 +376,24 @@ function DefinitionCard({ def, index }: { def: AgentDefinition; index: number })
               )}
             </div>
             <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{def.description}</p>
-            {def.tools.length > 0 && (
-              <div className="flex gap-1 mt-1.5 flex-wrap">
-                {def.tools.slice(0, 6).map(t => (
-                  <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">{t}</Badge>
-                ))}
-                {def.tools.length > 6 && (
-                  <span className="text-[10px] text-muted-foreground/50">+{def.tools.length - 6}</span>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-3 mt-1.5">
+              {def.lastUsed && (
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+                  <Clock className="h-3 w-3" />
+                  Last used {relativeTime(def.lastUsed)}
+                </span>
+              )}
+              {def.tools.length > 0 && (
+                <div className="flex gap-1 flex-wrap">
+                  {def.tools.slice(0, 4).map(t => (
+                    <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">{t}</Badge>
+                  ))}
+                  {def.tools.length > 4 && (
+                    <span className="text-[10px] text-muted-foreground/50">+{def.tools.length - 4}</span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex-shrink-0 mt-1">
             {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground/50" /> : <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
@@ -286,6 +402,12 @@ function DefinitionCard({ def, index }: { def: AgentDefinition; index: number })
 
         {expanded && (
           <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
+            {def.lastUsed && (
+              <div className="text-xs">
+                <span className="text-muted-foreground/60">Last used:</span>
+                <span className="ml-1.5 font-mono">{new Date(def.lastUsed).toLocaleString()}</span>
+              </div>
+            )}
             {def.pluginName && (
               <div className="text-xs">
                 <span className="text-muted-foreground/60">Plugin:</span>
@@ -330,6 +452,9 @@ function HistoryTab() {
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Subagent executions — these are built-in agents (Explore, Plan, general-purpose) that Claude Code spawns automatically during conversations, not plugin-defined agents.
+      </p>
       {/* Filters */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
@@ -520,7 +645,7 @@ function StatsTab() {
               </div>
               <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500 shadow-[0_0_6px_rgba(59,130,246,0.3)]"
                   style={{ width: `${(count / maxType) * 100}%` }}
                 />
               </div>
@@ -546,7 +671,7 @@ function StatsTab() {
               </div>
               <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-purple-500 to-violet-500 transition-all duration-500"
+                  className="h-full rounded-full bg-gradient-to-r from-purple-500 to-violet-500 transition-all duration-500 shadow-[0_0_6px_rgba(168,85,247,0.3)]"
                   style={{ width: `${(count / maxModel) * 100}%` }}
                 />
               </div>

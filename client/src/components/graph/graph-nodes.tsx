@@ -2,8 +2,8 @@ import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { Badge } from "@/components/ui/badge";
 import { entityConfig } from "@/components/entity-badge";
-import { FolderOpen, MessageSquare } from "lucide-react";
-import type { EntityType } from "@shared/types";
+import { FolderOpen, MessageSquare, Database, Globe, Cloud, Container, Server, Layers, Box } from "lucide-react";
+import type { EntityType, CustomNodeSubType } from "@shared/types";
 
 const entityColors: Record<string, string> = {
   project: "#3b82f6",
@@ -13,6 +13,18 @@ const entityColors: Record<string, string> = {
   markdown: "#64748b",
   config: "#14b8a6",
   session: "#06b6d4",
+  custom: "#f59e0b",
+};
+
+const customSubTypeIcons: Record<string, React.ElementType> = {
+  database: Database,
+  api: Globe,
+  service: Server,
+  cicd: Layers,
+  deploy: Cloud,
+  queue: Layers,
+  cache: Container,
+  other: Box,
 };
 
 function ProjectNodeComponent({ data }: { data: Record<string, unknown> }) {
@@ -30,7 +42,7 @@ function ProjectNodeComponent({ data }: { data: Record<string, unknown> }) {
       style={{
         borderTop: `3px solid ${color}`,
         background: `linear-gradient(to bottom, ${color}08, hsl(var(--card)))`,
-        boxShadow: isSearchMatch ? `0 0 0 2px ${color}, 0 0 12px ${color}40` : undefined,
+        boxShadow: isSearchMatch ? `0 0 0 2px ${color}, 0 0 12px ${color}40` : `0 -4px 12px ${color}15`,
       }}
     >
       <Handle type="target" position={Position.Top} className="!bg-transparent !border-0 !w-3 !h-3" />
@@ -118,7 +130,48 @@ function SessionNodeComponent({ data }: { data: Record<string, unknown> }) {
   );
 }
 
+function CustomNodeComponent({ data }: { data: Record<string, unknown> }) {
+  const color = (data.color as string) || "#f59e0b";
+  const subType = (data.subType as CustomNodeSubType) || "other";
+  const Icon = customSubTypeIcons[subType] || Box;
+  const isSearchMatch = data.searchMatch as boolean | undefined;
+  const source = data.source as string | undefined;
+
+  return (
+    <div
+      className="graph-node"
+      style={{
+        borderLeft: `3px solid ${color}`,
+        borderTop: `1px solid ${color}30`,
+        background: `linear-gradient(135deg, ${color}08, hsl(var(--card)))`,
+        boxShadow: isSearchMatch ? `0 0 0 2px ${color}, 0 0 12px ${color}40` : undefined,
+      }}
+    >
+      <Handle type="target" position={Position.Top} className="!bg-transparent !border-0 !w-3 !h-3" />
+      <div className="flex items-center gap-2 px-3 py-2 min-w-[160px]">
+        <div
+          className="flex items-center justify-center w-7 h-7 rounded-lg shrink-0"
+          style={{ backgroundColor: `${color}18` }}
+        >
+          <Icon className="w-3.5 h-3.5" style={{ color }} />
+        </div>
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="text-xs font-medium text-foreground truncate">{data.label as string}</span>
+          {typeof data.description === "string" && (
+            <p className="text-[9px] text-muted-foreground truncate max-w-[140px]">{data.description}</p>
+          )}
+        </div>
+        {source && (
+          <span className="text-[8px] text-muted-foreground/60 shrink-0">{subType}</span>
+        )}
+      </div>
+      <Handle type="source" position={Position.Bottom} className="!bg-transparent !border-0 !w-3 !h-3" />
+    </div>
+  );
+}
+
 export const ProjectNode = memo(ProjectNodeComponent);
 export const EntityNode = memo(EntityNodeComponent);
 export const SessionNode = memo(SessionNodeComponent);
-export { entityColors };
+export const CustomGraphNode = memo(CustomNodeComponent);
+export { entityColors, customSubTypeIcons };

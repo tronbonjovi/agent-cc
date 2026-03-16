@@ -8,8 +8,13 @@ router.post("/api/scanner/rescan", async (_req: Request, res: Response) => {
   if (isScanning()) {
     return res.status(409).json({ message: "Scan already in progress" });
   }
-  await runFullScan();
-  res.json({ message: "Scan complete", status: storage.getScanStatus() });
+  try {
+    await runFullScan();
+    res.json({ message: "Scan complete", status: storage.getScanStatus() });
+  } catch (err) {
+    console.error("[scanner] Rescan failed:", err);
+    res.status(500).json({ message: "Scan failed" });
+  }
 });
 
 router.get("/api/scanner/status", (_req: Request, res: Response) => {

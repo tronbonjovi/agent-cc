@@ -2,9 +2,16 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { MAX_JSONL_HEAD_CHUNK, MAX_JSONL_TAIL_CHUNK } from "../config";
+import { getDB } from "../db";
+
+/** Normalize a path to use forward slashes (cross-platform) */
+export function normPath(...args: string[]): string {
+  return path.join(...args).replace(/\\/g, "/");
+}
 
 export const HOME = os.homedir().replace(/\\/g, "/");
-export const CLAUDE_DIR = path.join(HOME, ".claude").replace(/\\/g, "/");
+export const CLAUDE_DIR = normPath(HOME, ".claude");
 
 export function entityId(filePath: string): string {
   const normalized = filePath.replace(/\\/g, "/").toLowerCase();
@@ -90,13 +97,105 @@ export function discoverProjectDirs(): string[] {
       if (
         fileExists(path.join(full, "CLAUDE.md")) ||
         fileExists(path.join(full, ".mcp.json")) ||
-        (dirExists(path.join(full, ".git")) && fileExists(path.join(full, "package.json")))
+        dirExists(path.join(full, ".git")) ||
+        fileExists(path.join(full, "package.json")) ||
+        fileExists(path.join(full, "pyproject.toml")) ||
+        fileExists(path.join(full, "requirements.txt")) ||
+        fileExists(path.join(full, "Cargo.toml")) ||
+        fileExists(path.join(full, "go.mod"))
       ) {
         results.push(full);
       }
     }
   } catch {}
   return results;
+}
+
+/** Read first N JSON lines from file (reads only first chunk, not entire file).
+ *  FD is properly closed in a finally block to prevent leaks. */
+export function readHead(filePath: string, n: number = 25): any[] {
+  let fd: number | null = null;
+  try {
+    const stat = fs.statSync(filePath);
+    const chunkSize = Math.min(MAX_JSONL_HEAD_CHUNK, stat.size);
+    const buf = Buffer.alloc(chunkSize);
+    fd = fs.openSync(filePath, "r");
+    fs.readSync(fd, buf, 0, chunkSize, 0);
+    const lines = buf.toString("utf-8").split("\n");
+    const records: any[] = [];
+    const limit = n * 3;
+    for (let i = 0; i < Math.min(lines.length, limit); i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      try {
+        records.push(JSON.parse(line));
+        if (records.length >= n) break;
+      } catch {
+        // Truncated JSON line — skip
+      }
+    }
+    return records;
+  } catch {
+    return [];
+  } finally {
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch {}
+    }
+  }
+}
+
+/** Binary-seek last bytes of file to get last timestamp.
+ *  FD is properly closed in a finally block to prevent leaks. */
+export function readTailTs(filePath: string): string | null {
+  let fd: number | null = null;
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.size === 0) return null;
+    const chunkSize = Math.min(MAX_JSONL_TAIL_CHUNK, stat.size);
+    const buf = Buffer.alloc(chunkSize);
+    fd = fs.openSync(filePath, "r");
+    fs.readSync(fd, buf, 0, chunkSize, Math.max(0, stat.size - chunkSize));
+    const lines = buf.toString("utf-8").split("\n").reverse();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const d = JSON.parse(trimmed);
+        if (d.timestamp) return d.timestamp;
+      } catch {
+        // Truncated JSON line — skip
+      }
+    }
+  } catch {
+    // File unreadable
+  } finally {
+    if (fd !== null) {
+      try { fs.closeSync(fd); } catch {}
+    }
+  }
+  return null;
+}
+
+/** Handle string and [{type:"text", text:"..."}] content shapes */
+export function extractText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((item): item is { type: string; text?: string } => item != null && typeof item === "object" && (item as Record<string, unknown>).type === "text")
+      .map((item) => item.text || "")
+      .join(" ");
+  }
+  return "";
+}
+
+/** Get extra scan paths from app settings */
+export function getExtraPaths() {
+  try {
+    const settings = getDB().appSettings;
+    return settings?.scanPaths || { extraMcpFiles: [], extraProjectDirs: [], extraSkillDirs: [], extraPluginDirs: [] };
+  } catch {
+    return { extraMcpFiles: [], extraProjectDirs: [], extraSkillDirs: [], extraPluginDirs: [] };
+  }
 }
 
 /** Decode a Claude projects directory key to a filesystem path */

@@ -11,16 +11,33 @@ import sessionsRouter from "./sessions";
 import agentsRouter from "./agents";
 import liveRouter from "./live";
 import updateRouter from "./update";
-import { exec } from "child_process";
+import settingsRouter from "./settings";
+import customGraphRouter from "./custom-graph";
+import aiSuggestRouter from "./ai-suggest";
+import { spawn } from "child_process";
 import { platform } from "os";
+import path from "path";
+import os from "os";
 import { getRecentChanges } from "../scanner/watcher";
 
 function openPath(p: string): void {
-  const escaped = p.replace(/"/g, '\\"');
+  // Validate path is under home directory to prevent opening arbitrary locations
+  const resolved = path.resolve(p);
+  const home = os.homedir();
+  if (!resolved.startsWith(home + path.sep) && resolved !== home) {
+    console.warn(`[openPath] Blocked path outside home: ${p}`);
+    return;
+  }
   const plat = platform();
-  if (plat === "win32") exec(`start "" "${escaped.replace(/\//g, "\\\\")}"`);
-  else if (plat === "darwin") exec(`open "${escaped}"`);
-  else exec(`xdg-open "${escaped}"`);
+  let child;
+  if (plat === "win32") {
+    child = spawn("explorer", [resolved.replace(/\//g, "\\")], { detached: true, stdio: "ignore" });
+  } else if (plat === "darwin") {
+    child = spawn("open", [resolved], { detached: true, stdio: "ignore" });
+  } else {
+    child = spawn("xdg-open", [resolved], { detached: true, stdio: "ignore" });
+  }
+  child.unref();
 }
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
@@ -46,19 +63,17 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.use(agentsRouter);
   app.use(liveRouter);
   app.use(updateRouter);
+  app.use(settingsRouter);
+  app.use(customGraphRouter);
+  app.use(aiSuggestRouter);
 
-  // Actions
-  app.post("/api/actions/open-folder", (req, res) => {
-    const { path: folderPath } = req.body;
-    if (!folderPath) return res.status(400).json({ message: "path required" });
-    openPath(folderPath);
-    res.json({ message: "Opening folder" });
-  });
-
-  app.post("/api/actions/open-file", (req, res) => {
-    const { path: filePath } = req.body;
-    if (!filePath) return res.status(400).json({ message: "path required" });
-    openPath(filePath);
-    res.json({ message: "Opening file" });
-  });
+  // Actions — open-folder and open-file share identical logic
+  const handleOpen = (req: import("express").Request, res: import("express").Response) => {
+    const { path: targetPath } = req.body;
+    if (!targetPath || typeof targetPath !== "string") return res.status(400).json({ message: "path required" });
+    openPath(targetPath);
+    res.json({ message: "Opening" });
+  };
+  app.post("/api/actions/open-folder", handleOpen);
+  app.post("/api/actions/open-file", handleOpen);
 }

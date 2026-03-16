@@ -1,4 +1,4 @@
-import { CLAUDE_DIR, dirExists, fileExists } from "./utils";
+import { CLAUDE_DIR, dirExists, fileExists, readHead, readTailTs, extractText } from "./utils";
 import path from "path";
 import fs from "fs";
 import type { SessionData, SessionStats } from "@shared/types";
@@ -31,7 +31,7 @@ const STOPWORDS = new Set([
 let cachedSessions: SessionData[] = [];
 let cachedStats: SessionStats = { totalCount: 0, totalSize: 0, activeCount: 0, emptyCount: 0 };
 
-export function getCachedSessions(): SessionData[] { return cachedSessions; }
+export function getCachedSessions(): SessionData[] { return [...cachedSessions]; }
 export function getCachedStats(): SessionStats { return cachedStats; }
 export function removeCachedSession(id: string): void {
   const idx = cachedSessions.findIndex(s => s.id === id);
@@ -59,68 +59,6 @@ export function restoreCachedSession(session: SessionData): void {
     const bTs = b.lastTs || b.firstTs || "";
     return bTs.localeCompare(aTs);
   });
-}
-
-/** Read first N JSON lines from file (reads only first 64KB chunk, not entire file) */
-function readHead(filePath: string, n: number = 25): any[] {
-  try {
-    const stat = fs.statSync(filePath);
-    // Read only first 64KB — enough for 25 JSON lines
-    const chunkSize = Math.min(65536, stat.size);
-    const buf = Buffer.alloc(chunkSize);
-    const fd = fs.openSync(filePath, "r");
-    fs.readSync(fd, buf, 0, chunkSize, 0);
-    fs.closeSync(fd);
-    const lines = buf.toString("utf-8").split("\n");
-    const records: any[] = [];
-    const limit = n * 3;
-    for (let i = 0; i < Math.min(lines.length, limit); i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      try {
-        records.push(JSON.parse(line));
-        if (records.length >= n) break;
-      } catch {}
-    }
-    return records;
-  } catch {
-    return [];
-  }
-}
-
-/** Binary-seek last 4096 bytes to get last timestamp */
-function readTailTs(filePath: string): string | null {
-  try {
-    const stat = fs.statSync(filePath);
-    if (stat.size === 0) return null;
-    const chunkSize = Math.min(4096, stat.size);
-    const buf = Buffer.alloc(chunkSize);
-    const fd = fs.openSync(filePath, "r");
-    fs.readSync(fd, buf, 0, chunkSize, Math.max(0, stat.size - chunkSize));
-    fs.closeSync(fd);
-    const lines = buf.toString("utf-8").split("\n").reverse();
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        const d = JSON.parse(trimmed);
-        if (d.timestamp) return d.timestamp;
-      } catch {}
-    }
-  } catch {}
-  return null;
-}
-
-/** Handle string and [{type:"text", text:"..."}] content shapes */
-function extractText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .filter((item: any) => item?.type === "text")
-      .map((item: any) => item.text || "")
-      .join(" ");
-  }
-  return "";
 }
 
 /** Extract top 4 keywords from user messages */
@@ -168,7 +106,9 @@ function buildHistoryIndex(): Map<string, any[]> {
         }
       } catch {}
     }
-  } catch {}
+  } catch (err) {
+    console.warn("[session-scanner] Failed to read history.jsonl:", (err as Error).message);
+  }
   return index;
 }
 
@@ -184,7 +124,9 @@ function getActiveSessions(): Set<string> {
         active.add(f.name.replace(".json", ""));
       }
     }
-  } catch {}
+  } catch (err) {
+    console.warn("[session-scanner] Failed to read sessions dir:", (err as Error).message);
+  }
   return active;
 }
 
@@ -318,7 +260,9 @@ export function scanAllSessions(): {
             if (ts && (!projLastMod || ts > projLastMod)) projLastMod = ts;
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn(`[session-scanner] Failed to read project dir ${dir.name}:`, (err as Error).message);
+      }
 
       projectAggs.push({
         projectKey: dir.name,
@@ -327,7 +271,9 @@ export function scanAllSessions(): {
         lastModified: projLastMod,
       });
     }
-  } catch {}
+  } catch (err) {
+    console.warn("[session-scanner] Failed to read projects dir:", (err as Error).message);
+  }
 
   // Sort newest-first
   allSessions.sort((a, b) => {

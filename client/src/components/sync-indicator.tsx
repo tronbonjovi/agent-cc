@@ -24,7 +24,7 @@ export function SyncIndicator({ collapsed }: { collapsed: boolean }) {
       {isScanning ? (
         <RefreshCw className="h-3 w-3 text-amber-400 animate-spin flex-shrink-0" />
       ) : connected ? (
-        <Wifi className="h-3 w-3 text-emerald-400 flex-shrink-0" />
+        <Wifi className="h-3 w-3 text-emerald-400 flex-shrink-0 drop-shadow-[0_0_4px_rgba(52,211,153,0.3)]" />
       ) : (
         <WifiOff className="h-3 w-3 text-red-400 flex-shrink-0" />
       )}

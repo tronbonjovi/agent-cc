@@ -1,5 +1,5 @@
 import type { Entity } from "@shared/types";
-import { entityId, safeReadJson, getFileStat, CLAUDE_DIR, now, dirExists, fileExists } from "./utils";
+import { entityId, safeReadJson, getFileStat, CLAUDE_DIR, now, dirExists, fileExists, getExtraPaths } from "./utils";
 import { PLUGIN_CATALOG } from "./knowledge-base";
 import path from "path";
 import fs from "fs";
@@ -92,6 +92,40 @@ export function scanPlugins(): Entity[] {
         });
       }
     }
+  }
+
+  // Extra plugin dirs from settings
+  for (const extraDir of getExtraPaths().extraPluginDirs) {
+    const normalized = extraDir.replace(/\\/g, "/");
+    if (!dirExists(normalized)) continue;
+    try {
+      const entries = fs.readdirSync(normalized, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith(".") || entry.name === "node_modules") continue;
+        const pluginPath = path.join(normalized, entry.name).replace(/\\/g, "/");
+        const pluginName = entry.name;
+        const id = entityId(`plugin:extra:${pluginPath}`);
+        if (results.find((r) => r.id === id)) continue;
+        const hasMcp = fileExists(path.join(pluginPath, ".mcp.json"));
+        results.push({
+          id,
+          type: "plugin",
+          name: pluginName,
+          path: pluginPath,
+          description: null,
+          lastModified: null,
+          tags: [],
+          health: "ok",
+          data: {
+            marketplace: null,
+            installed: true,
+            blocked: false,
+            hasMCP: hasMcp,
+          },
+          scannedAt: now(),
+        });
+      }
+    } catch {}
   }
 
   // Blocklist entries that aren't in any marketplace

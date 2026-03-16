@@ -4,16 +4,36 @@ import path from "path";
 import matter from "gray-matter";
 import { getCachedDefinitions, getCachedExecutions, getCachedAgentStats } from "../scanner/agent-scanner";
 import { CLAUDE_DIR, entityId, dirExists, fileExists } from "../scanner/utils";
+import { qstr, validate, AgentExecListSchema, validateMarkdownPath } from "./validation";
 
 const router = Router();
 
-function qstr(v: unknown): string | undefined {
-  return Array.isArray(v) ? (v[0] as string) : (v as string | undefined);
+/** Build a map of agent name → most recent execution timestamp.
+ *  Matches execution agentType to definition names. */
+function getLastUsedMap(): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const exec of getCachedExecutions()) {
+    const ts = exec.lastTs || exec.firstTs;
+    if (!ts) continue;
+    // Store by agentType (e.g. "Explore", "Plan", "general-purpose")
+    if (exec.agentType) {
+      const existing = map.get(exec.agentType);
+      if (!existing || ts > existing) {
+        map.set(exec.agentType, ts);
+      }
+    }
+  }
+  return map;
 }
 
 /** GET /api/agents/definitions — All agent definitions */
 router.get("/api/agents/definitions", (_req: Request, res: Response) => {
-  res.json(getCachedDefinitions());
+  const lastUsed = getLastUsedMap();
+  const defs = getCachedDefinitions().map(def => ({
+    ...def,
+    lastUsed: lastUsed.get(def.name) || null,
+  }));
+  res.json(defs);
 });
 
 /** GET /api/agents/definitions/:id — Single definition with full content */
@@ -39,12 +59,18 @@ router.put("/api/agents/definitions/:id", (req: Request, res: Response) => {
 
   const { content } = req.body as { content?: string };
   if (typeof content !== "string") return res.status(400).json({ message: "content required" });
+  if (content.length > 100_000) return res.status(400).json({ message: "content too long (max 100KB)" });
+
+  // Validate path is under home directory
+  const safePath = validateMarkdownPath(def.filePath);
+  if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
 
   try {
-    fs.writeFileSync(def.filePath, content, "utf-8");
+    fs.writeFileSync(safePath, content, "utf-8");
     res.json({ message: "Updated", id: def.id });
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
+  } catch (err) {
+    console.error("[agents] Failed to update agent:", (err as Error).message);
+    res.status(500).json({ message: (err as Error).message });
   }
 });
 
@@ -59,7 +85,10 @@ router.post("/api/agents/definitions", (req: Request, res: Response) => {
     content?: string;
   };
 
-  if (!name) return res.status(400).json({ message: "name required" });
+  if (!name || typeof name !== "string") return res.status(400).json({ message: "name required" });
+  if (name.length > 100) return res.status(400).json({ message: "name too long (max 100)" });
+  if (description && description.length > 500) return res.status(400).json({ message: "description too long (max 500)" });
+  if (content && content.length > 100_000) return res.status(400).json({ message: "content too long (max 100KB)" });
 
   const agentsDir = path.join(CLAUDE_DIR, "agents").replace(/\\/g, "/");
   if (!dirExists(agentsDir)) {
@@ -83,34 +112,41 @@ router.post("/api/agents/definitions", (req: Request, res: Response) => {
   try {
     fs.writeFileSync(filePath, fileContent, "utf-8");
     res.json({ message: "Created", id: entityId(filePath), filePath });
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
+  } catch (err) {
+    console.error("[agents] Failed to create agent:", (err as Error).message);
+    res.status(500).json({ message: (err as Error).message });
   }
 });
 
 /** GET /api/agents/executions — List with filters */
 router.get("/api/agents/executions", (req: Request, res: Response) => {
-  const type = qstr(req.query.type);
-  const sessionId = qstr(req.query.sessionId);
-  const q = qstr(req.query.q)?.toLowerCase();
-  const sort = qstr(req.query.sort) || "firstTs";
-  const order = qstr(req.query.order) || "desc";
-  const limit = parseInt(qstr(req.query.limit) || "100", 10);
+  const params = validate(AgentExecListSchema, {
+    type: qstr(req.query.type),
+    sessionId: qstr(req.query.sessionId),
+    q: qstr(req.query.q),
+    sort: qstr(req.query.sort),
+    order: qstr(req.query.order),
+    limit: qstr(req.query.limit),
+  }, res);
+  if (!params) return;
+
+  const { type, sessionId, q, sort, order, limit } = params;
 
   let executions = getCachedExecutions();
 
   if (type) executions = executions.filter(e => e.agentType === type);
   if (sessionId) executions = executions.filter(e => e.sessionId === sessionId);
   if (q) {
+    const lowerQ = q.toLowerCase();
     executions = executions.filter(e => {
       const haystack = [e.firstMessage, e.slug, e.agentType || "", e.model || "", e.agentId].join(" ").toLowerCase();
-      return haystack.includes(q);
+      return haystack.includes(lowerQ);
     });
   }
 
   const asc = order === "asc";
   executions = [...executions].sort((a, b) => {
-    let av: any, bv: any;
+    let av: string | number, bv: string | number;
     if (sort === "firstTs") { av = a.firstTs || ""; bv = b.firstTs || ""; }
     else if (sort === "lastTs") { av = a.lastTs || ""; bv = b.lastTs || ""; }
     else if (sort === "sizeBytes") { av = a.sizeBytes; bv = b.sizeBytes; }
@@ -121,7 +157,7 @@ router.get("/api/agents/executions", (req: Request, res: Response) => {
     return 0;
   });
 
-  executions = executions.slice(0, Math.min(limit, 1000));
+  executions = executions.slice(0, limit);
 
   res.json(executions);
 });
@@ -137,8 +173,11 @@ router.get("/api/agents/executions/:agentId", (req: Request, res: Response) => {
     const chunkSize = Math.min(131072, stat.size);
     const buf = Buffer.alloc(chunkSize);
     const fd = fs.openSync(exec.filePath, "r");
-    fs.readSync(fd, buf, 0, chunkSize, 0);
-    fs.closeSync(fd);
+    try {
+      fs.readSync(fd, buf, 0, chunkSize, 0);
+    } finally {
+      fs.closeSync(fd);
+    }
     const lines = buf.toString("utf-8").split("\n");
     let count = 0;
     for (let i = 0; i < Math.min(lines.length, 150) && count < 50; i++) {
@@ -165,9 +204,13 @@ router.get("/api/agents/executions/:agentId", (req: Request, res: Response) => {
           });
           count++;
         }
-      } catch {}
+      } catch {
+        // Truncated JSON line — skip
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.warn("[agents] Failed to read execution file:", (err as Error).message);
+  }
 
   res.json({ ...exec, records });
 });

@@ -1,38 +1,46 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
+import { validate, DiscoveryQuerySchema } from "./validation";
 
 const router = Router();
 
 router.get("/api/discovery/search", async (req: Request, res: Response) => {
-  const q = req.query.q as string;
-  if (!q) return res.status(400).json({ message: "Query parameter 'q' is required" });
+  const params = validate(DiscoveryQuerySchema, { q: req.query.q }, res);
+  if (!params) return;
+
+  const { q } = params;
 
   // Check cache
   const cached = storage.getCachedDiscovery(q);
   if (cached) {
-    return res.json(JSON.parse(cached));
+    try {
+      res.json(JSON.parse(cached));
+      return;
+    } catch {
+      // Cache corrupted, re-fetch from GitHub
+    }
+  }
+
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "claude-command-center",
+  };
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   }
 
   try {
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "claude-command-center",
-    };
-    if (process.env.GITHUB_TOKEN) {
-      headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-    }
-
     const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=20&sort=stars&order=desc`;
     const response = await fetch(url, { headers });
 
     if (!response.ok) {
       const text = await response.text();
-      return res.status(response.status).json({ message: `GitHub API error: ${text}` });
+      res.status(response.status).json({ message: `GitHub API error: ${text}` });
+      return;
     }
 
     const data = await response.json();
     const results = (data.items || []).map((repo: any) => {
-      // Classify the repo
       const text = `${repo.name} ${repo.description || ""} ${(repo.topics || []).join(" ")}`.toLowerCase();
       let category = "other";
       if (text.includes("mcp") || text.includes("model context protocol")) category = "mcp";
@@ -52,11 +60,11 @@ router.get("/api/discovery/search", async (req: Request, res: Response) => {
       };
     });
 
-    // Cache results
     storage.setCachedDiscovery(q, JSON.stringify(results));
     res.json(results);
   } catch (err) {
-    res.status(500).json({ message: "Failed to search GitHub" });
+    console.error("[discovery] GitHub API fetch failed:", (err as Error).message);
+    res.status(502).json({ message: "Failed to reach GitHub API" });
   }
 });
 

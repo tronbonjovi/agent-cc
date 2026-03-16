@@ -1,8 +1,10 @@
-import { useEntities } from "@/hooks/use-entities";
+import { useEntities, useRescan } from "@/hooks/use-entities";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { HealthIndicator } from "@/components/health-indicator";
-import { Puzzle, Store, ShieldAlert, ShieldCheck, Server, GitBranch, Code2 } from "lucide-react";
+import { Puzzle, Store, ShieldAlert, ShieldCheck, Server, GitBranch, Code2, RefreshCw, Settings } from "lucide-react";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "dev-tools": "border-violet-500/30 text-violet-400",
@@ -26,6 +28,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function Plugins() {
   const { data: plugins, isLoading } = useEntities("plugin");
+  const rescan = useRescan();
+  const [, setLocation] = useLocation();
 
   const marketplaces = (plugins || []).filter((p) => p.tags.includes("marketplace"));
   const blocked = (plugins || []).filter((p) => !p.tags.includes("marketplace") && (p.data as any).blocked);
@@ -80,7 +84,7 @@ export default function Plugins() {
           {/* Marketplaces */}
           {marketplaces.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2 section-header">
                 <Store className="h-3.5 w-3.5" /> Marketplaces
               </h2>
               {marketplaces.map((mkt, i) => {
@@ -132,7 +136,7 @@ export default function Plugins() {
                 const isLSP = category === "lsp";
                 return (
                   <div key={category} className="space-y-3">
-                    <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                    <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2 section-header">
                       {isLSP ? (
                         <Code2 className="h-3.5 w-3.5 text-indigo-400" />
                       ) : (
@@ -222,7 +226,7 @@ export default function Plugins() {
           {/* Blocked Plugins */}
           {blocked.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2 section-header">
                 <ShieldAlert className="h-3.5 w-3.5 text-red-400" /> Blocked
               </h2>
               {blocked.map((plugin, i) => {
@@ -230,7 +234,7 @@ export default function Plugins() {
                 return (
                   <Card
                     key={plugin.id}
-                    className="border-red-500/20 card-hover animate-fade-in-up"
+                    className="border-red-500/20 card-hover animate-fade-in-up shadow-[inset_0_0_12px_rgba(239,68,68,0.04)]"
                     style={{ animationDelay: `${i * 40}ms` }}
                   >
                     <CardContent className="p-4">
@@ -267,7 +271,25 @@ export default function Plugins() {
           )}
 
           {active.length === 0 && blocked.length === 0 && marketplaces.length === 0 && (
-            <div className="text-muted-foreground text-center py-12">No plugins found</div>
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <Puzzle className="h-12 w-12 text-muted-foreground/30" />
+              <div className="text-center space-y-1">
+                <p className="text-muted-foreground font-medium">No plugins found</p>
+                <p className="text-xs text-muted-foreground/70">
+                  Scanner looks in ~/.claude/plugins/ for marketplaces and blocklist
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} className="gap-1.5">
+                  <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
+                  Rescan
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setLocation("/settings")} className="gap-1.5">
+                  <Settings className="h-3.5 w-3.5" />
+                  Configure Paths
+                </Button>
+              </div>
+            </div>
           )}
         </>
       )}

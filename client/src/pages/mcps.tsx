@@ -1,10 +1,12 @@
-import { useEntities } from "@/hooks/use-entities";
+import { useEntities, useRescan } from "@/hooks/use-entities";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { HealthIndicator } from "@/components/health-indicator";
 import { useState } from "react";
-import { Search, Server, Copy, Check, ExternalLink, ChevronDown, ChevronRight, Tag } from "lucide-react";
+import { useLocation } from "wouter";
+import { Search, Server, Copy, Check, ExternalLink, ChevronDown, ChevronRight, Tag, RefreshCw, Settings } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ListSkeleton } from "@/components/skeleton";
 
@@ -22,7 +24,9 @@ export default function MCPs() {
   const [search, setSearch] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [groupByCategory, setGroupByCategory] = useState(false);
+  const [groupByCategory, setGroupByCategory] = useState(true);
+  const rescan = useRescan();
+  const [, setLocation] = useLocation();
 
   const filtered = (mcps || []).filter(
     (m) =>
@@ -87,7 +91,7 @@ export default function MCPs() {
         <CardContent className="p-5">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
-              <div className="rounded-lg bg-green-500/10 p-2 mt-0.5 relative">
+              <div className="rounded-lg bg-green-500/10 p-2 mt-0.5 relative group-hover:shadow-[0_0_12px_rgba(34,197,94,0.15)]  transition-shadow">
                 <Server className="h-5 w-5 text-green-400" />
                 <span
                   className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${
@@ -213,14 +217,14 @@ export default function MCPs() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setGroupByCategory(!groupByCategory)}
-            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors ${
+            className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border font-medium transition-colors ${
               groupByCategory
-                ? "border-blue-500/30 bg-blue-500/10 text-blue-400"
-                : "border-border text-muted-foreground hover:text-foreground"
+                ? "border-blue-500/40 bg-blue-500/10 text-blue-400"
+                : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
             }`}
           >
-            <Tag className="h-3 w-3" />
-            Group
+            <Tag className="h-3.5 w-3.5" />
+            {groupByCategory ? "Grouped by Category" : "Group by Category"}
           </button>
           <div className="relative w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -237,7 +241,7 @@ export default function MCPs() {
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([category, items]) => (
               <div key={category} className="space-y-3">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2 section-header">
                   <Server className="h-3.5 w-3.5" />
                   {categoryLabel(category)}
                   <Badge variant="secondary" className="text-[10px] ml-1">{items.length}</Badge>
@@ -249,7 +253,27 @@ export default function MCPs() {
       ) : (
         <div className="space-y-3">
           {filtered.map((mcp, i) => renderCard(mcp, i))}
-          {filtered.length === 0 && <div className="text-muted-foreground text-center py-12">No MCP servers found</div>}
+          {filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <Server className="h-12 w-12 text-muted-foreground/30" />
+              <div className="text-center space-y-1">
+                <p className="text-muted-foreground font-medium">No MCP servers found</p>
+                <p className="text-xs text-muted-foreground/70">
+                  Scanner looks in ~/.mcp.json, project .mcp.json files, and plugin directories
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} className="gap-1.5">
+                  <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
+                  Rescan
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setLocation("/settings")} className="gap-1.5">
+                  <Settings className="h-3.5 w-3.5" />
+                  Configure Paths
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

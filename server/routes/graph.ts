@@ -1,8 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
 import dagre from "@dagrejs/dagre";
-import type { GraphData, GraphNode, EntityType, GraphNodeType } from "@shared/types";
+import type { GraphData, GraphNode, EntityType, GraphNodeType, CustomNode, CustomEdge } from "@shared/types";
 import { getCachedSessions } from "../scanner/session-scanner";
+import { decodeProjectKey } from "../scanner/utils";
 
 const router = Router();
 
@@ -18,6 +19,22 @@ const EDGE_STYLES: Record<string, { color: string; strokeWidth: number; dashed?:
   serves_data_for: { color: "#f59e0b", strokeWidth: 2.5, dotted: true },
   syncs:           { color: "#34d399", strokeWidth: 2, dashed: true },
   has_session:     { color: "#06b6d4", strokeWidth: 1.5, dashed: true },
+  connects_to:     { color: "#f59e0b", strokeWidth: 2, dotted: true },
+  depends_on:      { color: "#ef4444", strokeWidth: 2 },
+  uses:            { color: "#f97316", strokeWidth: 1.5, dashed: true },
+  shares_remote:   { color: "#34d399", strokeWidth: 1.5, dashed: true },
+};
+
+// Custom node subtype colors
+const CUSTOM_SUBTYPE_COLORS: Record<string, string> = {
+  service: "#06b6d4",
+  database: "#f59e0b",
+  api: "#f97316",
+  cicd: "#8b5cf6",
+  deploy: "#10b981",
+  queue: "#a855f7",
+  cache: "#ef4444",
+  other: "#64748b",
 };
 
 // Node dimensions by entity type
@@ -27,16 +44,18 @@ const DEFAULT_WIDTH = 200;
 const DEFAULT_HEIGHT = 60;
 const SESSION_WIDTH = 140;
 const SESSION_HEIGHT = 36;
+const CUSTOM_WIDTH = 200;
+const CUSTOM_HEIGHT = 60;
 
 router.get("/api/graph", (req: Request, res: Response) => {
   const typesParam = req.query.types as string | undefined;
-  const centerId = req.query.center as string | undefined;
   const layoutDir = (req.query.layout as string) || "TB";
   const groupParam = req.query.group === "true";
   const requestedTypes = typesParam ? typesParam.split(",") : undefined;
   const includeSessions = requestedTypes?.includes("session") ?? false;
+  const includeCustom = requestedTypes?.includes("custom") ?? !requestedTypes;
   const allowedTypes = requestedTypes
-    ? (requestedTypes.filter((t) => t !== "session") as EntityType[])
+    ? (requestedTypes.filter((t) => t !== "session" && t !== "custom") as EntityType[])
     : undefined;
 
   // Get all entities (optionally filtered by types)
@@ -71,6 +90,50 @@ router.get("/api/graph", (req: Request, res: Response) => {
     g.setEdge(rel.sourceId, rel.targetId);
   }
 
+  // Inject custom nodes (docker-compose, DB URLs, env services, graph-config)
+  const customNodesList: CustomNode[] = [];
+  const customEdgesList: CustomEdge[] = [];
+
+  if (includeCustom) {
+    const allCustomNodes = storage.getCustomNodes();
+    const allCustomEdges = storage.getCustomEdges();
+
+    for (const cn of allCustomNodes) {
+      customNodesList.push(cn);
+      g.setNode(cn.id, { width: CUSTOM_WIDTH, height: CUSTOM_HEIGHT });
+    }
+
+    // Resolve custom edge references: edges may reference entity names, IDs, or dash-names
+    const entityNameToId = new Map<string, string>();
+    for (const entity of allEntities) {
+      entityNameToId.set(entity.name.toLowerCase(), entity.id);
+      entityNameToId.set(entity.name.toLowerCase().replace(/\s+/g, "-"), entity.id);
+      entityNameToId.set(entity.id, entity.id);
+    }
+    for (const cn of customNodesList) {
+      entityNameToId.set(cn.id, cn.id);
+      entityNameToId.set(cn.label.toLowerCase(), cn.id);
+      entityNameToId.set(cn.label.toLowerCase().replace(/\s+/g, "-"), cn.id);
+    }
+
+    for (const ce of allCustomEdges) {
+      const resolvedSource = entityNameToId.get(ce.source) || entityNameToId.get(ce.source.toLowerCase());
+      const resolvedTarget = entityNameToId.get(ce.target) || entityNameToId.get(ce.target.toLowerCase());
+      if (resolvedSource && resolvedTarget) {
+        // Check that both ends exist in the graph
+        const sourceInGraph = entityIds.has(resolvedSource) || customNodesList.some((n) => n.id === resolvedSource);
+        const targetInGraph = entityIds.has(resolvedTarget) || customNodesList.some((n) => n.id === resolvedTarget);
+        if (sourceInGraph && targetInGraph) {
+          customEdgesList.push({ ...ce, source: resolvedSource, target: resolvedTarget });
+          g.setEdge(resolvedSource, resolvedTarget);
+        }
+      }
+    }
+  }
+
+  // Apply entity overrides
+  const overrides = storage.getEntityOverrides();
+
   // Inject virtual session nodes if requested
   interface VirtualSession {
     id: string;
@@ -100,9 +163,7 @@ router.get("/api/graph", (req: Request, res: Response) => {
     }
 
     grouped.forEach((projectSessions, projectKey) => {
-      // Decode projectKey to path
-      // Decode: C--Users-alice → C:/Users/alice  (-- = :/, - = /)
-      const decoded = projectKey.replace(/--/, ":/").replace(/-/g, "/");
+      const decoded = decodeProjectKey(projectKey);
       const dirName = decoded.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() || "";
 
       // Find matching project entity — exact match first
@@ -156,22 +217,45 @@ router.get("/api/graph", (req: Request, res: Response) => {
   // Build response
   const nodes: GraphNode[] = allEntities.map((entity) => {
     const nodePos = g.node(entity.id);
+
+    // Check for overrides by entity ID, name, or dash-separated name
+    const dashName = entity.name.toLowerCase().replace(/\s+/g, "-");
+    const override = overrides[entity.id] || overrides[entity.name] || overrides[entity.name.toLowerCase()] || overrides[dashName];
+
     const node: GraphNode = {
       id: entity.id,
       type: entity.type,
-      label: entity.name,
-      description: entity.description ?? undefined,
+      label: override?.label || entity.name,
+      description: override?.description || entity.description || undefined,
       health: entity.health,
       position: {
         x: nodePos?.x ?? 0,
         y: nodePos?.y ?? 0,
       },
+      color: override?.color,
     };
     if (groupParam && parentMap.has(entity.id)) {
       node.parentId = parentMap.get(entity.id);
     }
     return node;
   });
+
+  // Add custom nodes
+  for (const cn of customNodesList) {
+    const nodePos = g.node(cn.id);
+    nodes.push({
+      id: cn.id,
+      type: "custom" as GraphNodeType,
+      label: cn.label,
+      description: cn.description,
+      health: "unknown",
+      position: { x: nodePos?.x ?? 0, y: nodePos?.y ?? 0 },
+      subType: cn.subType,
+      color: cn.color || CUSTOM_SUBTYPE_COLORS[cn.subType] || "#64748b",
+      url: cn.url,
+      source: cn.source,
+    });
+  }
 
   // Add virtual session nodes
   for (const vs of virtualSessions) {
@@ -201,6 +285,22 @@ router.get("/api/graph", (req: Request, res: Response) => {
       target: vs.id,
       label: "has_session",
       style: { ...EDGE_STYLES.has_session, animated: true },
+    });
+  }
+
+  // Add custom edges
+  for (const ce of customEdgesList) {
+    const style = EDGE_STYLES[ce.label] || {
+      color: ce.color || "#94a3b8",
+      strokeWidth: 1.5,
+      dashed: ce.dashed,
+    };
+    edges.push({
+      id: ce.id,
+      source: ce.source,
+      target: ce.target,
+      label: ce.label,
+      style: { ...style, animated: true },
     });
   }
 

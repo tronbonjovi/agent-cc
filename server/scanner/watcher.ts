@@ -1,14 +1,36 @@
 import chokidar from "chokidar";
 import { HOME, CLAUDE_DIR, dirExists, discoverProjectDirs } from "./utils";
-import { runFullScan } from "./index";
+import { runFullScan, runPartialScan } from "./index";
+import { getCachedSessions, getCachedStats } from "./session-scanner";
+import { getCachedExecutions } from "./agent-scanner";
+import { PERIODIC_SCAN_INTERVAL_MS, DEBOUNCE_MS } from "../config";
 import path from "path";
 import fs from "fs";
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let changeLog: string[] = [];
+let periodicTimer: ReturnType<typeof setInterval> | null = null;
+
+// Track counts to detect meaningful changes during periodic refresh
+let lastSessionCount = 0;
+let lastActiveCount = 0;
+let lastExecutionCount = 0;
 
 export function getRecentChanges(): string[] {
   return changeLog.slice(-20);
+}
+
+/** Categorize a changed file path to determine which scanner to run */
+function categorizePath(filePath: string): "mcp" | "skills" | "sessions" | "agents" | "plugins" | "config" | "markdown" | "full" {
+  const normalized = filePath.replace(/\\/g, "/");
+  if (normalized.endsWith(".mcp.json")) return "mcp";
+  if (normalized.includes("/skills/")) return "skills";
+  if (normalized.includes("/agents/") && normalized.endsWith(".md")) return "agents";
+  if (normalized.includes("/plugins/")) return "plugins";
+  if (normalized.includes("/sessions/") && normalized.endsWith(".json")) return "sessions";
+  if (normalized.endsWith("settings.json") || normalized.endsWith("settings.local.json")) return "config";
+  if (normalized.endsWith("CLAUDE.md") || normalized.includes("/memory/")) return "markdown";
+  return "full";
 }
 
 export function startWatcher(): void {
@@ -28,6 +50,18 @@ export function startWatcher(): void {
 
   // User agents directory
   watchPaths.push(path.join(CLAUDE_DIR, "agents"));
+
+  // Active sessions directory (session start/end creates/removes .json files)
+  const activeSessionsDir = path.join(CLAUDE_DIR, "sessions");
+  if (dirExists(activeSessionsDir)) {
+    watchPaths.push(activeSessionsDir);
+  }
+
+  // History file (updated when sessions are created)
+  const historyFile = path.join(CLAUDE_DIR, "history.jsonl");
+  if (fs.existsSync(historyFile)) {
+    watchPaths.push(historyFile);
+  }
 
   // Memory directories for all projects
   const projectsDir = path.join(CLAUDE_DIR, "projects");
@@ -63,7 +97,6 @@ export function startWatcher(): void {
     ignored: [
       /node_modules/,
       /\.git/,
-      /\.jsonl$/,
       /command-center\.json$/,  // Don't watch our own DB file
     ],
   });
@@ -74,24 +107,93 @@ export function startWatcher(): void {
     changeLog.push(entry);
     if (changeLog.length > 50) changeLog = changeLog.slice(-50);
 
-    console.log(`[watcher] ${eventType}: ${relative}`);
+    const category = categorizePath(filePath);
+    console.log(`[watcher] ${eventType}: ${relative} → ${category} scan`);
 
     if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      console.log("[watcher] Changes detected, rescanning...");
-      runFullScan().catch((err) => console.error("[watcher] Rescan failed:", err));
-    }, 2000);
+    debounceTimer = setTimeout(async () => {
+      try {
+        if (category === "full") {
+          await runFullScan();
+        } else {
+          await runPartialScan(category);
+        }
+      } catch (err) {
+        console.error("[watcher] Rescan failed:", err);
+      }
+    }, DEBOUNCE_MS);
   };
 
+  // New files (including new .jsonl sessions) trigger a rescan
   watcher.on("add", (p) => triggerRescan("add", p));
-  watcher.on("change", (p) => triggerRescan("change", p));
+
+  // Changes to existing session .jsonl files are too noisy (every message writes).
+  // The periodic refresh below handles these. Other file changes trigger normally.
+  watcher.on("change", (p) => {
+    if (p.endsWith(".jsonl") && (p.includes("/projects/") || p.includes("\\projects\\"))) return;
+    triggerRescan("change", p);
+  });
+
   watcher.on("unlink", (p) => triggerRescan("unlink", p));
   watcher.on("addDir", (p) => {
-    // New project directory or memory directory
-    if (p.includes("/projects/") || p.includes("/skills/")) {
+    if (p.includes("/projects/") || p.includes("\\projects\\") ||
+        p.includes("/skills/") || p.includes("\\skills\\")) {
       triggerRescan("addDir", p);
     }
   });
 
   console.log(`[watcher] Watching ${watchPaths.length} paths`);
+
+  // Initialize tracking counts from current cache
+  const stats = getCachedStats();
+  lastSessionCount = stats.totalCount;
+  lastActiveCount = stats.activeCount;
+  lastExecutionCount = getCachedExecutions().length;
+
+  // Start periodic refresh for session/agent data that changes frequently
+  startPeriodicRefresh();
+}
+
+/**
+ * Periodic full rescan every 30 seconds.
+ *
+ * Session .jsonl files update on every message — watching them would flood
+ * the watcher with events. Instead, we rescan on a timer and only push
+ * updates to the frontend when something actually changed (new sessions,
+ * active status changes, new agent executions).
+ */
+function startPeriodicRefresh(): void {
+  if (periodicTimer) clearInterval(periodicTimer);
+
+  periodicTimer = setInterval(async () => {
+    try {
+      // Snapshot current counts before rescan
+      const prevSessions = lastSessionCount;
+      const prevActive = lastActiveCount;
+      const prevExecutions = lastExecutionCount;
+
+      // Full rescan — updates all caches and notifies frontend via SSE
+      // runFullScan is a no-op if already scanning (prevents overlap)
+      await runFullScan();
+
+      // Update tracking counts from refreshed cache
+      const stats = getCachedStats();
+      lastSessionCount = stats.totalCount;
+      lastActiveCount = stats.activeCount;
+      lastExecutionCount = getCachedExecutions().length;
+
+      // Log only when something changed
+      if (lastSessionCount !== prevSessions ||
+          lastActiveCount !== prevActive ||
+          lastExecutionCount !== prevExecutions) {
+        console.log(
+          `[watcher] Periodic: sessions ${prevSessions}→${lastSessionCount}, ` +
+          `active ${prevActive}→${lastActiveCount}, ` +
+          `agents ${prevExecutions}→${lastExecutionCount}`
+        );
+      }
+    } catch (err) {
+      console.error("[watcher] Periodic refresh failed:", err);
+    }
+  }, PERIODIC_SCAN_INTERVAL_MS);
 }

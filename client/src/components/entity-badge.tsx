@@ -22,7 +22,7 @@ export function EntityBadge({ type }: { type: EntityType }) {
   const config = entityConfig[type];
   const Icon = config.icon;
   return (
-    <Badge variant="outline" className={`${config.bg} ${config.color} gap-1`}>
+    <Badge variant="outline" className={`${config.bg} ${config.color} gap-1 shadow-[0_0_6px_currentColor/0.15]`}>
       <Icon className="h-3 w-3" />
       {config.label}
     </Badge>

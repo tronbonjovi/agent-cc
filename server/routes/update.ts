@@ -2,7 +2,14 @@ import { Router, type Request, type Response } from "express";
 import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
-import type { UpdateStatus, UpdateApplyResult } from "@shared/types";
+import { z } from "zod";
+import type { UpdateStatus, UpdateApplyResult, UpdatePreferences } from "@shared/types";
+
+const UpdatePrefsSchema = z.object({
+  enabled: z.boolean().optional(),
+  autoUpdate: z.boolean().optional(),
+  dismissedCommit: z.string().nullable().optional(),
+}).strict();
 
 const router = Router();
 const PROJECT_ROOT = path.resolve(
@@ -12,6 +19,21 @@ const PROJECT_ROOT = path.resolve(
 
 let cachedStatus: UpdateStatus | null = null;
 let updateInProgress = false;
+
+// Preferences file
+const PREFS_PATH = path.join(PROJECT_ROOT, ".update-prefs.json");
+
+function loadPrefs(): UpdatePreferences {
+  try {
+    return JSON.parse(fs.readFileSync(PREFS_PATH, "utf-8"));
+  } catch {
+    return { enabled: true, autoUpdate: false, dismissedCommit: null };
+  }
+}
+
+function savePrefs(prefs: UpdatePreferences): void {
+  fs.writeFileSync(PREFS_PATH, JSON.stringify(prefs, null, 2));
+}
 
 function git(cmd: string, timeout = 15000): string {
   return (execSync(cmd, {
@@ -65,10 +87,12 @@ function isCacheFresh(): boolean {
   return age < 6 * 60 * 60 * 1000; // 6 hours
 }
 
-// GET /api/update/status — returns cached status
+// GET /api/update/status — returns cached status + preferences
 router.get("/api/update/status", (_req: Request, res: Response) => {
+  const prefs = loadPrefs();
+
   if (cachedStatus && isCacheFresh()) {
-    res.json({ ...cachedStatus, updateInProgress });
+    res.json({ ...cachedStatus, updateInProgress, prefs });
     return;
   }
 
@@ -83,11 +107,47 @@ router.get("/api/update/status", (_req: Request, res: Response) => {
     hasGitRemote: true,
     updateInProgress,
     error: null,
-  } satisfies UpdateStatus);
+    prefs,
+  });
+});
+
+// GET /api/update/prefs — get preferences
+router.get("/api/update/prefs", (_req: Request, res: Response) => {
+  res.json(loadPrefs());
+});
+
+// PATCH /api/update/prefs — update preferences
+router.patch("/api/update/prefs", (req: Request, res: Response) => {
+  const parsed = UpdatePrefsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues.map(i => i.message).join("; ") });
+  }
+  const current = loadPrefs();
+  const updated = { ...current, ...parsed.data };
+  savePrefs(updated);
+  res.json(updated);
 });
 
 // POST /api/update/check — force fresh check
 router.post("/api/update/check", (_req: Request, res: Response) => {
+  const prefs = loadPrefs();
+
+  if (!prefs.enabled) {
+    res.json({
+      updateAvailable: false,
+      currentVersion: getVersion(),
+      currentCommit: getCurrentCommit(),
+      latestCommit: null,
+      commitsBehind: 0,
+      lastCheckedAt: null,
+      hasGitRemote: true,
+      updateInProgress,
+      error: null,
+      prefs,
+    });
+    return;
+  }
+
   try {
     // Check for git remote
     try {
@@ -104,7 +164,7 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
         updateInProgress,
         error: null,
       };
-      res.json(cachedStatus);
+      res.json({ ...cachedStatus, prefs });
       return;
     }
 
@@ -124,7 +184,7 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
         updateInProgress,
         error: `Failed to fetch: ${e.message?.split("\n")[0] || "network error"}`,
       };
-      res.json(fallback);
+      res.json({ ...fallback, prefs });
       return;
     }
 
@@ -149,7 +209,7 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
       error: null,
     };
 
-    res.json(cachedStatus);
+    res.json({ ...cachedStatus, prefs });
   } catch (e: any) {
     res.status(500).json({
       updateAvailable: false,
@@ -161,7 +221,8 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
       hasGitRemote: true,
       updateInProgress,
       error: e.message || "Unknown error",
-    } satisfies UpdateStatus);
+      prefs,
+    });
   }
 });
 

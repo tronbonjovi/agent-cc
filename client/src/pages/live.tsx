@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLiveData } from "@/hooks/use-agents";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +12,12 @@ import {
   RefreshCw,
   Cpu,
   Activity,
+  Terminal,
+  Check,
 } from "lucide-react";
 import type { ActiveSession, AgentExecution } from "@shared/types";
+
+const REFETCH_MS = 3000;
 
 const AGENT_TYPE_COLORS: Record<string, string> = {
   Explore: "border-emerald-500/30 text-emerald-400 bg-emerald-500/10",
@@ -47,26 +51,77 @@ function relativeTime(dateStr: string | null): string {
   return `${days}d ago`;
 }
 
-function runningDuration(startedAt: number): string {
+function runningDuration(startedAt: number, _tick?: number): string {
   const diff = Date.now() - startedAt;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "<1m";
-  if (mins < 60) return `${mins}m`;
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  if (mins < 60) return `${mins}m ${remSecs}s`;
   const hrs = Math.floor(mins / 60);
-  const remainMins = mins % 60;
-  return `${hrs}h ${remainMins}m`;
+  const remMins = mins % 60;
+  return `${hrs}h ${remMins}m`;
+}
+
+function shortSummary(msg: string | undefined, maxWords = 5): string {
+  if (!msg) return "";
+  const words = msg.trim().split(/\s+/).slice(0, maxWords);
+  let result = words.join(" ");
+  if (msg.trim().split(/\s+/).length > maxWords) result += "...";
+  return result;
+}
+
+/** Returns Date.now() every `ms` milliseconds for ticking UIs */
+function useTick(ms: number): number {
+  const [tick, setTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), ms);
+    return () => clearInterval(id);
+  }, [ms]);
+  return tick;
 }
 
 export default function Live() {
   const { data, isLoading, dataUpdatedAt, refetch } = useLiveData();
   const [refreshing, setRefreshing] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const tick = useTick(1000);
+  const prevSessionIdsRef = useRef<Set<string> | null>(null);
+  const [newSessionIds, setNewSessionIds] = useState<Set<string>>(new Set());
+
+  const activeSessions = data?.activeSessions || [];
+
+  // Track new sessions for highlight glow
+  useEffect(() => {
+    const currentIds = new Set(activeSessions.map(s => s.sessionId));
+    if (prevSessionIdsRef.current !== null) {
+      const fresh = new Set<string>();
+      activeSessions.forEach(s => {
+        if (!prevSessionIdsRef.current!.has(s.sessionId)) fresh.add(s.sessionId);
+      });
+      if (fresh.size > 0) {
+        setNewSessionIds(fresh);
+        const timer = setTimeout(() => setNewSessionIds(new Set()), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+    prevSessionIdsRef.current = currentIds;
+  }, [activeSessions]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     refetch().finally(() => setTimeout(() => setRefreshing(false), 500));
   };
 
-  const lastUpdated = dataUpdatedAt ? relativeTime(new Date(dataUpdatedAt).toISOString()) : "-";
+  const handleCopyResume = useCallback((sessionId: string) => {
+    navigator.clipboard.writeText(`claude --resume ${sessionId}`);
+    setCopiedId(sessionId);
+    setTimeout(() => setCopiedId(null), 1500);
+  }, []);
+
+  // Countdown to next refresh
+  const secsSinceUpdate = dataUpdatedAt ? Math.floor((tick - dataUpdatedAt) / 1000) : 0;
+  const nextIn = Math.max(0, Math.ceil((REFETCH_MS - (tick - (dataUpdatedAt || tick))) / 1000));
 
   if (isLoading) return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -78,8 +133,8 @@ export default function Live() {
   );
 
   const stats = data?.stats;
-  const activeSessions = data?.activeSessions || [];
   const recentActivity = data?.recentActivity || [];
+  const hasActive = (stats?.activeSessionCount ?? 0) > 0;
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -87,15 +142,17 @@ export default function Live() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">Live View</h1>
-          {(stats?.activeSessionCount ?? 0) > 0 && (
+          {hasActive && (
             <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
               <span className="text-sm text-green-400">Active</span>
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Updated {lastUpdated}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            next in {nextIn}s
+          </span>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </Button>
@@ -103,14 +160,14 @@ export default function Live() {
       </div>
 
       {/* Status bar */}
-      <div className="flex items-center gap-4 px-4 py-3 rounded-xl border bg-card">
+      <div className={`flex items-center gap-4 px-4 py-3 rounded-xl border bg-card ${hasActive ? "live-border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.08)]" : ""}`}>
         <div className="flex items-center gap-2">
           <Monitor className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm">
             <span className="font-mono font-bold">{stats?.activeSessionCount ?? 0}</span>
             <span className="text-muted-foreground ml-1">session{(stats?.activeSessionCount ?? 0) !== 1 ? "s" : ""}</span>
           </span>
-          {(stats?.activeSessionCount ?? 0) > 0 && (
+          {hasActive && (
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           )}
         </div>
@@ -152,7 +209,15 @@ export default function Live() {
           ) : (
             <div className="space-y-3">
               {activeSessions.map((session, i) => (
-                <ActiveSessionCard key={session.sessionId} session={session} index={i} />
+                <ActiveSessionCard
+                  key={session.sessionId}
+                  session={session}
+                  index={i}
+                  tick={tick}
+                  isNew={newSessionIds.has(session.sessionId)}
+                  copiedId={copiedId}
+                  onCopyResume={handleCopyResume}
+                />
               ))}
             </div>
           )}
@@ -178,7 +243,7 @@ export default function Live() {
 
       {/* Today's summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="rounded-xl border bg-card p-4 animate-fade-in-up">
+        <div className="rounded-xl border bg-card p-4 animate-fade-in-up gradient-border">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Agents Today</p>
@@ -189,7 +254,7 @@ export default function Live() {
             </div>
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-4 animate-fade-in-up" style={{ animationDelay: "50ms" }}>
+        <div className="rounded-xl border bg-card p-4 animate-fade-in-up gradient-border" style={{ animationDelay: "50ms" }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Models Used</p>
@@ -200,7 +265,7 @@ export default function Live() {
             </div>
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-4 animate-fade-in-up" style={{ animationDelay: "100ms" }}>
+        <div className="rounded-xl border bg-card p-4 animate-fade-in-up gradient-border" style={{ animationDelay: "100ms" }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Active Sessions</p>
@@ -216,41 +281,128 @@ export default function Live() {
   );
 }
 
-function ActiveSessionCard({ session, index }: { session: ActiveSession; index: number }) {
+function ActiveSessionCard({
+  session,
+  index,
+  tick,
+  isNew,
+  copiedId,
+  onCopyResume,
+}: {
+  session: ActiveSession;
+  index: number;
+  tick: number;
+  isNew: boolean;
+  copiedId: string | null;
+  onCopyResume: (id: string) => void;
+}) {
+  const title = session.slug || shortSummary(session.firstMessage, 5) || session.sessionId.slice(0, 12) + "...";
+  const subtitle = session.slug
+    ? shortSummary(session.firstMessage, 8)
+    : session.firstMessage
+      ? shortSummary(session.firstMessage, 8)
+      : null;
+  const isCopied = copiedId === session.sessionId;
+
   return (
-    <Card className="animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
+    <Card
+      className={`animate-fade-in-up ${isNew ? "ring-2 ring-green-500/40 shadow-[0_0_20px_rgba(34,197,94,0.2)]" : ""}`}
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <span className="mt-1 w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+          <span className="mt-1 w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0 drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
           <div className="flex-1 min-w-0">
+            {/* Title row */}
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium font-mono">{session.sessionId.slice(0, 12)}...</span>
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0">PID {session.pid}</Badge>
-            </div>
-            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-              <span className="font-mono truncate max-w-[300px]">{session.cwd.replace(/\\/g, "/")}</span>
-              <span className="text-muted-foreground/30">/</span>
-              <Clock className="h-3 w-3" />
-              <span>{runningDuration(session.startedAt)}</span>
+              <span className="text-sm font-medium truncate">{title}</span>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">PID {session.pid}</Badge>
+              <div className="ml-auto flex-shrink-0">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={() => onCopyResume(session.sessionId)}
+                  title="Copy resume command"
+                >
+                  {isCopied ? (
+                    <Check className="h-3.5 w-3.5 text-green-400" />
+                  ) : (
+                    <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
             </div>
 
-            {/* Active agents */}
+            {/* Subtitle */}
+            {subtitle && session.slug && (
+              <p className="text-xs text-muted-foreground truncate mt-0.5">{subtitle}</p>
+            )}
+
+            {/* Meta row */}
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+              <span className="font-mono truncate max-w-[300px]">{session.cwd.replace(/\\/g, "/")}</span>
+              <span className="text-muted-foreground/30">/</span>
+              <Clock className="h-3 w-3 flex-shrink-0" />
+              <span className="tabular-nums">{runningDuration(session.startedAt, tick)}</span>
+              {session.projectKey && (
+                <>
+                  <span className="text-muted-foreground/30">/</span>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{session.projectKey.split("--").pop()}</Badge>
+                </>
+              )}
+            </div>
+
+            {/* Context usage */}
+            {session.contextUsage && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground/60 shrink-0 w-12">Context</span>
+                <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(session.contextUsage.percentage, 100)}%`,
+                      backgroundColor: session.contextUsage.percentage > 80 ? "#ef4444" : session.contextUsage.percentage > 50 ? "#f59e0b" : "#22c55e",
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] font-mono tabular-nums text-muted-foreground shrink-0">
+                  {session.contextUsage.percentage}%
+                </span>
+                <span className="text-[9px] text-muted-foreground/40 shrink-0">
+                  {Math.round(session.contextUsage.tokensUsed / 1000)}k / {Math.round(session.contextUsage.maxTokens / 1000)}k
+                </span>
+              </div>
+            )}
+
+            {/* Agents (running + recent) */}
             {session.activeAgents.length > 0 && (
               <div className="mt-3 space-y-1.5">
                 <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-                  Active Agents ({session.activeAgents.length})
+                  Agents ({session.activeAgents.filter(a => a.status === "running").length} running, {session.activeAgents.filter(a => a.status === "recent").length} recent)
                 </span>
                 {session.activeAgents.map(agent => (
-                  <div key={agent.agentId} className="flex items-center gap-2 text-xs ml-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
-                    {agent.agentType && (
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getTypeColor(agent.agentType)}`}>
-                        {agent.agentType}
-                      </Badge>
-                    )}
-                    <span className="font-mono">{agent.slug || agent.agentId.slice(0, 12)}</span>
-                    {agent.model && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{shortModel(agent.model)}</Badge>
+                  <div key={agent.agentId} className={`rounded-md border px-2.5 py-1.5 ${agent.status === "running" ? "border-green-500/20 bg-green-500/5" : "border-border/30 bg-muted/20"}`}>
+                    <div className="flex items-center gap-2 text-xs">
+                      {agent.status === "running" ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0 drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 flex-shrink-0" />
+                      )}
+                      {agent.agentType && (
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${getTypeColor(agent.agentType)}`}>
+                          {agent.agentType}
+                        </Badge>
+                      )}
+                      {agent.model && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{shortModel(agent.model)}</Badge>
+                      )}
+                      <span className="text-[10px] text-muted-foreground/50 ml-auto tabular-nums">
+                        {relativeTime(agent.lastWriteTs)}
+                      </span>
+                    </div>
+                    {agent.task && (
+                      <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2 ml-3.5">{agent.task}</p>
                     )}
                   </div>
                 ))}

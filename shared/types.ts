@@ -1,5 +1,73 @@
 export type EntityType = "project" | "mcp" | "plugin" | "skill" | "markdown" | "config";
-export type GraphNodeType = EntityType | "session" | "agent";
+export type GraphNodeType = EntityType | "session" | "agent" | "custom";
+
+export type CustomNodeSubType = "service" | "database" | "api" | "cicd" | "deploy" | "queue" | "cache" | "other";
+
+export interface CustomNode {
+  id: string;
+  subType: CustomNodeSubType;
+  label: string;
+  description?: string;
+  url?: string;
+  icon?: string;
+  color?: string;
+  source: "manual" | "config-file" | "ai-suggested" | "docker-compose" | "auto-discovered";
+}
+
+export interface CustomEdge {
+  id: string;
+  source: string;  // entity ID or custom node ID
+  target: string;
+  label: string;
+  color?: string;
+  dashed?: boolean;
+  source_origin: "manual" | "config-file" | "ai-suggested" | "docker-compose" | "auto-discovered";
+}
+
+export interface EntityOverride {
+  description?: string;
+  color?: string;
+  label?: string;
+}
+
+export interface GraphConfigYaml {
+  nodes?: Array<{
+    id: string;
+    type?: CustomNodeSubType;
+    label: string;
+    description?: string;
+    url?: string;
+    icon?: string;
+    color?: string;
+  }>;
+  edges?: Array<{
+    source: string;
+    target: string;
+    label: string;
+    color?: string;
+    dashed?: boolean;
+  }>;
+  overrides?: Array<{
+    entity: string;  // matches by entity name or ID
+    description?: string;
+    color?: string;
+    label?: string;
+  }>;
+}
+
+/** Shape of a single MCP server config from .mcp.json */
+export interface MCPServerConfig {
+  command?: string;
+  args?: string[];
+  url?: string;
+  env?: Record<string, string>;
+}
+
+/** Shape of a .mcp.json file (top-level or wrapped) */
+export interface MCPConfigFile {
+  mcpServers?: Record<string, MCPServerConfig>;
+  [key: string]: unknown;
+}
 
 export interface Entity {
   id: string;
@@ -110,6 +178,10 @@ export interface GraphNode {
   position: { x: number; y: number };
   parentId?: string;
   group?: { width: number; height: number };
+  subType?: CustomNodeSubType;
+  color?: string;
+  url?: string;
+  source?: string;  // origin of custom node
 }
 
 export interface GraphEdge {
@@ -144,9 +216,11 @@ export interface AgentDefinition {
   tools: string[];
   source: "plugin" | "user" | "project";
   pluginName?: string;
+  marketplace?: string;
   filePath: string;
   content: string;
   writable: boolean;
+  lastUsed?: string | null;
 }
 
 export interface AgentExecution {
@@ -178,6 +252,15 @@ export interface ActiveSession {
   cwd: string;
   startedAt: number;
   activeAgents: ActiveAgent[];
+  firstMessage?: string;
+  slug?: string;
+  projectKey?: string;
+  contextUsage?: {
+    tokensUsed: number;
+    maxTokens: number;
+    percentage: number;
+    model?: string;
+  };
 }
 
 export interface ActiveAgent {
@@ -186,6 +269,8 @@ export interface ActiveAgent {
   agentType: string | null;
   model: string | null;
   lastWriteTs: string;
+  task?: string;  // first user message — what the agent is doing
+  status: "running" | "recent";  // running = modified <60s, recent = modified <10min
 }
 
 export interface LiveData {
@@ -228,6 +313,12 @@ export interface UpdateApplyResult {
   error: string | null;
 }
 
+export interface UpdatePreferences {
+  enabled: boolean;        // master toggle — false = no checking at all
+  autoUpdate: boolean;     // auto-apply updates when found
+  dismissedCommit: string | null; // commit hash that was dismissed (ignore)
+}
+
 export interface SessionData {
   id: string;
   slug: string;
@@ -251,4 +342,16 @@ export interface SessionStats {
   totalSize: number;
   activeCount: number;
   emptyCount: number;
+}
+
+export interface AppSettings {
+  appName: string;
+  scanPaths: {
+    homeDir: string | null;
+    claudeDir: string | null;
+    extraMcpFiles: string[];
+    extraProjectDirs: string[];
+    extraSkillDirs: string[];
+    extraPluginDirs: string[];
+  };
 }

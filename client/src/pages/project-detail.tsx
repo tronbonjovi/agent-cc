@@ -31,20 +31,20 @@ export default function ProjectDetail() {
   const { data, isLoading } = useProjectDetail(params.id);
   const [, setLocation] = useLocation();
 
+  const pdata = data ? (data.project.data as any) : null;
+  const projectFilter = pdata?.projectKey || data?.project.path.split("/").pop() || "";
+  const { data: sessionsData } = useSessions({ project: projectFilter, sort: "lastTs", order: "desc" });
+
   if (isLoading) return <div className="p-6 text-muted-foreground">Loading...</div>;
   if (!data) return <div className="p-6 text-muted-foreground">Project not found</div>;
 
   const { project, linkedEntities } = data;
-  const pdata = project.data as any;
 
   const mcps = linkedEntities.filter((e) => e.type === "mcp");
   const skills = linkedEntities.filter((e) => e.type === "skill");
   const markdowns = linkedEntities.filter((e) => e.type === "markdown");
   const claudeMd = markdowns.find((m) => m.name === "CLAUDE.md");
 
-  // Sessions for this project
-  const projectFilter = pdata.projectKey || project.path.split("/").pop() || project.path.split("\\").pop() || "";
-  const { data: sessionsData } = useSessions({ project: projectFilter, sort: "lastTs", order: "desc" });
   const projectSessions = sessionsData?.sessions || [];
 
   return (

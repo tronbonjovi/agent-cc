@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScanStatus } from "@/hooks/use-entities";
+import { useAppSettings, useUpdateSettings } from "@/hooks/use-settings";
 import { SearchTrigger } from "@/components/global-search";
 import { SyncIndicator } from "@/components/sync-indicator";
 import { UpdateIndicator } from "@/components/update-indicator";
@@ -16,6 +17,7 @@ import {
   GitBranch,
   Search,
   Settings,
+  SlidersHorizontal,
   Terminal,
   ChevronLeft,
   ChevronRight,
@@ -24,7 +26,7 @@ import {
   Bot,
   Radio,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const navSections = [
   {
@@ -53,6 +55,7 @@ const navSections = [
       { path: "/discovery", label: "Discovery", icon: Search, countKey: null },
       { path: "/config", label: "Config", icon: Settings, countKey: "config" as const },
       { path: "/activity", label: "Activity", icon: Activity, countKey: null },
+      { path: "/settings", label: "Settings", icon: SlidersHorizontal, countKey: null },
     ],
   },
 ];
@@ -60,9 +63,29 @@ const navSections = [
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { data: status } = useScanStatus();
+  const { data: settings } = useAppSettings();
+  const updateSettings = useUpdateSettings();
   const [collapsed, setCollapsed] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editName, setEditName] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const counts = (status?.entityCounts || {}) as Record<string, number>;
   const isScanning = status?.scanning;
+  const appName = settings?.appName || "Command Center";
+
+  const startEditing = () => {
+    setEditName(appName);
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.select(), 0);
+  };
+
+  const saveName = () => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== appName) {
+      updateSettings.mutate({ appName: trimmed });
+    }
+    setEditingName(false);
+  };
 
   // Keyboard shortcut for collapse
   useEffect(() => {
@@ -80,9 +103,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
       <aside className={cn(
-        "border-r bg-sidebar flex flex-col transition-all duration-200 relative",
+        "border-r flex flex-col transition-all duration-200 relative bg-gradient-to-b from-[hsl(222_47%_5%)] via-[hsl(222_47%_6%)] to-[hsl(222_47%_4%)]",
         collapsed ? "w-14" : "w-56"
       )}>
+        {/* Top gradient accent line */}
+        <div className="h-px bg-gradient-to-r from-blue-500/40 via-purple-500/30 to-transparent" />
         {/* Scan progress bar */}
         {isScanning && (
           <div className="absolute top-0 left-0 right-0 h-0.5 z-10">
@@ -92,18 +117,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Brand */}
         <div className={cn("flex items-center gap-2.5 h-14", collapsed ? "px-3 justify-center" : "px-4")}>
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 relative">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(99,102,241,0.3)] ring-1 ring-blue-400/20">
             <Terminal className="h-4 w-4 text-white" />
-            {collapsed && <UpdateIndicator collapsed={true} />}
           </div>
           {!collapsed && (
-            <>
-              <span className="font-semibold text-sm whitespace-nowrap flex-1">Command Center</span>
-              <UpdateIndicator collapsed={false} />
-            </>
+            editingName ? (
+              <input
+                ref={nameInputRef}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveName();
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+                maxLength={50}
+                className="font-semibold text-sm bg-transparent border-b border-blue-500 outline-none flex-1 min-w-0"
+              />
+            ) : (
+              <span
+                className="font-semibold text-sm whitespace-nowrap flex-1 cursor-pointer hover:text-blue-400 transition-colors"
+                onClick={startEditing}
+                title="Click to rename"
+              >
+                {appName}
+              </span>
+            )
           )}
         </div>
-        <div className="mx-3 h-px bg-border/60" />
+        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
 
         {/* Search trigger */}
         <div className="p-2">
@@ -115,7 +157,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {navSections.map((section) => (
               <div key={section.label}>
                 {!collapsed && (
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-widest section-header">
                     {section.label}
                   </div>
                 )}
@@ -139,13 +181,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             "flex items-center rounded-md px-3 py-2 text-sm transition-all duration-150 cursor-pointer group relative",
                             collapsed ? "justify-center" : "gap-2.5",
                             isActive
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground hover:translate-x-0.5"
+                              ? "bg-gradient-to-r from-blue-500/15 via-purple-500/10 to-transparent text-sidebar-accent-foreground font-medium"
+                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground hover:translate-x-0.5 hover:shadow-[inset_0_0_12px_rgba(59,130,246,0.06)]"
                           )}
                         >
                           {/* Active indicator pill */}
                           {isActive && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-blue-500" />
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-gradient-to-b from-blue-400 to-purple-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]" />
                           )}
                           <item.icon className={cn("h-4 w-4 flex-shrink-0", isActive && "text-blue-400")} />
                           {!collapsed && (
@@ -187,9 +229,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
         </ScrollArea>
-        <div className="mx-3 h-px bg-border/60" />
+        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+        <UpdateIndicator collapsed={collapsed} />
+        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
         <SyncIndicator collapsed={collapsed} />
-        <div className="mx-3 h-px bg-border/60" />
+        <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="flex items-center justify-center h-10 text-muted-foreground hover:text-foreground transition-colors"

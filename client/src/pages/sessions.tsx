@@ -180,7 +180,7 @@ export default function Sessions() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {statCards.map((s, i) => (
-          <div key={s.label} className="rounded-xl border bg-card p-4 animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
+          <div key={s.label} className="rounded-xl border bg-card p-4 animate-fade-in-up gradient-border" style={{ animationDelay: `${i * 50}ms` }}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">{s.label}</p>

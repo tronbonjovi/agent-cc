@@ -32,6 +32,14 @@ export function scanMarkdown(): Entity[] {
     const fileName = path.basename(normalized);
     const category = categorize(normalized, fileName);
 
+    // For SKILL.md, use the parent directory name as the display name
+    // e.g. ~/.claude/skills/automation/SKILL.md → "automation"
+    let displayName = fileName;
+    if (category === "skill") {
+      const parentDir = path.basename(path.dirname(normalized));
+      displayName = parentDir.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
     let frontmatter: Record<string, unknown> | null = null;
     try {
       const parsed = matter(content);
@@ -44,7 +52,7 @@ export function scanMarkdown(): Entity[] {
     results.push({
       id,
       type: "markdown",
-      name: fileName,
+      name: displayName,
       path: normalized,
       description: `${category} file: ${normalized}`,
       lastModified: stat.mtime,

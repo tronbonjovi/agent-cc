@@ -3,14 +3,9 @@ import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 
 const allowlist = [
-  "better-sqlite3",
   "chokidar",
-  "date-fns",
-  "drizzle-orm",
   "express",
-  "glob",
   "gray-matter",
-  "nanoid",
   "zod",
 ];
 

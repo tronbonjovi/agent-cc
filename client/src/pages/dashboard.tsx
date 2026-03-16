@@ -63,12 +63,12 @@ export default function Dashboard() {
 
   // Entity color for border
   const entityBorderColor: Record<string, string> = {
-    project: "border-l-blue-500",
-    mcp: "border-l-green-500",
-    skill: "border-l-orange-500",
-    plugin: "border-l-purple-500",
-    markdown: "border-l-slate-500",
-    config: "border-l-teal-500",
+    project: "border-l-blue-500 shadow-[inset_4px_0_8px_-4px_rgba(59,130,246,0.15)]",
+    mcp: "border-l-green-500 shadow-[inset_4px_0_8px_-4px_rgba(34,197,94,0.15)]",
+    skill: "border-l-orange-500 shadow-[inset_4px_0_8px_-4px_rgba(249,115,22,0.15)]",
+    plugin: "border-l-purple-500 shadow-[inset_4px_0_8px_-4px_rgba(168,85,247,0.15)]",
+    markdown: "border-l-slate-500 shadow-[inset_4px_0_8px_-4px_rgba(100,116,139,0.15)]",
+    config: "border-l-teal-500 shadow-[inset_4px_0_8px_-4px_rgba(20,184,166,0.15)]",
   };
 
   return (
@@ -76,7 +76,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gradient">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {status?.totalEntities || 0} entities across {Object.keys(counts).length} types
           </p>
@@ -86,7 +86,7 @@ export default function Dashboard() {
           size="sm"
           onClick={() => rescan.mutate()}
           disabled={rescan.isPending}
-          className="gap-2"
+          className="gap-2 border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-500/50 hover:shadow-glow"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
           {rescan.isPending ? "Scanning..." : "Rescan"}
@@ -94,22 +94,22 @@ export default function Dashboard() {
       </div>
 
       {/* System health row */}
-      <div className="flex items-center gap-4 px-4 py-2.5 rounded-lg border border-border/50 bg-card/50">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">System</span>
+      <div className="flex items-center gap-4 px-4 py-2.5 rounded-lg border border-border/50 status-panel">
+        <span className="text-xs font-semibold text-blue-400/80 uppercase tracking-wider">System</span>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500 pulse-ring" style={{ color: "#22c55e40" }} />
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
           <span className="text-xs text-muted-foreground">Server</span>
         </div>
         <div className="flex items-center gap-1.5">
           {status?.scanning ? (
             <Loader2 className="h-3 w-3 text-blue-400 animate-spin" />
           ) : (
-            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
           )}
           <span className="text-xs text-muted-foreground">Scanner</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
           <span className="text-xs text-muted-foreground">Watcher</span>
         </div>
         <div className="flex-1" />
@@ -146,7 +146,7 @@ export default function Dashboard() {
               <button
                 key={action.path}
                 onClick={() => setLocation(action.path)}
-                className="flex items-center gap-2.5 rounded-lg border border-border/50 px-3 py-3 text-xs hover:bg-accent/50 hover:scale-[1.02] transition-all text-left group"
+                className="flex items-center gap-2.5 rounded-lg border border-border/50 px-3 py-3 text-xs hover:bg-accent/50 hover:scale-[1.02] transition-all text-left group gradient-border"
               >
                 <div className={`rounded-lg p-1.5 ${action.bg}`}>
                   <action.icon className={`h-3.5 w-3.5 ${action.color}`} />

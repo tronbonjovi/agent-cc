@@ -115,7 +115,7 @@ export function GlobalSearch() {
         />
 
         {/* Type filter pills */}
-        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border">
+        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border bg-gradient-to-r from-blue-500/[0.03] to-transparent">
           <button
             className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${!typeFilter ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50"}`}
             onClick={() => setTypeFilter(null)}
@@ -181,7 +181,7 @@ export function GlobalSearch() {
 
         {/* Footer */}
         {results.length > 0 && (
-          <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground flex items-center justify-between">
+          <div className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground flex items-center justify-between bg-gradient-to-r from-transparent to-purple-500/[0.03]">
             <span>{results.length} result{results.length !== 1 ? "s" : ""}</span>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">↑↓</kbd> Navigate</span>

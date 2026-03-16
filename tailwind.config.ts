@@ -102,6 +102,19 @@ export default {
         "edge-flow": {
           to: { strokeDashoffset: "-24" },
         },
+        "glow-pulse": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.5" },
+        },
+        "gradient-shift": {
+          "0%": { backgroundPosition: "0% 50%" },
+          "50%": { backgroundPosition: "100% 50%" },
+          "100%": { backgroundPosition: "0% 50%" },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-4px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -110,9 +123,17 @@ export default {
         "fade-in-up": "fade-in-up 0.3s ease-out both",
         "pulse-ring": "pulse-ring 2s ease-out infinite",
         "edge-flow": "edge-flow 1s linear infinite",
+        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+        "gradient-shift": "gradient-shift 3s ease infinite",
+        float: "float 3s ease-in-out infinite",
       },
       boxShadow: {
         glow: "0 0 12px rgba(59,130,246,0.3)",
+        "glow-lg": "0 0 20px rgba(59,130,246,0.4)",
+        "glow-green": "0 0 12px rgba(34,197,94,0.3)",
+        "glow-purple": "0 0 12px rgba(168,85,247,0.3)",
+        "glow-amber": "0 0 12px rgba(245,158,11,0.3)",
+        "inner-glow": "inset 0 1px 0 0 rgba(255,255,255,0.03)",
       },
     },
   },

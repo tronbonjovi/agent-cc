@@ -25,8 +25,9 @@ import {
 } from "@/components/ui/sheet";
 import type { EntityType, GraphNode, GraphNodeType } from "@shared/types";
 import { entityConfig } from "@/components/entity-badge";
-import { ProjectNode, EntityNode, SessionNode, entityColors } from "@/components/graph/graph-nodes";
+import { ProjectNode, EntityNode, SessionNode, CustomGraphNode, entityColors } from "@/components/graph/graph-nodes";
 import { AnimatedEdge } from "@/components/graph/animated-edge";
+import { AISuggestionButton } from "@/components/graph/ai-suggestions";
 import {
   RotateCcw,
   FolderOpen,
@@ -40,6 +41,7 @@ import {
   ArrowRight,
   Focus,
   MessageSquare,
+  Box,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -56,6 +58,10 @@ const EDGE_LEGEND: Record<string, { color: string; label: string }> = {
   serves_data_for: { color: "#f59e0b", label: "Serves Data" },
   syncs:           { color: "#34d399", label: "Syncs" },
   has_session:     { color: "#06b6d4", label: "Sessions" },
+  connects_to:     { color: "#f59e0b", label: "Connects To" },
+  depends_on:      { color: "#ef4444", label: "Depends On" },
+  uses:            { color: "#f97316", label: "Uses" },
+  shares_remote:   { color: "#34d399", label: "Shared Remote" },
 };
 
 // ------ Node & Edge types ------
@@ -64,6 +70,7 @@ const nodeTypes: NodeTypes = {
   projectNode: ProjectNode,
   entityNode: EntityNode,
   sessionNode: SessionNode,
+  customNode: CustomGraphNode,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -74,10 +81,11 @@ const allEntityTypes: EntityType[] = ["project", "mcp", "skill", "plugin", "mark
 const allGraphTypes: { type: string; label: string; icon: any; color: string }[] = [
   ...allEntityTypes.map((t) => ({ type: t, label: entityConfig[t].label, icon: entityConfig[t].icon, color: entityColors[t] })),
   { type: "session", label: "Sessions", icon: MessageSquare, color: "#06b6d4" },
+  { type: "custom", label: "Custom", icon: Box, color: "#f59e0b" },
 ];
 
 export default function GraphPage() {
-  const [activeTypes, setActiveTypes] = useState<string[]>(["project", "mcp", "skill", "plugin"]);
+  const [activeTypes, setActiveTypes] = useState<string[]>(["project", "mcp", "skill", "plugin", "custom"]);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [legendVisible, setLegendVisible] = useState(true);
@@ -112,7 +120,7 @@ export default function GraphPage() {
   };
 
   const resetTypes = () => {
-    setActiveTypes(["project", "mcp", "skill", "plugin"]);
+    setActiveTypes(["project", "mcp", "skill", "plugin", "custom"]);
     setSelectedNode(null);
     setSearchQuery("");
   };
@@ -179,16 +187,24 @@ export default function GraphPage() {
 
   const nodes: Node[] = useMemo(
     () =>
-      (graphData?.nodes || []).map((node) => ({
-        id: node.id,
-        type: node.type === "session" ? "sessionNode" : node.type === "project" ? "projectNode" : "entityNode",
-        position: node.position,
-        data: {
-          ...node,
-          connectionCount: connectionCounts[node.id] || 0,
-          searchMatch: searchMatchIds.has(node.id),
-        } as unknown as Record<string, unknown>,
-      })),
+      (graphData?.nodes || []).map((node) => {
+        let nodeType: string;
+        if (node.type === "session") nodeType = "sessionNode";
+        else if (node.type === "project") nodeType = "projectNode";
+        else if (node.type === "custom") nodeType = "customNode";
+        else nodeType = "entityNode";
+
+        return {
+          id: node.id,
+          type: nodeType,
+          position: node.position,
+          data: {
+            ...node,
+            connectionCount: connectionCounts[node.id] || 0,
+            searchMatch: searchMatchIds.has(node.id),
+          } as unknown as Record<string, unknown>,
+        };
+      }),
     [graphData?.nodes, connectionCounts, searchMatchIds]
   );
 
@@ -314,6 +330,7 @@ export default function GraphPage() {
       case "markdown": setLocation(`/markdown/${target.id}`); break;
       case "config": setLocation("/config"); break;
       case "session": setLocation("/sessions"); break;
+      case "custom": break; // Custom nodes don't have a dedicated page
     }
   };
 
@@ -412,6 +429,15 @@ export default function GraphPage() {
           </Button>
           <div className="w-px h-5 bg-border" />
 
+          {/* AI Suggestions */}
+          <AISuggestionButton onAccepted={() => {
+            // Trigger a rescan to refresh graph data
+            fetch("/api/scanner/rescan", { method: "POST" }).then(() => {
+              // React Query will pick up fresh data
+              window.location.reload();
+            });
+          }} />
+
           {/* Layout direction */}
           <Button
             variant="ghost"
@@ -479,7 +505,10 @@ export default function GraphPage() {
               className="!bg-card !border-border !shadow-lg"
             />
             <MiniMap
-              nodeColor={(node) => entityColors[(node.data as unknown as GraphNode)?.type] || "#64748b"}
+              nodeColor={(node) => {
+                const gNode = node.data as unknown as GraphNode;
+                return gNode?.color || entityColors[gNode?.type] || "#64748b";
+              }}
               maskColor="hsl(224 71% 4% / 0.8)"
               style={{ backgroundColor: "hsl(224 71% 6%)", border: "1px solid hsl(216 34% 17%)" }}
             />
@@ -521,8 +550,10 @@ export default function GraphPage() {
                   {(() => {
                     const Icon = selectedNode.type === "session"
                       ? MessageSquare
-                      : entityConfig[selectedNode.type as EntityType]?.icon || FolderOpen;
-                    const nodeColor = entityColors[selectedNode.type] || "#64748b";
+                      : selectedNode.type === "custom"
+                        ? Box
+                        : entityConfig[selectedNode.type as EntityType]?.icon || FolderOpen;
+                    const nodeColor = selectedNode.color || entityColors[selectedNode.type] || "#64748b";
                     return (
                       <div
                         className="flex items-center justify-center w-10 h-10 rounded-xl"
@@ -556,12 +587,32 @@ export default function GraphPage() {
                   <span className="text-muted-foreground">Connections</span>
                   <span className="font-mono tabular-nums">{selectedEdges.length}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Health</span>
-                  <span className={`font-mono ${selectedNode.health === "ok" ? "text-green-400" : "text-yellow-400"}`}>
-                    {selectedNode.health}
-                  </span>
-                </div>
+                {selectedNode.type !== "custom" && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Health</span>
+                    <span className={`font-mono ${selectedNode.health === "ok" ? "text-green-400" : "text-yellow-400"}`}>
+                      {selectedNode.health}
+                    </span>
+                  </div>
+                )}
+                {selectedNode.subType && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Sub-type</span>
+                    <span className="font-mono text-muted-foreground">{selectedNode.subType}</span>
+                  </div>
+                )}
+                {selectedNode.source && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Source</span>
+                    <span className="font-mono text-muted-foreground text-xs">{selectedNode.source}</span>
+                  </div>
+                )}
+                {selectedNode.url && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">URL</span>
+                    <span className="font-mono text-xs text-blue-400 truncate max-w-[180px]">{selectedNode.url}</span>
+                  </div>
+                )}
               </div>
 
               {/* Connected nodes */}
@@ -572,7 +623,7 @@ export default function GraphPage() {
                   </h4>
                   <div className="space-y-1.5 max-h-64 overflow-y-auto">
                     {selectedConnections.map(({ node, relation, direction }, i) => {
-                      const Icon = node.type === "session" ? MessageSquare : entityConfig[node.type as EntityType]?.icon || FolderOpen;
+                      const Icon = node.type === "session" ? MessageSquare : node.type === "custom" ? Box : entityConfig[node.type as EntityType]?.icon || FolderOpen;
                       return (
                         <button
                           key={`${node.id}-${i}`}

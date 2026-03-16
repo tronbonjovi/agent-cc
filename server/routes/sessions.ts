@@ -1,14 +1,14 @@
 import { Router, type Request, type Response } from "express";
-import { exec } from "child_process";
+import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
 import { getCachedSessions, getCachedStats, removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
+import { decodeProjectKey } from "../scanner/utils";
+import { SessionIdSchema, SessionListSchema, IdsArraySchema, validate, qstr } from "./validation";
+import { TRASH_DIR, MAX_SESSIONS_RESPONSE } from "../config";
 
 const router = Router();
-
-// Trash directory for undo support
-const TRASH_DIR = path.join(os.tmpdir(), "claude-sessions-trash").replace(/\\/g, "/");
 
 function ensureTrashDir(): void {
   if (!fs.existsSync(TRASH_DIR)) fs.mkdirSync(TRASH_DIR, { recursive: true });
@@ -18,19 +18,26 @@ function ensureTrashDir(): void {
 function trashSession(filePath: string): string | null {
   ensureTrashDir();
   const basename = path.basename(filePath);
-  const trashPath = path.join(TRASH_DIR, basename).replace(/\\/g, "/");
+  // Add timestamp suffix to avoid collisions from concurrent deletes
+  const trashPath = path.join(TRASH_DIR, `${basename}-${Date.now()}`).replace(/\\/g, "/");
   try {
     fs.copyFileSync(filePath, trashPath);
     fs.unlinkSync(filePath);
     // Also trash subdirectory if exists
     const subDir = filePath.replace(".jsonl", "");
-    if (fs.existsSync(subDir) && fs.statSync(subDir).isDirectory()) {
-      const trashSubDir = trashPath.replace(".jsonl", "");
-      fs.cpSync(subDir, trashSubDir, { recursive: true });
-      fs.rmSync(subDir, { recursive: true });
+    try {
+      const stat = fs.statSync(subDir);
+      if (stat.isDirectory()) {
+        const trashSubDir = trashPath.replace(".jsonl", "");
+        fs.cpSync(subDir, trashSubDir, { recursive: true });
+        fs.rmSync(subDir, { recursive: true });
+      }
+    } catch {
+      // No subdirectory — that's fine
     }
     return trashPath;
-  } catch {
+  } catch (err) {
+    console.error("[sessions] Failed to trash session:", (err as Error).message);
     return null;
   }
 }
@@ -46,12 +53,18 @@ function restoreFromTrash(trashPath: string, originalPath: string): boolean {
     // Restore subdirectory if exists
     const trashSubDir = trashPath.replace(".jsonl", "");
     const origSubDir = originalPath.replace(".jsonl", "");
-    if (fs.existsSync(trashSubDir) && fs.statSync(trashSubDir).isDirectory()) {
-      fs.cpSync(trashSubDir, origSubDir, { recursive: true });
-      fs.rmSync(trashSubDir, { recursive: true });
+    try {
+      const stat = fs.statSync(trashSubDir);
+      if (stat.isDirectory()) {
+        fs.cpSync(trashSubDir, origSubDir, { recursive: true });
+        fs.rmSync(trashSubDir, { recursive: true });
+      }
+    } catch {
+      // No subdirectory — that's fine
     }
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[sessions] Failed to restore session:", (err as Error).message);
     return false;
   }
 }
@@ -61,67 +74,80 @@ interface DeleteRecord {
   id: string;
   trashPath: string;
   originalPath: string;
-  sessionSnapshot: any; // cached SessionData for restore
+  sessionSnapshot: import("@shared/types").SessionData;
   timestamp: number;
 }
 let lastDeleteBatch: DeleteRecord[] = [];
 
-function qstr(v: unknown): string | undefined {
-  return Array.isArray(v) ? (v[0] as string) : (v as string | undefined);
-}
-
-/** GET /api/sessions — List sessions with search/filter/sort */
+/** GET /api/sessions — List sessions with search/filter/sort/pagination */
 router.get("/api/sessions", (req: Request, res: Response) => {
-  const q = qstr(req.query.q)?.toLowerCase();
-  const sort = qstr(req.query.sort) || "lastTs";
-  const order = qstr(req.query.order) || "desc";
-  const hideEmpty = qstr(req.query.hideEmpty) === "true";
-  const activeOnly = qstr(req.query.activeOnly) === "true";
+  const params = validate(SessionListSchema, {
+    q: qstr(req.query.q),
+    sort: qstr(req.query.sort),
+    order: qstr(req.query.order),
+    hideEmpty: qstr(req.query.hideEmpty),
+    activeOnly: qstr(req.query.activeOnly),
+    project: qstr(req.query.project),
+    page: qstr(req.query.page),
+    limit: qstr(req.query.limit),
+  }, res);
+  if (!params) return;
 
-  const project = qstr(req.query.project);
+  const { q, sort, order, hideEmpty, activeOnly, project, page, limit } = params;
 
   let sessions = getCachedSessions();
   const stats = getCachedStats();
 
   if (project) {
     sessions = sessions.filter(s => {
-      // Decode: C--Users-alice → C:/Users/alice  (-- = :/, - = /)
-      const decoded = s.projectKey.replace(/--/, ':/').replace(/-/g, '/');
+      const decoded = decodeProjectKey(s.projectKey);
       return decoded.endsWith('/' + project) || decoded.endsWith('\\' + project) || s.projectKey === project;
     });
   }
-  if (hideEmpty) sessions = sessions.filter(s => !s.isEmpty);
-  if (activeOnly) sessions = sessions.filter(s => s.isActive);
+  if (hideEmpty === "true") sessions = sessions.filter(s => !s.isEmpty);
+  if (activeOnly === "true") sessions = sessions.filter(s => s.isActive);
   if (q) {
+    const lowerQ = q.toLowerCase();
     sessions = sessions.filter(s => {
       const haystack = [s.firstMessage, s.slug, s.tags.join(" "), s.id].join(" ").toLowerCase();
-      return haystack.includes(q);
+      return haystack.includes(lowerQ);
     });
   }
 
-  const validSorts = ["lastTs", "firstTs", "sizeBytes", "messageCount", "slug"];
-  const sortKey = validSorts.includes(sort) ? sort : "lastTs";
   const asc = order === "asc";
-
   sessions = [...sessions].sort((a, b) => {
-    let av: any, bv: any;
-    if (sortKey === "lastTs") { av = a.lastTs || ""; bv = b.lastTs || ""; }
-    else if (sortKey === "firstTs") { av = a.firstTs || ""; bv = b.firstTs || ""; }
-    else if (sortKey === "sizeBytes") { av = a.sizeBytes; bv = b.sizeBytes; }
-    else if (sortKey === "messageCount") { av = a.messageCount; bv = b.messageCount; }
-    else if (sortKey === "slug") { av = a.slug.toLowerCase(); bv = b.slug.toLowerCase(); }
+    let av: string | number, bv: string | number;
+    if (sort === "lastTs") { av = a.lastTs || ""; bv = b.lastTs || ""; }
+    else if (sort === "firstTs") { av = a.firstTs || ""; bv = b.firstTs || ""; }
+    else if (sort === "sizeBytes") { av = a.sizeBytes; bv = b.sizeBytes; }
+    else if (sort === "messageCount") { av = a.messageCount; bv = b.messageCount; }
+    else if (sort === "slug") { av = a.slug.toLowerCase(); bv = b.slug.toLowerCase(); }
     else { av = a.lastTs || ""; bv = b.lastTs || ""; }
     if (av < bv) return asc ? -1 : 1;
     if (av > bv) return asc ? 1 : -1;
     return 0;
   });
 
-  res.json({ sessions, stats, canUndo: lastDeleteBatch.length > 0 });
+  const total = sessions.length;
+  const totalPages = Math.ceil(total / limit);
+  const cappedTotal = Math.min(total, MAX_SESSIONS_RESPONSE);
+  const start = (page - 1) * limit;
+  const paged = sessions.slice(start, Math.min(start + limit, cappedTotal));
+
+  res.json({
+    sessions: paged,
+    stats,
+    canUndo: lastDeleteBatch.length > 0,
+    pagination: { page, limit, total, totalPages },
+  });
 });
 
 /** GET /api/sessions/:id — Session detail with message timeline */
 router.get("/api/sessions/:id", (req: Request, res: Response) => {
-  const session = getCachedSessions().find(s => s.id === req.params.id);
+  const idResult = SessionIdSchema.safeParse(req.params.id);
+  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+
+  const session = getCachedSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ message: "Session not found" });
 
   const records: { type: string; role?: string; timestamp: string; contentPreview: string }[] = [];
@@ -130,8 +156,11 @@ router.get("/api/sessions/:id", (req: Request, res: Response) => {
     const chunkSize = Math.min(131072, stat.size);
     const buf = Buffer.alloc(chunkSize);
     const fd = fs.openSync(session.filePath, "r");
-    fs.readSync(fd, buf, 0, chunkSize, 0);
-    fs.closeSync(fd);
+    try {
+      fs.readSync(fd, buf, 0, chunkSize, 0);
+    } finally {
+      fs.closeSync(fd);
+    }
     const lines = buf.toString("utf-8").split("\n");
     let count = 0;
     for (let i = 0; i < Math.min(lines.length, 150) && count < 50; i++) {
@@ -157,16 +186,23 @@ router.get("/api/sessions/:id", (req: Request, res: Response) => {
           });
           count++;
         }
-      } catch {}
+      } catch {
+        // Truncated or malformed JSON line — skip
+      }
     }
-  } catch {}
+  } catch (err) {
+    console.warn("[sessions] Failed to read session file:", (err as Error).message);
+  }
 
   res.json({ ...session, records });
 });
 
 /** DELETE /api/sessions/:id — Delete a single session (moves to trash) */
 router.delete("/api/sessions/:id", (req: Request, res: Response) => {
-  const session = getCachedSessions().find(s => s.id === req.params.id);
+  const idResult = SessionIdSchema.safeParse(req.params.id);
+  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+
+  const session = getCachedSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ message: "Session not found" });
 
   const trashPath = trashSession(session.filePath);
@@ -180,16 +216,14 @@ router.delete("/api/sessions/:id", (req: Request, res: Response) => {
 
 /** DELETE /api/sessions — Bulk delete (moves to trash) */
 router.delete("/api/sessions", (req: Request, res: Response) => {
-  const { ids } = req.body as { ids?: string[] };
-  if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ message: "ids array required" });
-  }
+  const parsed = validate(IdsArraySchema, (req.body as { ids?: string[] })?.ids, res);
+  if (!parsed) return;
 
   const deleted: string[] = [];
   const failed: string[] = [];
   const batch: DeleteRecord[] = [];
 
-  for (const id of ids) {
+  for (const id of parsed) {
     const session = getCachedSessions().find(s => s.id === id);
     if (!session) { failed.push(id); continue; }
     const trashPath = trashSession(session.filePath);
@@ -248,19 +282,35 @@ router.post("/api/sessions/undo", (_req: Request, res: Response) => {
 
 /** POST /api/sessions/:id/open — Open in CLI */
 router.post("/api/sessions/:id/open", (req: Request, res: Response) => {
-  const session = getCachedSessions().find(s => s.id === req.params.id);
+  const idResult = SessionIdSchema.safeParse(req.params.id);
+  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+
+  const session = getCachedSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ message: "Session not found" });
 
   const plat = os.platform();
-  let cmd: string;
+  const env = { ...process.env, CLAUDECODE: undefined };
+
+  let child;
   if (plat === "win32") {
-    cmd = `start cmd /k "claude --resume ${session.id}"`;
+    child = spawn("cmd", ["/k", "claude", "--resume", session.id], {
+      detached: true,
+      stdio: "ignore",
+      env,
+    });
   } else if (plat === "darwin") {
-    cmd = `osascript -e 'tell application "Terminal" to do script "claude --resume ${session.id}"'`;
+    child = spawn("osascript", ["-e", `tell application "Terminal" to do script "claude --resume ${session.id}"`], {
+      detached: true,
+      stdio: "ignore",
+      env,
+    });
   } else {
-    cmd = `x-terminal-emulator -e "claude --resume ${session.id}" || xterm -e "claude --resume ${session.id}"`;
+    child = spawn("x-terminal-emulator", ["-e", "claude", "--resume", session.id], {
+      detached: true,
+      stdio: "ignore",
+      env,
+    });
   }
-  const child = exec(cmd);
   child.unref();
   res.json({ message: "Opening session", id: session.id });
 });

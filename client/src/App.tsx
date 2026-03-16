@@ -2,8 +2,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Switch, Route } from "wouter";
+import { useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { GlobalSearch } from "@/components/global-search";
+import { useAppSettings } from "@/hooks/use-settings";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import ProjectDetail from "@/pages/project-detail";
@@ -19,11 +21,21 @@ import ActivityPage from "@/pages/activity";
 import Sessions from "@/pages/sessions";
 import Agents from "@/pages/agents";
 import Live from "@/pages/live";
+import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+
+function DynamicTitle() {
+  const { data: settings } = useAppSettings();
+  useEffect(() => {
+    document.title = settings?.appName || "Command Center";
+  }, [settings?.appName]);
+  return null;
+}
 
 function Router() {
   return (
     <Layout>
+      <DynamicTitle />
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/projects" component={Projects} />
@@ -40,6 +52,7 @@ function Router() {
         <Route path="/sessions" component={Sessions} />
         <Route path="/agents" component={Agents} />
         <Route path="/live" component={Live} />
+        <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

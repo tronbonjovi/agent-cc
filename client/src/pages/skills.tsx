@@ -1,10 +1,11 @@
-import { useEntities } from "@/hooks/use-entities";
+import { useEntities, useRescan } from "@/hooks/use-entities";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, Wand2, Terminal, ChevronDown, ChevronRight, Copy, Check, Edit3, FolderOpen } from "lucide-react";
+import { Search, Wand2, Terminal, ChevronDown, ChevronRight, Copy, Check, Edit3, FolderOpen, RefreshCw, Settings } from "lucide-react";
 import { ListSkeleton } from "@/components/skeleton";
 
 function formatPreview(content: string): string {
@@ -34,6 +35,7 @@ export default function Skills() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [, setLocation] = useLocation();
+  const rescan = useRescan();
 
   const filtered = (skills || [])
     .filter(
@@ -105,7 +107,7 @@ export default function Skills() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-1.5">
                     <div className="flex items-center gap-2">
-                      <div className="rounded-md bg-gradient-to-br from-orange-500/15 to-amber-500/10 p-1.5">
+                      <div className="rounded-md bg-gradient-to-br from-orange-500/15 to-amber-500/10 p-1.5 transition-shadow group-hover:shadow-[0_0_8px_rgba(249,115,22,0.2)]">
                         <Wand2 className="h-3.5 w-3.5 text-orange-400" />
                       </div>
                       <span className="font-semibold text-sm">/{skill.name}</span>
@@ -173,7 +175,27 @@ export default function Skills() {
               </Card>
             );
           })}
-          {filtered.length === 0 && <div className="text-muted-foreground text-center py-12 col-span-full">No skills found</div>}
+          {filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4 col-span-full">
+              <Wand2 className="h-12 w-12 text-muted-foreground/30" />
+              <div className="text-center space-y-1">
+                <p className="text-muted-foreground font-medium">No skills found</p>
+                <p className="text-xs text-muted-foreground/70">
+                  Scanner looks in ~/.claude/skills/ for SKILL.md files
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} className="gap-1.5">
+                  <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
+                  Rescan
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setLocation("/settings")} className="gap-1.5">
+                  <Settings className="h-3.5 w-3.5" />
+                  Configure Paths
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
