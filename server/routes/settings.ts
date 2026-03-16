@@ -9,7 +9,7 @@ router.get("/api/settings", (_req, res) => {
 });
 
 router.patch("/api/settings", (req, res) => {
-  const { appName, scanPaths } = req.body;
+  const { appName, scanPaths, onboarded } = req.body;
 
   // Validate appName
   if (appName !== undefined) {
@@ -48,6 +48,7 @@ router.patch("/api/settings", (req, res) => {
   const patch: Partial<import("@shared/types").AppSettings> = {};
   if (appName !== undefined) patch.appName = appName.trim();
   if (scanPaths !== undefined) patch.scanPaths = scanPaths;
+  if (onboarded === true) patch.onboarded = true;
 
   const updated = storage.updateAppSettings(patch);
   res.json(updated);
