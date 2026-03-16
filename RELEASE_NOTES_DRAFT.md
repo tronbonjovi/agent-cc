@@ -1,34 +1,37 @@
-# v1.0.0
+# v1.1.0
 
-Initial public release of Claude Command Center.
+## Highlights
 
-## What is it?
+### Stats Page
+New analytics page at `/stats` with sessions-per-day chart, top projects by usage, agent type distribution, and model distribution.
 
-A local dashboard for visualizing and managing your Claude Code ecosystem. Runs on `localhost:5100`, reads your `~/.claude/` directory, and shows you everything in one place.
+### Graph Configuration
+Extend the auto-discovered graph with custom nodes via `graph-config.yaml`, Docker Compose auto-discovery, database URL extraction from MCP env vars, and AI-assisted suggestions.
 
-## Features
+### Export/Import
+One-click backup via `GET /api/export` and restore via `POST /api/import`. Export button available on the dashboard.
 
-- **Auto-discovery** of projects, MCP servers, skills, plugins, sessions, and agents
-- **Session browser** with search, filter, sort, and bulk operations
-- **Agent tracker** with definitions and execution history
-- **Live monitoring** of active Claude Code sessions with context usage, cost estimates
-- **Interactive graph** of your ecosystem with AI-assisted suggestions and `graph-config.yaml` support
-- **Markdown editor** for CLAUDE.md and memory files with version history
-- **Discovery** of unconfigured projects and MCP servers
-- **Config viewer** for settings, permissions, and MCP configurations
-- **Activity feed** from file watcher
-- **One-click updates** from the sidebar
+### Live View Enhancements
+Each active session now shows context usage bar, last message, message count, file size, cost estimate, model badge, and running/recent agents with task descriptions.
 
-## Security
+### Keyboard Shortcuts
+Press `G` then `D`/`S`/`A`/`G`/`L`/`M`/`P`/`K` to navigate between pages. `Ctrl+K` for global search.
 
-- Runs on `127.0.0.1` only (not network-accessible by default)
-- No telemetry, no analytics, no outbound network requests
-- All data stored locally in `~/.claude-command-center/`
-- Secrets in scanned configs are redacted
-- All user inputs validated with Zod schemas
-- See [SECURITY.md](SECURITY.md) for the full policy
+### Dashboard Overhaul
+Active session count in health bar, keyboard shortcut hints, 6 quick actions (Graph, Live View, CLAUDE.md, Stats, Export, Discovery).
+
+## All Changes
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ## Install
+
+```bash
+npm install -g claude-command-center
+claude-command-center
+```
+
+Or from source:
 
 ```bash
 git clone https://github.com/sorlen008/claude-command-center.git
@@ -37,10 +40,8 @@ npm install
 npm run dev
 ```
 
-Requires Node.js 18+ and Claude Code installed.
-
 ## Verify
 
 ```bash
-sha256sum -c checksums-v1.0.0.sha256
+sha256sum -c checksums-v1.1.0.sha256
 ```

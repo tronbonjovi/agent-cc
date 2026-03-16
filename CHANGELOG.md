@@ -7,25 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-16
+
 ### Added
-- Graph configuration system: custom nodes, edges, and entity overrides
-- Docker Compose service auto-discovery
-- Database URL extraction from MCP environment variables
-- Declarative `graph-config.yaml` support for custom graph topology
-- AI-assisted graph suggestions via `claude -p` with setup guide for new users
-- Custom node types: service, database, api, cicd, deploy, queue, cache
-- CRUD API for custom graph nodes and edges (`/api/graph/custom-nodes`, `/api/graph/custom-edges`)
-- Live view: context usage bar showing token consumption per session
-- Live view: last message, message count, file size, cost estimate per session
-- Live view: running and recent agents with task descriptions per session
+- **Stats page** (`/stats`) with sessions-per-day chart, top projects, agent/model distribution
+- **Export/Import** (`GET /api/export`, `POST /api/import`) for backup and restore
+- **Keyboard shortcuts** -- press `G` then `D`/`S`/`A`/`G`/`L`/`M`/`P`/`K` to navigate pages
+- **Graph configuration** -- custom nodes, edges, and entity overrides via `graph-config.yaml`
+- **AI-assisted graph suggestions** via `claude -p` with setup guide for new users
+- **Docker Compose auto-discovery** -- extract services and `depends_on` as graph nodes/edges
+- **Database URL extraction** from MCP environment variables (PostgreSQL, MySQL, MongoDB, Redis)
+- **Custom node types** -- service, database, api, cicd, deploy, queue, cache
+- **CRUD API** for custom graph nodes and edges
+- **Live view enhancements** -- context usage bar, last message, message count, file size, cost estimate per session
+- **Live view agents** -- running and recent agents with task descriptions per session
+- **Dashboard enhancements** -- active session count, keyboard hints, 6 quick actions (Graph, Live, CLAUDE.md, Stats, Export, Discovery)
 - Agent deduplication across plugin marketplaces
 - Fallback YAML parser for agent definitions with malformed frontmatter
-- Hover tooltips on agent stats cards explaining each metric
-- Skill names in markdown files (show parent directory name instead of "SKILL.md")
+- Hover tooltips on agent stats cards
+- Skill names in markdown files (parent directory name instead of "SKILL.md")
 - CI workflow, CodeQL scanning, dependency review, OpenSSF Scorecard
-- Release workflow with SHA-256 checksums
-- Security policy, contributing guide, code of conduct
-- Threat model and public trust documentation
+- Release workflow with SHA-256 checksums (all GitHub Actions SHA-pinned)
+- Security policy, contributing guide, code of conduct, threat model
+- SETUP.md detailed installation guide with troubleshooting
+- BRANDING.md for fork rebranding reference
+- npm global install support (`npm install -g claude-command-center`)
+- README with centered header, badges, screenshot grid, security section
 
 ### Fixed
 - Agent descriptions missing for agents with colons in YAML frontmatter
@@ -33,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AI suggest timeout (increased to 5 minutes, uses Haiku model for speed)
 - AI suggest command line too long on Windows (now uses stdin pipe)
 - Duplicate agents from overlapping plugin marketplaces
+- Cross-platform test for path validation (Linux CI)
 
 ## [1.0.0] - 2026-03-16
 
