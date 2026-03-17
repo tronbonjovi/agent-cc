@@ -30,9 +30,9 @@ export function extractDbNodesFromMcps(mcpEntities: Entity[]): { nodes: CustomNo
       for (const { pattern, type, label, color } of DB_URL_PATTERNS) {
         const match = value.match(pattern);
         if (match) {
-          const host = match[type === "database" ? 2 : (type === "cache" ? 2 : 2)] || "localhost";
-          const port = (match[type === "database" ? 3 : 3] || "").replace(":", "");
-          const dbName = match[type === "database" ? 4 : 0] || "";
+          const host = match[2] || "localhost";
+          const port = (match[3] || "").replace(":", "");
+          const dbName = (type === "database" ? match[4] : match[0]) || "";
 
           const nodeLabel = dbName ? `${label} (${dbName})` : `${label} ${host}${port ? `:${port}` : ""}`;
           const nodeId = `db-${label.toLowerCase()}-${host}-${port || "default"}-${dbName}`.replace(/[^a-z0-9-]/g, "-");

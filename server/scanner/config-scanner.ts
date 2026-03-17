@@ -31,7 +31,7 @@ export function scanConfigs(): Entity[] {
     const filePath = normPath(CLAUDE_DIR, name);
     if (!fileExists(filePath)) continue;
 
-    const json = safeReadJson(filePath);
+    const json = safeReadJson(filePath) as Record<string, unknown> | null;
     if (!json) continue;
 
     const stat = getFileStat(filePath);

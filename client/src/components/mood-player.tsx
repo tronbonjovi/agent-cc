@@ -100,16 +100,75 @@ export function MoodPlayerProvider({ children }: { children: React.ReactNode }) 
   );
 }
 
+const MOOD_MESSAGES = [
+  "Are you ready?",
+  "Fasten your seat belt.",
+  "Fix your eyes on the prize.",
+  "Calm your mind.",
+  "Steady your breath.",
+  "Feel the tension.",
+  "Embrace the pressure.",
+  "Ignore the noise.",
+  "Trust the process.",
+  "Hold your ground.",
+  "Move with precision.",
+  "Stay relentless.",
+  "Stay hungry.",
+  "Nothing can stop you now.",
+  "This moment is yours.",
+  "Make it count.",
+];
+
 /** Visible play/pause control — used in the Dashboard header */
 export function MoodPlayerButton() {
   const { playing, ready, toggle } = useMoodPlayer();
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [visible, setVisible] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!playing) {
+      setMsgIndex(0);
+      setVisible(false);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+
+    // Start first message immediately
+    setVisible(true);
+    let idx = 0;
+
+    intervalRef.current = setInterval(() => {
+      // Fade out
+      setVisible(false);
+
+      setTimeout(() => {
+        idx++;
+        if (idx >= MOOD_MESSAGES.length) {
+          // Stay on last message, stop cycling
+          idx = MOOD_MESSAGES.length - 1;
+          setMsgIndex(idx);
+          setVisible(true);
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          return;
+        }
+        setMsgIndex(idx);
+        // Fade in
+        setVisible(true);
+      }, 800); // fade-out duration before switching
+    }, 5000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [playing]);
 
   return (
     <button
       onClick={toggle}
       disabled={!ready}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-4 py-2 text-sm transition-all duration-300 border",
+        "flex items-center gap-2.5 rounded-full px-4 py-2 text-sm transition-all duration-300 border",
         playing
           ? "bg-gradient-to-r from-purple-500/15 via-pink-500/10 to-transparent border-purple-500/40 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.15)]"
           : "border-border/50 text-muted-foreground hover:bg-purple-500/10 hover:border-purple-500/30 hover:text-purple-300",
@@ -128,7 +187,16 @@ export function MoodPlayerButton() {
           <Play className="h-3.5 w-3.5 ml-0.5 text-purple-400" />
         )}
       </div>
-      <span className="font-medium text-xs whitespace-nowrap">Get In The Mood</span>
+      <span
+        className={cn(
+          "font-medium text-xs whitespace-nowrap min-w-[160px] text-center transition-all duration-700",
+          playing
+            ? visible ? "opacity-100" : "opacity-0"
+            : "opacity-100"
+        )}
+      >
+        {playing ? MOOD_MESSAGES[msgIndex] : "Get In The Mood"}
+      </span>
       {playing && (
         <div className="flex items-center gap-0.5 ml-1">
           <span className="w-0.5 h-2 bg-purple-400 rounded-full animate-[equalizer_0.8s_ease-in-out_infinite]" />

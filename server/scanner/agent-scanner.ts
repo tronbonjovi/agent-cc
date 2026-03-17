@@ -292,7 +292,7 @@ function parseExecution(filePath: string, projectKey: string): AgentExecution | 
     const metaPath = filePath.replace(".jsonl", ".meta.json");
     let agentType: string | null = null;
     if (fileExists(metaPath)) {
-      const meta = safeReadJson(metaPath);
+      const meta = safeReadJson(metaPath) as { agentType?: string } | null;
       if (meta?.agentType) agentType = meta.agentType;
     }
 

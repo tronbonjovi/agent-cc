@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import type { Entity, EntityType, ScanStatus } from "@shared/types";
+import { apiRequest, invalidateDataQueries } from "@/lib/queryClient";
+import type { Entity, EntityType, ScanStatus, MCPEntity, SkillEntity, PluginEntity, MarkdownEntity, ConfigEntity, ProjectEntity } from "@shared/types";
 
 export function makeRelativePath(fullPath: string, homeDir: string | null): string {
   if (!homeDir) return fullPath;
@@ -9,12 +9,12 @@ export function makeRelativePath(fullPath: string, homeDir: string | null): stri
   return p.startsWith(h + "/") ? "~/" + p.slice(h.length + 1) : p;
 }
 
-export function useEntities(type?: EntityType, query?: string) {
+export function useEntities<T extends Entity = Entity>(type?: EntityType, query?: string) {
   const params = new URLSearchParams();
   if (type) params.set("type", type);
   if (query) params.set("q", query);
   const qs = params.toString();
-  return useQuery<Entity[]>({
+  return useQuery<T[]>({
     queryKey: [`/api/entities${qs ? `?${qs}` : ""}`],
   });
 }
@@ -41,16 +41,7 @@ export function useRescan() {
       return res.json();
     },
     onSuccess: () => {
-      // Invalidate data queries (not settings/update)
-      qc.invalidateQueries({ queryKey: ["/api/entities"] });
-      qc.invalidateQueries({ queryKey: ["/api/scanner/status"] });
-      qc.invalidateQueries({ queryKey: ["/api/projects"] });
-      qc.invalidateQueries({ queryKey: ["/api/sessions"] });
-      qc.invalidateQueries({ queryKey: ["/api/graph"] });
-      qc.invalidateQueries({ queryKey: ["/api/apis"] });
-      qc.invalidateQueries({ queryKey: ["/api/live"] });
-      qc.invalidateQueries({ queryKey: ["/api/stats"] });
-      qc.invalidateQueries({ queryKey: ["/api/markdown"] });
+      invalidateDataQueries(qc);
     },
   });
 }

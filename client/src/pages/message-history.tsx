@@ -16,7 +16,10 @@ import {
   Wrench,
   Loader2,
 } from "lucide-react";
+import { relativeTime, shortModel } from "@/lib/utils";
 import type { SessionData, SessionStats } from "@shared/types";
+
+const rt = (s: string | null) => s ? relativeTime(s) : "-";
 
 interface SessionMessage {
   role: "user" | "assistant";
@@ -32,21 +35,6 @@ interface MessagesResponse {
   sessionId: string;
   totalMessages: number;
   messages: SessionMessage[];
-}
-
-function relativeTime(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return new Date(dateStr).toLocaleDateString();
 }
 
 function formatTime(timestamp: string): string {
@@ -72,14 +60,6 @@ function lastPathSegment(fullPath: string): string {
   const normalized = fullPath.replace(/\\/g, "/").replace(/\/$/, "");
   const parts = normalized.split("/");
   return parts[parts.length - 1] || fullPath;
-}
-
-function shortModel(model: string | undefined): string {
-  if (!model) return "";
-  if (model.includes("opus")) return "Opus";
-  if (model.includes("sonnet")) return "Sonnet";
-  if (model.includes("haiku")) return "Haiku";
-  return model.slice(0, 12);
 }
 
 export default function MessageHistory() {
@@ -193,7 +173,7 @@ function SessionRow({
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-[11px] text-muted-foreground font-mono whitespace-nowrap flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {relativeTime(session.lastTs)}
+                {rt(session.lastTs)}
               </span>
               {project && (
                 <>
@@ -321,7 +301,7 @@ function MessageRow({ message }: { message: SessionMessage }) {
         </span>
         {message.model && (
           <Badge variant="outline" className="text-[9px] px-1 py-0">
-            {shortModel(message.model)}
+            {shortModel(message.model ?? null)}
           </Badge>
         )}
       </div>

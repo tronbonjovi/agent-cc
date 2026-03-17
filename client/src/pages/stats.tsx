@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, Bot, MessageSquare, HardDrive, FolderOpen } from "lucide-react";
+import { formatBytes, formatDayLabel, isToday } from "@/lib/utils";
 
 interface StatsOverview {
   sessionsPerDay: { date: string; count: number }[];
@@ -13,31 +14,6 @@ interface StatsOverview {
   totalSessions: number;
   totalAgentExecutions: number;
   averageSessionSize: number;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
-  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + " MB";
-  return (bytes / 1073741824).toFixed(2) + " GB";
-}
-
-function formatDayLabel(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dayDate = new Date(d);
-  dayDate.setHours(0, 0, 0, 0);
-  if (dayDate.getTime() === today.getTime()) return "Today";
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  return `${days[d.getDay()]} ${month}/${day}`;
-}
-
-function isToday(dateStr: string): boolean {
-  const today = new Date().toISOString().slice(0, 10);
-  return dateStr === today;
 }
 
 const distributionColors: Record<string, string> = {

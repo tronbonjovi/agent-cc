@@ -194,7 +194,7 @@ export interface GraphNode {
   type: GraphNodeType;
   label: string;
   description?: string;
-  health: string;
+  health: "ok" | "warning" | "error" | "unknown";
   position: { x: number; y: number };
   parentId?: string;
   group?: { width: number; height: number };
@@ -319,6 +319,7 @@ export interface RuntimeInfo {
   claudeDir: string;
   uptime: number;
   appVersion?: string;
+  memoryUsage?: { rss: number; heapTotal: number; heapUsed: number; external: number };
 }
 
 export interface UpdateStatus {

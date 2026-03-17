@@ -42,8 +42,8 @@ export default function Dashboard() {
   const activeSessions = liveData?.stats?.activeSessionCount || 0;
 
   // Session stats from projects
-  const totalSessions = (projects || []).reduce((sum, p) => sum + ((p.data as any).sessionCount || 0), 0);
-  const totalSessionSize = (projects || []).reduce((sum, p) => sum + ((p.data as any).sessionSize || 0), 0);
+  const totalSessions = (projects || []).reduce((sum, p) => sum + (p.data.sessionCount || 0), 0);
+  const totalSessionSize = (projects || []).reduce((sum, p) => sum + (p.data.sessionSize || 0), 0);
 
   // Recent changes (sorted by lastModified)
   const recentEntities = (entities || [])
@@ -201,7 +201,7 @@ export default function Dashboard() {
                 >
                   <span className="text-muted-foreground truncate mr-2">{p.name}</span>
                   <span className="font-mono tabular-nums text-muted-foreground">
-                    {(p.data as any).sessionCount}
+                    {p.data.sessionCount}
                   </span>
                 </button>
               ))}
@@ -236,7 +236,7 @@ export default function Dashboard() {
                   <span className="text-muted-foreground flex items-center gap-1.5">
                     <Database className="h-3 w-3" /> Memory
                   </span>
-                  <span className="font-mono text-xs">{Math.round(runtime.memoryUsage?.rss / 1048576)} MB</span>
+                  <span className="font-mono text-xs">{Math.round((runtime.memoryUsage?.rss || 0) / 1048576)} MB</span>
                 </div>
               </>
             ) : (

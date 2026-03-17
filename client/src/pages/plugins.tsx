@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { HealthIndicator } from "@/components/health-indicator";
 import { Puzzle, Store, ShieldAlert, ShieldCheck, Server, GitBranch, Code2, RefreshCw, Settings } from "lucide-react";
+import type { PluginEntity } from "@shared/types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "dev-tools": "border-violet-500/30 text-violet-400",
@@ -27,17 +28,17 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function Plugins() {
-  const { data: plugins, isLoading } = useEntities("plugin");
+  const { data: plugins, isLoading } = useEntities<PluginEntity>("plugin");
   const rescan = useRescan();
   const [, setLocation] = useLocation();
 
   const marketplaces = (plugins || []).filter((p) => p.tags.includes("marketplace"));
-  const blocked = (plugins || []).filter((p) => !p.tags.includes("marketplace") && (p.data as any).blocked);
-  const active = (plugins || []).filter((p) => !p.tags.includes("marketplace") && !(p.data as any).blocked);
+  const blocked = (plugins || []).filter((p) => !p.tags.includes("marketplace") && p.data.blocked);
+  const active = (plugins || []).filter((p) => !p.tags.includes("marketplace") && !p.data.blocked);
 
   // Group active by category
   const grouped = active.reduce<Record<string, typeof active>>((acc, plugin) => {
-    const cat = (plugin.data as any).category || "other";
+    const cat = plugin.data.category || "other";
     (acc[cat] = acc[cat] || []).push(plugin);
     return acc;
   }, {});
@@ -88,9 +89,8 @@ export default function Plugins() {
                 <Store className="h-3.5 w-3.5" /> Marketplaces
               </h2>
               {marketplaces.map((mkt, i) => {
-                const data = mkt.data as any;
                 // Count plugins in this marketplace
-                const mktPluginCount = active.filter((p) => (p.data as any).marketplace === mkt.name).length;
+                const mktPluginCount = active.filter((p) => p.data.marketplace === mkt.name).length;
                 return (
                   <Card
                     key={mkt.id}
@@ -168,7 +168,7 @@ export default function Plugins() {
                       </div>
                     ) : (
                       items.map((plugin, i) => {
-                        const data = plugin.data as any;
+                        const data = plugin.data;
                         return (
                           <Card
                             key={plugin.id}
@@ -230,7 +230,7 @@ export default function Plugins() {
                 <ShieldAlert className="h-3.5 w-3.5 text-red-400" /> Blocked
               </h2>
               {blocked.map((plugin, i) => {
-                const data = plugin.data as any;
+                const data = plugin.data;
                 return (
                   <Card
                     key={plugin.id}

@@ -17,34 +17,11 @@ import {
   GitBranch,
 } from "lucide-react";
 import type { ActiveSession, AgentExecution } from "@shared/types";
-import { relativeTime as _relativeTime } from "@/lib/utils";
+import { relativeTime as _relativeTime, shortModel, getTypeColor } from "@/lib/utils";
 
 const REFETCH_MS = 3000;
 
-const AGENT_TYPE_COLORS: Record<string, string> = {
-  Explore: "border-emerald-500/30 text-emerald-400 bg-emerald-500/10",
-  Plan: "border-blue-500/30 text-blue-400 bg-blue-500/10",
-  "general-purpose": "border-amber-500/30 text-amber-400 bg-amber-500/10",
-  "claude-code-guide": "border-violet-500/30 text-violet-400 bg-violet-500/10",
-};
-
-function getTypeColor(type: string | null): string {
-  if (!type) return "border-muted-foreground/30 text-muted-foreground";
-  return AGENT_TYPE_COLORS[type] || "border-cyan-500/30 text-cyan-400 bg-cyan-500/10";
-}
-
-function shortModel(model: string | null): string {
-  if (!model) return "?";
-  if (model.includes("opus")) return "Opus";
-  if (model.includes("sonnet")) return "Sonnet";
-  if (model.includes("haiku")) return "Haiku";
-  return model.slice(0, 12);
-}
-
-function relativeTime(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  return _relativeTime(dateStr);
-}
+const relativeTime = (dateStr: string | null) => dateStr ? _relativeTime(dateStr) : "-";
 
 function runningDuration(startedAt: number, _tick?: number): string {
   const diff = Date.now() - startedAt;

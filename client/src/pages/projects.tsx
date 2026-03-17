@@ -8,12 +8,7 @@ import { Button } from "@/components/ui/button";
 import { HealthIndicator } from "@/components/health-indicator";
 import { useState } from "react";
 import { Search, FolderOpen, FileText, Server, Wand2, HardDrive, MessageSquare, RefreshCw, Settings } from "lucide-react";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / 1048576).toFixed(1) + " MB";
-}
+import { formatBytes } from "@/lib/utils";
 
 export default function Projects() {
   const [, setLocation] = useLocation();
@@ -27,7 +22,7 @@ export default function Projects() {
         p.name.toLowerCase().includes(search.toLowerCase()) ||
         p.description?.toLowerCase().includes(search.toLowerCase())
     )
-    .sort((a, b) => ((b.data as any).sessionCount || 0) - ((a.data as any).sessionCount || 0));
+    .sort((a, b) => (b.data.sessionCount || 0) - (a.data.sessionCount || 0));
 
   return (
     <div className="p-6 space-y-6">
@@ -47,7 +42,7 @@ export default function Projects() {
       ) : (
         <div className="space-y-3">
           {filtered.map((project, i) => {
-            const pdata = project.data as any;
+            const pdata = project.data;
             // Entity breakdown bar data
             const total = (project.mcpCount || 0) + (project.skillCount || 0) + (project.markdownCount || 0);
             return (

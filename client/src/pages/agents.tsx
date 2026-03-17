@@ -33,19 +33,10 @@ import {
   Check,
   Info,
 } from "lucide-react";
+import { formatBytes, relativeTime, shortModel, getTypeColor } from "@/lib/utils";
 import type { AgentDefinition, AgentExecution } from "@shared/types";
 
-const AGENT_TYPE_COLORS: Record<string, string> = {
-  Explore: "border-emerald-500/30 text-emerald-400 bg-emerald-500/10",
-  Plan: "border-blue-500/30 text-blue-400 bg-blue-500/10",
-  "general-purpose": "border-amber-500/30 text-amber-400 bg-amber-500/10",
-  "claude-code-guide": "border-violet-500/30 text-violet-400 bg-violet-500/10",
-};
-
-function getTypeColor(type: string | null): string {
-  if (!type) return "border-muted-foreground/30 text-muted-foreground";
-  return AGENT_TYPE_COLORS[type] || "border-cyan-500/30 text-cyan-400 bg-cyan-500/10";
-}
+const rt = (s: string | null) => s ? relativeTime(s) : "-";
 
 const MODEL_COLORS: Record<string, string> = {
   "claude-opus-4-6": "border-purple-500/30 text-purple-400",
@@ -59,35 +50,6 @@ function getModelColor(model: string | null): string {
     if (model.includes(key.split("-").slice(1, 3).join("-"))) return color;
   }
   return "border-cyan-500/30 text-cyan-400";
-}
-
-function shortModel(model: string | null): string {
-  if (!model) return "?";
-  if (model.includes("opus")) return "Opus";
-  if (model.includes("sonnet")) return "Sonnet";
-  if (model.includes("haiku")) return "Haiku";
-  return model.slice(0, 12);
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / 1048576).toFixed(1) + " MB";
-}
-
-function relativeTime(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  return new Date(dateStr).toLocaleDateString();
 }
 
 export default function Agents() {
@@ -380,7 +342,7 @@ function DefinitionCard({ def, index }: { def: AgentDefinition; index: number })
               {def.lastUsed && (
                 <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
                   <Clock className="h-3 w-3" />
-                  Last used {relativeTime(def.lastUsed)}
+                  Last used {rt(def.lastUsed)}
                 </span>
               )}
               {def.tools.length > 0 && (
@@ -543,7 +505,7 @@ function ExecutionCard({
               {exec.firstMessage || "(no message)"}
             </p>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-[11px] text-muted-foreground font-mono">{relativeTime(exec.firstTs)}</span>
+              <span className="text-[11px] text-muted-foreground font-mono">{rt(exec.firstTs)}</span>
               <span className="text-muted-foreground/30 text-[11px]">/</span>
               <span className="text-[11px] text-muted-foreground font-mono">{exec.messageCount} msgs</span>
               <span className="text-muted-foreground/30 text-[11px]">/</span>

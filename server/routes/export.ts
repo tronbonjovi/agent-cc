@@ -47,7 +47,7 @@ const ImportSchema = z.object({
       extraPluginDirs: z.array(z.string()),
     }),
   }).optional(),
-}).passthrough();
+});
 
 router.get("/api/export", (_req, res) => {
   res.json({

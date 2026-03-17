@@ -99,7 +99,7 @@ export default function MarkdownEdit() {
             <h1 className="text-lg font-bold">{file.name}</h1>
             <p className="text-xs text-muted-foreground font-mono">{relativePath(file.path)}</p>
           </div>
-          <Badge variant="outline" className="text-xs">{(file.data as any).category}</Badge>
+          <Badge variant="outline" className="text-xs">{file.data.category}</Badge>
           {dirty && <Badge variant="secondary" className="text-xs">Unsaved</Badge>}
           {justSaved && (
             <Badge variant="outline" className="text-xs border-green-500/30 text-green-400 gap-1">

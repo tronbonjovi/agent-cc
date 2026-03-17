@@ -1,16 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { Entity } from "@shared/types";
+import type { MarkdownEntity } from "@shared/types";
 
 export function useMarkdownFiles(category?: string) {
   const params = category ? `?category=${category}` : "";
-  return useQuery<Entity[]>({
+  return useQuery<MarkdownEntity[]>({
     queryKey: [`/api/markdown${params}`],
   });
 }
 
 export function useMarkdownContent(id: string | undefined) {
-  return useQuery<Entity & { content: string }>({
+  return useQuery<MarkdownEntity & { content: string }>({
     queryKey: [`/api/markdown/${id}`],
     enabled: !!id,
   });

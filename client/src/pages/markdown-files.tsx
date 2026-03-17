@@ -46,7 +46,7 @@ export default function MarkdownFiles() {
   const grouped = category === "all"
     ? Object.entries(
         filtered.reduce((acc, f) => {
-          const cat = (f.data as any).category || "other";
+          const cat = f.data.category || "other";
           if (!acc[cat]) acc[cat] = [];
           acc[cat].push(f);
           return acc;
@@ -103,7 +103,7 @@ export default function MarkdownFiles() {
               )}
               <div className="space-y-1.5">
                 {groupFiles.map((file, i) => {
-                  const data = file.data as any;
+                  const data = file.data;
                   const config = categoryConfig[data.category];
                   const sizePercent = Math.min((data.sizeBytes / MAX_SIZE_BYTES) * 100, 100);
                   return (

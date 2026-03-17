@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Search, Wand2, Terminal, ChevronDown, ChevronRight, Copy, Check, Edit3, FolderOpen, RefreshCw, Settings } from "lucide-react";
 import { ListSkeleton } from "@/components/skeleton";
+import type { SkillEntity, MarkdownEntity } from "@shared/types";
 
 function formatPreview(content: string): string {
   // Extract first meaningful paragraph, skip headers and blank lines
@@ -29,8 +30,8 @@ function formatPreview(content: string): string {
 }
 
 export default function Skills() {
-  const { data: skills, isLoading } = useEntities("skill");
-  const { data: markdowns } = useEntities("markdown");
+  const { data: skills, isLoading } = useEntities<SkillEntity>("skill");
+  const { data: markdowns } = useEntities<MarkdownEntity>("markdown");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -44,13 +45,13 @@ export default function Skills() {
         s.description?.toLowerCase().includes(search.toLowerCase())
     )
     .sort((a, b) => {
-      const aInv = (a.data as any).userInvocable ? 1 : 0;
-      const bInv = (b.data as any).userInvocable ? 1 : 0;
+      const aInv = a.data.userInvocable ? 1 : 0;
+      const bInv = b.data.userInvocable ? 1 : 0;
       if (bInv !== aInv) return bInv - aInv;
       return a.name.localeCompare(b.name);
     });
 
-  const invocableCount = filtered.filter((s) => (s.data as any).userInvocable).length;
+  const invocableCount = filtered.filter((s) => s.data.userInvocable).length;
 
   const handleCopy = (name: string, id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -65,7 +66,7 @@ export default function Skills() {
     return markdowns.find((m) => m.path.replace(/\\/g, "/") === normalizedSkillPath)?.id ?? null;
   };
 
-  const handleEdit = (skill: any, e: React.MouseEvent) => {
+  const handleEdit = (skill: SkillEntity, e: React.MouseEvent) => {
     e.stopPropagation();
     const mdId = findMarkdownId(skill.path);
     if (mdId) {
@@ -93,9 +94,9 @@ export default function Skills() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {filtered.map((skill, i) => {
-            const data = skill.data as any;
+            const data = skill.data;
             const isExpanded = expanded === skill.id;
-            const projectName = data.projectName as string | undefined;
+            const projectName = (data as Record<string, unknown>).projectName as string | undefined;
             const mdId = findMarkdownId(skill.path);
             return (
               <Card

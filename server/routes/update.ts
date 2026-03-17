@@ -337,6 +337,7 @@ router.post("/api/update/restart", (_req: Request, res: Response) => {
         detached: true,
         stdio: "ignore",
       });
+      child.on("error", () => {}); // prevent unhandled error event crash
       child.unref();
 
       // Give the new process a moment to start before exiting

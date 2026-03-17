@@ -8,43 +8,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EntityBadge, entityConfig } from "@/components/entity-badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, Server, Wand2, HardDrive, MessageSquare, ExternalLink, Edit3, ChevronRight, Layers, Zap, Clock, Terminal } from "lucide-react";
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / 1048576).toFixed(1) + " MB";
-}
-
-function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
-}
+import type { MCPEntity, SkillEntity, MarkdownEntity } from "@shared/types";
+import { formatBytes, relativeTime } from "@/lib/utils";
 
 export default function ProjectDetail() {
   const params = useParams<{ id: string }>();
   const { data, isLoading } = useProjectDetail(params.id);
   const [, setLocation] = useLocation();
 
-  const pdata = data ? (data.project.data as any) : null;
-  const projectFilter = pdata?.projectKey || data?.project.path.split("/").pop() || "";
+  const projectFilter = data?.project.data.projectKey || data?.project.path.split("/").pop() || "";
   const { data: sessionsData } = useSessions({ project: projectFilter, sort: "lastTs", order: "desc" });
 
   if (isLoading) return <div className="p-6 text-muted-foreground">Loading...</div>;
   if (!data) return <div className="p-6 text-muted-foreground">Project not found</div>;
 
   const { project, linkedEntities } = data;
+  const pdata = project.data;
 
-  const mcps = linkedEntities.filter((e) => e.type === "mcp");
-  const skills = linkedEntities.filter((e) => e.type === "skill");
-  const markdowns = linkedEntities.filter((e) => e.type === "markdown");
+  const mcps = linkedEntities.filter((e): e is MCPEntity => e.type === "mcp");
+  const skills = linkedEntities.filter((e): e is SkillEntity => e.type === "skill");
+  const markdowns = linkedEntities.filter((e): e is MarkdownEntity => e.type === "markdown");
   const claudeMd = markdowns.find((m) => m.name === "CLAUDE.md");
 
   const projectSessions = sessionsData?.sessions || [];
@@ -211,10 +194,10 @@ export default function ProjectDetail() {
                     <span className="font-medium">{mcp.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">{(mcp.data as any).transport}</Badge>
-                    {(mcp.data as any).command && (
+                    <Badge variant="outline" className="text-xs">{mcp.data.transport}</Badge>
+                    {mcp.data.command && (
                       <code className="text-[11px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
-                        {(mcp.data as any).command}
+                        {mcp.data.command}
                       </code>
                     )}
                   </div>
@@ -238,7 +221,7 @@ export default function ProjectDetail() {
                     <EntityBadge type="skill" />
                     <span className="font-medium">/{skill.name}</span>
                   </div>
-                  {(skill.data as any).userInvocable && <Badge variant="outline" className="text-xs border-orange-500/30 text-orange-400">Invocable</Badge>}
+                  {skill.data.userInvocable && <Badge variant="outline" className="text-xs border-orange-500/30 text-orange-400">Invocable</Badge>}
                 </div>
                 {skill.description && <p className="text-xs text-muted-foreground mt-2">{skill.description}</p>}
               </CardContent>
@@ -265,8 +248,8 @@ export default function ProjectDetail() {
                       <span className="font-medium">{md.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">{(md.data as any).category}</Badge>
-                      <span className="text-xs text-muted-foreground font-mono">{formatBytes((md.data as any).sizeBytes)}</span>
+                      <Badge variant="secondary" className="text-xs">{md.data.category}</Badge>
+                      <span className="text-xs text-muted-foreground font-mono">{formatBytes(md.data.sizeBytes)}</span>
                       <Edit3 className="h-3 w-3 text-muted-foreground" />
                     </div>
                   </div>

@@ -85,7 +85,7 @@ export default function Config() {
                 { icon: Cpu, color: "emerald", label: "Node.js", value: runtime.nodeVersion },
                 { icon: HardDrive, color: "blue", label: "Platform", value: `${runtime.platform} (${runtime.arch})` },
                 { icon: Clock, color: "amber", label: "Uptime", value: formatUptime(runtime.uptime) },
-                { icon: Database, color: "purple", label: "Memory (RSS)", value: `${Math.round(runtime.memoryUsage?.rss / 1048576)} MB` },
+                { icon: Database, color: "purple", label: "Memory (RSS)", value: `${Math.round((runtime.memoryUsage?.rss || 0) / 1048576)} MB` },
                 { icon: FolderOpen, color: "teal", label: "Home Directory", value: runtime.homeDir, mono: true, small: true },
                 { icon: Settings, color: "indigo", label: "Claude Directory", value: runtime.claudeDir, mono: true, small: true },
               ].map((item, i) => (
@@ -111,9 +111,10 @@ export default function Config() {
 
         <TabsContent value="settings" className="mt-4 space-y-4">
           {(configs || []).map((config, i) => {
-            const data = config.data as any;
-            const content = data.content || {};
-            const permCount = content.permissions?.allow?.length || 0;
+            const data = config.data;
+            const content = data.content as Record<string, unknown> || {};
+            const permissions = content.permissions as { allow?: unknown[] } | undefined;
+            const permCount = permissions?.allow?.length || 0;
             const hasHooks = !!content.hooks;
             const jsonStr = JSON.stringify(data.content, null, 2);
 

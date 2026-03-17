@@ -26,3 +26,41 @@ export function relativeTime(dateStr: string): string {
   if (weeks < 4) return `${weeks}w ago`;
   return new Date(dateStr).toLocaleDateString();
 }
+
+export function shortModel(model: string | null): string {
+  if (!model) return "?";
+  if (model.includes("opus")) return "Opus";
+  if (model.includes("sonnet")) return "Sonnet";
+  if (model.includes("haiku")) return "Haiku";
+  return model.slice(0, 12);
+}
+
+export const AGENT_TYPE_COLORS: Record<string, string> = {
+  Explore: "border-emerald-500/30 text-emerald-400 bg-emerald-500/10",
+  Plan: "border-blue-500/30 text-blue-400 bg-blue-500/10",
+  "general-purpose": "border-amber-500/30 text-amber-400 bg-amber-500/10",
+  "claude-code-guide": "border-violet-500/30 text-violet-400 bg-violet-500/10",
+};
+
+export function getTypeColor(type: string | null): string {
+  if (!type) return "border-muted-foreground/30 text-muted-foreground";
+  return AGENT_TYPE_COLORS[type] || "border-cyan-500/30 text-cyan-400 bg-cyan-500/10";
+}
+
+export function formatDayLabel(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayDate = new Date(d);
+  dayDate.setHours(0, 0, 0, 0);
+  if (dayDate.getTime() === today.getTime()) return "Today";
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  return `${days[d.getDay()]} ${month}/${day}`;
+}
+
+export function isToday(dateStr: string): boolean {
+  const today = new Date().toISOString().slice(0, 10);
+  return dateStr === today;
+}

@@ -11,7 +11,7 @@ export function scanPlugins(): Entity[] {
   // Parse blocklist
   const blocklist: Record<string, { reason: string; text: string }> = {};
   const blocklistPath = normPath(pluginsDir, "blocklist.json");
-  const blocklistJson = safeReadJson(blocklistPath);
+  const blocklistJson = safeReadJson(blocklistPath) as { plugins?: { plugin: string; reason: string; text: string }[] } | null;
   if (blocklistJson?.plugins) {
     for (const entry of blocklistJson.plugins) {
       blocklist[entry.plugin] = { reason: entry.reason, text: entry.text };
@@ -20,10 +20,10 @@ export function scanPlugins(): Entity[] {
 
   // Parse known marketplaces
   const marketplacesPath = normPath(pluginsDir, "known_marketplaces.json");
-  const marketplacesJson = safeReadJson(marketplacesPath);
+  const marketplacesJson = safeReadJson(marketplacesPath) as Record<string, { installLocation?: string; lastUpdated?: string; source?: { repo?: string } }> | null;
 
   if (marketplacesJson) {
-    for (const [marketplaceId, config] of Object.entries(marketplacesJson as Record<string, any>)) {
+    for (const [marketplaceId, config] of Object.entries(marketplacesJson)) {
       const installLocation = config.installLocation?.replace(/\\/g, "/");
       const stat = installLocation ? getFileStat(installLocation) : null;
 

@@ -18,7 +18,7 @@ export function entityId(filePath: string): string {
   return crypto.createHash("sha256").update(normalized).digest("hex").slice(0, 16);
 }
 
-export function safeReadJson(filePath: string): any | null {
+export function safeReadJson(filePath: string): unknown | null {
   try {
     const content = fs.readFileSync(filePath, "utf-8");
     return JSON.parse(content);

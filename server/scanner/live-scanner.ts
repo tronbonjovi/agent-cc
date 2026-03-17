@@ -274,7 +274,7 @@ export function getLiveData(): LiveData {
       for (const f of files) {
         if (!f.isFile() || !f.name.endsWith(".json")) continue;
         const filePath = normPath(sessionsDir, f.name);
-        const data = safeReadJson(filePath);
+        const data = safeReadJson(filePath) as { pid?: number; sessionId?: string; cwd?: string; startedAt?: number } | null;
         if (!data || !data.sessionId) continue;
 
         const session: ActiveSession = {
@@ -429,7 +429,7 @@ function findActiveAgents(subagentsPath: string, session: ActiveSession, nowMs: 
         // Read .meta.json for agentType
         const metaPath = filePath.replace(".jsonl", ".meta.json");
         let agentType: string | null = null;
-        const meta = safeReadJson(metaPath);
+        const meta = safeReadJson(metaPath) as { agentType?: string } | null;
         if (meta?.agentType) agentType = meta.agentType;
 
         const status = ageMs <= ACTIVE_THRESHOLD_MS ? "running" : "recent";

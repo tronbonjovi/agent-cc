@@ -9,6 +9,7 @@ import { useLocation } from "wouter";
 import { Search, Server, Copy, Check, ExternalLink, ChevronDown, ChevronRight, Tag, RefreshCw, Settings } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ListSkeleton } from "@/components/skeleton";
+import type { MCPEntity } from "@shared/types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   data: "border-cyan-500/30 text-cyan-400",
@@ -20,7 +21,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function MCPs() {
-  const { data: mcps, isLoading } = useEntities("mcp");
+  const { data: mcps, isLoading } = useEntities<MCPEntity>("mcp");
   const [search, setSearch] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -35,10 +36,9 @@ export default function MCPs() {
       m.description?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleCopyCommand = (mcp: any, e: React.MouseEvent) => {
+  const handleCopyCommand = (mcp: MCPEntity, e: React.MouseEvent) => {
     e.stopPropagation();
-    const data = mcp.data as any;
-    const cmd = data.command ? `${data.command} ${(data.args || []).join(" ")}` : data.url || "";
+    const cmd = mcp.data.command ? `${mcp.data.command} ${(mcp.data.args || []).join(" ")}` : mcp.data.url || "";
     navigator.clipboard.writeText(cmd.trim());
     setCopiedId(mcp.id);
     setTimeout(() => setCopiedId(null), 1500);
@@ -59,7 +59,7 @@ export default function MCPs() {
   // Group by category
   const grouped = groupByCategory
     ? filtered.reduce<Record<string, typeof filtered>>((acc, mcp) => {
-        const cat = (mcp.data as any).category || "other";
+        const cat = mcp.data.category || "other";
         (acc[cat] = acc[cat] || []).push(mcp);
         return acc;
       }, {})
@@ -78,8 +78,8 @@ export default function MCPs() {
     return labels[cat] || cat;
   };
 
-  const renderCard = (mcp: any, i: number) => {
-    const data = mcp.data as any;
+  const renderCard = (mcp: MCPEntity, i: number) => {
+    const data = mcp.data;
     const isExpanded = expanded === mcp.id;
     return (
       <Card

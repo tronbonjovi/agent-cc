@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateDataQueries } from "@/lib/queryClient";
 
 interface ScanEvent {
   type: "connected" | "scan-start" | "scan-complete";
@@ -42,14 +43,7 @@ export function useLiveSync() {
           setLastEvent({ type: "scan-complete", ...data });
         } catch {}
         // Invalidate entity/scanner queries so UI refreshes with new data
-        qc.invalidateQueries({ queryKey: ["/api/entities"] });
-        qc.invalidateQueries({ queryKey: ["/api/scanner/status"] });
-        qc.invalidateQueries({ queryKey: ["/api/projects"] });
-        qc.invalidateQueries({ queryKey: ["/api/sessions"] });
-        qc.invalidateQueries({ queryKey: ["/api/graph"] });
-        qc.invalidateQueries({ queryKey: ["/api/apis"] });
-        qc.invalidateQueries({ queryKey: ["/api/live"] });
-        qc.invalidateQueries({ queryKey: ["/api/stats"] });
+        invalidateDataQueries(qc);
       });
 
       es.onerror = () => {

@@ -67,26 +67,10 @@ function formatTokens(n: number): string {
   return n.toString();
 }
 
+import { formatDayLabel, isToday } from "@/lib/utils";
+
 function formatCost(n: number): string {
   return "$" + n.toFixed(2);
-}
-
-function formatDayLabel(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dayDate = new Date(d);
-  dayDate.setHours(0, 0, 0, 0);
-  if (dayDate.getTime() === today.getTime()) return "Today";
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  return `${days[d.getDay()]} ${month}/${day}`;
-}
-
-function isToday(dateStr: string): boolean {
-  const today = new Date().toISOString().slice(0, 10);
-  return dateStr === today;
 }
 
 function lastPathSegment(fullPath: string): string {
