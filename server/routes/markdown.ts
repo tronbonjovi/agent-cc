@@ -1,8 +1,18 @@
 import { Router, type Request, type Response } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
 import fs from "fs";
 import path from "path";
-import { qstr, validateMarkdownPath } from "./validation";
+import { qstr, validate, validateMarkdownPath } from "./validation";
+
+const MarkdownContentSchema = z.object({
+  content: z.string().max(1_000_000, "Content too large (max 1MB)"),
+});
+
+const MarkdownCreateSchema = z.object({
+  filePath: z.string().min(1, "filePath is required"),
+  content: z.string().max(1_000_000, "Content too large (max 1MB)"),
+});
 
 const router = Router();
 
@@ -42,13 +52,9 @@ router.put("/api/markdown/:id", (req: Request, res: Response) => {
     return res.status(404).json({ message: "Markdown file not found" });
   }
 
-  const { content } = req.body;
-  if (typeof content !== "string") {
-    return res.status(400).json({ message: "Content must be a string" });
-  }
-  if (content.length > 1_000_000) {
-    return res.status(400).json({ message: "Content too large (max 1MB)" });
-  }
+  const parsed = validate(MarkdownContentSchema, req.body, res);
+  if (!parsed) return;
+  const { content } = parsed;
 
   // Re-validate entity path is still under home directory
   const safePath = validateMarkdownPath(entity.path);
@@ -68,13 +74,9 @@ router.put("/api/markdown/:id", (req: Request, res: Response) => {
 });
 
 router.post("/api/markdown", (req: Request, res: Response) => {
-  const { filePath, content } = req.body;
-  if (!filePath || typeof filePath !== "string" || typeof content !== "string") {
-    return res.status(400).json({ message: "filePath and content required" });
-  }
-  if (content.length > 1_000_000) {
-    return res.status(400).json({ message: "Content too large (max 1MB)" });
-  }
+  const parsed = validate(MarkdownCreateSchema, req.body, res);
+  if (!parsed) return;
+  const { filePath, content } = parsed;
 
   // Validate path is under home directory to prevent arbitrary file writes
   const safePath = validateMarkdownPath(filePath);

@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EntityIcon, entityConfig } from "@/components/entity-badge";
-import { useScanStatus, useRescan, useRuntimeConfig, useEntities, useProjects } from "@/hooks/use-entities";
+import { useScanStatus, useRescan, useEntities } from "@/hooks/use-entities";
+import { useRuntimeConfig } from "@/hooks/use-config";
+import { useProjects } from "@/hooks/use-projects";
 import {
   RefreshCw, Clock, HardDrive, Cpu, Activity, Database,
   FolderOpen, Server, Wand2, FileText, GitBranch, Search,

@@ -1,6 +1,23 @@
 import { Router } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
 import { defaultAppSettings } from "../db";
+import { validate } from "./validation";
+
+const ScanPathsSchema = z.object({
+  homeDir: z.string().nullable().optional(),
+  claudeDir: z.string().nullable().optional(),
+  extraMcpFiles: z.array(z.string()).max(50).optional(),
+  extraProjectDirs: z.array(z.string()).max(50).optional(),
+  extraSkillDirs: z.array(z.string()).max(50).optional(),
+  extraPluginDirs: z.array(z.string()).max(50).optional(),
+}).optional();
+
+const SettingsPatchSchema = z.object({
+  appName: z.string().trim().min(1, "appName must be a non-empty string").max(50, "appName must be 50 characters or fewer").optional(),
+  scanPaths: ScanPathsSchema,
+  onboarded: z.literal(true).optional(),
+});
 
 const router = Router();
 
@@ -9,46 +26,16 @@ router.get("/api/settings", (_req, res) => {
 });
 
 router.patch("/api/settings", (req, res) => {
-  const { appName, scanPaths, onboarded } = req.body;
-
-  // Validate appName
-  if (appName !== undefined) {
-    if (typeof appName !== "string" || appName.trim().length === 0) {
-      return res.status(400).json({ message: "appName must be a non-empty string" });
-    }
-    if (appName.length > 50) {
-      return res.status(400).json({ message: "appName must be 50 characters or fewer" });
-    }
-  }
-
-  // Validate scanPaths
-  if (scanPaths !== undefined) {
-    if (typeof scanPaths !== "object" || scanPaths === null) {
-      return res.status(400).json({ message: "scanPaths must be an object" });
-    }
-    const arrayFields = ["extraMcpFiles", "extraProjectDirs", "extraSkillDirs", "extraPluginDirs"] as const;
-    for (const field of arrayFields) {
-      if (scanPaths[field] !== undefined) {
-        if (!Array.isArray(scanPaths[field]) || !scanPaths[field].every((v: unknown) => typeof v === "string")) {
-          return res.status(400).json({ message: `scanPaths.${field} must be an array of strings` });
-        }
-        if (scanPaths[field].length > 50) {
-          return res.status(400).json({ message: `scanPaths.${field} too many entries (max 50)` });
-        }
-      }
-    }
-    const stringFields = ["homeDir", "claudeDir"] as const;
-    for (const field of stringFields) {
-      if (scanPaths[field] !== undefined && scanPaths[field] !== null && typeof scanPaths[field] !== "string") {
-        return res.status(400).json({ message: `scanPaths.${field} must be a string or null` });
-      }
-    }
-  }
+  const parsed = validate(SettingsPatchSchema, req.body, res);
+  if (!parsed) return;
 
   const patch: Partial<import("@shared/types").AppSettings> = {};
-  if (appName !== undefined) patch.appName = appName.trim();
-  if (scanPaths !== undefined) patch.scanPaths = scanPaths;
-  if (onboarded === true) patch.onboarded = true;
+  if (parsed.appName !== undefined) patch.appName = parsed.appName;
+  if (parsed.scanPaths !== undefined) {
+    const current = storage.getAppSettings().scanPaths;
+    patch.scanPaths = { ...current, ...parsed.scanPaths };
+  }
+  if (parsed.onboarded !== undefined) patch.onboarded = parsed.onboarded;
 
   const updated = storage.updateAppSettings(patch);
   res.json(updated);

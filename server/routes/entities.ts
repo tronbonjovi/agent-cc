@@ -1,13 +1,21 @@
 import { Router, type Request, type Response } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
-import type { EntityType } from "@shared/types";
+import { qstr, validate } from "./validation";
+
+const EntityTypeEnum = z.enum(["project", "mcp", "plugin", "skill", "markdown", "config"]);
+
+const EntitiesQuerySchema = z.object({
+  type: EntityTypeEnum.optional(),
+  q: z.string().max(500).optional(),
+});
 
 const router = Router();
 
 router.get("/api/entities", (req: Request, res: Response) => {
-  const type = (Array.isArray(req.query.type) ? req.query.type[0] : req.query.type) as EntityType | undefined;
-  const q = (Array.isArray(req.query.q) ? req.query.q[0] : req.query.q) as string | undefined;
-  const entities = storage.getEntities(type, q);
+  const parsed = validate(EntitiesQuerySchema, { type: qstr(req.query.type), q: qstr(req.query.q) }, res);
+  if (!parsed) return;
+  const entities = storage.getEntities(parsed.type, parsed.q);
   res.json(entities);
 });
 

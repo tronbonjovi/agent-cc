@@ -1,5 +1,7 @@
 import { useParams, Link, useLocation } from "wouter";
-import { useProjectDetail, useMarkdownContent, useSessions } from "@/hooks/use-entities";
+import { useProjectDetail } from "@/hooks/use-projects";
+import { useMarkdownContent } from "@/hooks/use-markdown";
+import { useSessions } from "@/hooks/use-sessions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
-import { useProjects, useRescan } from "@/hooks/use-entities";
+import { useRescan } from "@/hooks/use-entities";
+import { useProjects } from "@/hooks/use-projects";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";

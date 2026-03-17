@@ -2,7 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Switch, Route } from "wouter";
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { GlobalSearch } from "@/components/global-search";
@@ -10,28 +10,36 @@ import { useAppSettings } from "@/hooks/use-settings";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useTheme } from "@/hooks/use-theme";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
-import Dashboard from "@/pages/dashboard";
-import Projects from "@/pages/projects";
-import ProjectDetail from "@/pages/project-detail";
-import MCPs from "@/pages/mcps";
-import Skills from "@/pages/skills";
-import Plugins from "@/pages/plugins";
-import MarkdownFiles from "@/pages/markdown-files";
-import MarkdownEdit from "@/pages/markdown-edit";
-import GraphPage from "@/pages/graph";
-import Discovery from "@/pages/discovery";
-import Config from "@/pages/config";
-import ActivityPage from "@/pages/activity";
-import Sessions from "@/pages/sessions";
-import Agents from "@/pages/agents";
-import Live from "@/pages/live";
-import SettingsPage from "@/pages/settings";
-import Stats from "@/pages/stats";
-import Rules from "@/pages/rules";
-import CostDashboard from "@/pages/cost-dashboard";
-import MessageHistory from "@/pages/message-history";
-import APIs from "@/pages/apis";
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const Projects = lazy(() => import("@/pages/projects"));
+const ProjectDetail = lazy(() => import("@/pages/project-detail"));
+const MCPs = lazy(() => import("@/pages/mcps"));
+const Skills = lazy(() => import("@/pages/skills"));
+const Plugins = lazy(() => import("@/pages/plugins"));
+const MarkdownFiles = lazy(() => import("@/pages/markdown-files"));
+const MarkdownEdit = lazy(() => import("@/pages/markdown-edit"));
+const GraphPage = lazy(() => import("@/pages/graph"));
+const Discovery = lazy(() => import("@/pages/discovery"));
+const Config = lazy(() => import("@/pages/config"));
+const ActivityPage = lazy(() => import("@/pages/activity"));
+const Sessions = lazy(() => import("@/pages/sessions"));
+const Agents = lazy(() => import("@/pages/agents"));
+const Live = lazy(() => import("@/pages/live"));
+const SettingsPage = lazy(() => import("@/pages/settings"));
+const Stats = lazy(() => import("@/pages/stats"));
+const Rules = lazy(() => import("@/pages/rules"));
+const CostDashboard = lazy(() => import("@/pages/cost-dashboard"));
+const MessageHistory = lazy(() => import("@/pages/message-history"));
+const APIs = lazy(() => import("@/pages/apis"));
 import NotFound from "@/pages/not-found";
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground border-t-transparent" />
+    </div>
+  );
+}
 
 function DynamicTitle() {
   const { data: settings } = useAppSettings();
@@ -49,30 +57,32 @@ function Router() {
       <DynamicTitle />
       <OnboardingWizard />
       <ErrorBoundary>
-        <Switch>
-          <Route path="/" component={Dashboard} />
-          <Route path="/projects" component={Projects} />
-          <Route path="/projects/:id" component={ProjectDetail} />
-          <Route path="/mcps" component={MCPs} />
-          <Route path="/skills" component={Skills} />
-          <Route path="/plugins" component={Plugins} />
-          <Route path="/markdown" component={MarkdownFiles} />
-          <Route path="/markdown/:id" component={MarkdownEdit} />
-          <Route path="/graph" component={GraphPage} />
-          <Route path="/discovery" component={Discovery} />
-          <Route path="/config" component={Config} />
-          <Route path="/activity" component={ActivityPage} />
-          <Route path="/sessions" component={Sessions} />
-          <Route path="/agents" component={Agents} />
-          <Route path="/live" component={Live} />
-          <Route path="/settings" component={SettingsPage} />
-          <Route path="/rules" component={Rules} />
-          <Route path="/stats" component={Stats} />
-          <Route path="/costs" component={CostDashboard} />
-          <Route path="/messages" component={MessageHistory} />
-          <Route path="/apis" component={APIs} />
-          <Route component={NotFound} />
-        </Switch>
+        <Suspense fallback={<PageLoader />}>
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/projects" component={Projects} />
+            <Route path="/projects/:id" component={ProjectDetail} />
+            <Route path="/mcps" component={MCPs} />
+            <Route path="/skills" component={Skills} />
+            <Route path="/plugins" component={Plugins} />
+            <Route path="/markdown" component={MarkdownFiles} />
+            <Route path="/markdown/:id" component={MarkdownEdit} />
+            <Route path="/graph" component={GraphPage} />
+            <Route path="/discovery" component={Discovery} />
+            <Route path="/config" component={Config} />
+            <Route path="/activity" component={ActivityPage} />
+            <Route path="/sessions" component={Sessions} />
+            <Route path="/agents" component={Agents} />
+            <Route path="/live" component={Live} />
+            <Route path="/settings" component={SettingsPage} />
+            <Route path="/rules" component={Rules} />
+            <Route path="/stats" component={Stats} />
+            <Route path="/costs" component={CostDashboard} />
+            <Route path="/messages" component={MessageHistory} />
+            <Route path="/apis" component={APIs} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </ErrorBoundary>
     </Layout>
   );

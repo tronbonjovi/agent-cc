@@ -106,10 +106,27 @@ const PROJECT_CONTAINER_NAMES = new Set([
   "code", "developer", "dev", "workspace", "workspaces", "git",
 ]);
 
+/** Cache for discoverProjectDirs() — avoids redundant filesystem scans
+ *  when multiple scanners call it during a single scan cycle. */
+let cachedProjectDirs: string[] | null = null;
+let cacheTs = 0;
+const CACHE_TTL_MS = 5000;
+
+/** Clear the project-dirs cache (called at the start of each scan cycle). */
+export function clearProjectDirsCache(): void {
+  cachedProjectDirs = null;
+  cacheTs = 0;
+}
+
 /** Discover project directories under HOME that have project markers.
  *  Scans direct children of HOME, and also one level deeper inside
- *  well-known container directories (e.g. ~/Projects, ~/Developer). */
+ *  well-known container directories (e.g. ~/Projects, ~/Developer).
+ *  Results are cached for 5 seconds to avoid redundant I/O. */
 export function discoverProjectDirs(): string[] {
+  const now = Date.now();
+  if (cachedProjectDirs !== null && now - cacheTs < CACHE_TTL_MS) {
+    return cachedProjectDirs;
+  }
   const results: string[] = [];
   const seen = new Set<string>();
 
@@ -143,6 +160,8 @@ export function discoverProjectDirs(): string[] {
       }
     }
   } catch {}
+  cachedProjectDirs = results;
+  cacheTs = Date.now();
   return results;
 }
 

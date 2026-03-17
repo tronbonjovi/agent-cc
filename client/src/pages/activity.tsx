@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useScanStatus } from "@/hooks/use-entities";
+import { useScanStatus, useRescan } from "@/hooks/use-entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useRescan } from "@/hooks/use-entities";
 import { RefreshCw, Activity, FileText, FolderPlus, Trash2, Edit3, Clock } from "lucide-react";
 
 function relativeTime(dateStr: string): string {

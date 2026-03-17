@@ -10,7 +10,7 @@ import { scanAgentDefinitions, scanAgentExecutions } from "./agent-scanner";
 import { scanDockerCompose } from "./importers/docker-compose";
 import { scanGraphConfig } from "./graph-config-scanner";
 import { scanApiConfig } from "./api-config-scanner";
-import { entityId } from "./utils";
+import { entityId, clearProjectDirsCache } from "./utils";
 import { buildRelationships } from "./relationships";
 import { getDB, save } from "../db";
 import type { Entity, EntityType, CustomNode, CustomEdge } from "@shared/types";
@@ -52,6 +52,7 @@ export async function runFullScan(): Promise<void> {
 
   try {
     const start = Date.now();
+    clearProjectDirsCache();
     notifyClients("scan-start", { version: scanVersion + 1 });
 
     // Run all scanners

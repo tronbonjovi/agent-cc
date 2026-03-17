@@ -1,5 +1,7 @@
 import { useParams, Link } from "wouter";
-import { useMarkdownContent, useMarkdownHistory, useSaveMarkdown, useRestoreMarkdown, useRuntimeConfig, makeRelativePath } from "@/hooks/use-entities";
+import { makeRelativePath } from "@/hooks/use-entities";
+import { useMarkdownContent, useMarkdownHistory, useSaveMarkdown, useRestoreMarkdown } from "@/hooks/use-markdown";
+import { useRuntimeConfig } from "@/hooks/use-config";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

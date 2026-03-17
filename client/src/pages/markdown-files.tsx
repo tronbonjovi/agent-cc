@@ -1,5 +1,7 @@
 import { useLocation } from "wouter";
-import { useMarkdownFiles, useRuntimeConfig, makeRelativePath } from "@/hooks/use-entities";
+import { makeRelativePath } from "@/hooks/use-entities";
+import { useMarkdownFiles } from "@/hooks/use-markdown";
+import { useRuntimeConfig } from "@/hooks/use-config";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
