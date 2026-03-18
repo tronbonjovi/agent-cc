@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.1] - 2026-03-18
+
+### Added
+- **New-user safety test suite** — 1,018 automated checks scanning all source files for hardcoded paths, PII, and user-specific strings
+- **CLAUDE.md** development guide with 8 safety rules for contributors
+
+## [1.16.0] - 2026-03-18
+
+### Added
+- **Operations Nerve Center** — real-time service health monitoring, cost pacing, attention items, overnight activity
+- **Continuation Intelligence** — detects unfinished sessions, uncommitted git changes, one-click resume/delegation
+- **Bash Command Knowledge Base** — indexes every shell command across sessions with categories, success rates, failure hotspots, and search
+- **Decision Log** — AI-extracts architectural decisions (topic, alternatives, trade-offs) from sessions via Haiku
+- **Session Delegation** — continue sessions via terminal (cross-platform), Telegram bot, or voice call
+
+### Fixed
+- Removed all hardcoded user paths, phone numbers, and project-specific text from source code
+- Nerve center services now configurable via `NERVE_CENTER_SERVICES` env var (defaults to Command Center only)
+- Voice delegation uses `VOICE_CALLER_SCRIPT` + `VOICE_PHONE` env vars instead of hardcoded values
+- Terminal delegation now cross-platform (Windows, macOS, Linux)
+- All AI features (summarize, NL query, decisions) pre-check Claude CLI availability and return 503 with clear message
+- Generalized MCP catalog descriptions and AI prompt examples
+
+## [1.15.0] - 2026-03-18
+
+### Added
+- **Session Notes** — add/edit/delete personal annotations on any session
+- **Pinned Sessions** — pin sessions to top of list, persisted across reloads
+- **Cross-Session File Timeline** — click any file in heatmap to see every change across all sessions
+- **Natural Language Query** — ask questions about analytics data ("Which project costs the most?")
+
+## [1.14.0] - 2026-03-18
+
+### Added
+- **Project Dashboards** — per-project aggregated view with cost, health, files, topics
+- **Session Diff Viewer** — inline diffs of Write/Edit operations in expanded session cards
+- **Prompt Library** — save/reuse prompt templates with one-click copy
+- **Weekly Digest** — automated weekly summary with accomplishments, project breakdown
+- **Auto-Workflows** — configurable auto-summarize, stale flagging, cost alerts, auto-tag
+
+## [1.13.0] - 2026-03-18
+
+### Added
+- **Deep Search** — full-text search across all session JSONL message content
+- **AI Summaries** — Claude Haiku-generated one-paragraph summaries with topics, outcome, tools, files
+- **Cost Analytics** — per-session, per-project, per-model, daily spend with charts
+- **File Heatmap** — most-touched files with read/edit/write counts
+- **Session Health** — tool error and retry pattern detection (good/fair/poor scoring)
+- **Stale Session Detection** — identifies empty and old sessions with reclaimable storage
+- **Smart Context Loader** — generates context prompts from recent session summaries
+- **Session-to-Commit Linking** — matches git commits to sessions by timestamp
+
 ## [1.6.0] - 2026-03-16
 
 ### Added

@@ -70,14 +70,20 @@ See [SETUP.md](SETUP.md) for detailed installation instructions and troubleshoot
 ## Features
 
 - **Auto-discovers** all Claude Code projects, MCP servers, skills, plugins, and markdown files
-- **Session browser** -- search, filter, sort, and manage sessions with bulk operations
+- **Session intelligence** -- deep search across message content, AI summaries, cost analytics, file heatmap, session health scores
+- **Operations nerve center** -- real-time service health, cost pacing, attention items, overnight activity
+- **Continuation intelligence** -- detects unfinished work, uncommitted changes, abandoned sessions
+- **Bash knowledge base** -- every shell command indexed and searchable with success rates and failure hotspots
+- **Decision log** -- AI-extracted architectural decisions with alternatives and trade-offs
+- **Natural language query** -- ask questions about your analytics data ("Which project costs the most?")
+- **Session delegation** -- continue sessions via terminal, Telegram, or voice (cross-platform)
+- **Project dashboards** -- per-project cost, health, files, and session aggregation
+- **Prompt library** -- save and reuse effective prompt templates
 - **Agent tracker** -- definitions and execution history across sessions
 - **Live view** -- real-time monitoring with context usage, message counts, and cost estimates
 - **Graph visualization** -- interactive ecosystem map with AI-assisted suggestions and `graph-config.yaml`
 - **Markdown editor** -- edit `CLAUDE.md` and memory files with version history
 - **Discovery** -- finds unconfigured projects and MCP servers on disk
-- **Config viewer** -- inspect Claude Code settings, MCP configs, and permissions
-- **Activity feed** -- timeline of recent file changes from the watcher
 - **One-click updates** -- check and apply updates from the sidebar
 
 ## Pages
@@ -90,13 +96,30 @@ See [SETUP.md](SETUP.md) for detailed installation instructions and troubleshoot
 | **Skills** | User-invocable and system skills |
 | **Plugins** | Installed and available plugins |
 | **Markdown** | All `CLAUDE.md`, memory files, READMEs with editing |
-| **Sessions** | Full session history with search, sort, bulk delete |
+| **Sessions** | Deep search, AI summaries, cost per session, diffs, notes, pins, delegation |
 | **Agents** | Agent definitions and execution logs |
 | **Live** | Active sessions, agents, context usage, cost estimates |
 | **Graph** | Interactive node graph with custom nodes and AI suggestions |
 | **Discovery** | Unconfigured projects and MCP server suggestions |
 | **Config** | Claude Code settings, permissions, MCP configs |
 | **Activity** | File-change timeline from the watcher |
+
+## Session Intelligence
+
+The Sessions page includes a full **Analytics** tab with:
+
+- **Cost Analytics** -- total spend, per-model/project/day breakdowns, most expensive sessions
+- **File Heatmap** -- most-touched files with read/edit/write counts, clickable for cross-session timeline
+- **Session Health** -- tool error and retry pattern detection (good/fair/poor scoring)
+- **Bash Knowledge Base** -- searchable index of every shell command with success rates
+- **Decision Log** -- AI-extracted architectural decisions from past sessions
+- **Operations Nerve Center** -- configurable service monitoring, cost pacing, attention items
+- **Continuation Intelligence** -- unfinished work detection with one-click resume
+- **Smart Context Loader** -- generates context prompts from recent session summaries
+- **Natural Language Query** -- ask questions about your data using Claude Haiku
+- **Prompt Library** -- save reusable templates with one-click copy
+- **Weekly Digest** -- automated weekly summary with accomplishments
+- **Auto-Workflows** -- configurable auto-summarize, stale detection, cost alerts
 
 ## Security and Privacy
 
@@ -121,6 +144,9 @@ See [docs/security-threat-model.md](docs/security-threat-model.md) for the full 
 | `HOST` | `127.0.0.1` | Bind address. **Do not set to `0.0.0.0`** -- no authentication. |
 | `COMMAND_CENTER_DATA` | `~/.claude-command-center/` | Data directory |
 | `GITHUB_TOKEN` | (none) | Optional. GitHub API rate limits for Discovery. |
+| `NERVE_CENTER_SERVICES` | `Command Center:5100` | Services to monitor (`name:port,name:port`). |
+| `VOICE_CALLER_SCRIPT` | (disabled) | Path to voice outbound caller script for delegation. |
+| `VOICE_PHONE` | (disabled) | Phone number for voice delegation. |
 
 ## Graph Configuration
 
