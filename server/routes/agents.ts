@@ -96,7 +96,12 @@ router.post("/api/agents/definitions", (req: Request, res: Response) => {
   }
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  if (!slug) return res.status(400).json({ message: "name must contain at least one alphanumeric character" });
   const filePath = path.join(agentsDir, `${slug}.md`).replace(/\\/g, "/");
+  // Path traversal guard: ensure resolved path stays within agents dir
+  if (!path.resolve(filePath).startsWith(path.resolve(agentsDir))) {
+    return res.status(400).json({ message: "Invalid agent name" });
+  }
   if (fileExists(filePath)) {
     return res.status(409).json({ message: "Agent with that name already exists" });
   }

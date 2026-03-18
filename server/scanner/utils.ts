@@ -54,7 +54,13 @@ export function dirExists(dirPath: string): boolean {
 
 export function fileExists(filePath: string): boolean {
   try {
-    return fs.statSync(filePath).isFile();
+    // Guard against path traversal: only allow paths under home directory or absolute paths to known locations
+    const resolved = path.resolve(filePath);
+    const home = os.homedir();
+    if (!resolved.startsWith(home) && !resolved.startsWith("/tmp") && !resolved.startsWith(os.tmpdir())) {
+      return false;
+    }
+    return fs.statSync(resolved).isFile();
   } catch {
     return false;
   }
