@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig } from "@shared/types";
+import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote } from "@shared/types";
 
 const dataDir = process.env.COMMAND_CENTER_DATA
   ? path.resolve(process.env.COMMAND_CENTER_DATA)
@@ -27,6 +27,8 @@ export interface DBData {
   sessionSummaries: Record<string, SessionSummary>;
   promptTemplates: Record<string, PromptTemplate>;
   workflowConfig: WorkflowConfig;
+  sessionNotes: Record<string, SessionNote>;
+  pinnedSessions: string[];
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -57,6 +59,8 @@ function defaultData(): DBData {
     sessionSummaries: {},
     promptTemplates: {},
     workflowConfig: { autoSummarize: false, autoArchiveStale: false, costAlertThreshold: null, autoTagByPath: false },
+    sessionNotes: {},
+    pinnedSessions: [],
   };
 }
 
@@ -79,6 +83,8 @@ try {
     if (!data.sessionSummaries) data.sessionSummaries = {};
     if (!data.promptTemplates) data.promptTemplates = {};
     if (!data.workflowConfig) data.workflowConfig = { autoSummarize: false, autoArchiveStale: false, costAlertThreshold: null, autoTagByPath: false };
+    if (!data.sessionNotes) data.sessionNotes = {};
+    if (!data.pinnedSessions) data.pinnedSessions = [];
     if (data.appSettings.onboarded === undefined) data.appSettings.onboarded = false;
   } else {
     data = defaultData();

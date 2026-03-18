@@ -1,5 +1,5 @@
 import { getDB, save } from "./db";
-import type { Entity, EntityType, Relationship, MarkdownBackup, ScanStatus, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig } from "@shared/types";
+import type { Entity, EntityType, Relationship, MarkdownBackup, ScanStatus, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote } from "@shared/types";
 import { getCachedStats } from "./scanner/session-scanner";
 import { getCachedAgentStats } from "./scanner/agent-scanner";
 
@@ -284,6 +284,48 @@ export class Storage {
     Object.assign(db.workflowConfig, patch);
     save();
     return db.workflowConfig;
+  }
+
+  // Session Notes
+  getNote(sessionId: string): SessionNote | null {
+    return getDB().sessionNotes[sessionId] || null;
+  }
+
+  getNotes(): Record<string, SessionNote> {
+    return getDB().sessionNotes;
+  }
+
+  upsertNote(sessionId: string, text: string): SessionNote {
+    const db = getDB();
+    const note: SessionNote = { sessionId, text, updatedAt: new Date().toISOString() };
+    db.sessionNotes[sessionId] = note;
+    save();
+    return note;
+  }
+
+  deleteNote(sessionId: string): void {
+    const db = getDB();
+    delete db.sessionNotes[sessionId];
+    save();
+  }
+
+  // Pinned Sessions
+  getPinnedSessions(): string[] {
+    return getDB().pinnedSessions;
+  }
+
+  togglePin(sessionId: string): boolean {
+    const db = getDB();
+    const idx = db.pinnedSessions.indexOf(sessionId);
+    if (idx >= 0) {
+      db.pinnedSessions.splice(idx, 1);
+      save();
+      return false;
+    } else {
+      db.pinnedSessions.push(sessionId);
+      save();
+      return true;
+    }
   }
 
   // Stats

@@ -5,6 +5,7 @@ import type {
   CostAnalytics, FileHeatmapResult, HealthAnalytics, StaleAnalytics,
   SessionCostData, CommitLink, ContextLoaderResult,
   ProjectDashboardResult, SessionDiffsResult, PromptTemplate, WeeklyDigest, WorkflowConfig,
+  SessionNote, FileTimelineResult, NLQueryResult,
 } from "@shared/types";
 
 export function useSessions(params?: { q?: string; sort?: string; order?: string; hideEmpty?: boolean; activeOnly?: boolean; project?: string }) {
@@ -265,6 +266,55 @@ export function useRunWorkflows() {
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/sessions/workflows/run");
       return res.json();
+    },
+  });
+}
+
+export function useTogglePin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/sessions/pin/${id}`);
+      return res.json() as Promise<{ sessionId: string; isPinned: boolean }>;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sessions"] }); },
+  });
+}
+
+export function useSessionNote(id: string | undefined) {
+  return useQuery<SessionNote>({
+    queryKey: [`/api/sessions/${id}/note`],
+    enabled: !!id,
+    retry: false,
+  });
+}
+
+export function useSaveNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, text }: { id: string; text: string }) => {
+      const res = await apiRequest("PUT", `/api/sessions/${id}/note`, { text });
+      return res.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sessions"] }); },
+  });
+}
+
+export function useFileTimeline(filePath: string | undefined) {
+  const p = new URLSearchParams();
+  if (filePath) p.set("path", filePath);
+  return useQuery<FileTimelineResult>({
+    queryKey: [`/api/sessions/file-timeline?${p.toString()}`],
+    enabled: !!filePath,
+    retry: false,
+  });
+}
+
+export function useNLQuery() {
+  return useMutation({
+    mutationFn: async (question: string) => {
+      const res = await apiRequest("POST", "/api/sessions/nl-query", { question });
+      return res.json() as Promise<NLQueryResult>;
     },
   });
 }

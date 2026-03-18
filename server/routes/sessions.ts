@@ -15,6 +15,8 @@ import { getProjectDashboards } from "../scanner/project-dashboard";
 import { getSessionDiffs } from "../scanner/session-diffs";
 import { generateWeeklyDigest } from "../scanner/weekly-digest";
 import { runAutoWorkflows } from "../scanner/auto-workflows";
+import { getFileTimeline } from "../scanner/file-timeline";
+import { runNLQuery } from "../scanner/nl-query";
 import { storage } from "../storage";
 import crypto from "crypto";
 
@@ -144,8 +146,10 @@ router.get("/api/sessions", (req: Request, res: Response) => {
   const start = (page - 1) * limit;
   const paged = sessions.slice(start, Math.min(start + limit, cappedTotal));
 
-  // Annotate sessions with summary data
+  // Annotate sessions with summary, pin, and note data
   const summaries = storage.getSummaries();
+  const pinnedSet = new Set(storage.getPinnedSessions());
+  const notes = storage.getNotes();
   const annotated = paged.map(s => {
     const summary = summaries[s.id];
     return {
@@ -153,6 +157,8 @@ router.get("/api/sessions", (req: Request, res: Response) => {
       hasSummary: !!summary,
       summaryTopics: summary?.topics || [],
       summaryOutcome: summary?.outcome || null,
+      isPinned: pinnedSet.has(s.id),
+      note: notes[s.id]?.text || undefined,
     };
   });
 
@@ -351,6 +357,35 @@ router.post("/api/sessions/workflows/run", async (_req: Request, res: Response) 
   }
 });
 
+/** POST /api/sessions/pin/:id — Toggle pin */
+router.post("/api/sessions/pin/:id", (req: Request, res: Response) => {
+  const idResult = SessionIdSchema.safeParse(String(req.params.id));
+  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  const isPinned = storage.togglePin(idResult.data);
+  res.json({ sessionId: idResult.data, isPinned });
+});
+
+/** GET /api/sessions/file-timeline — Timeline of changes to a file across sessions */
+router.get("/api/sessions/file-timeline", (req: Request, res: Response) => {
+  const filePath = qstr(req.query.path);
+  if (!filePath) return res.status(400).json({ message: "path parameter is required" });
+  const sessions = getCachedSessions();
+  res.json(getFileTimeline(sessions, filePath));
+});
+
+/** POST /api/sessions/nl-query — Natural language query */
+router.post("/api/sessions/nl-query", async (req: Request, res: Response) => {
+  const question = (req.body as { question?: string })?.question;
+  if (!question || question.length < 3) return res.status(400).json({ message: "question is required (min 3 chars)" });
+  try {
+    const sessions = getCachedSessions();
+    const result = await runNLQuery(question.slice(0, 500), sessions);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: (err as Error).message });
+  }
+});
+
 /** GET /api/sessions/:id — Session detail with message timeline */
 router.get("/api/sessions/:id", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
@@ -515,6 +550,29 @@ router.get("/api/sessions/:id/diffs", (req: Request, res: Response) => {
   if (!session) return res.status(404).json({ message: "Session not found" });
 
   res.json(getSessionDiffs(session));
+});
+
+/** GET /api/sessions/:id/note — Get session note */
+router.get("/api/sessions/:id/note", (req: Request, res: Response) => {
+  const idResult = SessionIdSchema.safeParse(req.params.id);
+  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  const note = storage.getNote(idResult.data);
+  if (!note) return res.status(404).json({ message: "No note" });
+  res.json(note);
+});
+
+/** PUT /api/sessions/:id/note — Create/update session note */
+router.put("/api/sessions/:id/note", (req: Request, res: Response) => {
+  const idResult = SessionIdSchema.safeParse(req.params.id);
+  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  const text = (req.body as { text?: string })?.text;
+  if (typeof text !== "string") return res.status(400).json({ message: "text is required" });
+  if (text.length === 0) {
+    storage.deleteNote(idResult.data);
+    return res.json({ message: "Note deleted" });
+  }
+  const note = storage.upsertNote(idResult.data, text.slice(0, 2000));
+  res.json(note);
 });
 
 /** GET /api/sessions/:id/costs — Per-session cost breakdown */

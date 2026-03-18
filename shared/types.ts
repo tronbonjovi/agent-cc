@@ -366,6 +366,8 @@ export interface SessionData {
   hasSummary?: boolean;
   summaryTopics?: string[];
   summaryOutcome?: string | null;
+  isPinned?: boolean;
+  note?: string;
 }
 
 export interface SessionSummary {
@@ -543,6 +545,35 @@ export interface WorkflowConfig {
   autoArchiveStale: boolean;
   costAlertThreshold: number | null;
   autoTagByPath: boolean;
+}
+
+export interface SessionNote {
+  sessionId: string;
+  text: string;
+  updatedAt: string;
+}
+
+export interface FileTimelineEntry {
+  sessionId: string;
+  firstMessage: string;
+  lastTs: string;
+  tool: "Write" | "Edit";
+  timestamp: string;
+  oldString?: string;
+  newString?: string;
+  content?: string;
+}
+
+export interface FileTimelineResult {
+  filePath: string;
+  entries: FileTimelineEntry[];
+  totalSessions: number;
+}
+
+export interface NLQueryResult {
+  answer: string;
+  context: string;
+  durationMs: number;
 }
 
 export interface SessionStats {

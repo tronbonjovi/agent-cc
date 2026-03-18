@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useContextLoader, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows } from "@/hooks/use-sessions";
+import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useContextLoader, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useNLQuery } from "@/hooks/use-sessions";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import {
   HardDrive, MessageSquare, Clock, Hash, X, AlertTriangle, Undo2, FolderOpen,
   Sparkles, Loader2, Zap, DollarSign, FileText, Activity, Archive,
   GitCommit, Clipboard, BarChart3, FolderKanban, Calendar, Settings,
-  Plus, Play, BookOpen,
+  Plus, Play, BookOpen, Pin, StickyNote, MessageCircleQuestion,
 } from "lucide-react";
 import type { SessionData, DeepSearchMatch } from "@shared/types";
 import { formatBytes, relativeTime as _relativeTime } from "@/lib/utils";
@@ -75,6 +75,8 @@ export default function Sessions() {
   const deepSearchQuery = useDeepSearch({ q: searchMode === "deep" ? search : undefined, project: projectFilter || undefined });
   const summarizeSession = useSummarizeSession();
   const summarizeBatch = useSummarizeBatch();
+  const togglePin = useTogglePin();
+  const saveNote = useSaveNote();
 
   const sessions = data?.sessions || [];
   const stats = data?.stats;
@@ -364,23 +366,38 @@ export default function Sessions() {
         <EmptyState icon={MessageSquare} title="No sessions found" description="Try adjusting your search or filters" />
       ) : (
         <div className="space-y-2">
-          {sessions.map((s, i) => (
+          {/* Pinned sessions first */}
+          {sessions.filter(s => s.isPinned).length > 0 && !search && (
+            <>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+                <Pin className="h-3.5 w-3.5 text-amber-400" /> Pinned
+              </div>
+              {sessions.filter(s => s.isPinned).map((s, i) => (
+                <SessionCard
+                  key={"pin-" + s.id} session={s} index={i}
+                  isSelected={selected.has(s.id)} isExpanded={expanded === s.id} copiedId={copiedId}
+                  detail={expanded === s.id ? expandedDetail.data : undefined}
+                  onToggleSelect={handleToggleSelect} onToggleExpand={(id) => setExpanded(expanded === id ? null : id)}
+                  onCopyId={handleCopyId} onCopyResume={handleCopyResume} onOpenFolder={handleOpenFolder}
+                  onDelete={(id, e) => { e.stopPropagation(); setDeleteConfirm({ type: "single", id }); }}
+                  onSummarize={(id) => summarizeSession.mutate(id)} isSummarizing={summarizeSession.isPending}
+                  onTogglePin={(id) => togglePin.mutate(id)} onSaveNote={(id, text) => saveNote.mutate({ id, text })}
+                  searchQuery={search}
+                />
+              ))}
+              <div className="border-b border-border/30" />
+            </>
+          )}
+          {sessions.filter(s => !s.isPinned || !!search).map((s, i) => (
             <SessionCard
-              key={s.id}
-              session={s}
-              index={i}
-              isSelected={selected.has(s.id)}
-              isExpanded={expanded === s.id}
-              copiedId={copiedId}
+              key={s.id} session={s} index={i}
+              isSelected={selected.has(s.id)} isExpanded={expanded === s.id} copiedId={copiedId}
               detail={expanded === s.id ? expandedDetail.data : undefined}
-              onToggleSelect={handleToggleSelect}
-              onToggleExpand={(id) => setExpanded(expanded === id ? null : id)}
-              onCopyId={handleCopyId}
-              onCopyResume={handleCopyResume}
-              onOpenFolder={handleOpenFolder}
+              onToggleSelect={handleToggleSelect} onToggleExpand={(id) => setExpanded(expanded === id ? null : id)}
+              onCopyId={handleCopyId} onCopyResume={handleCopyResume} onOpenFolder={handleOpenFolder}
               onDelete={(id, e) => { e.stopPropagation(); setDeleteConfirm({ type: "single", id }); }}
-              onSummarize={(id) => summarizeSession.mutate(id)}
-              isSummarizing={summarizeSession.isPending}
+              onSummarize={(id) => summarizeSession.mutate(id)} isSummarizing={summarizeSession.isPending}
+              onTogglePin={(id) => togglePin.mutate(id)} onSaveNote={(id, text) => saveNote.mutate({ id, text })}
               searchQuery={search}
             />
           ))}
@@ -436,11 +453,47 @@ function AnalyticsPanel() {
   const { data: health } = useHealthAnalytics();
   const { data: stale } = useStaleAnalytics();
   const contextLoader = useContextLoader();
+  const nlQuery = useNLQuery();
   const [contextProject, setContextProject] = useState("");
   const [contextPrompt, setContextPrompt] = useState("");
+  const [nlQuestion, setNlQuestion] = useState("");
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
+      {/* NL Query */}
+      <div className="space-y-2">
+        <h2 className="text-sm font-medium flex items-center gap-2">
+          <MessageCircleQuestion className="h-4 w-4 text-blue-400" /> Ask a Question
+        </h2>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <MessageCircleQuestion className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="e.g., How much did I spend on Nicora Desk this week?"
+              value={nlQuestion}
+              onChange={e => setNlQuestion(e.target.value)}
+              className="pl-9"
+              onKeyDown={e => { if (e.key === "Enter" && nlQuestion.length >= 3) nlQuery.mutate(nlQuestion); }}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => nlQuery.mutate(nlQuestion)}
+            disabled={nlQuestion.length < 3 || nlQuery.isPending}
+          >
+            {nlQuery.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Ask"}
+          </Button>
+        </div>
+        {nlQuery.data && (
+          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
+            <p className="text-sm text-foreground whitespace-pre-wrap">{nlQuery.data.answer}</p>
+            <p className="text-[11px] text-muted-foreground/50 mt-1">{nlQuery.data.context} | {nlQuery.data.durationMs}ms</p>
+          </div>
+        )}
+      </div>
+
       {/* Cost Overview */}
       {costs && (
         <div className="space-y-3">
@@ -557,9 +610,9 @@ function AnalyticsPanel() {
                 const maxTouch = files.files[0]?.touchCount || 1;
                 const pct = (f.touchCount / maxTouch) * 100;
                 return (
-                  <div key={f.filePath} className="flex items-center gap-2 text-xs">
+                  <div key={f.filePath} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1 py-0.5" onClick={() => setSelectedFile(selectedFile === f.filePath ? null : f.filePath)}>
                     <span className="text-muted-foreground/50 w-5 text-right">#{i + 1}</span>
-                    <span className="font-mono text-muted-foreground truncate flex-1" title={f.filePath}>{f.fileName}</span>
+                    <span className="font-mono text-orange-400/80 hover:text-orange-300 truncate flex-1" title={f.filePath}>{f.fileName}</span>
                     <div className="w-32 h-3 bg-muted/30 rounded overflow-hidden flex-shrink-0">
                       <div className="h-full bg-orange-500/40 rounded" style={{ width: `${pct}%` }} />
                     </div>
@@ -577,6 +630,9 @@ function AnalyticsPanel() {
           </div>
         </div>
       )}
+
+      {/* File Timeline */}
+      {selectedFile && <FileTimelinePanel filePath={selectedFile} onClose={() => setSelectedFile(null)} />}
 
       {/* Health Overview */}
       {health && (
@@ -926,6 +982,49 @@ function WorkflowConfigPanel() {
   );
 }
 
+function FileTimelinePanel({ filePath, onClose }: { filePath: string; onClose: () => void }) {
+  const { data, isLoading } = useFileTimeline(filePath);
+  const fileName = filePath.replace(/\\/g, "/").split("/").pop() || filePath;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium flex items-center gap-2">
+          <FileText className="h-4 w-4 text-orange-400" /> Timeline: <code className="font-mono text-orange-400">{fileName}</code>
+          {data && <span className="text-[11px] text-muted-foreground font-normal">({data.totalSessions} sessions, {data.entries.length} changes)</span>}
+        </h2>
+        <Button variant="ghost" size="sm" onClick={onClose}><X className="h-3.5 w-3.5" /></Button>
+      </div>
+      {isLoading && <div className="text-sm text-muted-foreground">Loading...</div>}
+      {data && data.entries.length > 0 && (
+        <div className="rounded-xl border bg-card p-4 space-y-2 max-h-96 overflow-auto">
+          {data.entries.map((e, i) => (
+            <div key={i} className="border-b border-border/30 pb-2 last:border-0">
+              <div className="flex items-center gap-2 text-xs mb-1">
+                <Badge variant="outline" className={`text-[9px] px-1 py-0 ${e.tool === "Write" ? "border-green-500/20 text-green-400" : "border-amber-500/20 text-amber-400"}`}>
+                  {e.tool}
+                </Badge>
+                <span className="text-muted-foreground/50 font-mono">{e.timestamp ? new Date(e.timestamp).toLocaleString() : ""}</span>
+                <span className="text-muted-foreground truncate flex-1">{e.firstMessage}</span>
+              </div>
+              {e.tool === "Edit" && e.oldString && e.newString && (
+                <div className="font-mono text-[11px] space-y-1 ml-4">
+                  <pre className="bg-red-500/10 text-red-300 rounded px-2 py-1 overflow-x-auto whitespace-pre-wrap max-h-16">- {e.oldString.slice(0, 150)}</pre>
+                  <pre className="bg-green-500/10 text-green-300 rounded px-2 py-1 overflow-x-auto whitespace-pre-wrap max-h-16">+ {e.newString.slice(0, 150)}</pre>
+                </div>
+              )}
+              {e.tool === "Write" && e.content && (
+                <pre className="font-mono text-[11px] bg-green-500/10 text-green-300 rounded px-2 py-1 overflow-x-auto whitespace-pre-wrap max-h-16 ml-4">{e.content.slice(0, 200)}</pre>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {data && data.entries.length === 0 && <p className="text-xs text-muted-foreground">No changes found for this file</p>}
+    </div>
+  );
+}
+
 function SessionCard({
   session: s,
   index: i,
@@ -941,6 +1040,8 @@ function SessionCard({
   onDelete,
   onSummarize,
   isSummarizing,
+  onTogglePin,
+  onSaveNote,
   searchQuery,
 }: {
   session: SessionData;
@@ -957,9 +1058,13 @@ function SessionCard({
   onDelete: (id: string, e: React.MouseEvent) => void;
   onSummarize: (id: string) => void;
   isSummarizing: boolean;
+  onTogglePin?: (id: string) => void;
+  onSaveNote?: (id: string, text: string) => void;
   searchQuery?: string;
 }) {
   const resumeCopied = copiedId === "resume:" + s.id;
+  const [noteText, setNoteText] = useState(s.note || "");
+  const [editingNote, setEditingNote] = useState(false);
 
   return (
     <Card
@@ -1028,6 +1133,14 @@ function SessionCard({
                   ))}
                 </>
               )}
+              {s.note && (
+                <>
+                  <span className="text-muted-foreground/30 text-[11px]">/</span>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-yellow-500/30 text-yellow-400">
+                    <StickyNote className="h-2.5 w-2.5 mr-0.5" />Note
+                  </Badge>
+                </>
+              )}
             </div>
           </div>
 
@@ -1041,8 +1154,22 @@ function SessionCard({
             </div>
           </div>
 
+          {/* Pin indicator */}
+          {s.isPinned && (
+            <Pin className="h-3.5 w-3.5 text-amber-400 flex-shrink-0 mt-1.5" />
+          )}
+
           {/* Hover actions */}
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+            {onTogglePin && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
+                className={`p-1.5 rounded hover:bg-amber-500/10 transition-colors ${s.isPinned ? "opacity-100" : ""}`}
+                title={s.isPinned ? "Unpin" : "Pin"}
+              >
+                <Pin className={`h-3.5 w-3.5 ${s.isPinned ? "text-amber-400" : "text-muted-foreground"}`} />
+              </button>
+            )}
             <button
               onClick={(e) => onCopyResume(s.id, e)}
               className="p-1.5 rounded hover:bg-green-500/10 transition-colors"
@@ -1173,6 +1300,37 @@ function SessionCard({
 
             {/* AI Summary */}
             {s.hasSummary && <SessionSummarySection sessionId={s.id} />}
+
+            {/* Note */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <StickyNote className="h-3.5 w-3.5 text-yellow-400" />
+                <span className="text-[11px] uppercase tracking-wider text-yellow-400 font-medium">Note</span>
+                {!editingNote && (
+                  <button onClick={(e) => { e.stopPropagation(); setEditingNote(true); setNoteText(s.note || ""); }} className="text-[11px] text-muted-foreground hover:text-foreground">
+                    {s.note ? "edit" : "+ add note"}
+                  </button>
+                )}
+              </div>
+              {s.note && !editingNote && (
+                <p className="text-xs text-muted-foreground bg-yellow-500/5 border border-yellow-500/20 rounded px-3 py-2">{s.note}</p>
+              )}
+              {editingNote && (
+                <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+                  <textarea
+                    value={noteText}
+                    onChange={e => setNoteText(e.target.value)}
+                    placeholder="Add a note about this session..."
+                    className="flex-1 text-xs font-mono bg-muted/30 rounded px-3 py-2 border border-border resize-none h-16"
+                    autoFocus
+                  />
+                  <div className="flex flex-col gap-1">
+                    <Button size="sm" onClick={() => { if (onSaveNote) onSaveNote(s.id, noteText); setEditingNote(false); }}>Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingNote(false)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Cost + Commits + Diffs */}
             <SessionCostCommits sessionId={s.id} />
