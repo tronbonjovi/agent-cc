@@ -70,28 +70,31 @@ export function buildContextPrompt(session: SessionData): string {
   return parts.join("\n");
 }
 
-/** Delegate to terminal — opens a new terminal with claude --resume (cross-platform) */
+/** Delegate to terminal — opens a new terminal with claude --resume in the session's cwd (cross-platform) */
 export function delegateToTerminal(session: SessionData): DelegationResult {
   try {
     const env = { ...process.env, CLAUDECODE: undefined };
     const plat = process.platform;
+    const cwd = session.cwd || process.cwd();
     let child;
     if (plat === "win32") {
-      child = spawn("cmd", ["/c", "start", "cmd", "/k", `claude --resume ${session.id}`], {
+      // cd to session's cwd first, then run claude --resume
+      const winCwd = cwd.replace(/\//g, "\\");
+      child = spawn("cmd", ["/c", "start", "cmd", "/k", `cd /d ${winCwd} & claude --resume ${session.id}`], {
         detached: true, stdio: "ignore", env: env as NodeJS.ProcessEnv,
       });
     } else if (plat === "darwin") {
-      child = spawn("osascript", ["-e", `tell application "Terminal" to do script "claude --resume ${session.id}"`], {
+      child = spawn("osascript", ["-e", `tell application "Terminal" to do script "cd '${cwd}' && claude --resume ${session.id}"`], {
         detached: true, stdio: "ignore", env: env as NodeJS.ProcessEnv,
       });
     } else {
-      child = spawn("x-terminal-emulator", ["-e", "claude", "--resume", session.id], {
+      child = spawn("x-terminal-emulator", ["-e", "bash", "-c", `cd '${cwd}' && claude --resume ${session.id}`], {
         detached: true, stdio: "ignore", env: env as NodeJS.ProcessEnv,
       });
     }
     child.on("error", () => {});
     child.unref();
-    return { target: "terminal", status: "dispatched", message: `Opened terminal with --resume ${session.id}` };
+    return { target: "terminal", status: "dispatched", message: `Opened terminal in ${cwd} with --resume ${session.id}` };
   } catch (err) {
     return { target: "terminal", status: "failed", message: (err as Error).message };
   }

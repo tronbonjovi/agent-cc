@@ -833,22 +833,24 @@ router.post("/api/sessions/:id/open", (req: Request, res: Response) => {
 
   const plat = os.platform();
   const env = { ...process.env, CLAUDECODE: undefined };
+  const cwd = session.cwd || process.cwd();
 
   let child;
   if (plat === "win32") {
-    child = spawn("cmd", ["/k", "claude", "--resume", session.id], {
+    const winCwd = cwd.replace(/\//g, "\\");
+    child = spawn("cmd", ["/c", "start", "cmd", "/k", `cd /d ${winCwd} & claude --resume ${session.id}`], {
       detached: true,
       stdio: "ignore",
       env,
     });
   } else if (plat === "darwin") {
-    child = spawn("osascript", ["-e", `tell application "Terminal" to do script "claude --resume ${session.id}"`], {
+    child = spawn("osascript", ["-e", `tell application "Terminal" to do script "cd '${cwd}' && claude --resume ${session.id}"`], {
       detached: true,
       stdio: "ignore",
       env,
     });
   } else {
-    child = spawn("x-terminal-emulator", ["-e", "claude", "--resume", session.id], {
+    child = spawn("x-terminal-emulator", ["-e", "bash", "-c", `cd '${cwd}' && claude --resume ${session.id}`], {
       detached: true,
       stdio: "ignore",
       env,

@@ -35,6 +35,7 @@ export interface DBData {
 export const defaultAppSettings: AppSettings = {
   appName: "Command Center",
   onboarded: false,
+  billingMode: "auto",
   scanPaths: {
     homeDir: null,
     claudeDir: null,
@@ -89,6 +90,7 @@ try {
     if (!data.pinnedSessions) data.pinnedSessions = [];
     if (!data.decisions) data.decisions = [];
     if (data.appSettings.onboarded === undefined) data.appSettings.onboarded = false;
+    if (!data.appSettings.billingMode) data.appSettings.billingMode = "auto";
   } else {
     data = defaultData();
   }

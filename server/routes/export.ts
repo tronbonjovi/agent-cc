@@ -85,7 +85,7 @@ router.post("/api/import", (req, res) => {
     imported.entityOverrides = Object.keys(body.entityOverrides).length;
   }
   if (body.appSettings) {
-    db.appSettings = body.appSettings;
+    db.appSettings = { ...db.appSettings, ...body.appSettings };
     imported.appSettings = 1;
   }
 

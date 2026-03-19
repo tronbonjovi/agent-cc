@@ -665,9 +665,12 @@ export interface SessionStats {
   emptyCount: number;
 }
 
+export type BillingMode = "subscription" | "pay-as-you-go" | "auto";
+
 export interface AppSettings {
   appName: string;
   onboarded: boolean;
+  billingMode: BillingMode;
   scanPaths: {
     homeDir: string | null;
     claudeDir: string | null;

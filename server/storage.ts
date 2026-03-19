@@ -136,6 +136,7 @@ export class Storage {
     const db = getDB();
     if (patch.appName !== undefined) db.appSettings.appName = patch.appName;
     if (patch.onboarded !== undefined) db.appSettings.onboarded = patch.onboarded;
+    if (patch.billingMode !== undefined) db.appSettings.billingMode = patch.billingMode;
     if (patch.scanPaths) {
       db.appSettings.scanPaths = { ...db.appSettings.scanPaths, ...patch.scanPaths };
     }

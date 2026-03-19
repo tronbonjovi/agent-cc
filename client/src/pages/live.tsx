@@ -90,6 +90,7 @@ export default function Live() {
   const [refreshing, setRefreshing] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const tick = useTick(1000);
+  const isCompact = new URLSearchParams(window.location.search).get("compact") === "true";
   const prevSessionIdsRef = useRef<Set<string> | null>(null);
   const [newSessionIds, setNewSessionIds] = useState<Set<string>>(new Set());
 
@@ -139,6 +140,27 @@ export default function Live() {
   const stats = data?.stats;
   const recentActivity = data?.recentActivity || [];
   const hasActive = (stats?.activeSessionCount ?? 0) > 0;
+
+  // Compact overlay mode: /live?compact=true
+  if (isCompact) {
+    const totalCost = activeSessions.reduce((sum, s) => sum + (s.costEstimate ?? 0), 0);
+    return (
+      <div className="p-3 space-y-2 max-w-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{activeSessions.length} session{activeSessions.length !== 1 ? "s" : ""}</span>
+          <span className="text-lg font-mono font-bold text-green-400">${totalCost.toFixed(2)}</span>
+        </div>
+        {activeSessions.map(s => (
+          <div key={s.sessionId} className="flex items-center gap-2 text-xs">
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.status === "thinking" ? "bg-green-500 animate-pulse" : s.status === "waiting" ? "bg-amber-500" : "bg-muted"}`} />
+            <span className="truncate flex-1 text-muted-foreground">{s.firstMessage?.slice(0, 40) || s.slug || s.sessionId.slice(0, 8)}</span>
+            <span className="font-mono text-green-400 flex-shrink-0">${(s.costEstimate ?? 0).toFixed(2)}</span>
+          </div>
+        ))}
+        <div className="text-[10px] text-muted-foreground/40 text-center">auto-refreshes every 3s</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px]">
@@ -215,6 +237,18 @@ export default function Live() {
             <span className="text-xs text-muted-foreground/50">none</span>
           )}
         </div>
+        {/* Live cost ticker */}
+        {activeSessions.some(s => (s.costEstimate ?? 0) > 0) && (
+          <>
+            <div className="w-px h-5 bg-border" />
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-mono text-green-400">
+                ${activeSessions.reduce((sum, s) => sum + (s.costEstimate ?? 0), 0).toFixed(2)}
+              </span>
+              <span className="text-xs text-muted-foreground">active spend</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Main content */}

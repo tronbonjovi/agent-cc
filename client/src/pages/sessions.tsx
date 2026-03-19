@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useContextLoader, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useNLQuery, useContinuations, useDecisions, useExtractDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useDelegate } from "@/hooks/use-sessions";
+import { useAppSettings } from "@/hooks/use-settings";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -453,9 +454,12 @@ function AnalyticsPanel() {
   const { data: files } = useFileHeatmap();
   const { data: health } = useHealthAnalytics();
   const { data: stale } = useStaleAnalytics();
+  const { data: settings } = useAppSettings();
   const contextLoader = useContextLoader();
   const nlQuery = useNLQuery();
   const [contextProject, setContextProject] = useState("");
+  const billingMode = settings?.billingMode || "auto";
+  const isSub = billingMode === "subscription" || billingMode === "auto"; // default to subscription view
   const [contextPrompt, setContextPrompt] = useState("");
   const [nlQuestion, setNlQuestion] = useState("");
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -505,13 +509,13 @@ function AnalyticsPanel() {
       {costs && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-green-400" /> Cost Analytics
-            <span className="text-[11px] text-muted-foreground font-normal">({costs.totalSessions} sessions scanned in {costs.durationMs}ms)</span>
+            <DollarSign className="h-4 w-4 text-green-400" /> {isSub ? "Usage Analytics" : "Cost Analytics"}
+            <span className="text-[11px] text-muted-foreground font-normal">({costs.totalSessions} sessions scanned in {costs.durationMs}ms){isSub ? " — Subscription plan" : ""}</span>
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Total Cost</p>
-              <p className="text-2xl font-bold font-mono mt-1 text-green-400">{formatUsd(costs.totalCostUsd)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">{isSub ? "Total Tokens" : "Total Cost"}</p>
+              <p className="text-2xl font-bold font-mono mt-1 text-green-400">{isSub ? formatTokens(costs.totalInputTokens + costs.totalOutputTokens) : formatUsd(costs.totalCostUsd)}</p>
             </div>
             <div className="rounded-xl border bg-card p-4">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Input Tokens</p>
@@ -1398,20 +1402,22 @@ function SessionCard({
             </div>
           </div>
 
-          {/* Pin indicator */}
-          {s.isPinned && (
-            <Pin className="h-3.5 w-3.5 text-amber-400 flex-shrink-0 mt-1.5" />
+          {/* Pin indicator (clickable) */}
+          {s.isPinned && onTogglePin && (
+            <button onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }} className="flex-shrink-0 mt-1.5 hover:opacity-70" title="Unpin">
+              <Pin className="h-3.5 w-3.5 text-amber-400" />
+            </button>
           )}
 
           {/* Hover actions */}
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-            {onTogglePin && (
+            {onTogglePin && !s.isPinned && (
               <button
                 onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
-                className={`p-1.5 rounded hover:bg-amber-500/10 transition-colors ${s.isPinned ? "opacity-100" : ""}`}
-                title={s.isPinned ? "Unpin" : "Pin"}
+                className="p-1.5 rounded hover:bg-amber-500/10 transition-colors"
+                title="Pin"
               >
-                <Pin className={`h-3.5 w-3.5 ${s.isPinned ? "text-amber-400" : "text-muted-foreground"}`} />
+                <Pin className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
             )}
             <button
