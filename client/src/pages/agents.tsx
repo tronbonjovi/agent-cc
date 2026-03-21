@@ -32,6 +32,12 @@ import {
   Copy,
   Check,
   Info,
+  FolderOpen,
+  Clipboard,
+  HelpCircle,
+  Zap,
+  GitBranch,
+  Wrench,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { formatBytes, relativeTime, shortModel, getTypeColor } from "@/lib/utils";
@@ -55,6 +61,7 @@ function getModelColor(model: string | null): string {
 
 export default function Agents() {
   const [tab, setTab] = useState<"definitions" | "history" | "stats">("definitions");
+  const [showGuide, setShowGuide] = useState(false);
 
   const { data: stats } = useAgentStats();
 
@@ -116,6 +123,9 @@ export default function Agents() {
         ))}
       </div>
 
+      {/* Learn guide */}
+      <AgentLearnGuide show={showGuide} onToggle={() => setShowGuide(!showGuide)} />
+
       {/* Tab content */}
       {tab === "definitions" && <DefinitionsTab />}
       {tab === "history" && <HistoryTab />}
@@ -133,10 +143,32 @@ function getGroupDescription(label: string): string | undefined {
   return GROUP_DESCRIPTIONS[label];
 }
 
+/** Deduplicate agents by name — keep the one with more content (description + tools) */
+function deduplicateDefinitions(defs: AgentDefinition[]): AgentDefinition[] {
+  const byName = new Map<string, AgentDefinition>();
+  for (const def of defs) {
+    const existing = byName.get(def.name);
+    if (!existing) {
+      byName.set(def.name, def);
+    } else {
+      // Prefer agents with tools + model set over those with just long descriptions
+      const score = (d: AgentDefinition) =>
+        (d.description?.length || 0) + d.tools.length * 500 + (d.model && d.model !== "inherit" ? 200 : 0);
+      const existingScore = score(existing);
+      const newScore = score(def);
+      if (newScore > existingScore) {
+        byName.set(def.name, def);
+      }
+    }
+  }
+  return Array.from(byName.values());
+}
+
 /** Group definitions by marketplace / source */
 function groupDefinitions(defs: AgentDefinition[]): { label: string; description?: string; defs: AgentDefinition[] }[] {
+  const unique = deduplicateDefinitions(defs);
   const groups: Map<string, AgentDefinition[]> = new Map();
-  for (const def of defs) {
+  for (const def of unique) {
     const key = def.marketplace || (def.source === "user" ? "Your Agents" : def.pluginName || "Other");
     const arr = groups.get(key) || [];
     arr.push(def);
@@ -154,6 +186,124 @@ function groupDefinitions(defs: AgentDefinition[]): { label: string; description
       description: getGroupDescription(label),
       defs,
     }));
+}
+
+/** Collapsible guide: How Claude Code Agents Work */
+function AgentLearnGuide({ show, onToggle }: { show: boolean; onToggle: () => void }) {
+  return (
+    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5">
+      <button onClick={onToggle} className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors">
+        <HelpCircle className="h-4 w-4" />
+        How Claude Code Agents Work
+        {show ? <ChevronDown className="h-3.5 w-3.5 ml-auto" /> : <ChevronRight className="h-3.5 w-3.5 ml-auto" />}
+      </button>
+      {show && (
+        <div className="px-4 pb-4 space-y-4 text-sm border-t border-cyan-500/10 pt-3">
+
+          {/* Architecture diagram */}
+          <div className="rounded-lg border border-border/30 bg-muted/20 p-3">
+            <p className="text-[10px] text-muted-foreground/60 text-center mb-2">Agent Architecture</p>
+            <div className="flex items-center justify-center gap-2 text-xs">
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-center">
+                <Bot className="h-4 w-4 text-blue-400 mx-auto mb-1" />
+                <span className="text-blue-400 font-medium">Claude Code</span>
+                <p className="text-[9px] text-muted-foreground mt-0.5">Main session</p>
+              </div>
+              <div className="flex flex-col items-center gap-1 text-muted-foreground/40">
+                <span className="text-[9px]">spawns</span>
+                <GitBranch className="h-3 w-3 rotate-90" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="rounded border border-purple-500/20 bg-purple-500/5 px-2.5 py-1 text-purple-400 text-[11px]">
+                  <Zap className="h-3 w-3 inline mr-1" />Explore agent
+                </div>
+                <div className="rounded border border-green-500/20 bg-green-500/5 px-2.5 py-1 text-green-400 text-[11px]">
+                  <Zap className="h-3 w-3 inline mr-1" />Plan agent
+                </div>
+                <div className="rounded border border-orange-500/20 bg-orange-500/5 px-2.5 py-1 text-orange-400 text-[11px]">
+                  <Zap className="h-3 w-3 inline mr-1" />Custom agent
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* What are agents */}
+          <div>
+            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">What are agents?</h4>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Agents are specialized subprocesses that Claude Code spawns to handle complex tasks autonomously. Each agent runs with its own context window and tool access, keeping the main conversation clean.
+            </p>
+          </div>
+
+          {/* Types of agents */}
+          <div>
+            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Built-in agent types</h4>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex gap-2"><Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-500/30 text-purple-400 flex-shrink-0">Explore</Badge><span className="text-muted-foreground">Fast codebase exploration — finds files, searches code, answers questions about structure.</span></div>
+              <div className="flex gap-2"><Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500/30 text-green-400 flex-shrink-0">Plan</Badge><span className="text-muted-foreground">Designs implementation strategies — reads code, considers trade-offs, returns step-by-step plans.</span></div>
+              <div className="flex gap-2"><Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/30 text-blue-400 flex-shrink-0">General</Badge><span className="text-muted-foreground">Full-capability agent for multi-step tasks — has access to all tools.</span></div>
+            </div>
+          </div>
+
+          {/* Plugin agents */}
+          <div>
+            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Plugin agents (what you see here)</h4>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Plugins can define custom agents as <code className="text-[11px] bg-muted/50 px-1 rounded">.md</code> files with frontmatter + a system prompt. These agents are invoked by plugins and skills — they don't run automatically. Claude Code uses them when a skill or plugin explicitly spawns them via the Agent tool.
+            </p>
+          </div>
+
+          {/* File structure */}
+          <div>
+            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Agent file structure</h4>
+            <pre className="bg-muted/50 rounded p-2.5 text-[11px] font-mono leading-relaxed">{"---\nname: my-agent\ndescription: What this agent does\nmodel: sonnet          # or opus, haiku, inherit\ncolor: green           # badge color\ntools: Read, Grep, Glob  # allowed tools\n---\n\nYou are a specialist agent that...\n(system prompt in markdown)"}</pre>
+          </div>
+
+          {/* Where agents live */}
+          <div>
+            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Where agents live</h4>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <div className="flex gap-2"><code className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded font-mono flex-shrink-0">~/.claude/agents/</code><span>Your custom agents (create new ones here)</span></div>
+              <div className="flex gap-2"><code className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded font-mono flex-shrink-0">~/.claude/plugins/.../agents/</code><span>Plugin-provided agents (read-only)</span></div>
+            </div>
+          </div>
+
+          {/* When to create */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-2">
+              <p className="text-green-400 font-medium text-xs mb-1">When to create an agent</p>
+              <ul className="text-muted-foreground text-[11px] space-y-0.5">
+                <li>Repetitive multi-step workflows</li>
+                <li>Specialized review/analysis tasks</li>
+                <li>Tasks needing specific tool access</li>
+                <li>Parallel work on independent subtasks</li>
+              </ul>
+            </div>
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2">
+              <p className="text-amber-400 font-medium text-xs mb-1">Good to know</p>
+              <ul className="text-muted-foreground text-[11px] space-y-0.5">
+                <li>Agents run in their own context window</li>
+                <li>They can't see the parent conversation</li>
+                <li>Results are returned as a single message</li>
+                <li>Use <code className="bg-muted/50 px-0.5 rounded">model: haiku</code> for speed</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* How to create */}
+          <div>
+            <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1.5">Creating a custom agent</h4>
+            <ol className="text-xs text-muted-foreground space-y-0.5 list-decimal list-inside">
+              <li>Click <strong className="text-foreground">Create Agent</strong> above, or create a <code className="bg-muted/50 px-0.5 rounded">.md</code> file in <code className="bg-muted/50 px-0.5 rounded">~/.claude/agents/</code></li>
+              <li>Add frontmatter (name, description, model, tools)</li>
+              <li>Write the system prompt — tell the agent exactly what to do</li>
+              <li>Reference it in skills via <code className="bg-muted/50 px-0.5 rounded">subagent_type: "your-agent"</code></li>
+            </ol>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DefinitionsTab() {
@@ -305,6 +455,81 @@ function CopyNameButton({ name }: { name: string }) {
   );
 }
 
+function CopyButton({ text, label }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+      className="p-1 rounded hover:bg-muted/80 transition-colors"
+      title={label || "Copy"}
+    >
+      {copied ? <Check className="h-3 w-3 text-green-400" /> : <Clipboard className="h-3 w-3 text-muted-foreground/50" />}
+    </button>
+  );
+}
+
+/** Shorten a file path for display — keep the meaningful tail */
+function shortenPath(fp: string): string {
+  const parts = fp.replace(/\\/g, "/").split("/");
+  // Find the "plugins" or "agents" segment and show from there
+  const pluginsIdx = parts.indexOf("plugins");
+  if (pluginsIdx >= 0 && pluginsIdx < parts.length - 2) {
+    return "~/" + parts.slice(pluginsIdx).join("/");
+  }
+  // Fallback: last 3 segments
+  if (parts.length > 3) return ".../" + parts.slice(-3).join("/");
+  return fp;
+}
+
+function ExpandedDetails({ def }: { def: AgentDefinition }) {
+  return (
+    <div className="mt-4 pt-4 border-t border-border/50 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        {def.pluginName && (
+          <div>
+            <span className="text-muted-foreground/60">Plugin:</span>
+            <span className="ml-1.5 font-medium">{def.pluginName}</span>
+          </div>
+        )}
+        {def.model && (
+          <div>
+            <span className="text-muted-foreground/60">Model:</span>
+            <span className="ml-1.5 font-medium">{def.model}</span>
+          </div>
+        )}
+        {def.lastUsed && (
+          <div>
+            <span className="text-muted-foreground/60">Last used:</span>
+            <span className="ml-1.5 font-mono">{rt(def.lastUsed)}</span>
+          </div>
+        )}
+        {def.tools.length > 0 && (
+          <div>
+            <span className="text-muted-foreground/60">Tools:</span>
+            <span className="ml-1.5">{def.tools.join(", ")}</span>
+          </div>
+        )}
+      </div>
+
+      {/* File path — short display with copy */}
+      <div className="flex items-center gap-1.5 text-xs rounded bg-muted/30 px-2.5 py-1.5">
+        <FolderOpen className="h-3 w-3 text-muted-foreground/50 flex-shrink-0" />
+        <span className="font-mono text-muted-foreground truncate" title={def.filePath}>{shortenPath(def.filePath)}</span>
+        <CopyButton text={def.filePath} label="Copy full path" />
+      </div>
+
+      {def.content && (
+        <div>
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">System Prompt</span>
+          <pre className="text-xs text-muted-foreground mt-1 p-3 rounded bg-muted/30 max-h-40 overflow-auto whitespace-pre-wrap font-mono">
+            {def.content.slice(0, 1500)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DefinitionCard({ def, index }: { def: AgentDefinition; index: number }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -364,32 +589,7 @@ function DefinitionCard({ def, index }: { def: AgentDefinition; index: number })
         </div>
 
         {expanded && (
-          <div className="mt-4 pt-4 border-t border-border/50 space-y-3">
-            {def.lastUsed && (
-              <div className="text-xs">
-                <span className="text-muted-foreground/60">Last used:</span>
-                <span className="ml-1.5 font-mono">{new Date(def.lastUsed).toLocaleString()}</span>
-              </div>
-            )}
-            {def.pluginName && (
-              <div className="text-xs">
-                <span className="text-muted-foreground/60">Plugin:</span>
-                <span className="ml-1.5 font-mono">{def.pluginName}</span>
-              </div>
-            )}
-            <div className="text-xs">
-              <span className="text-muted-foreground/60">File:</span>
-              <span className="ml-1.5 font-mono text-muted-foreground truncate">{def.filePath}</span>
-            </div>
-            {def.content && (
-              <div>
-                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">System Prompt</span>
-                <pre className="text-xs text-muted-foreground mt-1 p-3 rounded bg-muted/30 max-h-40 overflow-auto whitespace-pre-wrap font-mono">
-                  {def.content.slice(0, 1500)}
-                </pre>
-              </div>
-            )}
-          </div>
+          <ExpandedDetails def={def} />
         )}
       </CardContent>
     </Card>

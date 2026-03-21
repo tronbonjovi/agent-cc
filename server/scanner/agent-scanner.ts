@@ -19,10 +19,26 @@ export function getCachedDefinitions(): AgentDefinition[] { return cachedDefinit
 export function getCachedExecutions(): AgentExecution[] { return cachedExecutions; }
 export function getCachedAgentStats(): AgentStats { return cachedAgentStats; }
 
+/** Recursively find all .md files in an agents directory */
+function findAgentFiles(dir: string): string[] {
+  const results: string[] = [];
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name === ".git") continue;
+      const full = normPath(dir, entry.name);
+      if (entry.isFile() && entry.name.endsWith(".md")) {
+        results.push(full);
+      } else if (entry.isDirectory()) {
+        results.push(...findAgentFiles(full));
+      }
+    }
+  } catch {}
+  return results;
+}
+
 /** Scan agent definition .md files from plugins and user agents dir */
 export function scanAgentDefinitions(): AgentDefinition[] {
-  const defs: AgentDefinition[] = [];
-  const seenNames = new Set<string>();
+  const allDefs: AgentDefinition[] = [];
 
   // Plugin agents: ~/.claude/plugins/marketplaces/*/plugins/*/agents/*.md
   // Sort marketplaces so "official" comes first (wins dedup)
@@ -32,7 +48,6 @@ export function scanAgentDefinitions(): AgentDefinition[] {
       const markets = fs.readdirSync(marketplacesDir, { withFileTypes: true })
         .filter((d) => d.isDirectory())
         .sort((a, b) => {
-          // Prioritize "official" marketplaces first
           const aOff = a.name.includes("official") ? 0 : 1;
           const bOff = b.name.includes("official") ? 0 : 1;
           return aOff - bOff || a.name.localeCompare(b.name);
@@ -43,22 +58,36 @@ export function scanAgentDefinitions(): AgentDefinition[] {
         if (!dirExists(pluginsDir)) continue;
         for (const plugin of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
           if (!plugin.isDirectory()) continue;
+          // Recursively find agent .md files under the plugin directory
           const agentsDir = normPath(pluginsDir, plugin.name, "agents");
-          if (!dirExists(agentsDir)) continue;
-          for (const agentFile of fs.readdirSync(agentsDir, { withFileTypes: true })) {
-            if (!agentFile.isFile() || !agentFile.name.endsWith(".md")) continue;
-            const filePath = normPath(agentsDir, agentFile.name);
-            const def = parseDefinition(filePath, "plugin", plugin.name, market.name);
-            if (def) {
-              // Deduplicate: skip agents with same name+plugin across different marketplaces
-              // (e.g. "code-reviewer" from "feature-dev" in both official and code-plugins)
-              // But keep agents with same name from DIFFERENT plugins in the same marketplace
-              // (e.g. "code-reviewer" from "feature-dev" vs "code-reviewer" from "pr-review-toolkit")
-              const dedupeKey = `${def.name}::${plugin.name}::${agentFile.name}`;
-              if (seenNames.has(dedupeKey)) continue;
-              seenNames.add(dedupeKey);
-              defs.push(def);
+          const agentFiles = dirExists(agentsDir) ? findAgentFiles(agentsDir) : [];
+          // Also check nested paths like skills/*/agents/
+          const pluginRoot = normPath(pluginsDir, plugin.name);
+          try {
+            for (const sub of fs.readdirSync(pluginRoot, { withFileTypes: true })) {
+              if (!sub.isDirectory() || sub.name === "agents" || sub.name === "node_modules") continue;
+              const nestedAgents = normPath(pluginRoot, sub.name);
+              // Recursively search for any agents/ directories
+              const findNested = (dir: string) => {
+                try {
+                  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+                    if (e.name === "node_modules" || e.name === ".git") continue;
+                    const full = normPath(dir, e.name);
+                    if (e.isDirectory() && e.name === "agents") {
+                      agentFiles.push(...findAgentFiles(full));
+                    } else if (e.isDirectory()) {
+                      findNested(full);
+                    }
+                  }
+                } catch {}
+              };
+              findNested(nestedAgents);
             }
+          } catch {}
+
+          for (const filePath of agentFiles) {
+            const def = parseDefinition(filePath, "plugin", plugin.name, market.name);
+            if (def) allDefs.push(def);
           }
         }
       }
@@ -75,15 +104,33 @@ export function scanAgentDefinitions(): AgentDefinition[] {
         if (!f.isFile() || !f.name.endsWith(".md")) continue;
         const filePath = normPath(userAgentsDir, f.name);
         const def = parseDefinition(filePath, "user");
-        if (def) defs.push(def);
+        if (def) allDefs.push(def);
       }
     } catch (err) {
       console.warn("[agent-scanner] Failed to scan user agents:", (err as Error).message);
     }
   }
 
-  cachedDefinitions = defs;
-  return defs;
+  // Deduplicate by agent name — keep the one with most content (description + tools)
+  const byName = new Map<string, AgentDefinition>();
+  for (const def of allDefs) {
+    const existing = byName.get(def.name);
+    if (!existing) {
+      byName.set(def.name, def);
+    } else {
+      // Prefer agents with tools + model set over those with just long descriptions
+      const score = (d: AgentDefinition) =>
+        (d.description?.length || 0) + d.tools.length * 500 + (d.model && d.model !== "inherit" ? 200 : 0);
+      const existingScore = score(existing);
+      const newScore = score(def);
+      if (newScore > existingScore) {
+        byName.set(def.name, def);
+      }
+    }
+  }
+
+  cachedDefinitions = Array.from(byName.values());
+  return cachedDefinitions;
 }
 
 /** Map marketplace directory names to display labels */
@@ -124,7 +171,7 @@ function parseDefinition(filePath: string, source: "plugin" | "user" | "project"
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
 
-    // Try gray-matter first, fall back to regex parser if YAML is malformed
+    // Try gray-matter first, fall back to regex parser if YAML is malformed or fields are missing
     let fm: Record<string, any>;
     let content: string;
     try {
@@ -132,9 +179,18 @@ function parseDefinition(filePath: string, source: "plugin" | "user" | "project"
       fm = parsed.data;
       content = parsed.content;
     } catch {
+      fm = {};
+      content = raw;
+    }
+    // If gray-matter returned empty/missing description, try fallback parser
+    if (!fm.description || !fm.name) {
       const fallback = parseFrontmatterFallback(raw);
-      fm = fallback.data;
-      content = fallback.content;
+      if (!fm.description && fallback.data.description) fm.description = fallback.data.description;
+      if (!fm.name && fallback.data.name) fm.name = fallback.data.name;
+      if (!fm.model && fallback.data.model) fm.model = fallback.data.model;
+      if (!fm.color && fallback.data.color) fm.color = fallback.data.color;
+      if (!fm.tools && fallback.data.tools) fm.tools = fallback.data.tools;
+      if (!content || content === raw) content = fallback.content;
     }
 
     const name = fm.name || path.basename(filePath, ".md");
