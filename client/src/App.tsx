@@ -32,6 +32,7 @@ const Rules = lazy(() => import("@/pages/rules"));
 // Costs merged into Stats (Analytics) page
 const MessageHistory = lazy(() => import("@/pages/message-history"));
 const APIs = lazy(() => import("@/pages/apis"));
+const Prompts = lazy(() => import("@/pages/prompts"));
 import NotFound from "@/pages/not-found";
 
 function PageLoader() {
@@ -81,6 +82,7 @@ function Router() {
             <Route path="/costs" component={Stats} />
             <Route path="/messages" component={MessageHistory} />
             <Route path="/apis" component={APIs} />
+            <Route path="/prompts" component={Prompts} />
             <Route component={NotFound} />
           </Switch>
         </Suspense>

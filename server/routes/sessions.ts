@@ -344,6 +344,27 @@ router.post("/api/sessions/prompts", (req: Request, res: Response) => {
   res.json(template);
 });
 
+/** PATCH /api/sessions/prompts/:id — Update prompt template */
+router.patch("/api/sessions/prompts/:id", (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const existing = storage.getPromptTemplate(id);
+  if (!existing) return res.status(404).json({ message: "Template not found" });
+
+  const body = req.body as Partial<{ name: string; description: string; prompt: string; tags: string[]; isFavorite: boolean }>;
+  const updated = {
+    ...existing,
+    ...(body.name !== undefined && { name: body.name.slice(0, 200) }),
+    ...(body.description !== undefined && { description: body.description.slice(0, 500) }),
+    ...(body.prompt !== undefined && { prompt: body.prompt.slice(0, 5000) }),
+    ...(body.tags !== undefined && { tags: body.tags.slice(0, 10).map(t => String(t).slice(0, 50)) }),
+    ...(body.isFavorite !== undefined && { isFavorite: body.isFavorite }),
+    updatedAt: new Date().toISOString(),
+  };
+
+  storage.upsertPromptTemplate(updated);
+  res.json(updated);
+});
+
 /** DELETE /api/sessions/prompts/:id — Delete prompt template */
 router.delete("/api/sessions/prompts/:id", (req: Request, res: Response) => {
   const id = String(req.params.id);

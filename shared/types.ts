@@ -170,6 +170,13 @@ export interface PluginEntity extends Entity {
   };
 }
 
+export interface MarkdownSection {
+  level: number;
+  title: string;
+  startLine: number;
+  endLine: number;
+}
+
 export interface MarkdownEntity extends Entity {
   type: "markdown";
   data: {
@@ -180,7 +187,32 @@ export interface MarkdownEntity extends Entity {
     preview: string;
     frontmatter: Record<string, unknown> | null;
     links?: string[];
+    sections?: MarkdownSection[];
+    tokenEstimate?: number;
   };
+}
+
+export interface MarkdownFileMeta {
+  locked?: boolean;
+  pinned?: boolean;
+}
+
+export interface ContentSearchResult {
+  fileId: string;
+  fileName: string;
+  filePath: string;
+  category: string;
+  matches: Array<{ line: number; text: string }>;
+  matchCount: number;
+}
+
+export interface ContextSummary {
+  claudeMdFiles: Array<{ name: string; lines: number; tokens: number; sections: number }>;
+  memoryFiles: Array<{ name: string; type: string; lines: number; tokens: number }>;
+  skillFiles: Array<{ name: string; slash: string }>;
+  totalLines: number;
+  totalTokens: number;
+  memoryMdUsage: { lines: number; limit: number; percentage: number };
 }
 
 export interface ConfigEntity extends Entity {
@@ -528,6 +560,7 @@ export interface PromptTemplate {
   createdAt: string;
   updatedAt: string;
   usageCount: number;
+  isFavorite?: boolean;
 }
 
 export interface WeeklyDigest {

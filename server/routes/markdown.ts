@@ -26,6 +26,94 @@ router.get("/api/markdown", (req: Request, res: Response) => {
   res.json(markdowns);
 });
 
+/** GET /api/markdown/search?q=... — Search within all markdown file contents */
+router.get("/api/markdown/search", (req: Request, res: Response) => {
+  const q = qstr(req.query.q)?.toLowerCase();
+  if (!q || q.length < 2) return res.json([]);
+
+  const entities = storage.getEntities("markdown");
+  const results: Array<{ fileId: string; fileName: string; filePath: string; category: string; matches: Array<{ line: number; text: string }>; matchCount: number }> = [];
+
+  for (const entity of entities) {
+    const safePath = validateMarkdownPath(entity.path);
+    if (!safePath) continue;
+    try {
+      const content = fs.readFileSync(safePath, "utf-8");
+      const lines = content.split("\n");
+      const matches: Array<{ line: number; text: string }> = [];
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].toLowerCase().includes(q)) {
+          matches.push({ line: i + 1, text: lines[i].slice(0, 200) });
+          if (matches.length >= 5) break;
+        }
+      }
+      if (matches.length > 0) {
+        results.push({
+          fileId: entity.id,
+          fileName: entity.name,
+          filePath: entity.path,
+          category: (entity.data as Record<string, unknown>).category as string,
+          matches,
+          matchCount: matches.length,
+        });
+      }
+    } catch {}
+  }
+
+  res.json(results.slice(0, 20));
+});
+
+/** GET /api/markdown/context-summary — Summary of all context loaded by Claude */
+router.get("/api/markdown/context-summary", (_req: Request, res: Response) => {
+  const entities = storage.getEntities("markdown");
+  const claudeMdFiles: Array<{ name: string; lines: number; tokens: number; sections: number }> = [];
+  const memoryFiles: Array<{ name: string; type: string; lines: number; tokens: number }> = [];
+  const skillFiles: Array<{ name: string; slash: string }> = [];
+  let totalLines = 0;
+  let totalTokens = 0;
+  let memoryMdLines = 0;
+
+  for (const e of entities) {
+    const data = e.data as Record<string, unknown>;
+    const lines = (data.lineCount as number) || 0;
+    const tokens = (data.tokenEstimate as number) || Math.ceil(((data.sizeBytes as number) || 0) / 4);
+    const cat = data.category as string;
+    const fm = data.frontmatter as Record<string, unknown> | null;
+    const sections = (data.sections as unknown[])?.length || 0;
+
+    if (cat === "claude-md") {
+      claudeMdFiles.push({ name: e.name, lines, tokens, sections });
+      totalLines += lines;
+      totalTokens += tokens;
+    } else if (cat === "memory") {
+      if (e.name === "MEMORY.md") memoryMdLines = lines;
+      const memType = typeof fm?.type === "string" ? fm.type : "unknown";
+      memoryFiles.push({ name: e.name, type: memType, lines, tokens });
+      totalLines += lines;
+      totalTokens += tokens;
+    } else if (cat === "skill") {
+      const parts = e.path.replace(/\\/g, "/").split("/");
+      const si = parts.indexOf("skills");
+      const slash = si >= 0 && parts[si + 1] ? `/${parts[si + 1]}` : "";
+      skillFiles.push({ name: e.name, slash });
+    }
+  }
+
+  res.json({
+    claudeMdFiles,
+    memoryFiles,
+    skillFiles,
+    totalLines,
+    totalTokens,
+    memoryMdUsage: { lines: memoryMdLines, limit: 200, percentage: Math.round((memoryMdLines / 200) * 100) },
+  });
+});
+
+/** GET /api/markdown/meta — All file metadata */
+router.get("/api/markdown/meta", (_req: Request, res: Response) => {
+  res.json(storage.getAllMarkdownMeta());
+});
+
 router.get("/api/markdown/:id", (req: Request, res: Response) => {
   const entity = storage.getEntity(req.params.id as string);
   if (!entity || entity.type !== "markdown") {
@@ -148,6 +236,32 @@ router.post("/api/markdown/:id/restore/:backupId", (req: Request, res: Response)
     console.error("[markdown] Failed to restore file:", (err as Error).message);
     res.status(500).json({ message: "Could not restore file" });
   }
+});
+
+/** PATCH /api/markdown/:id/meta — Update file metadata (lock, pin) */
+router.patch("/api/markdown/:id/meta", (req: Request, res: Response) => {
+  const entity = storage.getEntity(req.params.id as string);
+  if (!entity || entity.type !== "markdown") {
+    return res.status(404).json({ message: "Markdown file not found" });
+  }
+  const body = req.body as { locked?: boolean; pinned?: boolean };
+  storage.setMarkdownMeta(entity.path, body);
+  res.json({ message: "Updated", meta: storage.getMarkdownMeta(entity.path) });
+});
+
+/** GET /api/markdown/:id/backup/:backupId — Get backup content for diff */
+router.get("/api/markdown/:id/backup/:backupId", (req: Request, res: Response) => {
+  const entity = storage.getEntity(req.params.id as string);
+  if (!entity || entity.type !== "markdown") {
+    return res.status(404).json({ message: "Markdown file not found" });
+  }
+  const backupId = parseInt(req.params.backupId as string, 10);
+  if (isNaN(backupId)) return res.status(400).json({ message: "Invalid backup ID" });
+  const backup = storage.getBackup(backupId);
+  if (!backup || backup.filePath !== entity.path) {
+    return res.status(404).json({ message: "Backup not found" });
+  }
+  res.json({ id: backup.id, content: backup.content, createdAt: backup.createdAt, reason: backup.reason });
 });
 
 router.get("/api/markdown/:id/validate", (req: Request, res: Response) => {

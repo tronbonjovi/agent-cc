@@ -31,6 +31,7 @@ import {
   BarChart3,
   BookOpen,
   Globe,
+  Sparkles,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
@@ -56,6 +57,7 @@ const navSections = [
     label: "Tools",
     items: [
       { path: "/sessions", label: "Sessions", icon: MessageSquare, countKey: "session" as const },
+      { path: "/prompts", label: "Prompts", icon: Sparkles, countKey: null },
       { path: "/messages", label: "Messages", icon: MessageSquareText, countKey: null },
       { path: "/agents", label: "Agents", icon: Bot, countKey: "agent" as const },
       { path: "/live", label: "Live", icon: Radio, countKey: null },

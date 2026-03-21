@@ -59,6 +59,21 @@ export function scanMarkdown(): Entity[] {
       }
     }
 
+    // Extract sections (heading-level breakdown)
+    const contentLines = content.split("\n");
+    const sections: Array<{ level: number; title: string; startLine: number; endLine: number }> = [];
+    for (let i = 0; i < contentLines.length; i++) {
+      const hMatch = contentLines[i].match(/^(#{1,4})\s+(.+)$/);
+      if (hMatch) {
+        if (sections.length > 0) {
+          sections[sections.length - 1].endLine = i - 1;
+        }
+        sections.push({ level: hMatch[1].length, title: hMatch[2].trim(), startLine: i, endLine: contentLines.length - 1 });
+      }
+    }
+
+    const tokenEstimate = Math.ceil(content.length / 4);
+
     const id = entityId(`markdown:${normalized}`);
     results.push({
       id,
@@ -72,10 +87,12 @@ export function scanMarkdown(): Entity[] {
       data: {
         category,
         sizeBytes: stat.size,
-        lineCount: content.split("\n").length,
+        lineCount: contentLines.length,
         preview: content.slice(0, 300),
         frontmatter,
         links: links.length > 0 ? links : undefined,
+        sections: sections.length > 0 ? sections : undefined,
+        tokenEstimate,
       },
       scannedAt: now(),
     });

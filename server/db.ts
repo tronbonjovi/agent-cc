@@ -30,6 +30,7 @@ export interface DBData {
   sessionNotes: Record<string, SessionNote>;
   pinnedSessions: string[];
   decisions: Decision[];
+  markdownMeta: Record<string, { locked?: boolean; pinned?: boolean }>;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -64,6 +65,7 @@ function defaultData(): DBData {
     sessionNotes: {},
     pinnedSessions: [],
     decisions: [],
+    markdownMeta: {},
   };
 }
 
@@ -89,6 +91,7 @@ try {
     if (!data.sessionNotes) data.sessionNotes = {};
     if (!data.pinnedSessions) data.pinnedSessions = [];
     if (!data.decisions) data.decisions = [];
+    if (!data.markdownMeta) data.markdownMeta = {};
     if (data.appSettings.onboarded === undefined) data.appSettings.onboarded = false;
     if (!data.appSettings.billingMode) data.appSettings.billingMode = "auto";
   } else {

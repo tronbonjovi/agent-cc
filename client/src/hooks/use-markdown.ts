@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { MarkdownEntity } from "@shared/types";
+import type { MarkdownEntity, MarkdownFileMeta, ContentSearchResult, ContextSummary } from "@shared/types";
 
 export function useMarkdownFiles(category?: string) {
   const params = category ? `?category=${category}` : "";
@@ -29,6 +29,19 @@ export function useSaveMarkdown() {
   return useMutation({
     mutationFn: async ({ id, content }: { id: string; content: string }) => {
       const res = await apiRequest("PUT", `/api/markdown/${id}`, { content });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/markdown"] });
+    },
+  });
+}
+
+export function useCreateMarkdownFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ filePath, content }: { filePath: string; content: string }) => {
+      const res = await apiRequest("POST", "/api/markdown", { filePath, content });
       return res.json();
     },
     onSuccess: () => {
@@ -69,6 +82,45 @@ export interface ValidationResult {
 export function useValidateMarkdown(id: string | undefined) {
   return useQuery<ValidationResult>({
     queryKey: [`/api/markdown/${id}/validate`],
-    enabled: false, // only runs on manual trigger via refetch
+    enabled: false,
+  });
+}
+
+export function useContentSearch(query: string) {
+  return useQuery<ContentSearchResult[]>({
+    queryKey: ["/api/markdown/search", query],
+    enabled: query.length >= 2,
+  });
+}
+
+export function useContextSummary() {
+  return useQuery<ContextSummary>({
+    queryKey: ["/api/markdown/context-summary"],
+  });
+}
+
+export function useMarkdownMeta() {
+  return useQuery<Record<string, MarkdownFileMeta>>({
+    queryKey: ["/api/markdown/meta"],
+  });
+}
+
+export function useUpdateMarkdownMeta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, meta }: { id: string; meta: Partial<MarkdownFileMeta> }) => {
+      const res = await apiRequest("PATCH", `/api/markdown/${id}/meta`, meta);
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/markdown/meta"] });
+    },
+  });
+}
+
+export function useBackupContent(id: string | undefined, backupId: number | undefined) {
+  return useQuery<{ id: number; content: string; createdAt: string; reason: string }>({
+    queryKey: [`/api/markdown/${id}/backup/${backupId}`],
+    enabled: !!id && !!backupId,
   });
 }

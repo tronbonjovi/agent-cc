@@ -346,6 +346,21 @@ export class Storage {
     save();
   }
 
+  // Markdown File Metadata
+  getMarkdownMeta(filePath: string): { locked?: boolean; pinned?: boolean } {
+    return getDB().markdownMeta[filePath] || {};
+  }
+
+  getAllMarkdownMeta(): Record<string, { locked?: boolean; pinned?: boolean }> {
+    return getDB().markdownMeta;
+  }
+
+  setMarkdownMeta(filePath: string, meta: { locked?: boolean; pinned?: boolean }): void {
+    const db = getDB();
+    db.markdownMeta[filePath] = { ...db.markdownMeta[filePath], ...meta };
+    save();
+  }
+
   // Pinned Sessions
   getPinnedSessions(): string[] {
     return getDB().pinnedSessions;
