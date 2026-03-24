@@ -30,21 +30,7 @@ A local dashboard for visualizing and managing your [Claude Code](https://docs.a
   <img src="docs/demo.gif" alt="Claude Command Center Demo" width="800">
 </p>
 
-<img src="docs/screenshots/dashboard.png" alt="Dashboard" width="100%" />
-
-<details>
-<summary><strong>More screenshots</strong></summary>
-
-| | |
-|---|---|
-| <img src="docs/screenshots/graph.png" alt="Graph" /> | <img src="docs/screenshots/stats.png" alt="Analytics" /> |
-| **Graph** -- interactive ecosystem map with AI suggestions | **Analytics** -- usage stats, cost breakdown, model usage |
-| <img src="docs/screenshots/sessions.png" alt="Sessions" /> | <img src="docs/screenshots/agents.png" alt="Agents" /> |
-| **Sessions** -- search, filter, sort, bulk delete | **Agents** -- definitions and execution history |
-| <img src="docs/screenshots/mcps.png" alt="MCP Servers" /> | <img src="docs/screenshots/discovery.png" alt="Discovery" /> |
-| **MCP Servers** -- every server from all `.mcp.json` files | **Discovery** -- find unconfigured projects and MCPs |
-
-</details>
+<!-- Screenshots excluded from repo to prevent PII leaks. Run locally to see the UI. -->
 
 ---
 
