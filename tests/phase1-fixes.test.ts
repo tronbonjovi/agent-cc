@@ -133,3 +133,15 @@ describe("findSessionFile fallback", () => {
     expect(result).toBeNull();
   });
 });
+
+describe("modelsInUse consistency", () => {
+  it("getLiveData returns modelsInUse as an array", async () => {
+    const { getLiveData } = await import("../server/scanner/live-scanner");
+    const data = getLiveData();
+    expect(data).toHaveProperty("stats");
+    expect(data.stats).toHaveProperty("modelsInUse");
+    expect(Array.isArray(data.stats.modelsInUse)).toBe(true);
+    expect(data.stats).toHaveProperty("agentsToday");
+    expect(typeof data.stats.agentsToday).toBe("number");
+  });
+});

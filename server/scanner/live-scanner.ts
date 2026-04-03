@@ -423,11 +423,12 @@ export function getLiveData(): LiveData {
   const midnightUTC = midnightLocal.toISOString();
   const agentsToday = getCachedExecutions().filter(e => (e.firstTs || "") >= midnightUTC).length;
 
-  // 5. Collect unique models from active agents
+  // 5. Collect unique models from today's agent executions (same source as agentsToday)
+  //    This ensures modelsInUse and agentsToday are always consistent.
   const modelsSet = new Set<string>();
-  for (const s of activeSessions) {
-    for (const a of s.activeAgents) {
-      if (a.model) modelsSet.add(a.model);
+  for (const exec of getCachedExecutions()) {
+    if ((exec.firstTs || "") >= midnightUTC && exec.model) {
+      modelsSet.add(exec.model);
     }
   }
   const modelsInUse = Array.from(modelsSet);
