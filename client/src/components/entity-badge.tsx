@@ -15,7 +15,7 @@ const entityConfig: Record<EntityType, { color: string; bg: string; icon: React.
   plugin: { color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", icon: Puzzle, label: "Plugin" },
   skill: { color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", icon: Wand2, label: "Skill" },
   markdown: { color: "text-slate-400", bg: "bg-slate-500/10 border-slate-500/20", icon: FileText, label: "Markdown" },
-  config: { color: "text-teal-400", bg: "bg-teal-500/10 border-teal-500/20", icon: Settings, label: "Config" },
+  config: { color: "text-teal-400", bg: "bg-teal-500/10 border-teal-500/20", icon: Settings, label: "APIs" },
 };
 
 export function EntityBadge({ type }: { type: EntityType }) {
