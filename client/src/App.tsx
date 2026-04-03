@@ -20,16 +20,12 @@ const Plugins = lazy(() => import("@/pages/plugins"));
 const MarkdownFiles = lazy(() => import("@/pages/markdown-files"));
 const MarkdownEdit = lazy(() => import("@/pages/markdown-edit"));
 const GraphPage = lazy(() => import("@/pages/graph"));
-// Discovery merged into Activity page
-// Config merged into Settings page
 const ActivityPage = lazy(() => import("@/pages/activity"));
 const Sessions = lazy(() => import("@/pages/sessions"));
 const Agents = lazy(() => import("@/pages/agents"));
 const Live = lazy(() => import("@/pages/live"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const Stats = lazy(() => import("@/pages/stats"));
-// Rules page removed — content covered by Markdown "What Claude Loads" + individual entity pages
-// Costs merged into Stats (Analytics) page
 const MessageHistory = lazy(() => import("@/pages/message-history"));
 const APIs = lazy(() => import("@/pages/apis"));
 const Prompts = lazy(() => import("@/pages/prompts"));
@@ -70,15 +66,12 @@ function Router() {
             <Route path="/markdown" component={MarkdownFiles} />
             <Route path="/markdown/:id" component={MarkdownEdit} />
             <Route path="/graph" component={GraphPage} />
-            <Route path="/discovery" component={ActivityPage} />
-            <Route path="/config" component={SettingsPage} />
             <Route path="/activity" component={ActivityPage} />
             <Route path="/sessions" component={Sessions} />
             <Route path="/agents" component={Agents} />
             <Route path="/live" component={Live} />
             <Route path="/settings" component={SettingsPage} />
             <Route path="/stats" component={Stats} />
-            <Route path="/costs" component={Stats} />
             <Route path="/messages" component={MessageHistory} />
             <Route path="/apis" component={APIs} />
             <Route path="/prompts" component={Prompts} />
