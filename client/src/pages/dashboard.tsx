@@ -124,7 +124,7 @@ export default function Dashboard() {
             <StatCard
               type={type}
               count={counts[type] || 0}
-              onClick={() => setLocation(type === "markdown" ? "/markdown" : type === "config" ? "/config" : `/${type}s`)}
+              onClick={() => setLocation(type === "markdown" ? "/markdown" : type === "config" ? "/settings" : `/${type}s`)}
             />
           </div>
         ))}
