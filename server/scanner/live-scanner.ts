@@ -6,6 +6,18 @@ import { getCachedSessions } from "./session-scanner";
 import { storage } from "../storage";
 import type { LiveData, ActiveSession } from "@shared/types";
 
+/** Check if a process is running by sending signal 0 (no-op signal).
+ *  Returns false for PID 0 or if the process doesn't exist. */
+export function isProcessAlive(pid: number): boolean {
+  if (!pid || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Status thresholds (ms) */
 const STATUS_THINKING_MS = 10_000;    // <10s = thinking
 const STATUS_WAITING_MS  = 60_000;    // 10-60s = waiting
@@ -219,6 +231,9 @@ export function getLiveData(): LiveData {
         const filePath = normPath(sessionsDir, f.name);
         const data = safeReadJson(filePath) as { pid?: number; sessionId?: string; cwd?: string; startedAt?: number } | null;
         if (!data || !data.sessionId) continue;
+
+        // Skip sessions whose process is no longer running (stale .json files)
+        if (!isProcessAlive(data.pid || 0)) continue;
 
         const session: ActiveSession = {
           pid: data.pid || 0,

@@ -63,3 +63,20 @@ describe("getExtraPaths() tilde expansion", () => {
     expect(result.extraProjectDirs).toEqual(["/opt/projects"]);
   });
 });
+
+describe("isProcessAlive() PID checking", () => {
+  it("returns true for the current process PID", async () => {
+    const { isProcessAlive } = await import("../server/scanner/live-scanner");
+    expect(isProcessAlive(process.pid)).toBe(true);
+  });
+
+  it("returns false for a non-existent PID (99999999)", async () => {
+    const { isProcessAlive } = await import("../server/scanner/live-scanner");
+    expect(isProcessAlive(99999999)).toBe(false);
+  });
+
+  it("returns false for PID 0", async () => {
+    const { isProcessAlive } = await import("../server/scanner/live-scanner");
+    expect(isProcessAlive(0)).toBe(false);
+  });
+});
