@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { toast } from "sonner";
 import type {
   SessionData, SessionStats, SessionSummary, DeepSearchResult,
   CostAnalytics, FileHeatmapResult, HealthAnalytics, StaleAnalytics,
@@ -40,7 +41,9 @@ export function useDeleteSession() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
+      toast.success("Session deleted");
     },
+    onError: (err: Error) => { toast.error(`Failed to delete session: ${err.message}`); },
   });
 }
 
@@ -51,9 +54,11 @@ export function useBulkDeleteSessions() {
       const res = await apiRequest("DELETE", "/api/sessions", { ids });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, ids) => {
       qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
+      toast.success(`${ids.length} sessions deleted`);
     },
+    onError: (err: Error) => { toast.error(`Failed to delete sessions: ${err.message}`); },
   });
 }
 
@@ -63,6 +68,8 @@ export function useOpenSession() {
       const res = await apiRequest("POST", `/api/sessions/${id}/open`);
       return res.json();
     },
+    onSuccess: () => { toast.success("Session opened in terminal"); },
+    onError: (err: Error) => { toast.error(`Failed to open session: ${err.message}`); },
   });
 }
 
@@ -75,7 +82,9 @@ export function useDeleteAllSessions() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
+      toast.success("All sessions deleted");
     },
+    onError: (err: Error) => { toast.error(`Failed to delete all sessions: ${err.message}`); },
   });
 }
 
@@ -88,7 +97,9 @@ export function useUndoDeleteSessions() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
+      toast.success("Delete undone — sessions restored");
     },
+    onError: (err: Error) => { toast.error(`Failed to undo delete: ${err.message}`); },
   });
 }
 
@@ -117,7 +128,9 @@ export function useSummarizeSession() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
+      toast.success("Session summarized");
     },
+    onError: (err: Error) => { toast.error(`Failed to summarize session: ${err.message}`); },
   });
 }
 
@@ -128,9 +141,11 @@ export function useSummarizeBatch() {
       const res = await apiRequest("POST", "/api/sessions/summarize-batch");
       return res.json() as Promise<{ summarized: string[]; failed: string[]; skipped: string[] }>;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
+      toast.success(`${data.summarized.length} done, ${data.skipped.length} skipped`);
     },
+    onError: (err: Error) => { toast.error(`Batch summarize failed: ${err.message}`); },
   });
 }
 
@@ -193,6 +208,8 @@ export function useContextLoader() {
       const res = await apiRequest("POST", "/api/sessions/context-loader", { project });
       return res.json() as Promise<ContextLoaderResult>;
     },
+    onSuccess: () => { toast.success("Context loaded"); },
+    onError: (err: Error) => { toast.error(`Failed to load context: ${err.message}`); },
   });
 }
 
@@ -224,7 +241,11 @@ export function useCreatePrompt() {
       const res = await apiRequest("POST", "/api/sessions/prompts", data);
       return res.json() as Promise<PromptTemplate>;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sessions/prompts"] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions/prompts"] });
+      toast.success("Prompt created");
+    },
+    onError: (err: Error) => { toast.error(`Failed to create prompt: ${err.message}`); },
   });
 }
 
@@ -235,7 +256,11 @@ export function useDeletePrompt() {
       const res = await apiRequest("DELETE", `/api/sessions/prompts/${id}`);
       return res.json();
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sessions/prompts"] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions/prompts"] });
+      toast.success("Prompt deleted");
+    },
+    onError: (err: Error) => { toast.error(`Failed to delete prompt: ${err.message}`); },
   });
 }
 
@@ -259,7 +284,11 @@ export function useUpdateWorkflow() {
       const res = await apiRequest("PATCH", "/api/sessions/workflows", patch);
       return res.json() as Promise<WorkflowConfig>;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sessions/workflows"] }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions/workflows"] });
+      toast.success("Workflow updated");
+    },
+    onError: (err: Error) => { toast.error(`Failed to update workflow: ${err.message}`); },
   });
 }
 
@@ -269,6 +298,8 @@ export function useRunWorkflows() {
       const res = await apiRequest("POST", "/api/sessions/workflows/run");
       return res.json();
     },
+    onSuccess: () => { toast.success("Workflows executed"); },
+    onError: (err: Error) => { toast.error(`Failed to run workflows: ${err.message}`); },
   });
 }
 
@@ -279,9 +310,11 @@ export function useTogglePin() {
       const res = await apiRequest("POST", `/api/sessions/pin/${id}`);
       return res.json() as Promise<{ sessionId: string; isPinned: boolean }>;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
+      toast.success(data.isPinned ? "Session pinned" : "Session unpinned");
     },
+    onError: (err: Error) => { toast.error(`Failed to toggle pin: ${err.message}`); },
   });
 }
 
@@ -300,7 +333,11 @@ export function useSaveNote() {
       const res = await apiRequest("PUT", `/api/sessions/${id}/note`, { text });
       return res.json();
     },
-    onSuccess: () => { qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
+      toast.success("Note saved");
+    },
+    onError: (err: Error) => { toast.error(`Failed to save note: ${err.message}`); },
   });
 }
 
@@ -320,6 +357,7 @@ export function useNLQuery() {
       const res = await apiRequest("POST", "/api/sessions/nl-query", { question });
       return res.json() as Promise<NLQueryResult>;
     },
+    onError: (err: Error) => { toast.error(`Query failed: ${err.message}`); },
   });
 }
 
@@ -345,7 +383,11 @@ export function useExtractDecisions() {
       const res = await apiRequest("POST", `/api/sessions/decisions/extract/${id}`);
       return res.json() as Promise<{ decisions: Decision[]; count: number }>;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/sessions/decisions"] }); },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions/decisions"] });
+      toast.success(`${data.count} decisions extracted`);
+    },
+    onError: (err: Error) => { toast.error(`Failed to extract decisions: ${err.message}`); },
   });
 }
 
@@ -377,5 +419,7 @@ export function useDelegate() {
       const res = await apiRequest("POST", "/api/sessions/delegate", params);
       return res.json() as Promise<DelegationResult>;
     },
+    onSuccess: (data) => { toast.success(`Delegated to ${data.target}`); },
+    onError: (err: Error) => { toast.error(`Delegation failed: ${err.message}`); },
   });
 }

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, invalidateDataQueries } from "@/lib/queryClient";
+import { toast } from "sonner";
 import type { Entity, EntityType, ScanStatus, MCPEntity, SkillEntity, PluginEntity, MarkdownEntity, ConfigEntity, ProjectEntity } from "@shared/types";
 
 export function makeRelativePath(fullPath: string, homeDir: string | null): string {
@@ -42,6 +43,8 @@ export function useRescan() {
     },
     onSuccess: () => {
       invalidateDataQueries(qc);
+      toast.success("Rescan complete");
     },
+    onError: (err: Error) => { toast.error(`Rescan failed: ${err.message}`); },
   });
 }

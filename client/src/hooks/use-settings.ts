@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { toast } from "sonner";
 import type { AppSettings } from "@shared/types";
 
 export function useAppSettings() {
@@ -21,7 +22,9 @@ export function useUpdateSettings() {
       if (variables.scanPaths) {
         qc.invalidateQueries({ queryKey: ["/api/scanner/status"] });
       }
+      toast.success("Settings saved");
     },
+    onError: (err: Error) => { toast.error(`Failed to save settings: ${err.message}`); },
   });
 }
 
@@ -34,6 +37,8 @@ export function useResetSettings() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast.success("Settings reset to defaults");
     },
+    onError: (err: Error) => { toast.error(`Failed to reset settings: ${err.message}`); },
   });
 }

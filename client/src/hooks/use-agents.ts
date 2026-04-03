@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { toast } from "sonner";
 import type { AgentDefinition, AgentExecution, AgentStats, LiveData } from "@shared/types";
 
 export function useAgentDefinitions() {
@@ -24,7 +25,9 @@ export function useSaveAgentDefinition() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/agents/definitions"] });
+      toast.success("Agent saved");
     },
+    onError: (err: Error) => { toast.error(`Failed to save agent: ${err.message}`); },
   });
 }
 
@@ -37,7 +40,9 @@ export function useCreateAgentDefinition() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/agents/definitions"] });
+      toast.success("Agent created");
     },
+    onError: (err: Error) => { toast.error(`Failed to create agent: ${err.message}`); },
   });
 }
 

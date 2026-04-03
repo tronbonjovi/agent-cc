@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { toast } from "sonner";
 import type { MarkdownEntity, MarkdownFileMeta, ContentSearchResult, ContextSummary } from "@shared/types";
 
 export function useMarkdownFiles(category?: string) {
@@ -33,7 +34,9 @@ export function useSaveMarkdown() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/markdown"] });
+      toast.success("File saved");
     },
+    onError: (err: Error) => { toast.error(`Failed to save file: ${err.message}`); },
   });
 }
 
@@ -46,7 +49,9 @@ export function useCreateMarkdownFile() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/markdown"] });
+      toast.success("File created");
     },
+    onError: (err: Error) => { toast.error(`Failed to create file: ${err.message}`); },
   });
 }
 
@@ -59,7 +64,9 @@ export function useRestoreMarkdown() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/markdown"] });
+      toast.success("Version restored");
     },
+    onError: (err: Error) => { toast.error(`Failed to restore version: ${err.message}`); },
   });
 }
 
@@ -114,7 +121,9 @@ export function useUpdateMarkdownMeta() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/markdown/meta"] });
+      toast.success("Metadata updated");
     },
+    onError: (err: Error) => { toast.error(`Failed to update metadata: ${err.message}`); },
   });
 }
 
