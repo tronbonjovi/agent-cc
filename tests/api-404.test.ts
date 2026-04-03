@@ -16,19 +16,21 @@ describe("API 404 handling", () => {
       server.listen(port, "127.0.0.1", () => resolve());
     });
 
-    const addr = server.address() as { port: number };
-    const res = await fetch(`http://127.0.0.1:${addr.port}/api/nonexistent`);
+    try {
+      const addr = server.address() as { port: number };
+      const res = await fetch(`http://127.0.0.1:${addr.port}/api/nonexistent`);
 
-    expect(res.status).toBe(404);
-    expect(res.headers.get("content-type")).toMatch(/json/);
+      expect(res.status).toBe(404);
+      expect(res.headers.get("content-type")).toMatch(/json/);
 
-    const body = await res.json();
-    expect(body).toEqual({ error: "Not found" });
-
-    server.close();
+      const body = await res.json();
+      expect(body).toEqual({ message: "Not found" });
+    } finally {
+      server.close();
+    }
   });
 
-  it("does not intercept valid API routes", async () => {
+  it("does not affect non-API routes", async () => {
     const app = express();
     app.use(express.json());
     const server = createServer(app);
@@ -40,14 +42,16 @@ describe("API 404 handling", () => {
       server.listen(port, "127.0.0.1", () => resolve());
     });
 
-    const addr = server.address() as { port: number };
-    const res = await fetch(`http://127.0.0.1:${addr.port}/health`);
+    try {
+      const addr = server.address() as { port: number };
+      const res = await fetch(`http://127.0.0.1:${addr.port}/health`);
 
-    expect(res.status).toBe(200);
+      expect(res.status).toBe(200);
 
-    const body = await res.json();
-    expect(body.status).toBe("ok");
-
-    server.close();
+      const body = await res.json();
+      expect(body.status).toBe("ok");
+    } finally {
+      server.close();
+    }
   });
 });
