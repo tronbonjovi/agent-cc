@@ -124,7 +124,7 @@ export default function Dashboard() {
             <StatCard
               type={type}
               count={counts[type] || 0}
-              onClick={() => setLocation(type === "markdown" ? "/markdown" : type === "config" ? "/settings" : `/${type}s`)}
+              onClick={() => setLocation(type === "markdown" ? "/markdown" : type === "config" ? "/apis" : `/${type}s`)}
             />
           </div>
         ))}
@@ -327,7 +327,7 @@ export default function Dashboard() {
                     else if (entity.type === "mcp") setLocation(`/mcps`);
                     else if (entity.type === "skill") setLocation(`/skills`);
                     else if (entity.type === "plugin") setLocation(`/plugins`);
-                    else if (entity.type === "config") setLocation(`/config`);
+                    else if (entity.type === "config") setLocation(`/apis`);
                   }}
                 >
                   <EntityIcon type={entity.type} className="h-4 w-4 flex-shrink-0" />
