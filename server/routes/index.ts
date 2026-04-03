@@ -85,4 +85,10 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   };
   app.post("/api/actions/open-folder", handleOpen);
   app.post("/api/actions/open-file", handleOpen);
+
+  // Catch-all for unmatched API routes — must be after all API routers
+  // but before the SPA catch-all in static.ts/vite.ts
+  app.use("/api/{*path}", (_req, res) => {
+    res.status(404).json({ error: "Not found" });
+  });
 }
