@@ -334,11 +334,26 @@ export function extractToolNames(content: unknown): string[] {
   return names;
 }
 
-/** Get extra scan paths from app settings */
+/** Expand ~/... and ~\... prefixes to the real home directory */
+function expandTilde(p: string): string {
+  if (p === "~") return os.homedir();
+  if (p.startsWith("~/") || p.startsWith("~\\")) {
+    return path.join(os.homedir(), p.slice(2));
+  }
+  return p;
+}
+
+/** Get extra scan paths from app settings (tilde-expanded) */
 export function getExtraPaths() {
   try {
     const settings = getDB().appSettings;
-    return settings?.scanPaths || { extraMcpFiles: [], extraProjectDirs: [], extraSkillDirs: [], extraPluginDirs: [] };
+    const raw = settings?.scanPaths || { extraMcpFiles: [], extraProjectDirs: [], extraSkillDirs: [], extraPluginDirs: [] };
+    return {
+      extraMcpFiles: raw.extraMcpFiles.map(expandTilde),
+      extraProjectDirs: raw.extraProjectDirs.map(expandTilde),
+      extraSkillDirs: raw.extraSkillDirs.map(expandTilde),
+      extraPluginDirs: raw.extraPluginDirs.map(expandTilde),
+    };
   } catch {
     return { extraMcpFiles: [], extraProjectDirs: [], extraSkillDirs: [], extraPluginDirs: [] };
   }

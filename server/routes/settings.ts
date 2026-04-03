@@ -3,6 +3,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { defaultAppSettings } from "../db";
 import { validate } from "./validation";
+import { clearProjectDirsCache } from "../scanner/utils";
 
 const ScanPathsSchema = z.object({
   homeDir: z.string().nullable().optional(),
@@ -38,10 +39,14 @@ router.patch("/api/settings", (req, res) => {
   if (parsed.onboarded !== undefined) patch.onboarded = parsed.onboarded;
 
   const updated = storage.updateAppSettings(patch);
+  if (parsed.scanPaths !== undefined) {
+    clearProjectDirsCache();
+  }
   res.json(updated);
 });
 
 router.post("/api/settings/reset", (_req, res) => {
+  clearProjectDirsCache();
   const updated = storage.updateAppSettings({
     appName: defaultAppSettings.appName,
     scanPaths: { ...defaultAppSettings.scanPaths },
