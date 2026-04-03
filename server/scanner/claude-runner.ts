@@ -22,7 +22,6 @@ export function runClaude(prompt: string, opts: RunClaudeOpts = {}): Promise<str
     const child = spawn("claude", args, {
       env,
       stdio: ["pipe", "pipe", "pipe"],
-      shell: true,
     });
 
     let stdout = "";

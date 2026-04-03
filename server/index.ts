@@ -32,6 +32,32 @@ if (cliArgs.includes("--report")) {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: false }));
 
+  // CORS — only allow requests from the dashboard's own origin.
+  // Blocks CSRF attacks from malicious websites visiting localhost:5100.
+  const port = parseInt(process.env.PORT || "5100", 10);
+  const host = process.env.HOST || "127.0.0.1";
+  const allowedOrigins = new Set([
+    `http://localhost:${port}`,
+    `http://127.0.0.1:${port}`,
+    `http://${host}:${port}`,
+  ]);
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    }
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(origin && allowedOrigins.has(origin) ? 204 : 403);
+    }
+    // Block API requests from unknown origins
+    if (origin && !allowedOrigins.has(origin) && req.path.startsWith("/api")) {
+      return res.status(403).json({ message: "Forbidden: origin not allowed" });
+    }
+    next();
+  });
+
   // Request logging
   app.use((req, res, next) => {
     const start = Date.now();
