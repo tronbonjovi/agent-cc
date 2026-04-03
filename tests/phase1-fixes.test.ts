@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import os from "os";
+import fs from "fs";
+import path from "path";
 
 describe("getExtraPaths() tilde expansion", () => {
   beforeEach(() => {
@@ -78,5 +80,56 @@ describe("isProcessAlive() PID checking", () => {
   it("returns false for PID 0", async () => {
     const { isProcessAlive } = await import("../server/scanner/live-scanner");
     expect(isProcessAlive(0)).toBe(false);
+  });
+});
+
+describe("findSessionFile fallback", () => {
+  const tmpDir = path.join(os.tmpdir(), "cc-phase1-test-" + Date.now());
+  const projectsDir = path.join(tmpDir, "projects");
+  const projDir = path.join(projectsDir, "-home-user-myproject");
+
+  beforeEach(() => {
+    fs.mkdirSync(projDir, { recursive: true });
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns exact match when file is fresh", async () => {
+    const sessionId = "aaaa-bbbb-cccc";
+    const exactPath = path.join(projDir, `${sessionId}.jsonl`);
+    fs.writeFileSync(exactPath, '{"type":"system"}\n');
+    const now = new Date();
+    fs.utimesSync(exactPath, now, now);
+
+    const { findSessionFile } = await import("../server/scanner/live-scanner");
+    const result = findSessionFile(sessionId, projectsDir);
+    expect(result).toContain(`${sessionId}.jsonl`);
+  });
+
+  it("returns most recent JSONL when exact match is stale", async () => {
+    const oldSessionId = "aaaa-bbbb-cccc";
+    const oldPath = path.join(projDir, `${oldSessionId}.jsonl`);
+    fs.writeFileSync(oldPath, '{"type":"system"}\n');
+    const staleTime = new Date(Date.now() - 600_000);
+    fs.utimesSync(oldPath, staleTime, staleTime);
+
+    const newSessionId = "dddd-eeee-ffff";
+    const newPath = path.join(projDir, `${newSessionId}.jsonl`);
+    fs.writeFileSync(newPath, '{"type":"system"}\n');
+    const now = new Date();
+    fs.utimesSync(newPath, now, now);
+
+    const { findSessionFile } = await import("../server/scanner/live-scanner");
+    const result = findSessionFile(oldSessionId, projectsDir);
+    expect(result).toContain(`${newSessionId}.jsonl`);
+  });
+
+  it("returns null when no match exists", async () => {
+    const { findSessionFile } = await import("../server/scanner/live-scanner");
+    const result = findSessionFile("nonexistent-id", projectsDir);
+    expect(result).toBeNull();
   });
 });
