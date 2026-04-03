@@ -50,10 +50,25 @@ export function scanProjects(): Entity[] {
   const results: Entity[] = [];
   const projectDirs = discoverProjectDirs();
 
-  // Extra project dirs from settings
+  // Extra project dirs from settings — if a path is itself a project, add it directly.
+  // If it's a container (no project markers), scan its children for projects.
   for (const extra of getExtraPaths().extraProjectDirs) {
     const normalized = extra.replace(/\\/g, "/");
-    if (dirExists(normalized) && !projectDirs.includes(normalized)) projectDirs.push(normalized);
+    if (!dirExists(normalized)) continue;
+    if (!projectDirs.includes(normalized)) {
+      projectDirs.push(normalized);
+    }
+    // Also scan children (treat extra paths as potential containers)
+    try {
+      const children = fs.readdirSync(normalized, { withFileTypes: true });
+      for (const child of children) {
+        if (!child.isDirectory() || child.name.startsWith(".") || child.name === "node_modules") continue;
+        const childPath = path.join(normalized, child.name).replace(/\\/g, "/");
+        if (!projectDirs.includes(childPath)) {
+          projectDirs.push(childPath);
+        }
+      }
+    } catch {}
   }
 
   for (const projectDir of projectDirs) {
