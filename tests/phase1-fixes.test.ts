@@ -145,3 +145,14 @@ describe("modelsInUse consistency", () => {
     expect(typeof data.stats.agentsToday).toBe("number");
   });
 });
+
+describe("TRASH_DIR location", () => {
+  it("TRASH_DIR should be under home directory, not /tmp", async () => {
+    const { TRASH_DIR } = await import("../server/config");
+    const home = os.homedir();
+
+    expect(TRASH_DIR).toContain(".claude-command-center");
+    expect(TRASH_DIR).toContain("trash");
+    expect(TRASH_DIR.startsWith(home.replace(/\\/g, "/"))).toBe(true);
+  });
+});

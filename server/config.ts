@@ -1,8 +1,9 @@
 import path from "path";
 import os from "os";
 
-/** Directory for trashed session files (undo support) */
-export const TRASH_DIR = path.join(os.tmpdir(), "claude-sessions-trash").replace(/\\/g, "/");
+/** Directory for trashed session files (undo support).
+ *  Uses ~/.claude-command-center/trash/ so files survive reboots (unlike /tmp). */
+export const TRASH_DIR = path.join(os.homedir(), ".claude-command-center", "trash").replace(/\\/g, "/");
 
 /** Full scan interval for periodic refresh (ms) */
 export const PERIODIC_SCAN_INTERVAL_MS = 30_000;
