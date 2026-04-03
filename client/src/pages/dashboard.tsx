@@ -14,7 +14,7 @@ import {
   Radio, Terminal, Keyboard, Download,
 } from "lucide-react";
 import { useLiveData } from "@/hooks/use-agents";
-import { MoodPlayerButton } from "@/components/mood-player";
+
 import type { EntityType } from "@shared/types";
 import { formatBytes, relativeTime } from "@/lib/utils";
 
@@ -72,7 +72,7 @@ export default function Dashboard() {
               {status?.totalEntities || 0} entities across {Object.keys(counts).length} types
             </p>
           </div>
-          <MoodPlayerButton />
+
         </div>
         <Button
           variant="outline"
