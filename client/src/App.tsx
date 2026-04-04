@@ -10,7 +10,8 @@ import { GlobalSearch } from "@/components/global-search";
 import { useAppSettings } from "@/hooks/use-settings";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useTheme } from "@/hooks/use-theme";
-import { OnboardingWizard } from "@/components/onboarding-wizard";
+// OnboardingWizard disabled — will be rewritten later
+// import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { KeyboardShortcutsOverlay } from "@/components/keyboard-shortcuts";
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Projects = lazy(() => import("@/pages/projects"));
@@ -54,7 +55,7 @@ function Router() {
   return (
     <Layout>
       <DynamicTitle />
-      <OnboardingWizard />
+      {/* <OnboardingWizard /> — disabled, will be rewritten */}
       <ErrorBoundary pageName="Application">
         <Suspense fallback={<PageLoader />}>
           <Switch>

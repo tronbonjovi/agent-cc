@@ -166,6 +166,24 @@ export function discoverProjectDirs(): string[] {
       }
     }
   } catch {}
+
+  // Fallback: discover projects from ~/.claude/projects/ session keys.
+  // In Docker, the actual project directories aren't mounted, but the session
+  // data contains project keys that decode to the original paths.
+  const projectsDir = normPath(CLAUDE_DIR, "projects");
+  if (dirExists(projectsDir)) {
+    try {
+      const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
+      for (const e of entries) {
+        if (!e.isDirectory()) continue;
+        const decoded = decodeProjectKey(e.name);
+        if (seen.has(decoded)) continue;
+        seen.add(decoded);
+        results.push(decoded);
+      }
+    } catch {}
+  }
+
   cachedProjectDirs = results;
   cacheTs = Date.now();
   return results;

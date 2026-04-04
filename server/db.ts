@@ -35,7 +35,7 @@ export interface DBData {
 
 export const defaultAppSettings: AppSettings = {
   appName: "Command Center",
-  onboarded: false,
+  onboarded: true,
   billingMode: "auto",
   scanPaths: {
     homeDir: null,
