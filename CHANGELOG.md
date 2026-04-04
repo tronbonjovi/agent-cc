@@ -15,12 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Theme-aware entity colors** — entity type colors (project, mcp, plugin, skill, markdown, config) now use CSS variables and adapt per theme across all page components
 - **Theme-aware decorative CSS** — gradient mesh background, glass utilities, gradient borders, status panels, section headers, text gradients, and box shadows all respond to theme changes
 - **Light-variant extensibility** — `data-variant` attribute on `<html>` allows theme-specific CSS rules to apply to any theme of the same variant, not just a specific theme ID
+- **Community themes** — Nord, Dracula, Tokyo Night, and Solarized Dark with accurate palettes from official specs
+- **Extended theme tokens** — brand gradient (brand-1/brand-2), nav-active highlight, semantic status colors (success/warning/error), info accent, and optional per-theme font families
+- **Theme-aware sidebar** — brand icon, nav active indicators, and all sidebar accents now fully respond to theme changes
 
 ### Changed
 - Theme state managed via React context (ThemeProvider) instead of independent hook instances
 - Entity colors in tailwind.config.ts changed from hardcoded hex to CSS variable references
 - Box shadows in tailwind.config.ts changed from hardcoded rgba to CSS variable references
-- 1686 tests across 18 test files, all passing
+- 1730 tests across 18 test files, all passing
 
 ### Fixed
 - **Project key decoding** — added `encodeProjectKey()` for deterministic path-to-key matching, replacing lossy `decodeProjectKey()` in all comparison callsites. Fixes ghost project entries, broken entity linking, and missing session data for hyphenated project names (e.g. "claude-command-center" was showing as "Center")

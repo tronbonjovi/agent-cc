@@ -36,7 +36,7 @@ import NotFound from "@/pages/not-found";
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-screen animate-fade-in-up">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground/30 border-t-blue-500" />
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground/30 border-t-primary" />
     </div>
   );
 }

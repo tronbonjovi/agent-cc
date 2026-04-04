@@ -4,7 +4,13 @@ export interface ThemeDefinition {
   description: string;
   variant: "light" | "dark";
   author?: string;
+  fonts?: ThemeFonts;
   colors: ThemeColors;
+}
+
+export interface ThemeFonts {
+  sans?: string;  // e.g. "Inter, system-ui, sans-serif"
+  mono?: string;  // e.g. "JetBrains Mono, ui-monospace, monospace"
 }
 
 export interface ThemeColors {
@@ -44,6 +50,21 @@ export interface ThemeColors {
   "sidebar-primary-foreground": string;
   "sidebar-accent": string;
   "sidebar-accent-foreground": string;
+
+  // Brand gradient pair — used for sidebar brand icon, nav active indicator, decorative gradients
+  "brand-1": string;  // HSL triplet — gradient start
+  "brand-2": string;  // HSL triplet — gradient end
+
+  // Nav active highlight — foreground color for active nav icons, tab indicators, emphasis
+  "nav-active": string;  // HSL triplet
+
+  // Semantic status colors — for health dots, sync status, trend indicators
+  "status-success": string;  // HSL triplet (green-ish)
+  "status-warning": string;  // HSL triplet (amber/yellow-ish)
+  "status-error": string;    // HSL triplet (red-ish)
+
+  // Informational accent — secondary emphasis for numbered steps, badges, category labels
+  "info": string;  // HSL triplet
 
   // Entity colors (HSL triplets — used via hsl(var(--entity-*)))
   "entity-project": string;

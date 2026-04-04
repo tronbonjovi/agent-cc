@@ -79,7 +79,7 @@ export default function Dashboard() {
           size="sm"
           onClick={() => rescan.mutate()}
           disabled={rescan.isPending}
-          className="gap-2 border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-500/50 hover:shadow-glow transition-all"
+          className="gap-2 border-primary/30 hover:bg-primary/10 hover:border-primary/50 hover:shadow-glow transition-all"
         >
           <RefreshCw className={`h-3.5 w-3.5 transition-transform ${rescan.isPending ? "animate-spin" : ""}`} />
           {rescan.isPending ? "Scanning..." : "Rescan"}
@@ -88,14 +88,14 @@ export default function Dashboard() {
 
       {/* System health row */}
       <div className="flex items-center gap-4 px-4 py-2.5 rounded-lg border border-border/50 status-panel">
-        <span className="text-xs font-semibold text-blue-400/80 uppercase tracking-wider">System</span>
+        <span className="text-xs font-semibold text-nav-active/80 uppercase tracking-wider">System</span>
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
           <span className="text-xs text-muted-foreground">Server</span>
         </div>
         <div className="flex items-center gap-1.5">
           {status?.scanning ? (
-            <Loader2 className="h-3 w-3 text-blue-400 animate-spin" />
+            <Loader2 className="h-3 w-3 text-primary animate-spin" />
           ) : (
             <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
           )}
@@ -169,10 +169,10 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-blue-400" />
+              <BarChart3 className="h-4 w-4 text-primary" />
               <button
                 onClick={() => setLocation("/sessions")}
-                className="hover:text-blue-400 transition-colors"
+                className="hover:text-primary transition-colors"
               >
                 Sessions
               </button>

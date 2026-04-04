@@ -72,10 +72,21 @@ export default {
           markdown: "hsl(var(--entity-markdown) / <alpha-value>)",
           config: "hsl(var(--entity-config) / <alpha-value>)",
         },
+        brand: {
+          "1": "hsl(var(--brand-1) / <alpha-value>)",
+          "2": "hsl(var(--brand-2) / <alpha-value>)",
+        },
+        "nav-active": "hsl(var(--nav-active) / <alpha-value>)",
+        status: {
+          success: "hsl(var(--status-success) / <alpha-value>)",
+          warning: "hsl(var(--status-warning) / <alpha-value>)",
+          error: "hsl(var(--status-error) / <alpha-value>)",
+        },
+        info: "hsl(var(--info) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "JetBrains Mono", "monospace"],
       },
       keyframes: {
         "accordion-down": {

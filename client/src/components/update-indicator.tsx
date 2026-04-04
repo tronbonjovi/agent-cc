@@ -457,7 +457,7 @@ export function UpdateIndicator({ collapsed }: { collapsed: boolean }) {
                   className={cn(
                     "w-8 h-4.5 rounded-full relative transition-colors",
                     prefs.autoUpdate
-                      ? "bg-blue-500"
+                      ? "bg-primary"
                       : "bg-muted-foreground/20"
                   )}
                   onClick={(e) => {

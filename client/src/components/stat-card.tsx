@@ -5,13 +5,14 @@ import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useCountUp } from "@/hooks/use-count-up";
 
-const entityHex: Record<EntityType, string> = {
-  project: "#3b82f6",
-  mcp: "#22c55e",
-  plugin: "#a855f7",
-  skill: "#f97316",
-  markdown: "#64748b",
-  config: "#14b8a6",
+// Use CSS variables so colors adapt per theme
+const entityCSSVar: Record<EntityType, string> = {
+  project: "var(--entity-project)",
+  mcp: "var(--entity-mcp)",
+  plugin: "var(--entity-plugin)",
+  skill: "var(--entity-skill)",
+  markdown: "var(--entity-markdown)",
+  config: "var(--entity-config)",
 };
 
 interface StatCardProps {
@@ -26,7 +27,7 @@ interface StatCardProps {
 export function StatCard({ type, count, subtitle, onClick, trend, trendValue }: StatCardProps) {
   const config = entityConfig[type];
   const Icon = config.icon;
-  const hex = entityHex[type];
+  const cssVar = entityCSSVar[type];
   const animatedCount = useCountUp(count);
 
   return (
@@ -39,12 +40,12 @@ export function StatCard({ type, count, subtitle, onClick, trend, trendValue }: 
       {/* Top-edge gradient line */}
       <div
         className="absolute top-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ background: `linear-gradient(90deg, ${hex}80, transparent)` }}
+        style={{ background: `linear-gradient(90deg, hsl(${cssVar} / 0.5), transparent)` }}
       />
       {/* Radial gradient overlay */}
       <div
         className="absolute inset-0 opacity-[0.04] group-hover:opacity-[0.08] transition-opacity"
-        style={{ background: `radial-gradient(circle at top right, ${hex}30, transparent 70%)` }}
+        style={{ background: `radial-gradient(circle at top right, hsl(${cssVar} / 0.2), transparent 70%)` }}
       />
       <CardContent className="p-4 relative">
         <div className="flex items-center justify-between">
@@ -55,7 +56,7 @@ export function StatCard({ type, count, subtitle, onClick, trend, trendValue }: 
             {trend && trendValue && (
               <div className={cn(
                 "flex items-center gap-1 mt-1 text-[10px] font-medium",
-                trend === "up" ? "text-green-400" : trend === "down" ? "text-red-400" : "text-muted-foreground"
+                trend === "up" ? "text-status-success" : trend === "down" ? "text-status-error" : "text-muted-foreground"
               )}>
                 {trend === "up" ? <TrendingUp className="h-3 w-3" /> : trend === "down" ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
                 <span>{trendValue}</span>

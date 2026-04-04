@@ -63,6 +63,14 @@ export const catppuccinMocha: ThemeDefinition = {
     // Surface1
     "sidebar-accent": "234 13% 31%",
     "sidebar-accent-foreground": "226 64% 88%",
+    // Brand: Blue → Mauve gradient, Lavender active
+    "brand-1": "217 92% 76%",
+    "brand-2": "267 84% 81%",
+    "nav-active": "232 97% 85%",
+    "status-success": "115 54% 76%",
+    "status-warning": "40 62% 73%",
+    "status-error": "343 81% 75%",
+    "info": "316 72% 86%",
     // Blue, Green, Mauve, Peach, Overlay2, Teal
     "entity-project": "217 92% 76%",
     "entity-mcp": "115 54% 76%",

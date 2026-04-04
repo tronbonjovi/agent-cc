@@ -4,8 +4,12 @@ import { light } from "./light";
 import { glass } from "./glass";
 import { anthropic } from "./anthropic";
 import { catppuccinMocha } from "./catppuccin-mocha";
+import { nord } from "./nord";
+import { dracula } from "./dracula";
+import { tokyoNight } from "./tokyo-night";
+import { solarizedDark } from "./solarized-dark";
 
-export type { ThemeDefinition, ThemeColors } from "./types";
+export type { ThemeDefinition, ThemeColors, ThemeFonts } from "./types";
 
 // All registered themes — add new themes here and they'll appear in the picker
 export const themes: ThemeDefinition[] = [
@@ -14,6 +18,10 @@ export const themes: ThemeDefinition[] = [
   glass,
   anthropic,
   catppuccinMocha,
+  nord,
+  dracula,
+  tokyoNight,
+  solarizedDark,
 ];
 
 export const themeMap = new Map<string, ThemeDefinition>(

@@ -66,6 +66,18 @@ function applyTheme(themeId: ThemeId) {
     root.classList.remove("dark");
     root.classList.add("light");
   }
+
+  // Apply custom fonts if theme specifies them
+  if (resolved.fonts?.sans) {
+    root.style.setProperty("--font-sans", resolved.fonts.sans);
+  } else {
+    root.style.removeProperty("--font-sans");
+  }
+  if (resolved.fonts?.mono) {
+    root.style.setProperty("--font-mono", resolved.fonts.mono);
+  } else {
+    root.style.removeProperty("--font-mono");
+  }
 }
 
 // Provider component — wrap the app with this once
