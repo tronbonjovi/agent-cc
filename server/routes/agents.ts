@@ -4,7 +4,7 @@ import path from "path";
 import matter from "gray-matter";
 import { getCachedDefinitions, getCachedExecutions, getCachedAgentStats } from "../scanner/agent-scanner";
 import { CLAUDE_DIR, entityId, dirExists, fileExists, readMessageTimeline } from "../scanner/utils";
-import { qstr, validate, AgentExecListSchema, validateMarkdownPath } from "./validation";
+import { qstr, validate, AgentExecListSchema, validateMarkdownPath, validateSafePath } from "./validation";
 
 const router = Router();
 
@@ -37,13 +37,17 @@ router.get("/api/agents/definitions", (_req: Request, res: Response) => {
 });
 
 /** GET /api/agents/definitions/:id — Single definition with full content */
-router.get("/api/agents/definitions/:id", (req: Request, res: Response) => {
+router.get("/api/agents/definitions/:id", async (req: Request, res: Response) => {
   const def = getCachedDefinitions().find(d => d.id === req.params.id);
   if (!def) return res.status(404).json({ message: "Definition not found" });
 
+  // Validate path before reading
+  const safePath = await validateSafePath(def.filePath);
+  if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
+
   // Re-read full content for detail view
   try {
-    const raw = fs.readFileSync(def.filePath, "utf-8");
+    const raw = fs.readFileSync(safePath, "utf-8");
     const parsed = matter(raw);
     res.json({ ...def, content: parsed.content.trim() });
   } catch {

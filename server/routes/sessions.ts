@@ -5,7 +5,7 @@ import path from "path";
 import os from "os";
 import { getCachedSessions, getCachedStats, removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
 import { CLAUDE_DIR, decodeProjectKey, dirExists, readMessageTimeline, extractMessageText, extractToolNames } from "../scanner/utils";
-import { SessionIdSchema, SessionListSchema, IdsArraySchema, DeepSearchSchema, validate, qstr } from "./validation";
+import { SessionIdSchema, SessionListSchema, IdsArraySchema, DeepSearchSchema, validate, qstr, validateSafePath } from "./validation";
 import { TRASH_DIR, MAX_SESSIONS_RESPONSE } from "../config";
 import { deepSearch } from "../scanner/deep-search";
 import { summarizeSession, summarizeBatch } from "../scanner/session-summarizer";
@@ -617,7 +617,7 @@ function parseSessionMessages(filePath: string, offset: number, limit: number): 
 }
 
 /** GET /api/sessions/:id/messages — Conversation message history */
-router.get("/api/sessions/:id/messages", (req: Request, res: Response) => {
+router.get("/api/sessions/:id/messages", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
 
@@ -627,11 +627,15 @@ router.get("/api/sessions/:id/messages", (req: Request, res: Response) => {
   const jsonlPath = findSessionJsonl(sessionId);
   if (!jsonlPath) return res.status(404).json({ message: "Session file not found" });
 
+  // Validate path before reading
+  const safePath = await validateSafePath(jsonlPath);
+  if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
+
   // Pagination
   const offset = Math.max(0, parseInt(qstr(req.query.offset) || "0", 10) || 0);
   const limit = Math.min(200, Math.max(1, parseInt(qstr(req.query.limit) || "200", 10) || 200));
 
-  const { messages, totalMessages } = parseSessionMessages(jsonlPath, offset, limit);
+  const { messages, totalMessages } = parseSessionMessages(safePath, offset, limit);
 
   res.json({
     sessionId,
