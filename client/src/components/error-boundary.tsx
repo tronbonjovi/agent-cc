@@ -2,6 +2,8 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
+  /** Optional page/section name shown in the error message */
+  pageName?: string;
 }
 
 interface ErrorBoundaryState {
@@ -23,8 +25,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     console.error("[ErrorBoundary] Uncaught error:", error, errorInfo);
   }
 
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     if (this.state.hasError) {
+      const { pageName } = this.props;
       return (
         <div className="flex items-center justify-center min-h-[60vh] p-6">
           <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-lg">
@@ -44,7 +51,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-              <h2 className="text-lg font-semibold">Something went wrong</h2>
+              <h2 className="text-lg font-semibold">
+                {pageName ? `${pageName} crashed` : "Something went wrong"}
+              </h2>
             </div>
 
             <p className="mb-4 text-sm text-muted-foreground">
@@ -53,16 +62,16 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
             <div className="flex items-center gap-3">
               <button
-                onClick={() => window.location.reload()}
+                onClick={this.handleReset}
                 className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 transition-colors"
               >
-                Reload
+                Try Again
               </button>
               <a
                 href="/"
                 className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors"
               >
-                Go to Dashboard
+                Back to Dashboard
               </a>
             </div>
           </div>

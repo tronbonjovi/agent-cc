@@ -55,27 +55,63 @@ function Router() {
     <Layout>
       <DynamicTitle />
       <OnboardingWizard />
-      <ErrorBoundary>
+      <ErrorBoundary pageName="Application">
         <Suspense fallback={<PageLoader />}>
           <Switch>
-            <Route path="/" component={Dashboard} />
-            <Route path="/projects" component={Projects} />
-            <Route path="/projects/:id" component={ProjectDetail} />
-            <Route path="/mcps" component={MCPs} />
-            <Route path="/skills" component={Skills} />
-            <Route path="/plugins" component={Plugins} />
-            <Route path="/markdown" component={MarkdownFiles} />
-            <Route path="/markdown/:id" component={MarkdownEdit} />
-            <Route path="/graph" component={GraphPage} />
-            <Route path="/activity" component={ActivityPage} />
-            <Route path="/sessions" component={Sessions} />
-            <Route path="/agents" component={Agents} />
-            <Route path="/live" component={Live} />
-            <Route path="/settings" component={SettingsPage} />
-            <Route path="/stats" component={Stats} />
-            <Route path="/messages" component={MessageHistory} />
-            <Route path="/apis" component={APIs} />
-            <Route path="/prompts" component={Prompts} />
+            <Route path="/">
+              <ErrorBoundary pageName="Dashboard"><Dashboard /></ErrorBoundary>
+            </Route>
+            <Route path="/projects">
+              <ErrorBoundary pageName="Projects"><Projects /></ErrorBoundary>
+            </Route>
+            <Route path="/projects/:id">
+              <ErrorBoundary pageName="Project Detail"><ProjectDetail /></ErrorBoundary>
+            </Route>
+            <Route path="/mcps">
+              <ErrorBoundary pageName="MCPs"><MCPs /></ErrorBoundary>
+            </Route>
+            <Route path="/skills">
+              <ErrorBoundary pageName="Skills"><Skills /></ErrorBoundary>
+            </Route>
+            <Route path="/plugins">
+              <ErrorBoundary pageName="Plugins"><Plugins /></ErrorBoundary>
+            </Route>
+            <Route path="/markdown">
+              <ErrorBoundary pageName="Markdown Files"><MarkdownFiles /></ErrorBoundary>
+            </Route>
+            <Route path="/markdown/:id">
+              <ErrorBoundary pageName="Markdown Editor"><MarkdownEdit /></ErrorBoundary>
+            </Route>
+            <Route path="/graph">
+              <ErrorBoundary pageName="Graph"><GraphPage /></ErrorBoundary>
+            </Route>
+            <Route path="/activity">
+              <ErrorBoundary pageName="Activity"><ActivityPage /></ErrorBoundary>
+            </Route>
+            <Route path="/sessions">
+              <ErrorBoundary pageName="Sessions"><Sessions /></ErrorBoundary>
+            </Route>
+            <Route path="/agents">
+              <ErrorBoundary pageName="Agents"><Agents /></ErrorBoundary>
+            </Route>
+            <Route path="/live">
+              <ErrorBoundary pageName="Live View"><Live /></ErrorBoundary>
+            </Route>
+            <Route path="/settings">
+              <ErrorBoundary pageName="Settings"><SettingsPage /></ErrorBoundary>
+            </Route>
+            <Route path="/stats">
+              <ErrorBoundary pageName="Stats"><Stats /></ErrorBoundary>
+            </Route>
+            <Route path="/messages">
+              <ErrorBoundary pageName="Messages"><MessageHistory /></ErrorBoundary>
+            </Route>
+            <Route path="/apis">
+              <ErrorBoundary pageName="APIs"><APIs /></ErrorBoundary>
+            </Route>
+            <Route path="/prompts">
+              <ErrorBoundary pageName="Prompts"><Prompts /></ErrorBoundary>
+            </Route>
             <Route component={NotFound} />
           </Switch>
         </Suspense>
