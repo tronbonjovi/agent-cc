@@ -43,6 +43,8 @@ export function shouldRedactEnvVar(name: string): boolean {
   }
 
   for (const keyword of BOUNDARY_REDACT) {
+    // Note: indexOf finds first occurrence only. A name like RETOKEN_TOKEN would miss the
+    // boundary match at the end. Acceptable — real env var names don't repeat keywords this way.
     const idx = lower.indexOf(keyword);
     if (idx === -1) continue;
     const precededByBoundary = idx === 0 || lower[idx - 1] === "_";
@@ -80,7 +82,7 @@ export function extractDbNodesFromMcps(mcpEntities: Entity[]): { nodes: CustomNo
     if (!env) continue;
 
     for (const [key, value] of Object.entries(env)) {
-      if (value === "***") continue; // Redacted
+      if (value === "***") continue; // Fully redacted — skip. Note: connection strings like "postgres://[REDACTED]@host:5432/db" pass through intentionally — host/port info is non-sensitive and useful for the graph.
 
       for (const { pattern, type, label, color } of DB_URL_PATTERNS) {
         const match = value.match(pattern);
