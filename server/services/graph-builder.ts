@@ -9,7 +9,7 @@ import type {
   GraphNodeType,
   SessionData,
 } from "@shared/types";
-import { decodeProjectKey } from "../scanner/utils";
+import { encodeProjectKey } from "../scanner/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -94,12 +94,10 @@ export function buildVirtualSessions(
   sessionWidth: number,
   sessionHeight: number,
 ): VirtualSession[] {
-  // Build map: decoded project path → entity id
-  const pathToEntityId = new Map<string, string>();
+  // Build map: encoded project key → entity id (deterministic, no lossy decode)
+  const keyToEntityId = new Map<string, string>();
   for (const p of projectEntities) {
-    pathToEntityId.set(p.path, p.id);
-    const dirName = p.path.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop();
-    if (dirName) pathToEntityId.set(dirName, p.id);
+    keyToEntityId.set(encodeProjectKey(p.path), p.id);
   }
 
   // Group sessions by projectKey and take top 20 per project
@@ -113,22 +111,8 @@ export function buildVirtualSessions(
   const virtualSessions: VirtualSession[] = [];
 
   grouped.forEach((projectSessions, projectKey) => {
-    const decoded = decodeProjectKey(projectKey);
-    const dirName = decoded.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() || "";
-
-    // Find matching project entity — exact match first
-    let projectEntityId = pathToEntityId.get(decoded) || pathToEntityId.get(dirName);
-
-    // If no exact match, check if session path is a parent of any project entity
-    if (!projectEntityId) {
-      for (const p of projectEntities) {
-        const pPath = p.path.replace(/\\/g, "/");
-        if (pPath.startsWith(decoded + "/") && entityIds.has(p.id)) {
-          projectEntityId = p.id;
-          break;
-        }
-      }
-    }
+    // Match session key directly against encoded project paths
+    const projectEntityId = keyToEntityId.get(projectKey);
 
     if (!projectEntityId) return;
     if (!entityIds.has(projectEntityId)) return;

@@ -10,7 +10,7 @@ import { scanAgentDefinitions, scanAgentExecutions } from "./agent-scanner";
 import { scanDockerCompose } from "./importers/docker-compose";
 import { scanGraphConfig } from "./graph-config-scanner";
 import { scanApiConfig } from "./api-config-scanner";
-import { entityId, clearProjectDirsCache } from "./utils";
+import { entityId, clearProjectDirsCache, encodeProjectKey } from "./utils";
 import { buildRelationships } from "./relationships";
 import { getDB, save } from "../db";
 import type { Entity, EntityType, CustomNode, CustomEdge } from "@shared/types";
@@ -75,10 +75,13 @@ export async function runFullScan(): Promise<void> {
       newEntities[entity.id] = entity;
     }
 
-    // Update project session counts
+    // Update project session counts.
+    // Session keys are full encoded paths (e.g. "-home-tron-dev-projects-claude-command-center")
+    // but project entity IDs use the dir basename. Match via encodeProjectKey() instead.
     for (const agg of perProject) {
-      const projectId = entityId(`project:${agg.projectKey}`);
-      const project = newEntities[projectId];
+      const project = Object.values(newEntities).find(
+        (e) => e.type === "project" && encodeProjectKey(e.path) === agg.projectKey
+      );
       if (project) {
         project.data = {
           ...project.data,

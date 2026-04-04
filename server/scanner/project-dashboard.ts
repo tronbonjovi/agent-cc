@@ -1,5 +1,5 @@
 import type { SessionData, ProjectDashboard, ProjectDashboardResult } from "@shared/types";
-import { decodeProjectKey } from "./utils";
+import { encodeProjectKey, decodeProjectKey } from "./utils";
 import { getCostAnalytics, getFileHeatmap, getHealthAnalytics } from "./session-analytics";
 import { storage } from "../storage";
 
@@ -33,8 +33,15 @@ export function getProjectDashboards(sessions: SessionData[]): ProjectDashboardR
 
   const projects: ProjectDashboard[] = [];
 
+  // Build lookup from encoded key → real path using project entities
+  const projectEntities = storage.getEntities("project");
+  const keyToPath = new Map<string, string>();
+  for (const p of projectEntities) {
+    keyToPath.set(encodeProjectKey(p.path), p.path);
+  }
+
   byProject.forEach((projectSessions, projectKey) => {
-    const projectPath = decodeProjectKey(projectKey);
+    const projectPath = keyToPath.get(projectKey) || decodeProjectKey(projectKey);
     const projectCost = costs.byProject[projectKey];
 
     // Health breakdown for this project

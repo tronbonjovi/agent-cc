@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { getCachedSessions, getCachedStats, removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
-import { CLAUDE_DIR, decodeProjectKey, dirExists, readMessageTimeline, extractMessageText, extractToolNames } from "../scanner/utils";
+import { CLAUDE_DIR, encodeProjectKey, dirExists, readMessageTimeline, extractMessageText, extractToolNames } from "../scanner/utils";
 import { SessionIdSchema, SessionListSchema, IdsArraySchema, DeepSearchSchema, validate, qstr, validateSafePath } from "./validation";
 import { TRASH_DIR, MAX_SESSIONS_RESPONSE } from "../config";
 import { deepSearch } from "../scanner/deep-search";
@@ -130,10 +130,18 @@ router.get("/api/sessions", (req: Request, res: Response) => {
   const stats = getCachedStats();
 
   if (project) {
-    sessions = sessions.filter(s => {
-      const decoded = decodeProjectKey(s.projectKey);
-      return decoded.endsWith('/' + project) || decoded.endsWith('\\' + project) || s.projectKey === project;
-    });
+    // Find the project entity to get its real path, then encode for matching
+    const projectEntities = storage.getEntities("project");
+    const matchedProject = projectEntities.find(
+      (p) => p.data.dirName === project || p.name === project || p.id === project
+    );
+    if (matchedProject) {
+      const encodedPath = encodeProjectKey(matchedProject.path);
+      sessions = sessions.filter(s => s.projectKey === encodedPath);
+    } else {
+      // Fallback: check cwd for substring match
+      sessions = sessions.filter(s => s.projectKey === project || s.cwd.includes(project));
+    }
   }
   if (hideEmpty === "true") sessions = sessions.filter(s => !s.isEmpty);
   if (activeOnly === "true") sessions = sessions.filter(s => s.isActive);
@@ -266,11 +274,16 @@ router.post("/api/sessions/context-loader", (req: Request, res: Response) => {
   const sessions = getCachedSessions();
   const summaries = storage.getSummaries();
 
-  // Find sessions for this project, newest first, with summaries
+  // Find sessions for this project using encoding-based matching
+  const projectEntities = storage.getEntities("project");
+  const matchedProject = projectEntities.find(
+    (p) => p.data.dirName === project || p.name === project || p.id === project
+  );
+  const encodedPath = matchedProject ? encodeProjectKey(matchedProject.path) : null;
   const projectSessions = sessions
     .filter(s => {
-      const decoded = decodeProjectKey(s.projectKey);
-      return decoded.endsWith("/" + project) || decoded.endsWith("\\" + project) || s.projectKey === project || s.cwd.includes(project);
+      if (encodedPath) return s.projectKey === encodedPath;
+      return s.projectKey === project || s.cwd.includes(project);
     })
     .sort((a, b) => (b.lastTs || "").localeCompare(a.lastTs || ""));
 

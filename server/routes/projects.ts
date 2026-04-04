@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
-import { entityId } from "../scanner/utils";
+import { entityId, encodeProjectKey } from "../scanner/utils";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -120,7 +120,7 @@ router.get("/api/projects/rules", (_req: Request, res: Response) => {
     // 6. Memory files
     const memoryFiles: { name: string; markdownId: string }[] = [];
     try {
-      const encodedKey = projectPath.replace(/\//g, "-");
+      const encodedKey = encodeProjectKey(projectPath);
       const memoryDir = path.join(os.homedir(), ".claude", "projects", encodedKey, "memory").replace(/\\/g, "/");
       const entries = fs.readdirSync(memoryDir);
       for (const e of entries) {

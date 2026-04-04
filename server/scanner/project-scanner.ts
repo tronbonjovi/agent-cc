@@ -1,5 +1,5 @@
 import type { Entity, CustomNode, CustomEdge } from "@shared/types";
-import { entityId, getFileStat, CLAUDE_DIR, HOME, now, dirExists, fileExists, safeReadText, discoverProjectDirs, decodeProjectKey, getExtraPaths, normPath } from "./utils";
+import { entityId, getFileStat, CLAUDE_DIR, HOME, now, dirExists, fileExists, safeReadText, discoverProjectDirs, encodeProjectKey, getExtraPaths, normPath } from "./utils";
 import path from "path";
 import fs from "fs";
 
@@ -121,39 +121,32 @@ export function scanProjects(): Entity[] {
   return results;
 }
 
-// Find Claude Code session data for a project directory
+// Find Claude Code session data for a project directory.
+// Uses encodeProjectKey() (deterministic) instead of decodeProjectKey() (lossy)
+// so that hyphenated project names like "claude-command-center" match correctly.
 function getSessionInfo(projectDir: string): { sessionCount: number; sessionSize: number; hasMemory: boolean } {
   const projectsDir = normPath(CLAUDE_DIR, "projects");
   if (!dirExists(projectsDir)) return { sessionCount: 0, sessionSize: 0, hasMemory: false };
 
-  const homeNorm = HOME.replace(/\\/g, "/");
+  const expectedKey = encodeProjectKey(projectDir);
+  const claudeDir = normPath(projectsDir, expectedKey);
 
+  if (!dirExists(claudeDir)) return { sessionCount: 0, sessionSize: 0, hasMemory: false };
+
+  let sessionCount = 0;
+  let sessionSize = 0;
   try {
-    const dirs = fs.readdirSync(projectsDir, { withFileTypes: true });
-    for (const dir of dirs) {
-      if (!dir.isDirectory()) continue;
-      const decoded = decodeProjectKey(dir.name);
-      if (decoded === projectDir || (decoded === homeNorm && projectDir.startsWith(homeNorm))) {
-        const claudeDir = normPath(projectsDir, dir.name);
-        let sessionCount = 0;
-        let sessionSize = 0;
-        try {
-          const files = fs.readdirSync(claudeDir, { withFileTypes: true });
-          for (const f of files) {
-            if (f.isFile() && f.name.endsWith(".jsonl")) {
-              sessionCount++;
-              const fstat = getFileStat(path.join(claudeDir, f.name));
-              if (fstat) sessionSize += fstat.size;
-            }
-          }
-        } catch {}
-        const hasMemory = dirExists(path.join(claudeDir, "memory"));
-        return { sessionCount, sessionSize, hasMemory };
+    const files = fs.readdirSync(claudeDir, { withFileTypes: true });
+    for (const f of files) {
+      if (f.isFile() && f.name.endsWith(".jsonl")) {
+        sessionCount++;
+        const fstat = getFileStat(path.join(claudeDir, f.name));
+        if (fstat) sessionSize += fstat.size;
       }
     }
   } catch {}
-
-  return { sessionCount: 0, sessionSize: 0, hasMemory: false };
+  const hasMemory = dirExists(path.join(claudeDir, "memory"));
+  return { sessionCount, sessionSize, hasMemory };
 }
 
 /** Service URL patterns found in .env files */

@@ -1,6 +1,6 @@
 import { storage } from "../storage";
 import type { Entity } from "@shared/types";
-import { decodeProjectKey } from "./utils";
+import { encodeProjectKey } from "./utils";
 
 /** Safely get a string property from entity data */
 function getStr(entity: Entity, key: string): string {
@@ -217,14 +217,16 @@ export function buildRelationships(
       }
     }
 
-    // Memory files -> link to project via decoded project key
+    // Memory files -> link to project via encoded project key.
+    // Encode each project's path and compare with the raw key from the path
+    // (avoids lossy decodeProjectKey which breaks hyphenated project names).
     const category = getStr(md, "category");
     if (category === "memory" && md.path.includes("/memory/")) {
       const match = md.path.match(/\/projects\/([^/]+)\/memory\//);
       if (match) {
-        const decoded = decodeProjectKey(match[1]);
+        const rawKey = match[1];
         for (const project of projects) {
-          if (decoded === project.path || decoded.startsWith(project.path + "/") || project.path.startsWith(decoded + "/")) {
+          if (encodeProjectKey(project.path) === rawKey) {
             storage.addRelationship({
               sourceId: project.id,
               sourceType: "project",

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { entityId, normPath, decodeProjectKey, extractText, readHead, readTailTs } from "../server/scanner/utils";
+import { entityId, normPath, decodeProjectKey, encodeProjectKey, extractText, readHead, readTailTs } from "../server/scanner/utils";
 
 describe("entityId", () => {
   it("returns a 16-char hex string", () => {
@@ -41,6 +41,74 @@ describe("normPath", () => {
   });
 });
 
+describe("encodeProjectKey", () => {
+  it("encodes Unix path (slashes become dashes)", () => {
+    expect(encodeProjectKey("/home/tron")).toBe("-home-tron");
+  });
+
+  it("encodes Windows path (drive letter uses double-dash)", () => {
+    expect(encodeProjectKey("C:/Users/alice")).toBe("C--Users-alice");
+  });
+
+  it("encodes path with hyphenated directory names", () => {
+    expect(encodeProjectKey("/home/tron/dev/projects/claude-command-center"))
+      .toBe("-home-tron-dev-projects-claude-command-center");
+  });
+
+  it("normalizes backslashes before encoding", () => {
+    expect(encodeProjectKey("C:\\Users\\alice\\my-project"))
+      .toBe("C--Users-alice-my-project");
+  });
+
+  it("round-trips with decodeProjectKey for paths without hyphens", () => {
+    const path = "/home/tron/dev/projects/myapp";
+    expect(decodeProjectKey(encodeProjectKey(path))).toBe(path);
+  });
+
+  it("matches real Claude project directory names", () => {
+    // This is the actual key Claude creates for this project
+    expect(encodeProjectKey("/home/tron/dev/projects/claude-command-center"))
+      .toBe("-home-tron-dev-projects-claude-command-center");
+  });
+
+  it("strips trailing slashes", () => {
+    expect(encodeProjectKey("/home/tron/")).toBe("-home-tron");
+    expect(encodeProjectKey("C:/Users/alice/")).toBe("C--Users-alice");
+  });
+
+  it("collapses repeated separators", () => {
+    expect(encodeProjectKey("/home//tron///dev")).toBe("-home-tron-dev");
+  });
+
+  it("uppercases Windows drive letter for consistent matching", () => {
+    expect(encodeProjectKey("c:/Users/alice")).toBe("C--Users-alice");
+    expect(encodeProjectKey("C:/Users/alice")).toBe("C--Users-alice");
+  });
+
+  it("produces identical keys for equivalent paths", () => {
+    // All of these refer to the same Windows directory
+    const key1 = encodeProjectKey("C:\\work\\proj");
+    const key2 = encodeProjectKey("c:\\work\\proj\\");
+    const key3 = encodeProjectKey("C:/work/proj/");
+    expect(key1).toBe(key2);
+    expect(key2).toBe(key3);
+  });
+
+  it("handles root paths correctly", () => {
+    expect(encodeProjectKey("/")).toBe("-");
+    expect(encodeProjectKey("C:/")).toBe("C--");
+    expect(encodeProjectKey("c:/")).toBe("C--");
+  });
+
+  it("handles empty string gracefully", () => {
+    expect(encodeProjectKey("")).toBe("");
+  });
+
+  it("handles bare Windows drive letter", () => {
+    expect(encodeProjectKey("C:")).toBe("C--");
+  });
+});
+
 describe("decodeProjectKey", () => {
   it("decodes Windows path (double-dash = drive colon)", () => {
     expect(decodeProjectKey("C--Users-alice")).toBe("C:/Users/alice");
@@ -56,6 +124,15 @@ describe("decodeProjectKey", () => {
 
   it("handles simple Unix path", () => {
     expect(decodeProjectKey("-home-user")).toBe("/home/user");
+  });
+
+  it("is lossy for hyphenated names (documents known limitation)", () => {
+    // decodeProjectKey cannot distinguish hyphens from slashes
+    // This is WHY we use encodeProjectKey for matching instead
+    const key = "-home-tron-dev-projects-claude-command-center";
+    const decoded = decodeProjectKey(key);
+    expect(decoded).toBe("/home/tron/dev/projects/claude/command/center"); // WRONG but expected
+    expect(decoded).not.toBe("/home/tron/dev/projects/claude-command-center"); // the real path
   });
 });
 

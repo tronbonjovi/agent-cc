@@ -168,14 +168,18 @@ export function discoverProjectDirs(): string[] {
   } catch {}
 
   // Fallback: discover projects from ~/.claude/projects/ session keys.
-  // In Docker, the actual project directories aren't mounted, but the session
-  // data contains project keys that decode to the original paths.
+  // Build a set of encoded keys from already-discovered dirs so we can
+  // detect duplicates without relying on lossy decoding.
+  const seenKeys = new Set(results.map((p) => encodeProjectKey(p)));
   const projectsDir = normPath(CLAUDE_DIR, "projects");
   if (dirExists(projectsDir)) {
     try {
       const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
       for (const e of entries) {
         if (!e.isDirectory()) continue;
+        // Skip if a filesystem-discovered project already matches this key
+        if (seenKeys.has(e.name)) continue;
+        // Use decoded path as best-effort fallback (Docker case where dirs aren't mounted)
         const decoded = decodeProjectKey(e.name);
         if (seen.has(decoded)) continue;
         seen.add(decoded);
@@ -377,7 +381,39 @@ export function getExtraPaths() {
   }
 }
 
-/** Decode a Claude projects directory key to a filesystem path */
+/** Encode a filesystem path to a Claude projects directory key.
+ *  This is deterministic and non-lossy — always use this for matching
+ *  instead of decodeProjectKey() which cannot distinguish hyphens from slashes.
+ *  Normalizes trailing slashes, repeated separators, and drive-letter casing
+ *  so equivalent paths always produce the same key. */
+export function encodeProjectKey(filePath: string): string {
+  if (!filePath) return "";
+  const normalized = filePath
+    .replace(/\\/g, "/")       // backslashes → forward slashes
+    .replace(/\/+/g, "/");     // collapse repeated separators
+  // Windows: detect drive letter first, before stripping trailing slashes
+  const driveMatch = normalized.match(/^([A-Za-z]):\/(.*)/);
+  if (driveMatch) {
+    const drive = driveMatch[1].toUpperCase();
+    const rest = driveMatch[2].replace(/\/$/, ""); // strip trailing slash from remainder
+    return drive + "--" + rest.replace(/\//g, "-");
+  }
+  // Bare drive letter without slash (e.g. "C:") — treat as drive root
+  if (/^[A-Za-z]:$/.test(normalized)) {
+    return normalized[0].toUpperCase() + "--";
+  }
+  // Unix: strip trailing slash unless it's the root "/"
+  let unix = normalized;
+  if (unix.length > 1 && unix.endsWith("/")) {
+    unix = unix.slice(0, -1);
+  }
+  // /home/tron → -home-tron, "/" → "-"
+  return unix.replace(/\//g, "-");
+}
+
+/** Decode a Claude projects directory key to a filesystem path.
+ *  WARNING: This is lossy — hyphens in directory names become slashes.
+ *  Prefer encodeProjectKey() for matching operations. */
 export function decodeProjectKey(key: string): string {
   // C--Users-alice -> C:/Users/alice (Windows)
   // -Users-hi -> /Users/hi (macOS/Linux, leading dash = leading /)

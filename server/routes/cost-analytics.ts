@@ -2,7 +2,8 @@ import { Router } from "express";
 import { createReadStream } from "fs";
 import { createInterface } from "readline";
 import { getCachedSessions } from "../scanner/session-scanner";
-import { decodeProjectKey } from "../scanner/utils";
+import { encodeProjectKey, decodeProjectKey } from "../scanner/utils";
+import { storage } from "../storage";
 
 const router = Router();
 
@@ -246,6 +247,13 @@ async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
     example: string;
   }> = {};
 
+  // Build lookup from encoded key → real path using project entities
+  const projectEntities = storage.getEntities("project");
+  const keyToPath = new Map<string, string>();
+  for (const p of projectEntities) {
+    keyToPath.set(encodeProjectKey(p.path), p.path);
+  }
+
   // Process sessions in parallel batches to avoid overwhelming the filesystem
   const BATCH_SIZE = 20;
   for (let i = 0; i < sessions.length; i += BATCH_SIZE) {
@@ -258,7 +266,7 @@ async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
     );
 
     for (const { session, result } of results) {
-      const projectPath = decodeProjectKey(session.projectKey);
+      const projectPath = keyToPath.get(session.projectKey) || decodeProjectKey(session.projectKey);
 
       // Determine model families seen in this session for model-level session counting
       const modelFamiliesSeen = new Set<string>();
