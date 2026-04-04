@@ -1,5 +1,5 @@
 /**
- * Claude Code Health Check — `npx claude-command-center --audit`
+ * Claude Code Health Check — `npx agent-cc --audit`
  * Scores your Claude Code setup out of 100 with actionable fixes.
  * No server needed.
  */
@@ -228,7 +228,7 @@ export async function runAudit(json = false): Promise<void> {
 
   const fixCount = checks.filter(c => c.fix).length;
   if (fixCount > 0) {
-    console.log(`│  ${fixCount} issue${fixCount > 1 ? "s" : ""} found. Fix them and re-run: npx claude-command-center --audit │`);
+    console.log(`│  ${fixCount} issue${fixCount > 1 ? "s" : ""} found. Fix them and re-run: npx agent-cc --audit │`);
   } else {
     console.log(`│  No issues found. Your setup is well configured!  │`);
   }

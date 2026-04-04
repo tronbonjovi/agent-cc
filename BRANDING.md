@@ -1,8 +1,8 @@
 # Branding Reference
 
-Current brand name: **Claude Command Center**
+Current brand name: **Agent CC** (Agent Control Center)
 
-This document maps where the brand name appears in the codebase. Use it when rebranding a fork.
+This document maps where the brand name appears in the codebase. Use it when renaming.
 
 ---
 
@@ -10,36 +10,45 @@ This document maps where the brand name appears in the codebase. Use it when reb
 
 | File | What | Current Value |
 |------|------|---------------|
-| `package.json` | npm package name | `claude-command-center` |
-| `package.json` | description | `Dashboard for visualizing and managing your Claude Code ecosystem` |
-| `README.md` | Title, badges, description | `Claude Command Center` |
-| `SETUP.md` | Install instructions | `claude-command-center` |
-| `client/src/components/layout.tsx` | Sidebar header (editable by user) | Falls back to `Command Center` |
-| `server/db.ts` | Default app name in settings | `Command Center` |
-| `server/index.ts` | Console log on startup | `Command Center serving on port ...` |
+| `package.json` | npm package name | `agent-cc` |
+| `package.json` | description | `Agent Control Center — local dashboard for managing agentic coding systems` |
+| `README.md` | Title, description | `Agent CC` |
+| `SETUP.md` | Install instructions | `agent-cc` |
+| `client/index.html` | Page title | `Agent CC` |
+| `client/src/components/layout.tsx` | Sidebar header (editable by user) | Falls back to `Agent CC` |
+| `client/src/App.tsx` | Dynamic document title | Falls back to `Agent CC` |
+| `server/db.ts` | Default app name in settings | `Agent CC` |
+| `server/index.ts` | Console log on startup | Uses `appSettings.appName` |
 
 ## Internal References
 
 | File | What |
 |------|------|
-| `package.json` | `bin.claude-command-center` |
-| `.github/workflows/release.yml` | Tarball name `claude-command-center-vX.Y.Z.tar.gz` |
+| `package.json` | `bin.agent-cc` |
+| `docker-compose.yml` | Service name `agent-cc`, volume `agent-cc-data` |
 | `CHANGELOG.md` | Project name in header |
-| `SECURITY.md` | GitHub advisory URL |
-| `CONTRIBUTING.md` | GitHub issue URL |
 
 ## Data Locations
 
 | Location | Purpose |
 |----------|---------|
-| `~/.claude-command-center/` | Default data directory |
-| `COMMAND_CENTER_DATA` env var | Override data directory |
+| `~/.agent-cc/` | Default data directory |
+| `AGENT_CC_DATA` env var | Override data directory |
 
-## To Rebrand
+## GitHub
 
-1. Update `name` in `package.json`
-2. Update the `bin` key in `package.json`
-3. Find-and-replace `claude-command-center` in README, SETUP, workflows
-4. Update the `defaultAppSettings.appName` in `server/db.ts`
-5. Update the data directory name in `server/db.ts` (the `dataDir` path)
-6. Update GitHub URLs in SECURITY.md, CONTRIBUTING.md
+| What | Current |
+|------|---------|
+| Repo name | `tronbonjovi/agent-cc` (pending rename) |
+| Repo visibility | Private |
+
+## To Rename Again
+
+1. Pick new name, update this doc
+2. Update `name` and `bin` key in `package.json`
+3. Find-and-replace `agent-cc` in README, SETUP, CHANGELOG, docker-compose
+4. Update `defaultAppSettings.appName` in `server/db.ts`
+5. Update data directory path in `server/db.ts`
+6. Rename `AGENT_CC_DATA` env var
+7. Rename GitHub repo via settings
+8. Update client fallbacks in `layout.tsx`, `App.tsx`, `index.html`, `onboarding-wizard.tsx`

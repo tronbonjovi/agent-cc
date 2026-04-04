@@ -51,8 +51,8 @@ describe("encodeProjectKey", () => {
   });
 
   it("encodes path with hyphenated directory names", () => {
-    expect(encodeProjectKey("/home/tron/dev/projects/claude-command-center"))
-      .toBe("-home-tron-dev-projects-claude-command-center");
+    expect(encodeProjectKey("/home/tron/dev/projects/my-cool-project"))
+      .toBe("-home-tron-dev-projects-my-cool-project");
   });
 
   it("normalizes backslashes before encoding", () => {
@@ -66,9 +66,9 @@ describe("encodeProjectKey", () => {
   });
 
   it("matches real Claude project directory names", () => {
-    // This is the actual key Claude creates for this project
-    expect(encodeProjectKey("/home/tron/dev/projects/claude-command-center"))
-      .toBe("-home-tron-dev-projects-claude-command-center");
+    // This is the actual key Claude creates for a hyphenated project
+    expect(encodeProjectKey("/home/tron/dev/projects/my-cool-project"))
+      .toBe("-home-tron-dev-projects-my-cool-project");
   });
 
   it("strips trailing slashes", () => {
@@ -129,10 +129,10 @@ describe("decodeProjectKey", () => {
   it("is lossy for hyphenated names (documents known limitation)", () => {
     // decodeProjectKey cannot distinguish hyphens from slashes
     // This is WHY we use encodeProjectKey for matching instead
-    const key = "-home-tron-dev-projects-claude-command-center";
+    const key = "-home-tron-dev-projects-my-cool-project";
     const decoded = decodeProjectKey(key);
-    expect(decoded).toBe("/home/tron/dev/projects/claude/command/center"); // WRONG but expected
-    expect(decoded).not.toBe("/home/tron/dev/projects/claude-command-center"); // the real path
+    expect(decoded).toBe("/home/tron/dev/projects/my/cool/project"); // WRONG but expected
+    expect(decoded).not.toBe("/home/tron/dev/projects/my-cool-project"); // the real path
   });
 });
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Claude Command Center is a local-only web dashboard that reads Claude Code configuration files and presents them in a browser UI. It runs on `127.0.0.1` and is designed for single-user operation on a developer's workstation.
+Agent CC is a local-only web dashboard that reads Claude Code configuration files and presents them in a browser UI. It runs on `127.0.0.1` and is designed for single-user operation on a developer's workstation.
 
 ## Assets to Protect
 
@@ -12,7 +12,7 @@ Claude Command Center is a local-only web dashboard that reads Claude Code confi
 | CLAUDE.md and memory files | Medium | Various project directories |
 | MCP server configurations | Medium (may reference env vars) | `.mcp.json` files |
 | Claude Code settings | Low | `~/.claude/settings.json` |
-| Command Center database | Low | `~/.claude-command-center/command-center.json` |
+| Agent CC database | Low | `~/.agent-cc/agent-cc.json` |
 | Optional GitHub token | High (if set) | `GITHUB_TOKEN` env var only |
 
 ## Trust Boundaries
@@ -29,7 +29,7 @@ Claude Command Center is a local-only web dashboard that reads Claude Code confi
 The server binds to `127.0.0.1`. No external network access except optional GitHub API search and `claude -p` subprocess.
 
 **Boundary 2: Filesystem**
-Reads are scoped to the user's home directory. Writes are scoped to `~/.claude-command-center/` and markdown files under home (validated with `path.resolve()` + prefix check).
+Reads are scoped to the user's home directory. Writes are scoped to `~/.agent-cc/` and markdown files under home (validated with `path.resolve()` + prefix check).
 
 **Boundary 3: Child processes**
 Shell commands use array-style arguments. No user input is interpolated into command strings. The `CLAUDECODE` env var is stripped before spawning `claude -p` to prevent nesting errors.

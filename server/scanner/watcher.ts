@@ -97,7 +97,7 @@ export function startWatcher(): void {
     ignored: [
       /node_modules/,
       /\.git/,
-      /command-center\.json$/,  // Don't watch our own DB file
+      /agent-cc\.json$/,  // Don't watch our own DB file
     ],
   });
 

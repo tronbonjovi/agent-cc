@@ -74,7 +74,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const counts = (status?.entityCounts || {}) as Record<string, number>;
   const isScanning = status?.scanning;
-  const appName = settings?.appName || "Command Center";
+  const appName = settings?.appName || "Agent CC";
 
   // Keyboard shortcut for collapse
   useEffect(() => {

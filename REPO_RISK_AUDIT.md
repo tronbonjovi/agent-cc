@@ -32,7 +32,7 @@ No critical or high-severity issues found. The repository is safe for open-sourc
 
 **L2: JSON database without encryption**
 - Files: `server/db.ts`
-- Application data is stored as plain JSON at `~/.claude-command-center/command-center.json`.
+- Application data is stored as plain JSON at `~/.agent-cc/agent-cc.json`.
 - The file contains entity metadata, relationships, and custom graph data. No secrets or credentials are stored.
 - Status: Acceptable. This is a local-only tool; encrypting local JSON would add complexity without meaningful security benefit.
 
@@ -62,7 +62,7 @@ No critical or high-severity issues found. The repository is safe for open-sourc
 
 **I6: File system access scope**
 - Reads: `~/.claude/`, home directory (project discovery), project directories
-- Writes: `~/.claude-command-center/` (own data), markdown files under home directory (with path validation)
+- Writes: `~/.agent-cc/` (own data), markdown files under home directory (with path validation)
 
 **I7: No postinstall scripts**
 - `package.json` contains no lifecycle hooks (`preinstall`, `postinstall`, `prepare`).

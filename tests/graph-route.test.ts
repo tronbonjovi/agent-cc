@@ -4,9 +4,9 @@ import path from "path";
 import os from "os";
 import type { Entity, EntityType, CustomNode, CustomEdge } from "@shared/types";
 
-// Set COMMAND_CENTER_DATA before importing storage/db so the module uses our temp dir
+// Set AGENT_CC_DATA before importing storage/db so the module uses our temp dir
 const tmpDir = path.join(os.tmpdir(), "cc-graph-test-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8));
-process.env.COMMAND_CENTER_DATA = tmpDir;
+process.env.AGENT_CC_DATA = tmpDir;
 
 // Mock session-scanner so the graph route doesn't try to read real session files
 vi.mock("../server/scanner/session-scanner", () => ({
@@ -92,7 +92,7 @@ describe("GET /api/graph", () => {
   let app: ReturnType<typeof express>;
 
   beforeEach(() => {
-    const dbPath = path.join(tmpDir, "command-center.json");
+    const dbPath = path.join(tmpDir, "agent-cc.json");
     if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
     const tmpPath = dbPath + ".tmp";
     if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);

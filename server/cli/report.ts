@@ -1,5 +1,5 @@
 /**
- * Claude Code Receipt — `npx claude-command-center --report`
+ * Claude Code Receipt — `npx agent-cc --report`
  * Prints a terminal-formatted cost/usage receipt from ~/.claude/ session data.
  * No server needed. Supports both subscription and pay-as-you-go billing.
  */
@@ -141,7 +141,7 @@ export async function runReport(json = false): Promise<void> {
   console.log(`│  ${scoreBar}                          │`);
   console.log(`│                                                    │`);
   console.log(`├${line(W)}┤`);
-  console.log(`│  Scanned in ${pad(`${costs.durationMs}ms`, 6)} │ claude-command-center  │`);
+  console.log(`│  Scanned in ${pad(`${costs.durationMs}ms`, 6)} │ agent-cc               │`);
   console.log(`└${line(W)}┘`);
   console.log();
 }

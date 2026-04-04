@@ -57,7 +57,7 @@ export async function runNLQuery(question: string, sessions: SessionData[]): Pro
   const start = performance.now();
   const context = buildContext(sessions);
 
-  const prompt = `You are answering questions about a Claude Code Command Center's session analytics data.
+  const prompt = `You are answering questions about Agent CC's session analytics data.
 
 DATA:
 ${context}

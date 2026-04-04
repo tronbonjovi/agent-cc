@@ -75,7 +75,7 @@ function StepWelcome({
       </div>
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-          Welcome to Command Center
+          Welcome to Agent CC
         </h2>
         <p className="text-sm text-muted-foreground max-w-sm">
           A dashboard for your Claude Code ecosystem. Let's set it up.
@@ -88,7 +88,7 @@ function StepWelcome({
         <Input
           value={appName}
           onChange={(e) => onAppNameChange(e.target.value)}
-          placeholder="Command Center"
+          placeholder="Agent CC"
           maxLength={50}
           className="text-center"
         />
@@ -223,7 +223,7 @@ function StepReady() {
       <div className="text-center space-y-2">
         <h2 className="text-xl font-bold">You're All Set!</h2>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Your command center is ready. Here are some quick tips.
+          Agent CC is ready. Here are some quick tips.
         </p>
       </div>
       <div className="w-full space-y-2">
@@ -257,7 +257,7 @@ export function OnboardingWizard() {
 
   // Initialize appName from settings once loaded
   if (settings && !initialized) {
-    setAppName(settings.appName || "Command Center");
+    setAppName(settings.appName || "Agent CC");
     setInitialized(true);
   }
 
@@ -267,7 +267,7 @@ export function OnboardingWizard() {
   }
 
   const handleFinish = () => {
-    const name = appName.trim() || "Command Center";
+    const name = appName.trim() || "Agent CC";
     updateSettings.mutate(
       { appName: name, onboarded: true },
       { onSuccess: () => setDone(true) },
@@ -287,7 +287,7 @@ export function OnboardingWizard() {
       >
         <DialogHeader className="sr-only">
           <DialogTitle>Onboarding</DialogTitle>
-          <DialogDescription>Set up your Command Center</DialogDescription>
+          <DialogDescription>Set up your Agent CC</DialogDescription>
         </DialogHeader>
 
         <div className="min-h-[340px] flex flex-col">

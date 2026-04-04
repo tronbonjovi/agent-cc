@@ -44,7 +44,7 @@ function PageLoader() {
 function DynamicTitle() {
   const { data: settings } = useAppSettings();
   useEffect(() => {
-    document.title = settings?.appName || "Command Center";
+    document.title = settings?.appName || "Agent CC";
   }, [settings?.appName]);
   return null;
 }

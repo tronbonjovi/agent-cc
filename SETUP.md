@@ -1,6 +1,6 @@
 # Setup Guide
 
-Detailed installation and configuration instructions for Claude Command Center.
+Detailed installation and configuration instructions for Agent CC.
 
 ---
 
@@ -11,28 +11,11 @@ Detailed installation and configuration instructions for Claude Command Center.
 
 ---
 
-## Install via npm (recommended)
-
-```bash
-npm install -g claude-command-center
-claude-command-center
-```
-
-Open [http://localhost:5100](http://localhost:5100). Done.
-
-To update later:
-
-```bash
-npm update -g claude-command-center
-```
-
----
-
 ## Install from source
 
 ```bash
-git clone https://github.com/tronbonjovi/claude-command-center.git
-cd claude-command-center
+git clone https://github.com/tronbonjovi/agent-cc.git
+cd agent-cc
 npm install
 npm run dev
 ```
@@ -61,13 +44,21 @@ npm start
 
 ---
 
+## Docker
+
+```bash
+git clone https://github.com/tronbonjovi/agent-cc.git
+cd agent-cc
+docker compose up -d --build
+```
+
+---
+
 ## Configuration
 
 Set environment variables before starting:
 
 ```bash
-PORT=3000 claude-command-center
-# or
 PORT=3000 npm run dev
 ```
 
@@ -75,7 +66,7 @@ PORT=3000 npm run dev
 |----------|---------|-------------|
 | `PORT` | `5100` | Server port |
 | `HOST` | `127.0.0.1` | Bind address |
-| `COMMAND_CENTER_DATA` | `~/.claude-command-center/` | Where the dashboard stores its data |
+| `AGENT_CC_DATA` | `~/.agent-cc/` | Where the dashboard stores its data |
 | `GITHUB_TOKEN` | (none) | Optional. Increases GitHub API rate limits for Discovery search |
 
 ### Security note on HOST
@@ -155,7 +146,7 @@ Database connection URLs found in MCP environment variables (PostgreSQL, MySQL, 
 All dashboard data is stored in a single JSON file:
 
 ```
-~/.claude-command-center/command-center.json
+~/.agent-cc/agent-cc.json
 ```
 
 This contains:
@@ -199,16 +190,7 @@ The initial scan reads your entire `~/.claude/` directory. If you have many sess
 
 ## Uninstall
 
-### npm install
-
 ```bash
-npm uninstall -g claude-command-center
-rm -rf ~/.claude-command-center    # remove stored data
-```
-
-### Source install
-
-```bash
-rm -rf claude-command-center       # remove the repo
-rm -rf ~/.claude-command-center    # remove stored data
+rm -rf agent-cc              # remove the repo
+rm -rf ~/.agent-cc           # remove stored data
 ```

@@ -23,7 +23,7 @@ router.get("/api/discovery/search", async (req: Request, res: Response) => {
 
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
-    "User-Agent": "claude-command-center",
+    "User-Agent": "agent-cc",
   };
   if (process.env.GITHUB_TOKEN) {
     headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
