@@ -513,14 +513,17 @@ router.get("/api/sessions/:id/context", (req: Request, res: Response) => {
 });
 
 /** GET /api/sessions/:id — Session detail with message timeline */
-router.get("/api/sessions/:id", (req: Request, res: Response) => {
+router.get("/api/sessions/:id", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
 
   const session = getCachedSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ message: "Session not found" });
 
-  const records = readMessageTimeline(session.filePath);
+  const safePath = await validateSafePath(session.filePath);
+  if (!safePath) return res.status(403).json({ message: "Session file path outside allowed directory" });
+
+  const records = readMessageTimeline(safePath);
 
   res.json({ ...session, records });
 });
