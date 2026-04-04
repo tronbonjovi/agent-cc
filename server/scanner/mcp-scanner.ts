@@ -241,9 +241,11 @@ export function scanMCPs(): Entity[] {
       const redactedEnv: Record<string, string> = {};
       if (config.env) {
         for (const [k, v] of Object.entries(config.env)) {
-          redactedEnv[k] = k.toLowerCase().includes("secret") || k.toLowerCase().includes("password") || k.toLowerCase().includes("token") || k.toLowerCase().includes("key")
-            ? "***"
-            : v;
+          if (shouldRedactEnvVar(k)) {
+            redactedEnv[k] = /^\w+(\+\w+)?:\/\//.test(v) ? redactConnectionString(v) : "***";
+          } else {
+            redactedEnv[k] = v;
+          }
         }
       }
 
