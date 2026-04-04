@@ -1,5 +1,5 @@
 import type { Entity, CustomNode, CustomEdge } from "@shared/types";
-import { entityId, getFileStat, CLAUDE_DIR, now, dirExists, fileExists, safeReadText, discoverProjectDirs, encodeProjectKey, getExtraPaths, normPath } from "./utils";
+import { entityId, getFileStat, CLAUDE_DIR, now, dirExists, fileExists, safeReadText, discoverProjectDirs, encodeProjectKey, hasProjectMarkers, getExtraPaths, normPath } from "./utils";
 import path from "path";
 import fs from "fs";
 
@@ -51,11 +51,11 @@ export function scanProjects(): Entity[] {
   const projectDirs = discoverProjectDirs();
 
   // Extra project dirs from settings — if a path is itself a project, add it directly.
-  // If it's a container (no project markers), scan its children for projects.
+  // If it's a container (no project markers), only scan its children.
   for (const extra of getExtraPaths().extraProjectDirs) {
     const normalized = extra.replace(/\\/g, "/");
     if (!dirExists(normalized)) continue;
-    if (!projectDirs.includes(normalized)) {
+    if (hasProjectMarkers(normalized) && !projectDirs.includes(normalized)) {
       projectDirs.push(normalized);
     }
     // Also scan children (treat extra paths as potential containers)

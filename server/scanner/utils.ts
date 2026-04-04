@@ -93,7 +93,7 @@ export function now(): string {
 }
 
 /** Check whether a directory has common project marker files */
-function hasProjectMarkers(dirPath: string): boolean {
+export function hasProjectMarkers(dirPath: string): boolean {
   return (
     fileExists(path.join(dirPath, "CLAUDE.md")) ||
     fileExists(path.join(dirPath, ".mcp.json")) ||
