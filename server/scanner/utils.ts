@@ -370,9 +370,18 @@ export function getExtraPaths() {
   try {
     const settings = getDB().appSettings;
     const raw = settings?.scanPaths || { extraMcpFiles: [], extraProjectDirs: [], extraSkillDirs: [], extraPluginDirs: [] };
+    const extraProjectDirs = raw.extraProjectDirs.map(expandTilde);
+    // EXTRA_PROJECT_DIRS env var: comma-separated paths for Docker where
+    // the host project dirs are mounted at a path the scanner can't auto-discover.
+    const envDirs = process.env.EXTRA_PROJECT_DIRS;
+    if (envDirs) {
+      for (const d of envDirs.split(",").map((s: string) => s.trim()).filter(Boolean)) {
+        if (!extraProjectDirs.includes(d)) extraProjectDirs.push(d);
+      }
+    }
     return {
       extraMcpFiles: raw.extraMcpFiles.map(expandTilde),
-      extraProjectDirs: raw.extraProjectDirs.map(expandTilde),
+      extraProjectDirs,
       extraSkillDirs: raw.extraSkillDirs.map(expandTilde),
       extraPluginDirs: raw.extraPluginDirs.map(expandTilde),
     };
