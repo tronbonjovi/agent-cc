@@ -18,6 +18,23 @@
 
 A local dashboard for visualizing and managing your [Claude Code](https://docs.anthropic.com/en/docs/claude-code) ecosystem. Auto-discovers your projects, MCP servers, skills, plugins, sessions, agents, and their relationships with zero configuration.
 
+> **Fork notice:** This is a fork of [sorlen008/claude-command-center](https://github.com/sorlen008/claude-command-center) (forked at v1.21.6, March 2026). Full credit to the original author for the foundation. This fork adds security hardening, Docker support, and continued feature development. Everything from v1.22.0 onward is new work in this repo.
+
+---
+
+## What This Fork Adds
+
+Since forking, we've focused on hardening, containerization, and reliability:
+
+- **Docker containerization** (v1.22.0) -- multi-stage Dockerfile and `docker compose` as a first-class install option for homelab and self-hosted deployments
+- **Security hardening** -- path traversal protection with `realpath` validation on all file-reading routes, shell injection fixes, input sanitization, upstream URL validation, delete validation safeguards
+- **Expanded secret redaction** -- broader MCP secret detection with false-positive protection and connection string credential redaction
+- **Deep search UX improvements** -- loading/error/empty states, mode-switching hints, debounced search
+- **Per-page error boundaries** -- resilient UI with reset capability so one page crashing doesn't take down the app
+- **Increased test coverage** -- 1595+ tests across 18 test files covering scanners, API routes, storage, validation, and path safety
+
+---
+
 ### Why?
 
 - **"How much am I spending on Claude Code?"** -- Cost analytics by session, project, model, and day. See exactly where your tokens go.
@@ -131,11 +148,12 @@ The Sessions page includes a full **Analytics** tab with:
 | Concern | Details |
 |---------|---------|
 | **File system** | Reads `~/.claude/` and project directories. Writes only to `~/.claude-command-center/` and markdown files you explicitly edit. |
-| **Shell commands** | Spawns `claude -p`, `git`, platform file openers, terminal emulators. All user input validated with Zod. |
+| **Shell commands** | Spawns `claude -p`, `git`, platform file openers, terminal emulators. All user input validated with Zod. Shell commands are sanitized -- no user input is passed to the shell unsanitized. |
+| **Input validation** | All API inputs validated with Zod schemas. File-reading routes use `realpath` path traversal guards to prevent directory escape attacks. Delete operations have validation safeguards. |
 | **Network** | Binds to `127.0.0.1` only. No outbound requests unless you use Discovery search or AI Suggest. |
 | **Data** | All data stored locally as plain JSON. No cloud sync, no external databases. |
 | **Telemetry** | None. No analytics, no tracking, no phone-home. |
-| **Secrets** | Never stored. Scanned env vars with "secret", "password", "token", "key" are redacted to `***`. |
+| **Secrets** | Never stored. Scanned env vars with "secret", "password", "token", "key" are redacted to `***`. Connection string credentials are also redacted. |
 
 See [docs/security-threat-model.md](docs/security-threat-model.md) for the full threat model.
 
