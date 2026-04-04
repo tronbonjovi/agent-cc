@@ -4,7 +4,7 @@ import path from "path";
 import matter from "gray-matter";
 import { getCachedDefinitions, getCachedExecutions, getCachedAgentStats } from "../scanner/agent-scanner";
 import { CLAUDE_DIR, entityId, dirExists, fileExists, readMessageTimeline } from "../scanner/utils";
-import { qstr, validate, AgentExecListSchema, validateMarkdownPath } from "./validation";
+import { qstr, validate, AgentExecListSchema, validateSafePath } from "./validation";
 
 const router = Router();
 
@@ -37,13 +37,17 @@ router.get("/api/agents/definitions", (_req: Request, res: Response) => {
 });
 
 /** GET /api/agents/definitions/:id — Single definition with full content */
-router.get("/api/agents/definitions/:id", (req: Request, res: Response) => {
+router.get("/api/agents/definitions/:id", async (req: Request, res: Response) => {
   const def = getCachedDefinitions().find(d => d.id === req.params.id);
   if (!def) return res.status(404).json({ message: "Definition not found" });
 
+  // Validate path before reading
+  const safePath = await validateSafePath(def.filePath);
+  if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
+
   // Re-read full content for detail view
   try {
-    const raw = fs.readFileSync(def.filePath, "utf-8");
+    const raw = fs.readFileSync(safePath, "utf-8");
     const parsed = matter(raw);
     res.json({ ...def, content: parsed.content.trim() });
   } catch {
@@ -52,7 +56,7 @@ router.get("/api/agents/definitions/:id", (req: Request, res: Response) => {
 });
 
 /** PUT /api/agents/definitions/:id — Update writable agent */
-router.put("/api/agents/definitions/:id", (req: Request, res: Response) => {
+router.put("/api/agents/definitions/:id", async (req: Request, res: Response) => {
   const def = getCachedDefinitions().find(d => d.id === req.params.id);
   if (!def) return res.status(404).json({ message: "Definition not found" });
   if (!def.writable) return res.status(403).json({ message: "Plugin agents are read-only" });
@@ -62,7 +66,7 @@ router.put("/api/agents/definitions/:id", (req: Request, res: Response) => {
   if (content.length > 100_000) return res.status(400).json({ message: "content too long (max 100KB)" });
 
   // Validate path is under home directory
-  const safePath = validateMarkdownPath(def.filePath);
+  const safePath = await validateSafePath(def.filePath);
   if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
 
   try {
@@ -168,11 +172,14 @@ router.get("/api/agents/executions", (req: Request, res: Response) => {
 });
 
 /** GET /api/agents/executions/:agentId — Detail with message timeline */
-router.get("/api/agents/executions/:agentId", (req: Request, res: Response) => {
+router.get("/api/agents/executions/:agentId", async (req: Request, res: Response) => {
   const exec = getCachedExecutions().find(e => e.agentId === req.params.agentId);
   if (!exec) return res.status(404).json({ message: "Execution not found" });
 
-  const records = readMessageTimeline(exec.filePath, { includeModel: true });
+  const safePath = await validateSafePath(exec.filePath);
+  if (!safePath) return res.status(403).json({ message: "Execution file path outside allowed directory" });
+
+  const records = readMessageTimeline(safePath, { includeModel: true });
 
   res.json({ ...exec, records });
 });

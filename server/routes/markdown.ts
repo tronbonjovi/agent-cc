@@ -3,7 +3,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import fs from "fs";
 import path from "path";
-import { qstr, validate, validateMarkdownPath } from "./validation";
+import { qstr, validate, validateSafePath } from "./validation";
 import { validateClaudeMd } from "../scanner/claudemd-validator";
 
 const MarkdownContentSchema = z.object({
@@ -27,7 +27,7 @@ router.get("/api/markdown", (req: Request, res: Response) => {
 });
 
 /** GET /api/markdown/search?q=... — Search within all markdown file contents */
-router.get("/api/markdown/search", (req: Request, res: Response) => {
+router.get("/api/markdown/search", async (req: Request, res: Response) => {
   const q = qstr(req.query.q)?.toLowerCase();
   if (!q || q.length < 2) return res.json([]);
 
@@ -35,7 +35,7 @@ router.get("/api/markdown/search", (req: Request, res: Response) => {
   const results: Array<{ fileId: string; fileName: string; filePath: string; category: string; matches: Array<{ line: number; text: string }>; matchCount: number }> = [];
 
   for (const entity of entities) {
-    const safePath = validateMarkdownPath(entity.path);
+    const safePath = await validateSafePath(entity.path);
     if (!safePath) continue;
     try {
       const content = fs.readFileSync(safePath, "utf-8");
@@ -114,14 +114,14 @@ router.get("/api/markdown/meta", (_req: Request, res: Response) => {
   res.json(storage.getAllMarkdownMeta());
 });
 
-router.get("/api/markdown/:id", (req: Request, res: Response) => {
+router.get("/api/markdown/:id", async (req: Request, res: Response) => {
   const entity = storage.getEntity(req.params.id as string);
   if (!entity || entity.type !== "markdown") {
     return res.status(404).json({ message: "Markdown file not found" });
   }
 
-  // Re-validate path is under home directory
-  const safePath = validateMarkdownPath(entity.path);
+  // Re-validate path is under home directory (follows symlinks)
+  const safePath = await validateSafePath(entity.path);
   if (!safePath) {
     return res.status(403).json({ message: "Path must be under user home directory" });
   }
@@ -135,7 +135,7 @@ router.get("/api/markdown/:id", (req: Request, res: Response) => {
   }
 });
 
-router.put("/api/markdown/:id", (req: Request, res: Response) => {
+router.put("/api/markdown/:id", async (req: Request, res: Response) => {
   const entity = storage.getEntity(req.params.id as string);
   if (!entity || entity.type !== "markdown") {
     return res.status(404).json({ message: "Markdown file not found" });
@@ -145,8 +145,8 @@ router.put("/api/markdown/:id", (req: Request, res: Response) => {
   if (!parsed) return;
   const { content } = parsed;
 
-  // Re-validate entity path is still under home directory
-  const safePath = validateMarkdownPath(entity.path);
+  // Re-validate entity path is still under home directory (follows symlinks)
+  const safePath = await validateSafePath(entity.path);
   if (!safePath) {
     return res.status(403).json({ message: "Path must be under user home directory" });
   }
@@ -162,13 +162,13 @@ router.put("/api/markdown/:id", (req: Request, res: Response) => {
   }
 });
 
-router.post("/api/markdown", (req: Request, res: Response) => {
+router.post("/api/markdown", async (req: Request, res: Response) => {
   const parsed = validate(MarkdownCreateSchema, req.body, res);
   if (!parsed) return;
   const { filePath, content } = parsed;
 
-  // Validate path is under home directory to prevent arbitrary file writes
-  const safePath = validateMarkdownPath(filePath);
+  // Validate path is under home directory to prevent arbitrary file writes (follows symlinks)
+  const safePath = await validateSafePath(filePath);
   if (!safePath) {
     return res.status(403).json({ message: "Path must be under user home directory" });
   }
@@ -200,7 +200,7 @@ router.get("/api/markdown/:id/history", (req: Request, res: Response) => {
   res.json(summary);
 });
 
-router.post("/api/markdown/:id/restore/:backupId", (req: Request, res: Response) => {
+router.post("/api/markdown/:id/restore/:backupId", async (req: Request, res: Response) => {
   const entity = storage.getEntity(req.params.id as string);
   if (!entity || entity.type !== "markdown") {
     return res.status(404).json({ message: "Markdown file not found" });
@@ -221,8 +221,8 @@ router.post("/api/markdown/:id/restore/:backupId", (req: Request, res: Response)
     return res.status(400).json({ message: "Backup does not belong to this file" });
   }
 
-  // Re-validate path is under home directory
-  const safePath = validateMarkdownPath(entity.path);
+  // Re-validate path is under home directory (follows symlinks)
+  const safePath = await validateSafePath(entity.path);
   if (!safePath) {
     return res.status(403).json({ message: "Path must be under user home directory" });
   }
@@ -264,13 +264,13 @@ router.get("/api/markdown/:id/backup/:backupId", (req: Request, res: Response) =
   res.json({ id: backup.id, content: backup.content, createdAt: backup.createdAt, reason: backup.reason });
 });
 
-router.get("/api/markdown/:id/validate", (req: Request, res: Response) => {
+router.get("/api/markdown/:id/validate", async (req: Request, res: Response) => {
   const entity = storage.getEntity(req.params.id as string);
   if (!entity || entity.type !== "markdown") {
     return res.status(404).json({ message: "Markdown file not found" });
   }
 
-  const safePath = validateMarkdownPath(entity.path);
+  const safePath = await validateSafePath(entity.path);
   if (!safePath) {
     return res.status(403).json({ message: "Path must be under user home directory" });
   }
