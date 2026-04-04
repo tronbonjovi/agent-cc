@@ -1,5 +1,5 @@
 import type { Entity, CustomNode, CustomEdge } from "@shared/types";
-import { entityId, getFileStat, CLAUDE_DIR, HOME, now, dirExists, fileExists, safeReadText, discoverProjectDirs, encodeProjectKey, getExtraPaths, normPath } from "./utils";
+import { entityId, getFileStat, CLAUDE_DIR, now, dirExists, fileExists, safeReadText, discoverProjectDirs, encodeProjectKey, getExtraPaths, normPath } from "./utils";
 import path from "path";
 import fs from "fs";
 
@@ -71,7 +71,24 @@ export function scanProjects(): Entity[] {
     } catch {}
   }
 
-  for (const projectDir of projectDirs) {
+  // Deduplicate by encoded key: if a lossy-decoded fallback path and a real
+  // filesystem path encode to the same key, keep the real one (it has valid markers).
+  const seenKeys = new Map<string, string>(); // encoded key → best path
+  for (const dir of projectDirs) {
+    const key = encodeProjectKey(dir);
+    const existing = seenKeys.get(key);
+    if (!existing) {
+      seenKeys.set(key, dir);
+    } else {
+      // Prefer whichever path actually exists on disk
+      if (!dirExists(existing) && dirExists(dir)) {
+        seenKeys.set(key, dir);
+      }
+    }
+  }
+  const deduplicatedDirs = Array.from(seenKeys.values());
+
+  for (const projectDir of deduplicatedDirs) {
     const dirName = path.basename(projectDir);
     const stat = getFileStat(projectDir);
     const hasClaudeMd = fileExists(path.join(projectDir, "CLAUDE.md"));
