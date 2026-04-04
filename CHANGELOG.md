@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Theme aesthetic profiles** — each theme now controls glow intensity, border radius, card elevation style, gradient mesh opacity, and animation scale via `ThemeAesthetic` type. Themes feel native instead of "same app, different paint"
-- **Anthropic light variant** — Anthropic theme rewritten as a warm cream light theme (#faf9f5 backgrounds) matching the Claude desktop aesthetic. No glows, soft corners, warm shadows
-- **4 new community themes** — Rosé Pine, Tomorrow Night, Oceanic Next, One Half Dark. Total: 13 themes
+- **Anthropic Light + Dark themes** — Anthropic Light is a warm cream theme (#faf9f5) matching Claude desktop; Anthropic Dark is the same earth-tone palette on a dark canvas. Every accent (entities, status dots, charts, brand gradient, glows) uses exclusively warm colors — burnt orange, sage green, warm amber, warm rose, clay. No blue, teal, or cyan anywhere
+- **5 new community themes** — Rosé Pine, Tomorrow Night, Oceanic Next, One Half Dark, Anthropic Dark. Total: 14 themes
 - **Multi-theme system** — registry-based architecture with 5 named themes (Dark, Light, Glass, Anthropic, Catppuccin Mocha) plus system auto-detect. Each theme is a standalone definition file; adding a new theme requires one file and one line in the registry
 - **Catppuccin Mocha theme** — soothing pastel dark theme from the official Catppuccin palette
 - **Theme dropdown picker** — replaces the old cycle button in the sidebar with a dropdown showing color swatches and checkmarks. Full WAI-ARIA accessibility: keyboard navigation, focus management, screen reader support
@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Border radius in tailwind.config.ts now reads from `--card-radius` CSS variable (sharp/medium/soft per theme)
 - Gradient mesh opacity, neon glows, card hover shadows, and brand-glow all driven by per-theme aesthetic tokens
 - Decorative animations disabled for themes with `animationScale: "minimal"` via `data-animation` attribute
-- 1781 tests across 19 test files, all passing
+- Text gradients, status-panel gradient backgrounds, and section-header gradient underlines replaced with solid colors for minimal-animation themes
+- 1792 tests across 19 test files, all passing
 
 ### Fixed
 - **Project key decoding** — added `encodeProjectKey()` for deterministic path-to-key matching, replacing lossy `decodeProjectKey()` in all comparison callsites. Fixes ghost project entries, broken entity linking, and missing session data for hyphenated project names (e.g. "claude-command-center" was showing as "Center")
