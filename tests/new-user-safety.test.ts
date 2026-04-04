@@ -37,6 +37,7 @@ describe("No hardcoded user-specific paths", () => {
     { pattern: /C:[/\\]Users[/\\]zwin0/gi, label: "Hardcoded path C:/Users/zwin0" },
     { pattern: /C--Users-zwin0/g, label: "Hardcoded encoded project key C--Users-zwin0" },
     { pattern: /\/Users\/hi\//g, label: "Hardcoded Mac Mini path /Users/hi/" },
+    { pattern: /\/home\/tron\//g, label: "Hardcoded devbox path /home/tron/" },
     { pattern: /100\.67\.236\.104/g, label: "Hardcoded Tailscale IP" },
     { pattern: /sorlen008@gmail/g, label: "Hardcoded email address" },
   ];

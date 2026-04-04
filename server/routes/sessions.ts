@@ -44,9 +44,11 @@ function ensureTrashDir(): void {
 }
 
 /** Move a session file to trash instead of deleting it. Returns the trash path. */
-function trashSession(filePath: string): string | null {
+async function trashSession(filePath: string): Promise<string | null> {
+  const safePath = await validateSafePath(filePath);
+  if (!safePath) return null;
   ensureTrashDir();
-  const basename = path.basename(filePath);
+  const basename = path.basename(safePath);
   // Add timestamp suffix to avoid collisions from concurrent deletes
   const trashPath = path.join(TRASH_DIR, `${basename}-${Date.now()}`).replace(/\\/g, "/");
   try {
@@ -742,14 +744,14 @@ router.post("/api/sessions/:id/summarize", async (req: Request, res: Response) =
 });
 
 /** DELETE /api/sessions/:id — Delete a single session (moves to trash) */
-router.delete("/api/sessions/:id", (req: Request, res: Response) => {
+router.delete("/api/sessions/:id", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
 
   const session = getCachedSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ message: "Session not found" });
 
-  const trashPath = trashSession(session.filePath);
+  const trashPath = await trashSession(session.filePath);
   if (!trashPath) return res.status(500).json({ message: "Failed to move to trash" });
 
   const snapshot = { ...session };
@@ -760,7 +762,7 @@ router.delete("/api/sessions/:id", (req: Request, res: Response) => {
 });
 
 /** DELETE /api/sessions — Bulk delete (moves to trash) */
-router.delete("/api/sessions", (req: Request, res: Response) => {
+router.delete("/api/sessions", async (req: Request, res: Response) => {
   const parsed = validate(IdsArraySchema, (req.body as { ids?: string[] })?.ids, res);
   if (!parsed) return;
 
@@ -771,7 +773,7 @@ router.delete("/api/sessions", (req: Request, res: Response) => {
   for (const id of parsed) {
     const session = getCachedSessions().find(s => s.id === id);
     if (!session) { failed.push(id); continue; }
-    const trashPath = trashSession(session.filePath);
+    const trashPath = await trashSession(session.filePath);
     if (trashPath) {
       batch.push({ id, trashPath, originalPath: session.filePath, sessionSnapshot: { ...session }, timestamp: Date.now() });
       removeCachedSession(id);
@@ -787,7 +789,7 @@ router.delete("/api/sessions", (req: Request, res: Response) => {
 });
 
 /** POST /api/sessions/delete-all — Delete all sessions (moves to trash), skips pinned */
-router.post("/api/sessions/delete-all", (_req: Request, res: Response) => {
+router.post("/api/sessions/delete-all", async (_req: Request, res: Response) => {
   const sessions = [...getCachedSessions()];
   if (sessions.length === 0) return res.json({ deleted: 0, skipped: 0, canUndo: false });
 
@@ -801,7 +803,7 @@ router.post("/api/sessions/delete-all", (_req: Request, res: Response) => {
       skipped++;
       continue;
     }
-    const trashPath = trashSession(session.filePath);
+    const trashPath = await trashSession(session.filePath);
     if (trashPath) {
       batch.push({ id: session.id, trashPath, originalPath: session.filePath, sessionSnapshot: { ...session }, timestamp: Date.now() });
       removeCachedSession(session.id);

@@ -11,7 +11,7 @@
 
 **Do not open a public issue for security vulnerabilities.**
 
-Please report vulnerabilities through [GitHub Security Advisories](https://github.com/sorlen008/claude-command-center/security/advisories/new).
+Please report vulnerabilities through [GitHub Security Advisories](https://github.com/tronbonjovi/claude-command-center/security/advisories/new).
 
 ### What qualifies as a security issue
 

@@ -83,6 +83,10 @@ export async function validateSafePath(filePath: string): Promise<string | null>
       }
       return real;
     } catch {
+      // File doesn't exist yet (e.g., write target for POST /api/markdown).
+      // Can't resolve symlinks for non-existent paths, but path.resolve() already
+      // normalized traversal sequences. The TOCTOU window (symlink created between
+      // validation and write) is acceptable for this local-only tool.
       return resolved;
     }
   } catch {

@@ -27,16 +27,6 @@ export const MCP_CATALOG: Record<string, MCPCatalogEntry> = {
     ],
     website: "https://context7.com",
   },
-  "findash": {
-    description: "Finance dashboard MCP with PostgreSQL database access",
-    category: "data",
-    capabilities: [
-      "Query financial overview and KPIs",
-      "Search transactions and spending by category",
-      "View accounts, assets, and portfolio data",
-      "Budget tracking and subscription management",
-    ],
-  },
   "21st-dev": {
     description: "AI-powered UI component builder using 21st.dev design system",
     category: "dev-tools",

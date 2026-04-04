@@ -75,9 +75,9 @@ export function delegateToTerminal(session: SessionData): DelegationResult {
     const sid = session.id.replace(/[^a-f0-9-]/gi, ""); // UUID chars only
     let child;
     if (plat === "win32") {
-      const winCwd = rawCwd.replace(/\//g, "\\");
-      child = spawn(`start "Claude" cmd /k "cd /d ${winCwd} && claude --resume ${sid}"`, [], {
-        detached: true, stdio: "ignore", shell: true, env: env as NodeJS.ProcessEnv,
+      const winCwd = cwd.replace(/\//g, "\\");
+      child = spawn("cmd", ["/c", "start", "Claude", "cmd", "/k", `cd /d "${winCwd}" && claude --resume ${sid}`], {
+        detached: true, stdio: "ignore", env: env as NodeJS.ProcessEnv,
       });
     } else if (plat === "darwin") {
       const safeCwd = cwd.replace(/'/g, "'\\''");
@@ -98,15 +98,28 @@ export function delegateToTerminal(session: SessionData): DelegationResult {
   }
 }
 
-/** Delegate to Telegram bot — POST to the bot's HTTP API */
+/** Delegate to Telegram bot — POST to the bot's HTTP API.
+ *  Configure via TELEGRAM_BOT_URL env var (default: disabled). */
 export async function delegateToTelegram(session: SessionData, task: string): Promise<DelegationResult> {
+  const botUrl = process.env.TELEGRAM_BOT_URL;
+  if (!botUrl) {
+    return { target: "telegram", status: "failed", message: "Telegram bot not configured. Set TELEGRAM_BOT_URL env var (e.g., http://127.0.0.1:5005)." };
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(botUrl);
+  } catch {
+    return { target: "telegram", status: "failed", message: `Invalid TELEGRAM_BOT_URL: ${botUrl}` };
+  }
+
   const contextPrompt = buildContextPrompt(session);
   const fullMessage = task ? `${task}\n\nContext:\n${contextPrompt.slice(0, 2000)}` : contextPrompt.slice(0, 3000);
 
   return new Promise((resolve) => {
     const postData = JSON.stringify({ message: fullMessage, session_id: session.id });
     const req = http.request({
-      hostname: "127.0.0.1", port: 5005, method: "POST", path: "/api/send",
+      hostname: parsedUrl.hostname, port: parseInt(parsedUrl.port) || 5005, method: "POST", path: "/api/send",
       headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(postData) },
       timeout: 5000,
     }, (res) => {
@@ -114,7 +127,7 @@ export async function delegateToTelegram(session: SessionData, task: string): Pr
       resolve({ target: "telegram", status: "dispatched", message: "Sent to Telegram bot", contextPrompt: fullMessage.slice(0, 500) });
     });
     req.on("error", () => {
-      resolve({ target: "telegram", status: "failed", message: "Telegram bot HTTP API not available on :5005" });
+      resolve({ target: "telegram", status: "failed", message: `Telegram bot HTTP API not available at ${botUrl}` });
     });
     req.on("timeout", () => { req.destroy(); resolve({ target: "telegram", status: "failed", message: "Telegram bot timed out" }); });
     req.write(postData);

@@ -56,7 +56,7 @@ chore: update dependencies
 
 ## Reporting bugs
 
-Open a [GitHub issue](https://github.com/sorlen008/claude-command-center/issues) with:
+Open a [GitHub issue](https://github.com/tronbonjovi/claude-command-center/issues) with:
 
 - Steps to reproduce
 - Expected vs. actual behavior

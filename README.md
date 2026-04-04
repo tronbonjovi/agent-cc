@@ -4,7 +4,7 @@
 
 **See everything Claude Code knows — projects, MCP servers, sessions, costs — in one dashboard.**
 
-[![CI](https://github.com/sorlen008/claude-command-center/actions/workflows/ci.yml/badge.svg)](https://github.com/sorlen008/claude-command-center/actions/workflows/ci.yml)
+[![CI](https://github.com/tronbonjovi/claude-command-center/actions/workflows/ci.yml/badge.svg)](https://github.com/tronbonjovi/claude-command-center/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript)](https://www.typescriptlang.org)
@@ -46,7 +46,7 @@ claude-command-center
 ### Option 2: From source
 
 ```bash
-git clone https://github.com/sorlen008/claude-command-center.git
+git clone https://github.com/tronbonjovi/claude-command-center.git
 cd claude-command-center
 npm install
 npm run dev
@@ -176,8 +176,8 @@ The sidebar shows update indicators. Or manually: `git pull && npm install && np
 ## Verifying Releases
 
 ```bash
-curl -LO https://github.com/sorlen008/claude-command-center/releases/download/vX.Y.Z/claude-command-center-vX.Y.Z.tar.gz
-curl -LO https://github.com/sorlen008/claude-command-center/releases/download/vX.Y.Z/checksums-vX.Y.Z.sha256
+curl -LO https://github.com/tronbonjovi/claude-command-center/releases/download/vX.Y.Z/claude-command-center-vX.Y.Z.tar.gz
+curl -LO https://github.com/tronbonjovi/claude-command-center/releases/download/vX.Y.Z/checksums-vX.Y.Z.sha256
 sha256sum -c checksums-vX.Y.Z.sha256
 ```
 

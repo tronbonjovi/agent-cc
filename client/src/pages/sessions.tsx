@@ -69,13 +69,13 @@ export default function Sessions() {
   const [projectFilter, setProjectFilter] = useState(urlParams.get("project") || "");
 
   const [sort, order] = sortKey.split(":") as [string, string];
-  const { data, isLoading } = useSessions({ q: search || undefined, sort, order, hideEmpty, activeOnly, project: projectFilter || undefined });
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const { data, isLoading } = useSessions({ q: debouncedSearch || undefined, sort, order, hideEmpty, activeOnly, project: projectFilter || undefined });
   const expandedDetail = useSessionDetail(expanded || undefined);
   const deleteSession = useDeleteSession();
   const bulkDelete = useBulkDeleteSessions();
   const deleteAll = useDeleteAllSessions();
   const undoDelete = useUndoDeleteSessions();
-  const debouncedSearch = useDebouncedValue(search, 300);
   const deepSearchQuery = useDeepSearch({ q: searchMode === "deep" ? debouncedSearch : undefined, project: projectFilter || undefined });
   const summarizeSession = useSummarizeSession();
   const summarizeBatch = useSummarizeBatch();

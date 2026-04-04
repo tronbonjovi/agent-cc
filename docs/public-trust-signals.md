@@ -73,8 +73,8 @@ All dependencies are well-known packages with millions of weekly downloads.
 
 ```bash
 # Download the release tarball and checksums (replace version as needed)
-curl -LO https://github.com/sorlen008/claude-command-center/releases/download/v1.0.0/claude-command-center-v1.0.0.tar.gz
-curl -LO https://github.com/sorlen008/claude-command-center/releases/download/v1.0.0/checksums-v1.0.0.sha256
+curl -LO https://github.com/tronbonjovi/claude-command-center/releases/download/v1.0.0/claude-command-center-v1.0.0.tar.gz
+curl -LO https://github.com/tronbonjovi/claude-command-center/releases/download/v1.0.0/checksums-v1.0.0.sha256
 
 # Verify
 sha256sum -c checksums-v1.0.0.sha256

@@ -31,7 +31,7 @@ npm update -g claude-command-center
 ## Install from source
 
 ```bash
-git clone https://github.com/sorlen008/claude-command-center.git
+git clone https://github.com/tronbonjovi/claude-command-center.git
 cd claude-command-center
 npm install
 npm run dev
