@@ -151,12 +151,13 @@ interface MemoryHealth {
 function analyzeMemoryHealth(files: any[], homeDir: string | null): MemoryHealth {
   const memFiles = files.filter(f => f.data.category === "memory");
   const claudeMdFiles = files.filter(f => f.data.category === "claude-md");
-  const memoryMd = memFiles.find(f => f.name === "MEMORY.md");
-  const memoryOther = memFiles.filter(f => f !== memoryMd);
+  const memoryMdFiles = memFiles.filter(f => f.name === "MEMORY.md");
+  const memoryOther = memFiles.filter(f => f.name !== "MEMORY.md");
 
   const noFrontmatter = memoryOther.filter(f => !f.data.frontmatter).map(f => ({ name: f.name, path: makeRelativePath(f.path, homeDir) }));
+  const memoryMd = memoryMdFiles[0]; // primary MEMORY.md for stats
   const memoryMdLines = memoryMd?.data.lineCount || 0;
-  const memoryMdMissing = !memoryMd;
+  const memoryMdMissing = memoryMdFiles.length === 0;
   const overSized = memoryOther.filter(f => (f.data.lineCount || 0) > 150).map(f => ({ name: f.name, lines: f.data.lineCount || 0 }));
   const staleFiles = memoryOther.filter(f => {
     if (!f.lastModified) return false;

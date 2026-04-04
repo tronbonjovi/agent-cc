@@ -368,6 +368,7 @@ export interface UpdateStatus {
   hasGitRemote: boolean;
   updateInProgress: boolean;
   error: string | null;
+  remote?: string;
 }
 
 export interface UpdateApplyResult {

@@ -224,6 +224,11 @@ export function UpdateIndicator({ collapsed }: { collapsed: boolean }) {
               No git remote configured.
             </div>
           )}
+          {status?.remote && (
+            <div className="text-[10px] text-muted-foreground/50 font-mono">
+              remote: {status.remote}
+            </div>
+          )}
 
           {!status?.lastCheckedAt && !isChecking && status?.hasGitRemote !== false && (
             <div className="text-[11px] text-muted-foreground">

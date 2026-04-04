@@ -20,6 +20,16 @@ const PROJECT_ROOT = path.resolve(
 let cachedStatus: UpdateStatus | null = null;
 let updateInProgress = false;
 
+/** Detect which remote to check for updates: prefer "upstream" (fork workflow), fall back to "origin" */
+function detectUpdateRemote(): string {
+  try {
+    git("git remote get-url upstream");
+    return "upstream";
+  } catch {
+    return "origin";
+  }
+}
+
 // Preferences file
 const PREFS_PATH = path.join(PROJECT_ROOT, ".update-prefs.json");
 
@@ -61,21 +71,21 @@ function getCurrentCommit(): string {
   }
 }
 
-function detectRemoteBranch(): string {
+function detectRemoteBranch(remote = "origin"): string {
   try {
-    const ref = git("git symbolic-ref refs/remotes/origin/HEAD");
+    const ref = git(`git symbolic-ref refs/remotes/${remote}/HEAD`);
     return ref.replace("refs/remotes/", "");
   } catch {
-    // Fallback: try origin/main, then origin/master
+    // Fallback: try remote/main, then remote/master
     try {
-      git("git rev-parse origin/main");
-      return "origin/main";
+      git(`git rev-parse ${remote}/main`);
+      return `${remote}/main`;
     } catch {
       try {
-        git("git rev-parse origin/master");
-        return "origin/master";
+        git(`git rev-parse ${remote}/master`);
+        return `${remote}/master`;
       } catch {
-        return "origin/main";
+        return `${remote}/main`;
       }
     }
   }
@@ -107,6 +117,7 @@ router.get("/api/update/status", (_req: Request, res: Response) => {
     hasGitRemote: true,
     updateInProgress,
     error: null,
+    remote: detectUpdateRemote(),
     prefs,
   });
 });
@@ -149,9 +160,12 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
   }
 
   try {
+    // Detect remote: prefer "upstream" for fork workflow, fall back to "origin"
+    const remote = detectUpdateRemote();
+
     // Check for git remote
     try {
-      git("git remote get-url origin");
+      git(`git remote get-url ${remote}`);
     } catch {
       cachedStatus = {
         updateAvailable: false,
@@ -170,7 +184,7 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
 
     // Fetch latest from remote
     try {
-      git("git fetch origin --quiet", 30000);
+      git(`git fetch ${remote} --quiet`, 30000);
     } catch (e: any) {
       // Network error — return cached + error
       const fallback: UpdateStatus = {
@@ -188,7 +202,7 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
       return;
     }
 
-    const remoteBranch = detectRemoteBranch();
+    const remoteBranch = detectRemoteBranch(remote);
     const currentCommit = git("git rev-parse --short HEAD");
     const latestCommit = git(`git rev-parse --short ${remoteBranch}`);
     const currentFull = git("git rev-parse HEAD");
@@ -207,6 +221,7 @@ router.post("/api/update/check", (_req: Request, res: Response) => {
       hasGitRemote: true,
       updateInProgress,
       error: null,
+      remote,
     };
 
     res.json({ ...cachedStatus, prefs });
@@ -273,9 +288,10 @@ router.post("/api/update/apply", (_req: Request, res: Response) => {
       runStep("npm update", "npm update -g claude-command-center", 120000);
     } else {
       // git clone — update via git pull + rebuild
-      const remoteBranch = detectRemoteBranch();
-      const branch = remoteBranch.replace("origin/", "");
-      runStep("git pull", `git pull origin ${branch}`, 30000);
+      const remote = detectUpdateRemote();
+      const remoteBranch = detectRemoteBranch(remote);
+      const branch = remoteBranch.replace(`${remote}/`, "");
+      runStep("git pull", `git pull ${remote} ${branch}`, 30000);
       runStep("npm install", "npm install", 120000);
       runStep("npm run build", "npm run build", 120000);
     }

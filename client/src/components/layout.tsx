@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScanStatus } from "@/hooks/use-entities";
-import { useAppSettings, useUpdateSettings } from "@/hooks/use-settings";
+import { useAppSettings } from "@/hooks/use-settings";
 import { SearchTrigger } from "@/components/global-search";
 import { SyncIndicator } from "@/components/sync-indicator";
 import { UpdateIndicator } from "@/components/update-indicator";
@@ -31,7 +31,7 @@ import {
   Globe,
   Sparkles,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 const navSections = [
   {
@@ -71,28 +71,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { data: status } = useScanStatus();
   const { data: settings } = useAppSettings();
-  const updateSettings = useUpdateSettings();
   const [collapsed, setCollapsed] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [editName, setEditName] = useState("");
-  const nameInputRef = useRef<HTMLInputElement>(null);
   const counts = (status?.entityCounts || {}) as Record<string, number>;
   const isScanning = status?.scanning;
   const appName = settings?.appName || "Command Center";
-
-  const startEditing = () => {
-    setEditName(appName);
-    setEditingName(true);
-    setTimeout(() => nameInputRef.current?.select(), 0);
-  };
-
-  const saveName = () => {
-    const trimmed = editName.trim();
-    if (trimmed && trimmed !== appName) {
-      updateSettings.mutate({ appName: trimmed });
-    }
-    setEditingName(false);
-  };
 
   // Keyboard shortcut for collapse
   useEffect(() => {
@@ -128,28 +110,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Terminal className="h-4 w-4 text-white" />
           </div>
           {!collapsed && (
-            editingName ? (
-              <input
-                ref={nameInputRef}
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onBlur={saveName}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveName();
-                  if (e.key === "Escape") setEditingName(false);
-                }}
-                maxLength={50}
-                className="font-semibold text-sm bg-transparent border-b border-blue-500 outline-none flex-1 min-w-0"
-              />
-            ) : (
-              <span
-                className="font-semibold text-sm whitespace-nowrap flex-1 cursor-pointer hover:text-blue-400 transition-colors"
-                onClick={startEditing}
-                title="Click to rename"
-              >
-                {appName}
-              </span>
-            )
+            <span className="font-semibold text-sm whitespace-nowrap flex-1">
+              {appName}
+            </span>
           )}
         </div>
         <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />

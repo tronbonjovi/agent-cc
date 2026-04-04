@@ -12,8 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ghost project deduplication** — projects discovered via filesystem and session key fallback are now deduplicated by encoded key, preferring paths that exist on disk
 - **Container directory filtering** — extra scan paths that are containers (e.g. `~/dev/projects`) are no longer treated as projects themselves
 - **Docker project discovery** — added `EXTRA_PROJECT_DIRS` env var so the scanner can find host project directories mounted into the container
+- **Dashboard API count mismatch** — removed `config` entity from dashboard stat cards (was mislabeled as "API", showing 1 while the APIs page showed 0). Config entities now correctly labeled "Config" and route to Settings
+- **Editable app name** — removed click-to-rename on the sidebar app name; it's now a static display
+- **MEMORY.md frontmatter false positives** — all MEMORY.md index files are now excluded from frontmatter checks, not just the first one found. Fixes false "missing frontmatter" warnings for multi-project setups
+- **Update system fork support** — update checker now prefers `upstream` remote over `origin`, so forked repos check the source project for updates instead of their own fork. UI shows which remote is being used
 
 ### Changed
+- Dashboard stat cards grid reduced from 6 to 5 columns (config removed)
+- Dashboard "entities across N types" now counts displayed types, not all entity types
 - 1609 tests across 18 test files, all passing (up from 1595)
 
 ## [1.22.0] - 2026-04-04

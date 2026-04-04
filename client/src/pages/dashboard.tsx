@@ -18,7 +18,7 @@ import { useLiveData } from "@/hooks/use-agents";
 import type { EntityType } from "@shared/types";
 import { formatBytes, relativeTime } from "@/lib/utils";
 
-const entityTypes: EntityType[] = ["project", "mcp", "skill", "plugin", "markdown", "config"];
+const entityTypes: EntityType[] = ["project", "mcp", "skill", "plugin", "markdown"];
 
 const quickActions = [
   { label: "View Graph", description: "Explore entity relationships", icon: GitBranch, path: "/graph", color: "text-indigo-400", bg: "bg-indigo-500/10" },
@@ -58,7 +58,7 @@ export default function Dashboard() {
     skill: "border-l-orange-500 shadow-[inset_4px_0_8px_-4px_rgba(249,115,22,0.15)]",
     plugin: "border-l-purple-500 shadow-[inset_4px_0_8px_-4px_rgba(168,85,247,0.15)]",
     markdown: "border-l-slate-500 shadow-[inset_4px_0_8px_-4px_rgba(100,116,139,0.15)]",
-    config: "border-l-teal-500 shadow-[inset_4px_0_8px_-4px_rgba(20,184,166,0.15)]",
+    config: "border-l-teal-500 shadow-[inset_4px_0_8px_-4px_rgba(20,184,166,0.15)]",  // kept for Recent Changes list
   };
 
   return (
@@ -69,7 +69,7 @@ export default function Dashboard() {
           <div>
             <h1 className="text-2xl font-bold text-gradient">Dashboard</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {status?.totalEntities || 0} entities across {Object.keys(counts).length} types
+              {status?.totalEntities || 0} entities across {entityTypes.length} types
             </p>
           </div>
 
@@ -118,13 +118,13 @@ export default function Dashboard() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {entityTypes.map((type, i) => (
           <div key={type} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
             <StatCard
               type={type}
               count={counts[type] || 0}
-              onClick={() => setLocation(type === "markdown" ? "/markdown" : type === "config" ? "/apis" : `/${type}s`)}
+              onClick={() => setLocation(type === "markdown" ? "/markdown" : `/${type}s`)}
             />
           </div>
         ))}
@@ -327,7 +327,7 @@ export default function Dashboard() {
                     else if (entity.type === "mcp") setLocation(`/mcps`);
                     else if (entity.type === "skill") setLocation(`/skills`);
                     else if (entity.type === "plugin") setLocation(`/plugins`);
-                    else if (entity.type === "config") setLocation(`/apis`);
+                    else if (entity.type === "config") setLocation(`/settings`);
                   }}
                 >
                   <EntityIcon type={entity.type} className="h-4 w-4 flex-shrink-0" />
