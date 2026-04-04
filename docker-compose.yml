@@ -1,0 +1,18 @@
+services:
+  command-center:
+    build: .
+    ports:
+      - "5100:5100"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5100
+      - COMMAND_CENTER_DATA=/data
+      # On Docker Desktop for Mac/Windows, uncomment to enable file polling:
+      # - CHOKIDAR_USEPOLLING=1
+    volumes:
+      - ~/.claude:/home/node/.claude:ro
+      - command-center-data:/data
+    restart: unless-stopped
+
+volumes:
+  command-center-data:

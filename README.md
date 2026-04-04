@@ -43,7 +43,15 @@ npm install -g claude-command-center
 claude-command-center
 ```
 
-### Option 2: From source
+### Option 2: Docker
+
+```bash
+git clone https://github.com/tronbonjovi/claude-command-center.git
+cd claude-command-center
+docker compose up -d --build
+```
+
+### Option 3: From source
 
 ```bash
 git clone https://github.com/tronbonjovi/claude-command-center.git
