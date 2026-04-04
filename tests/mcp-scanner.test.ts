@@ -138,7 +138,7 @@ describe("extractDbNodesFromMcps", () => {
     const entity = makeMcpEntity("mcp8", {
       NODE_ENV: "production",
       LOG_LEVEL: "debug",
-      API_KEY: "sk-12345",
+      API_KEY: "test-fake-key-value",
     });
     const result = extractDbNodesFromMcps([entity]);
 

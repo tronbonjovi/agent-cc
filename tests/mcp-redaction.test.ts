@@ -106,7 +106,7 @@ describe("full redaction pipeline", () => {
     const env = {
       DATABASE_URL: "postgres://admin:secret@db:5432/app",
       NODE_ENV: "production",
-      API_KEY: "sk-12345",
+      API_KEY: "test-fake-key-value",
       KEYBOARD_LAYOUT: "us",
       PORT: "3000",
     };
