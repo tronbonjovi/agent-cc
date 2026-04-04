@@ -24,10 +24,11 @@ Package Claude Command Center as a Docker image so it can run as a service in a 
 
 **Stage 2 — Runtime:**
 - Base: `node:22-alpine` (fresh)
-- Copy from stage 1: `dist/`, `shared/`, `package.json`, `package-lock.json`
+- Copy from stage 1: `dist/`, `package.json`, `package-lock.json`
 - `npm ci --omit=dev` (production deps only: express, chokidar, gray-matter, zod)
 - Set `NODE_ENV=production`
 - Expose port `5100`
+- Create `/data` directory with `node` ownership (for named volume writes)
 - Run as non-root `node` user (built into Alpine Node image)
 - Entrypoint: `node dist/index.cjs`
 

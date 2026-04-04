@@ -69,10 +69,11 @@ FROM node:22-alpine
 WORKDIR /app
 
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/shared ./shared
 COPY package.json package-lock.json ./
 
 RUN npm ci --omit=dev
+
+RUN mkdir -p /data && chown node:node /data
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
@@ -132,6 +133,8 @@ services:
       - ~/.claude:/home/node/.claude:ro
       - command-center-data:/data
     restart: unless-stopped
+    # On Docker Desktop for Mac/Windows, uncomment to enable file polling:
+    # - CHOKIDAR_USEPOLLING=1
 
 volumes:
   command-center-data:
