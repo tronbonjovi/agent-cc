@@ -3,7 +3,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import fs from "fs";
 import path from "path";
-import { qstr, validate, validateMarkdownPath, validateSafePath } from "./validation";
+import { qstr, validate, validateSafePath } from "./validation";
 import { validateClaudeMd } from "../scanner/claudemd-validator";
 
 const MarkdownContentSchema = z.object({
