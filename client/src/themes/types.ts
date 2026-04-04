@@ -1,3 +1,15 @@
+export type BorderRadius = "sharp" | "medium" | "soft";
+export type CardElevation = "flat" | "shadow" | "glow";
+export type AnimationScale = "minimal" | "full";
+
+export interface ThemeAesthetic {
+  glowIntensity: number;        // 0 (no glow) to 1 (full neon)
+  borderRadius: BorderRadius;   // sharp=3px, medium=8px, soft=12px
+  cardElevation: CardElevation; // flat=border only, shadow=box-shadow, glow=colored glow
+  gradientMeshOpacity: number;  // 0 to 0.1 — #root::before mesh opacity
+  animationScale: AnimationScale; // minimal=reduced decorative, full=current cyberpunk
+}
+
 export interface ThemeDefinition {
   id: string;
   name: string;
@@ -5,6 +17,7 @@ export interface ThemeDefinition {
   variant: "light" | "dark";
   author?: string;
   fonts?: ThemeFonts;
+  aesthetic: ThemeAesthetic;
   colors: ThemeColors;
 }
 

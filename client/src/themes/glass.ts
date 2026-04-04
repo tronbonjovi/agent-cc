@@ -6,6 +6,13 @@ export const glass: ThemeDefinition = {
   name: "Glass",
   description: "Dark glassmorphism with enhanced glow effects",
   variant: "dark",
+  aesthetic: {
+    glowIntensity: 0.8,
+    borderRadius: "medium",
+    cardElevation: "glow",
+    gradientMeshOpacity: 0.06,
+    animationScale: "full",
+  },
   colors: {
     background: "222 47% 8%",
     foreground: "210 40% 96%",
