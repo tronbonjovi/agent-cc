@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-04-04
+
+### Added
+- **Docker support** — multi-stage Dockerfile (node:22-alpine) and docker-compose.yml for homelab deployment
+- Bind mount `~/.claude` read-only for live session data access in container
+- Named volume for persistent app settings across container rebuilds
+- Non-root container execution (runs as `node` user)
+- `.dockerignore` for efficient build context
+- Docker quick start in README
+
+### Changed
+- Phase 2 (harden) completed — path traversal protection, MCP secret redaction, per-page error boundaries, deep search UX
+- 1595+ tests across 18 test files, all passing
+
 ## [1.16.1] - 2026-03-18
 
 ### Added

@@ -6,7 +6,7 @@
 npm install
 npm run dev        # starts on http://localhost:5100
 npm run check      # TypeScript type-check
-npm test           # run all tests (132+ tests)
+npm test           # run all tests (1595+ tests)
 ```
 
 ## Architecture
@@ -42,6 +42,7 @@ npm run dev          # dev server with hot reload
 npm run check        # TypeScript type-check (must pass before commit)
 npm test             # all tests including new-user-safety checks
 npm run build        # production build
+docker compose up -d --build  # run in Docker
 ```
 
 ## Commit Format
