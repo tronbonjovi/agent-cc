@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useContextLoader, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useNLQuery, useContinuations, useDecisions, useExtractDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useDelegate } from "@/hooks/use-sessions";
+import { useDebouncedValue } from "@/hooks/use-debounce";
 import { useAppSettings } from "@/hooks/use-settings";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,7 +75,8 @@ export default function Sessions() {
   const bulkDelete = useBulkDeleteSessions();
   const deleteAll = useDeleteAllSessions();
   const undoDelete = useUndoDeleteSessions();
-  const deepSearchQuery = useDeepSearch({ q: searchMode === "deep" ? search : undefined, project: projectFilter || undefined });
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const deepSearchQuery = useDeepSearch({ q: searchMode === "deep" ? debouncedSearch : undefined, project: projectFilter || undefined });
   const summarizeSession = useSummarizeSession();
   const summarizeBatch = useSummarizeBatch();
   const togglePin = useTogglePin();
@@ -330,38 +332,50 @@ export default function Sessions() {
       )}
 
       {/* Session list / Deep search results */}
-      {searchMode === "deep" && search.length >= 2 ? (
+      {searchMode === "deep" && debouncedSearch && debouncedSearch.length >= 2 ? (
         // Deep search mode
-        deepSearchQuery.isLoading ? (
-          <div className="flex items-center gap-3 justify-center py-12 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Searching through session content...</span>
-          </div>
-        ) : deepSearchQuery.data && deepSearchQuery.data.results.length > 0 ? (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
-              <Zap className="h-3.5 w-3.5 text-purple-400" />
-              {deepSearchQuery.data.totalMatches} matches across {deepSearchQuery.data.results.length} sessions
-              ({deepSearchQuery.data.searchedSessions} searched in {deepSearchQuery.data.durationMs}ms)
+        <>
+          {deepSearchQuery.isLoading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-blue-500" />
+              <span className="ml-3 text-sm text-muted-foreground">Searching sessions...</span>
             </div>
-            {deepSearchQuery.data.results.map((match, i) => (
-              <DeepSearchCard
-                key={match.sessionId}
-                match={match}
-                index={i}
-                searchQuery={search}
-                isExpanded={expanded === match.sessionId}
-                onToggleExpand={(id) => setExpanded(expanded === id ? null : id)}
-                onCopyResume={handleCopyResume}
-                copiedId={copiedId}
-                onSummarize={(id) => summarizeSession.mutate(id)}
-                isSummarizing={summarizeSession.isPending}
-              />
-            ))}
-          </div>
-        ) : search.length >= 2 ? (
-          <EmptyState icon={Search} title="No matches found" description="Try different search terms or switch to Titles mode" />
-        ) : null
+          )}
+          {deepSearchQuery.isError && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+              Search failed: {deepSearchQuery.error instanceof Error ? deepSearchQuery.error.message : "Unknown error"}
+            </div>
+          )}
+          {deepSearchQuery.data && deepSearchQuery.data.results.length === 0 && !deepSearchQuery.isLoading && (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <p className="text-sm">No results found for &quot;{debouncedSearch}&quot;</p>
+              <p className="text-xs mt-1">Searched {deepSearchQuery.data.searchedSessions} of {deepSearchQuery.data.totalSessions} sessions</p>
+            </div>
+          )}
+          {deepSearchQuery.data && deepSearchQuery.data.results.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+                <Zap className="h-3.5 w-3.5 text-purple-400" />
+                {deepSearchQuery.data.totalMatches} matches across {deepSearchQuery.data.results.length} sessions
+                ({deepSearchQuery.data.searchedSessions} searched in {deepSearchQuery.data.durationMs}ms)
+              </div>
+              {deepSearchQuery.data.results.map((match, i) => (
+                <DeepSearchCard
+                  key={match.sessionId}
+                  match={match}
+                  index={i}
+                  searchQuery={debouncedSearch}
+                  isExpanded={expanded === match.sessionId}
+                  onToggleExpand={(id) => setExpanded(expanded === id ? null : id)}
+                  onCopyResume={handleCopyResume}
+                  copiedId={copiedId}
+                  onSummarize={(id) => summarizeSession.mutate(id)}
+                  isSummarizing={summarizeSession.isPending}
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : isLoading ? (
         <ListSkeleton rows={6} />
       ) : sessions.length === 0 ? (
