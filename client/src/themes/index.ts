@@ -3,6 +3,7 @@ import { dark } from "./dark";
 import { light } from "./light";
 import { glass } from "./glass";
 import { anthropic } from "./anthropic";
+import { anthropicDark } from "./anthropic-dark";
 import { catppuccinMocha } from "./catppuccin-mocha";
 import { nord } from "./nord";
 import { dracula } from "./dracula";
@@ -21,6 +22,7 @@ export const themes: ThemeDefinition[] = [
   light,
   glass,
   anthropic,
+  anthropicDark,
   catppuccinMocha,
   nord,
   dracula,

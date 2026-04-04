@@ -343,6 +343,12 @@ pre code {
   height: 1px;
   background: linear-gradient(90deg, var(--glow-blue), var(--glow-purple), transparent);
 }
+:root[data-animation="minimal"] .status-panel {
+  background: hsl(var(--card));
+}
+:root[data-animation="minimal"] .status-panel::before {
+  background: hsl(var(--border));
+}
 
 /* Section header — thin gradient underline */
 .section-header {
@@ -358,13 +364,23 @@ pre code {
   height: 1px;
   background: linear-gradient(90deg, var(--glow-blue), transparent);
 }
+:root[data-animation="minimal"] .section-header::after {
+  background: hsl(var(--border));
+}
 
-/* Gradient text clip */
+/* Gradient text clip — disabled for minimal-animation themes */
 .text-gradient {
   background: linear-gradient(135deg, hsl(var(--foreground)), hsl(var(--primary) / 0.8));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+:root[data-animation="minimal"] .text-gradient {
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: unset;
+  background-clip: unset;
+  color: hsl(var(--foreground));
 }
 
 /* Mood player animations */
