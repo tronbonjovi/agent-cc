@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Project key decoding** — added `encodeProjectKey()` for deterministic path-to-key matching, replacing lossy `decodeProjectKey()` in all comparison callsites. Fixes ghost project entries, broken entity linking, and missing session data for hyphenated project names (e.g. "claude-command-center" was showing as "Center")
+- **Ghost project deduplication** — projects discovered via filesystem and session key fallback are now deduplicated by encoded key, preferring paths that exist on disk
+- **Container directory filtering** — extra scan paths that are containers (e.g. `~/dev/projects`) are no longer treated as projects themselves
+- **Docker project discovery** — added `EXTRA_PROJECT_DIRS` env var so the scanner can find host project directories mounted into the container
+
+### Changed
+- 1609 tests across 18 test files, all passing (up from 1595)
+
 ## [1.22.0] - 2026-04-04
 
 ### Added
