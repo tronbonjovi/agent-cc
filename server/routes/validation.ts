@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Response } from "express";
 import path from "path";
 import os from "os";
+import fs from "fs";
 
 // --- Zod Schemas ---
 
@@ -57,6 +58,36 @@ export function validateMarkdownPath(filePath: string): string | null {
     return null;
   }
   return resolved;
+}
+
+/** Validate a file path is safe to access. Resolves symlinks with realpath.
+ *  Returns resolved path if under home or /tmp, null otherwise. */
+export async function validateSafePath(filePath: string): Promise<string | null> {
+  if (!filePath || filePath.includes("\0")) return null;
+
+  try {
+    const resolved = path.resolve(filePath);
+    const home = os.homedir();
+    const tmp = os.tmpdir();
+
+    if (!resolved.startsWith(home + path.sep) && resolved !== home &&
+        !resolved.startsWith(tmp + path.sep) && resolved !== tmp) {
+      return null;
+    }
+
+    try {
+      const real = await fs.promises.realpath(filePath);
+      if (!real.startsWith(home + path.sep) && real !== home &&
+          !real.startsWith(tmp + path.sep) && real !== tmp) {
+        return null;
+      }
+      return real;
+    } catch {
+      return resolved;
+    }
+  } catch {
+    return null;
+  }
 }
 
 /** Validate a request body/query against a Zod schema. Returns parsed data or sends 400. */
