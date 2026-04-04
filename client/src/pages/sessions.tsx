@@ -350,6 +350,7 @@ export default function Sessions() {
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <p className="text-sm">No results found for &quot;{debouncedSearch}&quot;</p>
               <p className="text-xs mt-1">Searched {deepSearchQuery.data.searchedSessions} of {deepSearchQuery.data.totalSessions} sessions</p>
+              <p className="text-xs mt-2 opacity-70">Try different terms or switch to Titles mode</p>
             </div>
           )}
           {deepSearchQuery.data && deepSearchQuery.data.results.length > 0 && (
