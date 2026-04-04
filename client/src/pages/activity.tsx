@@ -164,10 +164,10 @@ const suggestedSearches = [
 ];
 
 const categoryColors: Record<string, string> = {
-  mcp: "border-green-500/30 text-green-400 bg-green-500/5",
-  plugin: "border-purple-500/30 text-purple-400 bg-purple-500/5",
-  skill: "border-orange-500/30 text-orange-400 bg-orange-500/5",
-  other: "border-slate-500/30 text-slate-400 bg-slate-500/5",
+  mcp: "border-entity-mcp/30 text-entity-mcp bg-entity-mcp/5",
+  plugin: "border-entity-plugin/30 text-entity-plugin bg-entity-plugin/5",
+  skill: "border-entity-skill/30 text-entity-skill bg-entity-skill/5",
+  other: "border-entity-markdown/30 text-entity-markdown bg-entity-markdown/5",
 };
 
 const languageColors: Record<string, string> = {

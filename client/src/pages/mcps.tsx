@@ -91,8 +91,8 @@ export default function MCPs() {
         <CardContent className="p-5">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
-              <div className="rounded-lg bg-green-500/10 p-2 mt-0.5 relative group-hover:shadow-[0_0_12px_rgba(34,197,94,0.15)]  transition-shadow">
-                <Server className="h-5 w-5 text-green-400" />
+              <div className="rounded-lg bg-entity-mcp/10 p-2 mt-0.5 relative group-hover:shadow-[0_0_12px_var(--glow-green)]  transition-shadow">
+                <Server className="h-5 w-5 text-entity-mcp" />
                 <span
                   className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${
                     data.transport === "stdio" ? "bg-green-500 pulse-ring" : "bg-amber-500"
@@ -182,7 +182,7 @@ export default function MCPs() {
               <ul className="mt-1.5 space-y-1">
                 {data.capabilities.map((cap: string, idx: number) => (
                   <li key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                    <span className="text-green-400 mt-0.5">-</span>
+                    <span className="text-entity-mcp mt-0.5">-</span>
                     {cap}
                   </li>
                 ))}

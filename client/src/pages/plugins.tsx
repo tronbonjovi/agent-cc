@@ -100,8 +100,8 @@ export default function Plugins() {
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
-                          <div className="rounded-lg bg-purple-500/10 p-2.5 mt-0.5">
-                            <Store className="h-5 w-5 text-purple-400" />
+                          <div className="rounded-lg bg-entity-plugin/10 p-2.5 mt-0.5">
+                            <Store className="h-5 w-5 text-entity-plugin" />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
@@ -178,15 +178,15 @@ export default function Plugins() {
                             <CardContent className="p-4">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                  <div className="rounded-md bg-purple-500/10 p-1.5">
-                                    <Puzzle className="h-4 w-4 text-purple-400" />
+                                  <div className="rounded-md bg-entity-plugin/10 p-1.5">
+                                    <Puzzle className="h-4 w-4 text-entity-plugin" />
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-2">
                                       <span className="font-medium">{plugin.name}</span>
                                       <HealthIndicator health={plugin.health} />
                                       {data.hasMCP && (
-                                        <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-400 gap-0.5">
+                                        <Badge variant="outline" className="text-[10px] border-entity-mcp/30 text-entity-mcp gap-0.5">
                                           <Server className="h-2.5 w-2.5" /> MCP
                                         </Badge>
                                       )}

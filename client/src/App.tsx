@@ -9,7 +9,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { GlobalSearch } from "@/components/global-search";
 import { useAppSettings } from "@/hooks/use-settings";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
-import { useTheme } from "@/hooks/use-theme";
+import { ThemeProvider } from "@/hooks/use-theme";
 // OnboardingWizard disabled — will be rewritten later
 // import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { KeyboardShortcutsOverlay } from "@/components/keyboard-shortcuts";
@@ -51,7 +51,6 @@ function DynamicTitle() {
 
 function Router() {
   useKeyboardShortcuts();
-  useTheme();
   return (
     <Layout>
       <DynamicTitle />
@@ -124,12 +123,14 @@ function Router() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Router />
-        <GlobalSearch />
-        <KeyboardShortcutsOverlay />
-        <Toaster richColors position="bottom-right" />
-      </TooltipProvider>
+      <ThemeProvider>
+        <TooltipProvider>
+          <Router />
+          <GlobalSearch />
+          <KeyboardShortcutsOverlay />
+          <Toaster richColors position="bottom-right" />
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

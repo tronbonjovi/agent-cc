@@ -236,7 +236,7 @@ export default function MarkdownEdit() {
 
       {/* Skill frontmatter */}
       {fm && file.data.category === "skill" && (
-        <div className="rounded-lg border border-orange-500/20 bg-orange-500/5 px-4 py-2 text-xs space-y-0.5">
+        <div className="rounded-lg border border-entity-skill/20 bg-entity-skill/5 px-4 py-2 text-xs space-y-0.5">
           {typeof fm.description === "string" && <div><span className="text-muted-foreground">Description:</span> {fm.description}</div>}
           {typeof fm["allowed-tools"] === "string" && <div><span className="text-muted-foreground">Tools:</span> {fm["allowed-tools"]}</div>}
           {typeof fm.model === "string" && <div><span className="text-muted-foreground">Model:</span> {fm.model}</div>}

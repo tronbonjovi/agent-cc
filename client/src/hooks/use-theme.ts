@@ -1,81 +1,119 @@
-import { useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, createElement, type ReactNode } from "react";
+import { themes, themeMap, buildThemeCSS, type ThemeDefinition } from "@/themes";
 
 const STORAGE_KEY = "cc-theme";
-const THEMES = ["dark", "light", "glass", "system"] as const;
-export type Theme = (typeof THEMES)[number];
+const STYLE_ID = "cc-theme-variables";
+const DEFAULT_THEME = "dark";
 
-function getSystemTheme(): "dark" | "light" {
+export type ThemeId = string;
+
+interface ThemeContextValue {
+  theme: ThemeId;
+  setTheme: (id: ThemeId) => void;
+  themes: ThemeDefinition[];
+  resolvedTheme: ThemeDefinition;
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+function getSystemVariant(): "dark" | "light" {
   if (typeof window === "undefined") return "dark";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function getStoredTheme(): Theme {
+function resolveSystemTheme(): ThemeDefinition {
+  const variant = getSystemVariant();
+  return themes.find((t) => t.variant === variant) ?? themes[0];
+}
+
+function getStoredTheme(): ThemeId {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored && THEMES.includes(stored as Theme)) {
-      return stored as Theme;
+    if (stored && (stored === "system" || themeMap.has(stored))) {
+      return stored;
     }
   } catch {
     // localStorage unavailable
   }
-  return "dark";
+  return DEFAULT_THEME;
 }
 
-function resolveTheme(theme: Theme): "dark" | "light" | "glass" {
-  if (theme === "system") {
-    return getSystemTheme();
-  }
-  return theme;
+function resolveTheme(themeId: ThemeId): ThemeDefinition {
+  if (themeId === "system") return resolveSystemTheme();
+  return themeMap.get(themeId) ?? themes[0];
 }
 
-function applyTheme(theme: Theme) {
-  const resolved = resolveTheme(theme);
+function ensureThemeStyleSheet() {
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = buildThemeCSS();
+  document.head.appendChild(style);
+}
+
+function applyTheme(themeId: ThemeId) {
+  ensureThemeStyleSheet();
+  const resolved = resolveTheme(themeId);
   const root = document.documentElement;
 
-  // Set data-theme attribute
-  root.setAttribute("data-theme", resolved);
+  root.setAttribute("data-theme", resolved.id);
+  root.setAttribute("data-variant", resolved.variant);
 
-  // Manage the .dark class for tailwind darkMode: ["class"] compatibility
-  if (resolved === "dark" || resolved === "glass") {
+  if (resolved.variant === "dark") {
     root.classList.add("dark");
+    root.classList.remove("light");
   } else {
     root.classList.remove("dark");
+    root.classList.add("light");
   }
 }
 
-export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(getStoredTheme);
+// Provider component — wrap the app with this once
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [themeId, setThemeIdState] = useState<ThemeId>(getStoredTheme);
 
-  const setTheme = useCallback((newTheme: Theme) => {
-    setThemeState(newTheme);
+  const setTheme = useCallback((newThemeId: ThemeId) => {
+    setThemeIdState(newThemeId);
     try {
-      localStorage.setItem(STORAGE_KEY, newTheme);
+      localStorage.setItem(STORAGE_KEY, newThemeId);
     } catch {
       // localStorage unavailable
     }
-    applyTheme(newTheme);
+    applyTheme(newThemeId);
   }, []);
 
-  // Apply theme on mount
+  // Apply theme on mount only — runtime changes go through setTheme
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+    applyTheme(themeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Listen for system preference changes when theme is "system"
+  // Listen for OS preference changes when "system" is selected
   useEffect(() => {
-    if (theme !== "system") return;
+    if (themeId !== "system") return;
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => applyTheme("system");
 
     mediaQuery.addEventListener("change", handler);
     return () => mediaQuery.removeEventListener("change", handler);
-  }, [theme]);
+  }, [themeId]);
 
-  return {
-    theme,
+  const value = useMemo<ThemeContextValue>(() => ({
+    theme: themeId,
     setTheme,
-    themes: THEMES,
-    resolvedTheme: resolveTheme(theme),
-  };
+    themes,
+    resolvedTheme: resolveTheme(themeId),
+  }), [themeId, setTheme]);
+
+  return createElement(ThemeContext.Provider, { value }, children);
+}
+
+// Hook — all consumers share the same state via context
+export function useTheme(): ThemeContextValue {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("useTheme must be used within a ThemeProvider");
+  }
+  return context;
 }

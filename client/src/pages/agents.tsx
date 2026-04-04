@@ -550,7 +550,7 @@ function DefinitionCard({ def, index }: { def: AgentDefinition; index: number })
               <CopyNameButton name={def.name} />
               {!def.writable && <Lock className="h-3 w-3 text-muted-foreground/50" />}
               <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
-                def.source === "plugin" ? "border-purple-500/30 text-purple-400" : "border-green-500/30 text-green-400"
+                def.source === "plugin" ? "border-entity-plugin/30 text-entity-plugin" : "border-green-500/30 text-green-400"
               }`}>
                 {def.source}
               </Badge>

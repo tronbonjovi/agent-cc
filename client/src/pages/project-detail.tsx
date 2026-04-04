@@ -68,20 +68,20 @@ export default function ProjectDetail() {
           <HardDrive className="h-3 w-3" /> {formatBytes(pdata.sessionSize)}
         </Badge>
         {pdata.hasClaudeMd && (
-          <Badge variant="outline" className="border-blue-500/30 text-blue-400 gap-1">
+          <Badge variant="outline" className="border-entity-markdown/30 text-entity-markdown gap-1">
             <FileText className="h-3 w-3" /> CLAUDE.md
           </Badge>
         )}
         {pdata.hasMemory && (
-          <Badge variant="outline" className="border-purple-500/30 text-purple-400">Memory</Badge>
+          <Badge variant="outline" className="border-entity-plugin/30 text-entity-plugin">Memory</Badge>
         )}
         {mcps.length > 0 && (
-          <Badge variant="outline" className="border-green-500/30 text-green-400 gap-1">
+          <Badge variant="outline" className="border-entity-mcp/30 text-entity-mcp gap-1">
             <Server className="h-3 w-3" /> {mcps.length} MCP
           </Badge>
         )}
         {skills.length > 0 && (
-          <Badge variant="outline" className="border-orange-500/30 text-orange-400 gap-1">
+          <Badge variant="outline" className="border-entity-skill/30 text-entity-skill gap-1">
             <Wand2 className="h-3 w-3" /> {skills.length} Skills
           </Badge>
         )}
@@ -157,19 +157,19 @@ export default function ProjectDetail() {
               <CardContent className="space-y-2">
                 <div className="flex items-center justify-between py-1">
                   <div className="flex items-center gap-2 text-sm">
-                    <Server className="h-3.5 w-3.5 text-green-400" /> MCP Servers
+                    <Server className="h-3.5 w-3.5 text-entity-mcp" /> MCP Servers
                   </div>
                   <span className="font-mono text-sm">{mcps.length}</span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <div className="flex items-center gap-2 text-sm">
-                    <Wand2 className="h-3.5 w-3.5 text-orange-400" /> Skills
+                    <Wand2 className="h-3.5 w-3.5 text-entity-skill" /> Skills
                   </div>
                   <span className="font-mono text-sm">{skills.length}</span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <div className="flex items-center gap-2 text-sm">
-                    <FileText className="h-3.5 w-3.5 text-slate-400" /> Markdown Files
+                    <FileText className="h-3.5 w-3.5 text-entity-markdown" /> Markdown Files
                   </div>
                   <span className="font-mono text-sm">{markdowns.length}</span>
                 </div>
@@ -221,7 +221,7 @@ export default function ProjectDetail() {
                     <EntityBadge type="skill" />
                     <span className="font-medium">/{skill.name}</span>
                   </div>
-                  {skill.data.userInvocable && <Badge variant="outline" className="text-xs border-orange-500/30 text-orange-400">Invocable</Badge>}
+                  {skill.data.userInvocable && <Badge variant="outline" className="text-xs border-entity-skill/30 text-entity-skill">Invocable</Badge>}
                 </div>
                 {skill.description && <p className="text-xs text-muted-foreground mt-2">{skill.description}</p>}
               </CardContent>

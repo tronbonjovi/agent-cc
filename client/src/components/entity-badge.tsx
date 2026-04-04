@@ -10,12 +10,12 @@ import {
 } from "lucide-react";
 
 const entityConfig: Record<EntityType, { color: string; bg: string; icon: React.ElementType; label: string }> = {
-  project: { color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20", icon: FolderOpen, label: "Project" },
-  mcp: { color: "text-green-400", bg: "bg-green-500/10 border-green-500/20", icon: Server, label: "MCP" },
-  plugin: { color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20", icon: Puzzle, label: "Plugin" },
-  skill: { color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20", icon: Wand2, label: "Skill" },
-  markdown: { color: "text-slate-400", bg: "bg-slate-500/10 border-slate-500/20", icon: FileText, label: "Markdown" },
-  config: { color: "text-teal-400", bg: "bg-teal-500/10 border-teal-500/20", icon: Settings, label: "Config" },
+  project: { color: "text-entity-project", bg: "bg-entity-project/10 border-entity-project/20", icon: FolderOpen, label: "Project" },
+  mcp: { color: "text-entity-mcp", bg: "bg-entity-mcp/10 border-entity-mcp/20", icon: Server, label: "MCP" },
+  plugin: { color: "text-entity-plugin", bg: "bg-entity-plugin/10 border-entity-plugin/20", icon: Puzzle, label: "Plugin" },
+  skill: { color: "text-entity-skill", bg: "bg-entity-skill/10 border-entity-skill/20", icon: Wand2, label: "Skill" },
+  markdown: { color: "text-entity-markdown", bg: "bg-entity-markdown/10 border-entity-markdown/20", icon: FileText, label: "Markdown" },
+  config: { color: "text-entity-config", bg: "bg-entity-config/10 border-entity-config/20", icon: Settings, label: "Config" },
 };
 
 export function EntityBadge({ type }: { type: EntityType }) {

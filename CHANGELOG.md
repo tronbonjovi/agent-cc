@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Multi-theme system** — registry-based architecture with 5 named themes (Dark, Light, Glass, Anthropic, Catppuccin Mocha) plus system auto-detect. Each theme is a standalone definition file; adding a new theme requires one file and one line in the registry
+- **Anthropic theme** — warm earth tones with signature burnt orange accent, inspired by Anthropic's brand palette
+- **Catppuccin Mocha theme** — soothing pastel dark theme from the official Catppuccin palette
+- **Theme dropdown picker** — replaces the old cycle button in the sidebar with a dropdown showing color swatches and checkmarks. Full WAI-ARIA accessibility: keyboard navigation, focus management, screen reader support
+- **Theme-aware entity colors** — entity type colors (project, mcp, plugin, skill, markdown, config) now use CSS variables and adapt per theme across all page components
+- **Theme-aware decorative CSS** — gradient mesh background, glass utilities, gradient borders, status panels, section headers, text gradients, and box shadows all respond to theme changes
+- **Light-variant extensibility** — `data-variant` attribute on `<html>` allows theme-specific CSS rules to apply to any theme of the same variant, not just a specific theme ID
+
+### Changed
+- Theme state managed via React context (ThemeProvider) instead of independent hook instances
+- Entity colors in tailwind.config.ts changed from hardcoded hex to CSS variable references
+- Box shadows in tailwind.config.ts changed from hardcoded rgba to CSS variable references
+- 1686 tests across 18 test files, all passing
+
 ### Fixed
 - **Project key decoding** — added `encodeProjectKey()` for deterministic path-to-key matching, replacing lossy `decodeProjectKey()` in all comparison callsites. Fixes ghost project entries, broken entity linking, and missing session data for hyphenated project names (e.g. "claude-command-center" was showing as "Center")
 - **Ghost project deduplication** — projects discovered via filesystem and session key fallback are now deduplicated by encoded key, preferring paths that exist on disk
@@ -16,11 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Editable app name** — removed click-to-rename on the sidebar app name; it's now a static display
 - **MEMORY.md frontmatter false positives** — all MEMORY.md index files are now excluded from frontmatter checks, not just the first one found. Fixes false "missing frontmatter" warnings for multi-project setups
 - **Update system fork support** — update checker now prefers `upstream` remote over `origin`, so forked repos check the source project for updates instead of their own fork. UI shows which remote is being used
-
-### Changed
-- Dashboard stat cards grid reduced from 6 to 5 columns (config removed)
-- Dashboard "entities across N types" now counts displayed types, not all entity types
-- 1609 tests across 18 test files, all passing (up from 1595)
 
 ## [1.22.0] - 2026-04-04
 

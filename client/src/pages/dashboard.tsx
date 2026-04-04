@@ -53,12 +53,12 @@ export default function Dashboard() {
 
   // Entity color for border
   const entityBorderColor: Record<string, string> = {
-    project: "border-l-blue-500 shadow-[inset_4px_0_8px_-4px_rgba(59,130,246,0.15)]",
-    mcp: "border-l-green-500 shadow-[inset_4px_0_8px_-4px_rgba(34,197,94,0.15)]",
-    skill: "border-l-orange-500 shadow-[inset_4px_0_8px_-4px_rgba(249,115,22,0.15)]",
-    plugin: "border-l-purple-500 shadow-[inset_4px_0_8px_-4px_rgba(168,85,247,0.15)]",
-    markdown: "border-l-slate-500 shadow-[inset_4px_0_8px_-4px_rgba(100,116,139,0.15)]",
-    config: "border-l-teal-500 shadow-[inset_4px_0_8px_-4px_rgba(20,184,166,0.15)]",  // kept for Recent Changes list
+    project: "border-l-entity-project shadow-[inset_4px_0_8px_-4px_var(--glow-blue)]",
+    mcp: "border-l-entity-mcp shadow-[inset_4px_0_8px_-4px_var(--glow-green)]",
+    skill: "border-l-entity-skill shadow-[inset_4px_0_8px_-4px_var(--glow-amber)]",
+    plugin: "border-l-entity-plugin shadow-[inset_4px_0_8px_-4px_var(--glow-purple)]",
+    markdown: "border-l-entity-markdown shadow-[inset_4px_0_8px_-4px_hsl(var(--entity-markdown)_/_0.15)]",
+    config: "border-l-entity-config shadow-[inset_4px_0_8px_-4px_hsl(var(--entity-config)_/_0.15)]",
   };
 
   return (

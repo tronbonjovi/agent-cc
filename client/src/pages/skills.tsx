@@ -109,13 +109,13 @@ export default function Skills() {
                   <div className="flex items-start justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <div className="rounded-md bg-gradient-to-br from-orange-500/15 to-amber-500/10 p-1.5 transition-shadow group-hover:shadow-[0_0_8px_rgba(249,115,22,0.2)]">
-                        <Wand2 className="h-3.5 w-3.5 text-orange-400" />
+                        <Wand2 className="h-3.5 w-3.5 text-entity-skill" />
                       </div>
                       <span className="font-semibold text-sm">/{skill.name}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       {data.userInvocable && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 border-orange-500/30 text-orange-400">
+                        <Badge variant="outline" className="text-[10px] px-1.5 border-entity-skill/30 text-entity-skill">
                           invocable
                         </Badge>
                       )}

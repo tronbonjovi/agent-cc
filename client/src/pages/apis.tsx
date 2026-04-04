@@ -156,7 +156,7 @@ export default function APIs() {
                     <Badge
                       key={c}
                       variant="outline"
-                      className="text-[10px] px-1.5 border-blue-500/30 text-blue-400 cursor-pointer hover:bg-blue-500/10"
+                      className="text-[10px] px-1.5 border-entity-project/30 text-entity-project cursor-pointer hover:bg-entity-project/10"
                       onClick={(e) => {
                         e.stopPropagation();
                         setLocation("/graph");

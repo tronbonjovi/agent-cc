@@ -32,7 +32,7 @@ const categories = ["all", "claude-md", "memory", "skill", "readme", "other"] as
 const categoryConfig: Record<string, { color: string; label: string }> = {
   "claude-md": { color: "border-blue-500/30 text-blue-400 bg-blue-500/5", label: "CLAUDE.md" },
   memory: { color: "border-purple-500/30 text-purple-400 bg-purple-500/5", label: "Memory" },
-  skill: { color: "border-orange-500/30 text-orange-400 bg-orange-500/5", label: "Skill" },
+  skill: { color: "border-entity-skill/30 text-entity-skill bg-entity-skill/5", label: "Skill" },
   readme: { color: "border-green-500/30 text-green-400 bg-green-500/5", label: "README" },
   other: { color: "border-slate-500/30 text-slate-400 bg-slate-500/5", label: "Other" },
 };
@@ -618,7 +618,7 @@ function ContextSummaryPanel() {
         <div className="px-4 pb-3 space-y-2 border-t border-border/30 pt-2 text-xs">
           {ctx.claudeMdFiles.length > 0 && (<div><p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">CLAUDE.md Files</p>{ctx.claudeMdFiles.map(f => (<div key={f.name} className="flex justify-between text-[11px]"><span className="text-blue-400">{f.name}</span><span className="text-muted-foreground tabular-nums">{f.lines} lines · {f.sections} sections · ~{f.tokens} tok</span></div>))}</div>)}
           {ctx.memoryFiles.length > 0 && (<div><p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Memory Files ({ctx.memoryFiles.length})</p>{ctx.memoryFiles.map(f => (<div key={f.name} className="flex justify-between text-[11px]"><span className="text-purple-400">{f.name}</span><span className="text-muted-foreground tabular-nums">{f.type} · {f.lines} lines</span></div>))}</div>)}
-          {ctx.skillFiles.length > 0 && (<div><p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Available Skills ({ctx.skillFiles.length})</p><div className="flex flex-wrap gap-1.5">{ctx.skillFiles.map((s, i) => (<Badge key={`${s.slash}-${i}`} variant="outline" className="text-[10px] border-orange-500/30 text-orange-400 bg-orange-500/5 font-mono">{s.slash}</Badge>))}</div></div>)}
+          {ctx.skillFiles.length > 0 && (<div><p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-1">Available Skills ({ctx.skillFiles.length})</p><div className="flex flex-wrap gap-1.5">{ctx.skillFiles.map((s, i) => (<Badge key={`${s.slash}-${i}`} variant="outline" className="text-[10px] border-entity-skill/30 text-entity-skill bg-entity-skill/5 font-mono">{s.slash}</Badge>))}</div></div>)}
           <div className="flex items-center gap-2 pt-1 border-t border-border/30 text-[10px] text-muted-foreground">
             <span>MEMORY.md: {ctx.memoryMdUsage.lines}/{ctx.memoryMdUsage.limit} ({ctx.memoryMdUsage.percentage}%)</span>
           </div>
@@ -785,7 +785,7 @@ export default function MarkdownFiles() {
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${display.badgeColor}`}>{display.badge}</Badge>
                 <span className="text-sm font-medium">{display.title}</span>
-                {display.slash && <span className="text-[11px] text-orange-400/60 font-mono">{display.slash}</span>}
+                {display.slash && <span className="text-[11px] text-entity-skill/60 font-mono">{display.slash}</span>}
                 {isPinned && <Pin className="h-3 w-3 text-blue-400" />}
                 {isLocked && <Lock className="h-3 w-3 text-amber-400" />}
                 {isStale && <span className="text-[9px] text-amber-400"><AlertTriangle className="h-3 w-3 inline" /> Stale</span>}
@@ -870,7 +870,7 @@ export default function MarkdownFiles() {
               { badge: "User", color: "border-purple-500/30 text-purple-400 bg-purple-500/5", desc: "Info about you — role, preferences." },
               { badge: "Project", color: "border-blue-500/30 text-blue-400 bg-blue-500/5", desc: "Ongoing work context." },
               { badge: "Reference", color: "border-green-500/30 text-green-400 bg-green-500/5", desc: "External resource pointers." },
-              { badge: "Skill", color: "border-orange-500/30 text-orange-400 bg-orange-500/5", desc: "Reusable slash commands." },
+              { badge: "Skill", color: "border-entity-skill/30 text-entity-skill bg-entity-skill/5", desc: "Reusable slash commands." },
               { badge: "Memory", color: "border-purple-500/30 text-purple-400 bg-purple-500/5", desc: "General memory file." },
             ].map(t => (
               <div key={t.badge} className="flex gap-2"><Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${t.color} flex-shrink-0`}>{t.badge}</Badge><span className="text-muted-foreground">{t.desc}</span></div>

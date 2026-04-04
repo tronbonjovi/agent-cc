@@ -48,22 +48,22 @@ export default function Projects() {
             return (
               <Card
                 key={project.id}
-                className="cursor-pointer card-hover border-l-[3px] border-l-blue-500 animate-fade-in-up"
+                className="cursor-pointer card-hover border-l-[3px] border-l-entity-project animate-fade-in-up"
                 style={{ animationDelay: `${i * 40}ms` }}
                 onClick={() => setLocation(`/projects/${project.id}`)}
               >
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-blue-500/10 p-2 mt-0.5">
-                        <FolderOpen className="h-5 w-5 text-blue-400" />
+                      <div className="rounded-lg bg-entity-project/10 p-2 mt-0.5">
+                        <FolderOpen className="h-5 w-5 text-entity-project" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-base">{project.name}</span>
                           <HealthIndicator health={project.health} />
                           {pdata.hasClaudeMd && (
-                            <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-400 gap-0.5">
+                            <Badge variant="outline" className="text-[10px] border-entity-markdown/30 text-entity-markdown gap-0.5">
                               <FileText className="h-2.5 w-2.5" /> CLAUDE.md
                             </Badge>
                           )}
@@ -88,13 +88,13 @@ export default function Projects() {
                           <div className="flex items-center gap-1 mt-2">
                             <div className="flex h-1.5 rounded-full overflow-hidden w-32">
                               {project.mcpCount > 0 && (
-                                <div className="bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]" style={{ width: `${(project.mcpCount / total) * 100}%` }} />
+                                <div className="bg-entity-mcp shadow-[0_0_4px_var(--glow-green)]" style={{ width: `${(project.mcpCount / total) * 100}%` }} />
                               )}
                               {project.skillCount > 0 && (
-                                <div className="bg-orange-500 shadow-[0_0_4px_rgba(249,115,22,0.4)]" style={{ width: `${(project.skillCount / total) * 100}%` }} />
+                                <div className="bg-entity-skill shadow-[0_0_4px_var(--glow-amber)]" style={{ width: `${(project.skillCount / total) * 100}%` }} />
                               )}
                               {project.markdownCount > 0 && (
-                                <div className="bg-slate-500 shadow-[0_0_4px_rgba(100,116,139,0.4)]" style={{ width: `${(project.markdownCount / total) * 100}%` }} />
+                                <div className="bg-entity-markdown shadow-[0_0_4px_hsl(var(--entity-markdown) / 0.4)]" style={{ width: `${(project.markdownCount / total) * 100}%` }} />
                               )}
                             </div>
                           </div>
@@ -105,19 +105,19 @@ export default function Projects() {
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       {project.mcpCount > 0 && (
                         <div className="flex items-center gap-1" title="MCP Servers">
-                          <Server className="h-3.5 w-3.5 text-green-400" />
+                          <Server className="h-3.5 w-3.5 text-entity-mcp" />
                           <span>{project.mcpCount}</span>
                         </div>
                       )}
                       {project.skillCount > 0 && (
                         <div className="flex items-center gap-1" title="Skills">
-                          <Wand2 className="h-3.5 w-3.5 text-orange-400" />
+                          <Wand2 className="h-3.5 w-3.5 text-entity-skill" />
                           <span>{project.skillCount}</span>
                         </div>
                       )}
                       {project.markdownCount > 0 && (
                         <div className="flex items-center gap-1" title="Markdown files">
-                          <FileText className="h-3.5 w-3.5 text-slate-400" />
+                          <FileText className="h-3.5 w-3.5 text-entity-markdown" />
                           <span>{project.markdownCount}</span>
                         </div>
                       )}
