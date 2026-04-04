@@ -4,6 +4,61 @@ import { MCP_CATALOG } from "./knowledge-base";
 import path from "path";
 import fs from "fs";
 
+/** Env var names that always indicate secrets (match anywhere in name, case-insensitive) */
+const ALWAYS_REDACT = [
+  "password", "secret", "credential",
+  "database_url", "connection_string",
+  "mongo_uri", "postgres_uri", "redis_url", "mysql_uri",
+  "private_key", "api_key", "webhook",
+];
+
+/** Prefixes that indicate secrets */
+const REDACT_PREFIXES = [
+  "aws_", "stripe_", "openai_", "anthropic_", "github_token",
+];
+
+/** Short keywords that need word-boundary matching (only redact as suffix or after _) */
+const BOUNDARY_REDACT = ["key", "token", "auth"];
+
+/** False positive patterns — names that contain short keywords but aren't secrets */
+const FALSE_POSITIVES = [
+  "keyboard", "keynote", "keystone", "key_repeat", "key_binding",
+  "token_limit", "token_count", "tokenizer", "monkey",
+];
+
+/** Check if an env var name should be redacted */
+export function shouldRedactEnvVar(name: string): boolean {
+  const lower = name.toLowerCase();
+
+  for (const fp of FALSE_POSITIVES) {
+    if (lower.includes(fp)) return false;
+  }
+
+  for (const pattern of ALWAYS_REDACT) {
+    if (lower.includes(pattern)) return true;
+  }
+
+  for (const prefix of REDACT_PREFIXES) {
+    if (lower.startsWith(prefix)) return true;
+  }
+
+  for (const keyword of BOUNDARY_REDACT) {
+    const idx = lower.indexOf(keyword);
+    if (idx === -1) continue;
+    const precededByBoundary = idx === 0 || lower[idx - 1] === "_";
+    const followedByBoundary = idx + keyword.length === lower.length || lower[idx + keyword.length] === "_";
+    if (precededByBoundary && followedByBoundary) return true;
+  }
+
+  return false;
+}
+
+/** Redact credentials from a connection string URL.
+ *  "postgres://user:pass@host:5432/db" -> "postgres://[REDACTED]@host:5432/db" */
+export function redactConnectionString(value: string): string {
+  return value.replace(/^(\w+(?:\+\w+)?:\/\/)([^@]+)@/, "$1[REDACTED]@");
+}
+
 /** Database URL patterns to detect in MCP env vars */
 const DB_URL_PATTERNS: { pattern: RegExp; type: string; label: string; color: string }[] = [
   { pattern: /postgresql:\/\/([^@]+@)?([^:/]+)(:\d+)?\/(\w+)/, type: "database", label: "PostgreSQL", color: "#336791" },
