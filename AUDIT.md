@@ -133,40 +133,41 @@ shared/                    # Shared TypeScript types
 
 ## Roadmap: Our Fork
 
-### Phase 0: Fork and Clean (Day 1)
+### Phase 0: Fork and Clean — DONE
 
-- [ ] Fork on GitHub
-- [ ] Remove dead pages (discovery.tsx, config.tsx, rules.tsx)
-- [ ] Consolidate cost pages (stats + cost-dashboard into one page)
-- [ ] Add .gitignore for our needs
-- [ ] Set up vitest with at least 1 smoke test
-- [ ] Fix API 404 handling (Express catch-all before Vite)
+- [x] Fork on GitHub
+- [x] Remove dead pages (discovery.tsx, config.tsx, rules.tsx)
+- [x] Consolidate cost pages (stats + cost-dashboard into one page)
+- [x] Add .gitignore for our needs
+- [x] Set up vitest with at least 1 smoke test
+- [x] Fix API 404 handling (Express catch-all before Vite)
 
-### Phase 1: Fix What's Broken (Week 1)
+### Phase 1: Fix What's Broken — DONE
 
-- [ ] **Fix project discovery** — debug why extra paths don't trigger rescan, verify marker detection
-- [ ] **Fix session status mismatches** — implement `findSessionFile()` fallback for compacted sessions
-- [ ] **Fix stale active sessions** — validate PIDs against running processes, not just file existence
-- [ ] **Fix Live View stats** — ensure agent count, model, and spend pull from same data source
-- [ ] **Add toast notifications** — install sonner or react-hot-toast, wire into mutations
-- [ ] **Fix trash location** — move from `/tmp/` to `~/.claude-command-center/trash/`
+- [x] **Fix project discovery** — debug why extra paths don't trigger rescan, verify marker detection
+- [x] **Fix session status mismatches** — implement `findSessionFile()` fallback for compacted sessions
+- [x] **Fix stale active sessions** — validate PIDs against running processes, not just file existence
+- [x] **Fix Live View stats** — ensure agent count, model, and spend pull from same data source
+- [x] **Add toast notifications** — install sonner or react-hot-toast, wire into mutations
+- [x] **Fix trash location** — move from `/tmp/` to `~/.claude-command-center/trash/`
 
-### Phase 2: Harden (Week 2)
+### Phase 2: Harden — DONE
 
-- [ ] Add tests for scanner modules (project, session, MCP, live)
-- [ ] Add tests for API endpoints (supertest)
-- [ ] Fix path traversal (use `realpath()`)
-- [ ] Fix MCP secret redaction (case-insensitive)
-- [ ] Add error boundaries to all pages
-- [ ] Improve deep search debounce and loading states
+- [x] Add tests for scanner modules (project, session, MCP, deep-search, 7 import tests)
+- [x] Add tests for API endpoints (16 integration tests with native fetch)
+- [x] Fix path traversal — `validateSafePath()` with `fs.promises.realpath`, applied to all routes
+- [x] Fix MCP secret redaction — `shouldRedactEnvVar()` with false-positive protection + connection string redaction
+- [x] Add error boundaries — per-page `<ErrorBoundary pageName="...">` with reset on all 18 routes
+- [x] Improve deep search — 300ms debounce, loading spinner, error/empty states
+- [x] Security review fixes — Windows shell injection, delete path validation, Telegram env var, upstream URL cleanup
 
-### Phase 3: Make It Ours (Week 3+)
+### Phase 3: Make It Ours (Next)
 
-- [ ] Redesign Dashboard with the stats that actually matter (from your evaluation notes)
+- [ ] **Docker image** — containerize for local dev stack (user's top priority)
+- [ ] Redesign Dashboard with the stats that actually matter (from evaluation notes)
 - [ ] Improve project page — per-project health, recent sessions, quick actions
 - [ ] Improve MCP page — enable/disable, test connectivity, edit configs
-- [ ] Consider deployment (Docker Compose for your homelab?)
-- [ ] Add features from your "wish list" (from EVALUATION-GUIDE.md)
+- [ ] Add features from "wish list" (from EVALUATION-GUIDE.md)
 
 ---
 

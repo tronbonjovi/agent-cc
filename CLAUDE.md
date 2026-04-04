@@ -98,10 +98,11 @@ When adding integrations with external services:
 | `NERVE_CENTER_SERVICES` | Services to monitor (name:port,name:port) | Command Center:5100 |
 | `VOICE_CALLER_SCRIPT` | Path to voice outbound caller script | (disabled) |
 | `VOICE_PHONE` | Phone number for voice calls | (disabled) |
+| `TELEGRAM_BOT_URL` | Telegram bot HTTP API URL | (disabled) |
 
 ## Tests
 
-- **1350+ unit tests** covering parsers, routes, storage, validation
+- **1595+ unit tests** covering parsers, routes, storage, validation, scanners, path safety, API integration
 - **`new-user-safety.test.ts`** — automated guardrail that scans all source files for:
   - Hardcoded user paths (both decoded `C:/Users/...` and encoded `C--Users-...`)
   - Phone numbers / PII
