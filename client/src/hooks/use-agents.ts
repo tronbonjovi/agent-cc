@@ -76,6 +76,10 @@ export function useAgentStats() {
 export function useLiveData() {
   return useQuery<LiveData>({
     queryKey: ["/api/live"],
-    refetchInterval: 3000,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasActive = data?.activeSessions && data.activeSessions.length > 0;
+      return hasActive ? 5000 : 30000;
+    },
   });
 }
