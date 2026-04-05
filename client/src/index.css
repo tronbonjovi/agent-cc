@@ -64,6 +64,7 @@
 /* Smooth page transitions */
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 main {
   scroll-behavior: smooth;

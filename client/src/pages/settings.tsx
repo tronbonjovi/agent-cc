@@ -622,7 +622,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1200px]">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
