@@ -1,9 +1,11 @@
 import fs from "fs";
+import path from "path";
 import crypto from "crypto";
 import { getDB, save } from "../db";
+import { storage } from "../storage";
 import { getPricing, computeCost, getModelFamily } from "./pricing";
 import { getCachedSessions } from "./session-scanner";
-import { decodeProjectKey } from "./utils";
+import { encodeProjectKey } from "./utils";
 import type { CostRecord, CostSummary, SessionCostDetail, CostTokenBreakdown } from "@shared/types";
 
 /** Create a deterministic record ID for dedup.
@@ -331,7 +333,13 @@ export function getCostSummary(days: number): CostSummary {
     byModel[key].cost = Math.round(byModel[key].cost * 1000) / 1000;
   }
 
-  // By project
+  // By project — use entity lookup for correct names (decodeProjectKey is lossy with hyphens)
+  const projectEntities = storage.getEntities("project");
+  const keyToPath = new Map<string, string>();
+  for (const p of projectEntities) {
+    keyToPath.set(encodeProjectKey(p.path), p.path);
+  }
+
   const projCost: Record<string, { cost: number; sessions: Set<string> }> = {};
   for (const r of records) {
     if (!projCost[r.projectKey]) projCost[r.projectKey] = { cost: 0, sessions: new Set() };
@@ -339,12 +347,16 @@ export function getCostSummary(days: number): CostSummary {
     projCost[r.projectKey].sessions.add(r.sessionId);
   }
   const byProject = Object.entries(projCost)
-    .map(([key, data]) => ({
-      projectKey: key,
-      projectName: decodeProjectKey(key).split("/").pop() || key,
-      cost: Math.round(data.cost * 1000) / 1000,
-      sessions: data.sessions.size,
-    }))
+    .map(([key, data]) => {
+      const realPath = keyToPath.get(key);
+      const projectName = realPath ? path.basename(realPath) : key;
+      return {
+        projectKey: key,
+        projectName,
+        cost: Math.round(data.cost * 1000) / 1000,
+        sessions: data.sessions.size,
+      };
+    })
     .sort((a, b) => b.cost - a.cost);
 
   // By day
