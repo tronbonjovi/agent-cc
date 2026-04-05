@@ -6,14 +6,17 @@ import { getCachedSessions } from "./session-scanner";
 import { decodeProjectKey } from "./utils";
 import type { CostRecord, CostSummary, SessionCostDetail, CostTokenBreakdown } from "@shared/types";
 
-/** Create a deterministic record ID for dedup */
-export function createCostRecordId(sessionId: string, timestamp: string, model: string): string {
-  return crypto.createHash("md5").update(`${sessionId}:${timestamp}:${model}`).digest("hex").slice(0, 16);
+/** Create a deterministic record ID for dedup.
+ *  Includes lineIndex to distinguish multiple assistant responses in the same second. */
+export function createCostRecordId(sessionId: string, timestamp: string, model: string, lineIndex: number): string {
+  return crypto.createHash("md5").update(`${sessionId}:${timestamp}:${model}:${lineIndex}`).digest("hex").slice(0, 16);
 }
 
 /** Extract parent session ID from a subagent file path.
  *  Path pattern: .../projects/{projectKey}/{parentSessionId}/subagents/agent-{id}.jsonl
- *  Returns null if not a subagent or if subagents dir is directly under project (no session dir). */
+ *  Returns null if not a subagent or if subagents dir is directly under project (no session dir).
+ *  Note: indexCosts() determines parent IDs from the session loop directly.
+ *  This is exported as a utility for callers that only have a file path. */
 export function extractParentSessionId(filePath: string): string | null {
   const normalized = filePath.replace(/\\/g, "/");
   // Match: .../projects/{projectKey}/{sessionId}/subagents/agent-{id}.jsonl
@@ -23,15 +26,25 @@ export function extractParentSessionId(filePath: string): string | null {
   return match[1];
 }
 
+/** Result from parseJSONLForCosts — includes consumed byte count for safe offset tracking */
+export interface ParseResult {
+  records: CostRecord[];
+  /** Bytes consumed through the last complete newline-terminated line.
+   *  Use this (not file size) as the next offset to avoid losing partial lines. */
+  bytesConsumed: number;
+}
+
 /** Parse a JSONL file from a byte offset and return CostRecords.
- *  This is the low-level parser — no DB interaction. */
+ *  This is the low-level parser — no DB interaction.
+ *  Only processes complete newline-terminated lines; partial trailing lines are
+ *  left for the next scan by reporting bytesConsumed < total bytes read. */
 export function parseJSONLForCosts(
   filePath: string,
   sessionId: string,
   parentSessionId: string | null,
   projectKey: string,
   fromOffset: number,
-): CostRecord[] {
+): ParseResult {
   const records: CostRecord[] = [];
   const now = new Date().toISOString();
 
@@ -42,19 +55,28 @@ export function parseJSONLForCosts(
     const readLen = stat.size - fromOffset;
     if (readLen <= 0) {
       fs.closeSync(fd);
-      return records;
+      return { records, bytesConsumed: 0 };
     }
     const buf = Buffer.alloc(readLen);
     fs.readSync(fd, buf, 0, buf.length, fromOffset);
     fs.closeSync(fd);
     content = buf.toString("utf-8");
   } catch {
-    return records;
+    return { records, bytesConsumed: 0 };
   }
 
-  for (const line of content.split("\n")) {
+  // Only process through the last complete newline — leave partial trailing lines
+  const lastNewline = content.lastIndexOf("\n");
+  const safeContent = lastNewline >= 0 ? content.slice(0, lastNewline + 1) : "";
+  const bytesConsumed = Buffer.byteLength(safeContent, "utf-8");
+
+  if (!safeContent) return { records, bytesConsumed: 0 };
+
+  let lineIndex = 0;
+  for (const line of safeContent.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
+    lineIndex++;
     try {
       const record = JSON.parse(trimmed);
       if (record.type !== "assistant") continue;
@@ -74,7 +96,7 @@ export function parseJSONLForCosts(
       const timestamp = record.timestamp || "";
 
       records.push({
-        id: createCostRecordId(sessionId, timestamp, model),
+        id: createCostRecordId(sessionId, timestamp, model, lineIndex),
         sessionId,
         parentSessionId,
         projectKey,
@@ -99,7 +121,7 @@ export function parseJSONLForCosts(
     }
   }
 
-  return records;
+  return { records, bytesConsumed };
 }
 
 /** Run incremental cost indexing across all known session files.
@@ -109,6 +131,7 @@ export function indexCosts(): void {
   const state = db.costIndexState;
   const sessions = getCachedSessions();
   let newRecords = 0;
+  let dirty = false; // Track any state mutation (deletions, offset changes)
 
   const filesToIndex: Array<{
     filePath: string;
@@ -167,9 +190,10 @@ export function indexCosts(): void {
             delete db.costRecords[id];
           }
         }
+        dirty = true;
       }
 
-      const records = parseJSONLForCosts(
+      const { records, bytesConsumed } = parseJSONLForCosts(
         file.filePath,
         file.sessionId,
         file.parentSessionId,
@@ -184,13 +208,17 @@ export function indexCosts(): void {
         }
       }
 
+      // Advance offset only through the last complete line (not stat.size)
+      // so partial trailing lines are retried on the next scan
+      const newOffset = offset + bytesConsumed;
       state.files[file.filePath] = {
         filePath: file.filePath,
-        lastOffset: stat.size,
+        lastOffset: newOffset,
         lastTimestamp: records.length > 0 ? records[records.length - 1].timestamp : (fileState?.lastTimestamp || ""),
         recordCount: (fileState?.recordCount || 0) + records.length,
         fileSize: stat.size,
       };
+      dirty = true;
     } catch {
       // File unreadable — skip
     }
@@ -199,9 +227,11 @@ export function indexCosts(): void {
   state.totalRecords = Object.keys(db.costRecords).length;
   state.lastIndexAt = new Date().toISOString();
 
-  if (newRecords > 0) {
+  if (newRecords > 0 || dirty) {
     save();
-    console.log(`[cost-indexer] Indexed ${newRecords} new cost records (${state.totalRecords} total)`);
+    if (newRecords > 0) {
+      console.log(`[cost-indexer] Indexed ${newRecords} new cost records (${state.totalRecords} total)`);
+    }
   }
 }
 

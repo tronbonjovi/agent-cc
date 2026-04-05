@@ -6,15 +6,21 @@ import { parseJSONLForCosts, createCostRecordId, extractParentSessionId } from "
 
 describe("cost-indexer", () => {
   describe("createCostRecordId", () => {
-    it("creates deterministic ID from session + timestamp + model", () => {
-      const id1 = createCostRecordId("sess-1", "2026-04-05T12:00:00Z", "claude-opus-4-6");
-      const id2 = createCostRecordId("sess-1", "2026-04-05T12:00:00Z", "claude-opus-4-6");
+    it("creates deterministic ID from session + timestamp + model + lineIndex", () => {
+      const id1 = createCostRecordId("sess-1", "2026-04-05T12:00:00Z", "claude-opus-4-6", 1);
+      const id2 = createCostRecordId("sess-1", "2026-04-05T12:00:00Z", "claude-opus-4-6", 1);
       expect(id1).toBe(id2);
     });
 
-    it("creates different IDs for different inputs", () => {
-      const id1 = createCostRecordId("sess-1", "2026-04-05T12:00:00Z", "claude-opus-4-6");
-      const id2 = createCostRecordId("sess-1", "2026-04-05T12:00:01Z", "claude-opus-4-6");
+    it("creates different IDs for different timestamps", () => {
+      const id1 = createCostRecordId("sess-1", "2026-04-05T12:00:00Z", "claude-opus-4-6", 1);
+      const id2 = createCostRecordId("sess-1", "2026-04-05T12:00:01Z", "claude-opus-4-6", 1);
+      expect(id1).not.toBe(id2);
+    });
+
+    it("creates different IDs for same timestamp but different line index", () => {
+      const id1 = createCostRecordId("sess-1", "2026-04-05T12:00:00Z", "claude-opus-4-6", 1);
+      const id2 = createCostRecordId("sess-1", "2026-04-05T12:00:00Z", "claude-opus-4-6", 2);
       expect(id1).not.toBe(id2);
     });
   });
@@ -76,12 +82,12 @@ describe("cost-indexer", () => {
             },
           },
         }),
-      ].join("\n");
+      ].join("\n") + "\n";
 
       const filePath = path.join(tmpDir, "test.jsonl");
       fs.writeFileSync(filePath, jsonl);
 
-      const records = parseJSONLForCosts(filePath, "test-session", null, "test-project", 0);
+      const { records } = parseJSONLForCosts(filePath, "test-session", null, "test-project", 0);
       expect(records).toHaveLength(2);
 
       expect(records[0].model).toBe("claude-opus-4-6");
@@ -101,12 +107,12 @@ describe("cost-indexer", () => {
       const jsonl = [
         JSON.stringify({ type: "user", message: { content: "hi" } }),
         JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "hello" }] } }),
-      ].join("\n");
+      ].join("\n") + "\n";
 
       const filePath = path.join(tmpDir, "test.jsonl");
       fs.writeFileSync(filePath, jsonl);
 
-      const records = parseJSONLForCosts(filePath, "sess", null, "proj", 0);
+      const { records } = parseJSONLForCosts(filePath, "sess", null, "proj", 0);
       expect(records).toHaveLength(0);
     });
 
@@ -126,7 +132,7 @@ describe("cost-indexer", () => {
       fs.writeFileSync(filePath, line1 + "\n" + line2 + "\n");
 
       const offset = Buffer.byteLength(line1 + "\n");
-      const records = parseJSONLForCosts(filePath, "sess", null, "proj", offset);
+      const { records } = parseJSONLForCosts(filePath, "sess", null, "proj", offset);
       expect(records).toHaveLength(1);
       expect(records[0].model).toBe("claude-sonnet-4-6");
     });
@@ -136,13 +142,52 @@ describe("cost-indexer", () => {
         type: "assistant",
         timestamp: "2026-04-05T12:00:00Z",
         message: { model: "claude-opus-4-6", usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
-      });
+      }) + "\n";
 
       const filePath = path.join(tmpDir, "test.jsonl");
       fs.writeFileSync(filePath, jsonl);
 
-      const records = parseJSONLForCosts(filePath, "sess", null, "proj", 0);
+      const { records } = parseJSONLForCosts(filePath, "sess", null, "proj", 0);
       expect(records).toHaveLength(1);
+    });
+
+    it("does not consume partial trailing lines (prevents data loss on active files)", () => {
+      const completeLine = JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-04-05T12:00:00Z",
+        message: { model: "claude-opus-4-6", usage: { input_tokens: 10, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
+      });
+      // Simulate a partial write — no trailing newline on the second line
+      const partialLine = '{"type":"assistant","timestamp":"2026-04-05T12:00:02Z","message":{"model":"claude-opus-4-6"';
+
+      const filePath = path.join(tmpDir, "test.jsonl");
+      fs.writeFileSync(filePath, completeLine + "\n" + partialLine);
+
+      const { records, bytesConsumed } = parseJSONLForCosts(filePath, "sess", null, "proj", 0);
+      expect(records).toHaveLength(1); // Only the complete line
+      expect(bytesConsumed).toBe(Buffer.byteLength(completeLine + "\n"));
+    });
+
+    it("produces unique IDs for same-second records with same model", () => {
+      const jsonl = [
+        JSON.stringify({
+          type: "assistant",
+          timestamp: "2026-04-05T12:00:00Z",
+          message: { model: "claude-opus-4-6", usage: { input_tokens: 10, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
+        }),
+        JSON.stringify({
+          type: "assistant",
+          timestamp: "2026-04-05T12:00:00Z",
+          message: { model: "claude-opus-4-6", usage: { input_tokens: 20, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
+        }),
+      ].join("\n") + "\n";
+
+      const filePath = path.join(tmpDir, "test.jsonl");
+      fs.writeFileSync(filePath, jsonl);
+
+      const { records } = parseJSONLForCosts(filePath, "sess", null, "proj", 0);
+      expect(records).toHaveLength(2);
+      expect(records[0].id).not.toBe(records[1].id);
     });
   });
 });
