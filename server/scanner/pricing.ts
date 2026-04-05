@@ -57,3 +57,12 @@ export function getMaxTokens(model: string): number {
   if (model.includes("opus")) return 1_000_000;
   return 200_000;
 }
+
+/** Extract model family key from a model string.
+ *  "claude-opus-4-6" → "opus-4-6", "claude-sonnet-4-20250514" → "sonnet" */
+export function getModelFamily(model: string): string {
+  for (const key of Object.keys(MODEL_PRICING)) {
+    if (model.includes(key)) return key;
+  }
+  return "sonnet";
+}

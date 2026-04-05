@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision, TerminalPanelState } from "@shared/types";
+import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision, TerminalPanelState, CostRecord, CostIndexState } from "@shared/types";
 
 const dataDir = process.env.AGENT_CC_DATA
   ? path.resolve(process.env.AGENT_CC_DATA)
@@ -32,6 +32,8 @@ export interface DBData {
   decisions: Decision[];
   markdownMeta: Record<string, { locked?: boolean; pinned?: boolean }>;
   terminalPanel: TerminalPanelState;
+  costRecords: Record<string, CostRecord>;
+  costIndexState: CostIndexState;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -74,6 +76,8 @@ function defaultData(): DBData {
       activeTabId: null,
       splitTabId: null,
     },
+    costRecords: {},
+    costIndexState: { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 },
   };
 }
 
@@ -101,6 +105,8 @@ try {
     if (!data.decisions) data.decisions = [];
     if (!data.markdownMeta) data.markdownMeta = {};
     if (!data.terminalPanel) data.terminalPanel = defaultData().terminalPanel;
+    if (!data.costRecords) data.costRecords = {};
+    if (!data.costIndexState) data.costIndexState = { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 };
     if (data.appSettings.onboarded === undefined) data.appSettings.onboarded = false;
     if (!data.appSettings.billingMode) data.appSettings.billingMode = "auto";
   } else {

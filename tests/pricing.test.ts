@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getPricing, computeCost, getMaxTokens } from "../server/scanner/pricing";
+import { getPricing, computeCost, getMaxTokens, getModelFamily } from "../server/scanner/pricing";
 
 describe("pricing", () => {
   describe("getPricing", () => {
@@ -106,6 +106,32 @@ describe("pricing", () => {
 
     it("returns 200K for non-opus", () => {
       expect(getMaxTokens("claude-sonnet-4-20250514")).toBe(200_000);
+    });
+  });
+
+  describe("getModelFamily", () => {
+    it("extracts opus-4-6 from full model string", () => {
+      expect(getModelFamily("claude-opus-4-6")).toBe("opus-4-6");
+    });
+
+    it("extracts opus-4-5 from full model string", () => {
+      expect(getModelFamily("claude-opus-4-5-20251001")).toBe("opus-4-5");
+    });
+
+    it("extracts opus for old opus models", () => {
+      expect(getModelFamily("claude-opus-4-20250514")).toBe("opus");
+    });
+
+    it("extracts sonnet for sonnet models", () => {
+      expect(getModelFamily("claude-sonnet-4-6")).toBe("sonnet");
+    });
+
+    it("extracts haiku-4-5 for haiku 4.5", () => {
+      expect(getModelFamily("claude-haiku-4-5-20251001")).toBe("haiku-4-5");
+    });
+
+    it("defaults to sonnet for unknown", () => {
+      expect(getModelFamily("unknown-model")).toBe("sonnet");
     });
   });
 
