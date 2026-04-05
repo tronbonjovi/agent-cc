@@ -100,11 +100,12 @@ When adding integrations with external services:
 | `VOICE_CALLER_SCRIPT` | Path to voice outbound caller script | (disabled) |
 | `VOICE_PHONE` | Phone number for voice calls | (disabled) |
 | `TELEGRAM_BOT_URL` | Telegram bot HTTP API URL | (disabled) |
+| `ALLOWED_ORIGINS` | Extra CORS origins for reverse proxy (comma-separated) | (none) |
 | `EXTRA_PROJECT_DIRS` | Extra project directories for scanner (comma-separated) | (none) |
 
 ## Tests
 
-- **1883 unit tests** covering parsers, routes, storage, validation, scanners, task I/O, path safety, API integration
+- **1945 unit tests** covering parsers, routes, storage, validation, scanners, task I/O, path safety, API integration
 - **`new-user-safety.test.ts`** — automated guardrail that scans all source files for:
   - Hardcoded user paths (both decoded `C:/Users/...` and encoded `C--Users-...`)
   - Phone numbers / PII

@@ -12,8 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Task API** — full CRUD endpoints at `/api/tasks/` with optimistic concurrency control, atomic file writes, column reorder, and board config management
 - **Task sidebar navigation** — Tasks appears as a sub-item under Projects in the sidebar, with project picker and hierarchy tree
 
+### Fixed
+- **CORS behind reverse proxy** — added `ALLOWED_ORIGINS` env var so the app works when accessed via Caddy (`acc.devbox`) instead of localhost
+- **Drag-and-drop crash** — fixed crash when dragging tasks due to incomplete column order initialization
+- **Drag-and-drop duplicates** — fixed duplicate card entries when dragging between columns (reorder + status change both wrote to columnOrder)
+- **Task directory permissions** — created directories now use 775 mode for Docker volume compatibility
+- **Save feedback** — detail panel now shows toast and closes on save
+
 ### Changed
-- 1883 tests across 21 test files, all passing
+- 1945 tests across 22 test files, all passing
 - New npm dependencies: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` for drag-and-drop
 
 ## [2.0.0] - 2026-04-04
