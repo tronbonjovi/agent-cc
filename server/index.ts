@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { runFullScan } from "./scanner/index";
 import { startWatcher } from "./scanner/watcher";
 import { storage } from "./storage";
+import { attachTerminalWebSocket } from "./terminal";
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -94,6 +95,12 @@ if (cliArgs.includes("--report")) {
 
   (async () => {
     await registerRoutes(httpServer, app);
+
+    const terminalManager = attachTerminalWebSocket(httpServer);
+
+    process.on("SIGTERM", () => {
+      terminalManager.shutdown();
+    });
 
     app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
