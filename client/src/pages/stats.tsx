@@ -94,6 +94,8 @@ interface CostAnalytics {
     max20x: { limit: number; label: string };
   };
   errors: ErrorEntry[];
+  weeklyComparison: { thisWeek: number; lastWeek: number; changePct: number };
+  topSessions: Array<{ sessionId: string; firstMessage: string; cost: number; tokens: number; model: string }>;
 }
 
 // ---- Utilities ----
@@ -338,8 +340,14 @@ function UsageTab() {
 
 function CostsTab() {
   const [, setLocation] = useLocation();
+  const [period, setPeriod] = useState<7 | 30 | 90>(30);
   const { data, isLoading } = useQuery<CostAnalytics>({
-    queryKey: ["/api/analytics/costs"],
+    queryKey: ["/api/analytics/costs", period],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/costs?days=${period}`);
+      if (!res.ok) throw new Error("Failed to fetch cost analytics");
+      return res.json();
+    },
     staleTime: 60000,
   });
 
@@ -364,10 +372,28 @@ function CostsTab() {
 
   return (
     <div className="space-y-6">
+      {/* Period Selector */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground mr-1">Period:</span>
+        {([7, 30, 90] as const).map((d) => (
+          <button
+            key={d}
+            onClick={() => setPeriod(d)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              period === d
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/50 text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            {d}d
+          </button>
+        ))}
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: DollarSign, color: "text-green-400", label: "Total Cost", value: formatCost(data.totalCost) },
+          { icon: DollarSign, color: "text-green-400", label: `Cost (${period}d)`, value: formatCost(data.totalCost) },
           { icon: TrendingUp, color: "text-blue-400", label: "Input Tokens", value: formatTokens(data.totalInputTokens) },
           { icon: Zap, color: "text-amber-400", label: "Output Tokens", value: formatTokens(data.totalOutputTokens) },
           { icon: Shield, color: "text-purple-400", label: "Cache Savings", value: `${cacheSavings.toFixed(0)}%`, sub: `${formatTokens(data.totalCacheReadTokens)} cached reads` },
@@ -389,13 +415,45 @@ function CostsTab() {
         ))}
       </div>
 
+      {/* Weekly Comparison */}
+      {data.weeklyComparison && (
+        <Card className="animate-fade-in-up" style={{ animationDelay: "150ms" }}>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <TrendingUp className={`h-5 w-5 ${data.weeklyComparison.changePct > 0 ? "text-red-400" : data.weeklyComparison.changePct < 0 ? "text-green-400" : "text-muted-foreground"}`} />
+                <div>
+                  <div className="text-sm font-medium">This Week</div>
+                  <div className="text-2xl font-bold font-mono tabular-nums">{formatCost(data.weeklyComparison.thisWeek)}</div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">vs Last Week</div>
+                <div className="text-lg font-mono tabular-nums text-muted-foreground">{formatCost(data.weeklyComparison.lastWeek)}</div>
+              </div>
+              <div className={`text-right px-3 py-1.5 rounded-lg ${
+                data.weeklyComparison.changePct > 20 ? "bg-red-500/10 text-red-400" :
+                data.weeklyComparison.changePct > 0 ? "bg-amber-500/10 text-amber-400" :
+                data.weeklyComparison.changePct < 0 ? "bg-green-500/10 text-green-400" :
+                "bg-muted/30 text-muted-foreground"
+              }`}>
+                <div className="text-xs">Change</div>
+                <div className="text-lg font-bold font-mono tabular-nums">
+                  {data.weeklyComparison.changePct > 0 ? "+" : ""}{data.weeklyComparison.changePct}%
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Daily Cost Chart */}
       <Card className="animate-fade-in-up" style={{ animationDelay: "200ms" }}>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-green-400" />
             Daily Cost
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1">Last 30 days</Badge>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1">{`Last ${period} days`}</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -523,6 +581,49 @@ function CostsTab() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Top Sessions */}
+      {data.topSessions && data.topSessions.length > 0 && (
+        <Card className="animate-fade-in-up" style={{ animationDelay: "375ms" }}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Star className="h-4 w-4 text-amber-400" />
+              Most Expensive Sessions
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1">Top 20</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-0.5 max-h-[500px] overflow-auto">
+              <div className="flex items-center text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2 py-1.5 sticky top-0 bg-card">
+                <span className="flex-1">Session</span>
+                <span className="w-16 text-right">Model</span>
+                <span className="w-20 text-right">Tokens</span>
+                <span className="w-16 text-right">Cost</span>
+              </div>
+              {data.topSessions.map((session) => (
+                <div
+                  key={session.sessionId}
+                  className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer"
+                  onClick={() => setLocation(`/sessions/${session.sessionId}`)}
+                >
+                  <span className="flex-1 truncate text-muted-foreground hover:text-foreground transition-colors">
+                    {session.firstMessage || session.sessionId.slice(0, 8)}
+                  </span>
+                  <span className="w-16 text-right">
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
+                      session.model === "opus" ? "text-orange-400 border-orange-400/30" :
+                      session.model === "haiku" ? "text-green-400 border-green-400/30" :
+                      "text-blue-400 border-blue-400/30"
+                    }`}>{session.model}</Badge>
+                  </span>
+                  <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(session.tokens)}</span>
+                  <span className="w-16 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(session.cost)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Error Breakdown */}
       {data.errors.length > 0 && (
