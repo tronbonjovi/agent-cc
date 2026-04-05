@@ -28,6 +28,7 @@ import {
   Check,
   Rocket,
 } from "lucide-react";
+import { HealthThresholdsSettings } from "@/components/settings-health-thresholds";
 
 // ---- Shared utilities ----
 
@@ -290,6 +291,9 @@ function GeneralTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Health Thresholds */}
+      <HealthThresholdsSettings />
 
       {/* Runtime Info */}
       <div>
