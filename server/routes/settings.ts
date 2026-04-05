@@ -5,6 +5,17 @@ import { defaultAppSettings } from "../db";
 import { validate } from "./validation";
 import { clearProjectDirsCache } from "../scanner/utils";
 
+const ThresholdPairSchema = z.object({
+  yellow: z.number().positive(),
+  red: z.number().positive(),
+}).refine(d => d.yellow < d.red, { message: "yellow must be less than red" });
+
+const HealthThresholdsSchema = z.object({
+  context: ThresholdPairSchema,
+  cost: ThresholdPairSchema,
+  messages: ThresholdPairSchema,
+}).optional();
+
 const ScanPathsSchema = z.object({
   homeDir: z.string().nullable().optional(),
   claudeDir: z.string().nullable().optional(),
@@ -18,6 +29,7 @@ const SettingsPatchSchema = z.object({
   appName: z.string().trim().min(1, "appName must be a non-empty string").max(50, "appName must be 50 characters or fewer").optional(),
   scanPaths: ScanPathsSchema,
   onboarded: z.boolean().optional(),
+  healthThresholds: HealthThresholdsSchema,
 });
 
 const router = Router();
@@ -37,6 +49,7 @@ router.patch("/api/settings", (req, res) => {
     patch.scanPaths = { ...current, ...parsed.scanPaths };
   }
   if (parsed.onboarded !== undefined) patch.onboarded = parsed.onboarded;
+  if (parsed.healthThresholds !== undefined) patch.healthThresholds = parsed.healthThresholds;
 
   const updated = storage.updateAppSettings(patch);
   if (parsed.scanPaths !== undefined) {

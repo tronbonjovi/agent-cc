@@ -140,6 +140,9 @@ export class Storage {
     if (patch.scanPaths) {
       db.appSettings.scanPaths = { ...db.appSettings.scanPaths, ...patch.scanPaths };
     }
+    if (patch.healthThresholds) {
+      db.appSettings.healthThresholds = { ...patch.healthThresholds };
+    }
     save();
     return db.appSettings;
   }
