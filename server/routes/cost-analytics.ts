@@ -4,41 +4,25 @@ import { createInterface } from "readline";
 import { getCachedSessions } from "../scanner/session-scanner";
 import { encodeProjectKey, decodeProjectKey } from "../scanner/utils";
 import { storage } from "../storage";
+import { getPricing, computeCost as computeCostFromPricing } from "../scanner/pricing";
 
 const router = Router();
 
-// --- Pricing per million tokens (USD) ---
-const MODEL_PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
-  opus:   { input: 15,   output: 75,  cacheRead: 15 * 0.1,   cacheWrite: 15 * 1.25 },
-  sonnet: { input: 3,    output: 15,  cacheRead: 3 * 0.1,    cacheWrite: 3 * 1.25 },
-  haiku:  { input: 0.80, output: 4,   cacheRead: 0.80 * 0.1, cacheWrite: 0.80 * 1.25 },
-};
-
 function getModelFamily(model: string): string {
   const lower = model.toLowerCase();
-  for (const key of Object.keys(MODEL_PRICING)) {
-    if (lower.includes(key)) return key;
-  }
-  return "sonnet"; // default
-}
-
-function getPricing(model: string) {
-  return MODEL_PRICING[getModelFamily(model)] || MODEL_PRICING.sonnet;
+  if (lower.includes("opus")) return "opus";
+  if (lower.includes("haiku")) return "haiku";
+  return "sonnet";
 }
 
 function computeCost(
-  pricing: { input: number; output: number; cacheRead: number; cacheWrite: number },
+  pricing: ReturnType<typeof getPricing>,
   inputTokens: number,
   outputTokens: number,
   cacheReadTokens: number,
   cacheWriteTokens: number,
 ): number {
-  return (
-    (inputTokens / 1_000_000) * pricing.input +
-    (outputTokens / 1_000_000) * pricing.output +
-    (cacheReadTokens / 1_000_000) * pricing.cacheRead +
-    (cacheWriteTokens / 1_000_000) * pricing.cacheWrite
-  );
+  return computeCostFromPricing(pricing, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens);
 }
 
 // --- Error classification ---
