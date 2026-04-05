@@ -34,3 +34,4 @@ npm-debug.log*
 docs/screenshots/
 docs/social-preview.png
 .superpowers/
+.worktrees/
