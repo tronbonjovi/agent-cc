@@ -104,7 +104,7 @@ When adding integrations with external services:
 
 ## Tests
 
-- **1730 unit tests** covering parsers, routes, storage, validation, scanners, path safety, API integration
+- **1883 unit tests** covering parsers, routes, storage, validation, scanners, task I/O, path safety, API integration
 - **`new-user-safety.test.ts`** — automated guardrail that scans all source files for:
   - Hardcoded user paths (both decoded `C:/Users/...` and encoded `C--Users-...`)
   - Phone numbers / PII

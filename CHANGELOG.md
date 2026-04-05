@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Task management** — project-level task boards with kanban view, drag-and-drop, and markdown-based task files. Tasks are stored as `.md` files with YAML frontmatter in `{project}/.claude/tasks/`, following the same pattern as skills and memories. Features: flexible hierarchy (roadmap → milestone → task or any user-defined structure), customizable statuses/types/priorities, rich task cards with priority colors and description preview, slide-out detail panel, inline task creation, and board setup flow for new projects
+- **Task API** — full CRUD endpoints at `/api/tasks/` with optimistic concurrency control, atomic file writes, column reorder, and board config management
+- **Task sidebar navigation** — Tasks appears as a sub-item under Projects in the sidebar, with project picker and hierarchy tree
 - **Multi-theme system** — registry-based architecture with 5 named themes (Dark, Light, Glass, Anthropic, Catppuccin Mocha) plus system auto-detect. Each theme is a standalone definition file; adding a new theme requires one file and one line in the registry
 - **Anthropic theme** — warm earth tones with signature burnt orange accent, inspired by Anthropic's brand palette
 - **Catppuccin Mocha theme** — soothing pastel dark theme from the official Catppuccin palette
@@ -23,7 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Theme state managed via React context (ThemeProvider) instead of independent hook instances
 - Entity colors in tailwind.config.ts changed from hardcoded hex to CSS variable references
 - Box shadows in tailwind.config.ts changed from hardcoded rgba to CSS variable references
-- 1730 tests across 18 test files, all passing
+- 1883 tests across 21 test files, all passing
+- New npm dependencies: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` for drag-and-drop
 
 ### Fixed
 - **Project key decoding** — added `encodeProjectKey()` for deterministic path-to-key matching, replacing lossy `decodeProjectKey()` in all comparison callsites. Fixes ghost project entries, broken entity linking, and missing session data for hyphenated project names (e.g. "claude-command-center" was showing as "Center")
