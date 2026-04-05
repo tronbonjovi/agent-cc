@@ -75,7 +75,7 @@ router.post("/api/tasks/project/:projectId", (req, res) => {
   const tasksDir = getTasksDir(projectPath);
   if (!fs.existsSync(tasksDir)) {
     try {
-      fs.mkdirSync(tasksDir, { recursive: true });
+      fs.mkdirSync(tasksDir, { recursive: true, mode: 0o775 });
       writeConfigFile(path.join(tasksDir, "_config.md"), { ...DEFAULT_TASK_CONFIG });
     } catch (err) {
       return res.status(403).json({ error: "Cannot create tasks directory — not writable" });
@@ -139,7 +139,7 @@ router.put("/api/tasks/project/:projectId/config", (req, res) => {
   const tasksDir = getTasksDir(projectPath);
   if (!fs.existsSync(tasksDir)) {
     try {
-      fs.mkdirSync(tasksDir, { recursive: true });
+      fs.mkdirSync(tasksDir, { recursive: true, mode: 0o775 });
     } catch {
       return res.status(403).json({ error: "Cannot create tasks directory — not writable" });
     }
