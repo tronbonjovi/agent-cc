@@ -84,6 +84,7 @@ interface CostAnalytics {
   byModel: Record<string, ModelBreakdown>;
   byProject: ProjectBreakdown[];
   totalCost: number;
+  monthlyTotalCost: number;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCacheReadTokens: number;
@@ -362,7 +363,7 @@ function CostsTab() {
   const costWithoutCache = data.totalCost + totalSaved;
   const cacheSavings = costWithoutCache > 0 ? (totalSaved / costWithoutCache) * 100 : 0;
   const maxDayCost = Math.max(...data.dailyCosts.map((d) => d.cost), 0.01);
-  const currentSpend = data.totalCost;
+  const currentSpend = data.monthlyTotalCost;
   const maxPlanLimit = data.planLimits.max20x.limit;
   const spendPctOf100 = maxPlanLimit > 0 ? (currentSpend / data.planLimits.max5x.limit) * 100 : 0;
   let spendColor = "bg-green-500";

@@ -60,6 +60,7 @@ interface CostAnalyticsResult {
     sessions: number;
   }>;
   totalCost: number;
+  monthlyTotalCost: number;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCacheReadTokens: number;
@@ -227,6 +228,26 @@ async function buildCostAnalytics(days: number): Promise<CostAnalyticsResult> {
   let totalCacheReadTokens = 0;
   let totalCacheWriteTokens = 0;
 
+  // Weekly comparison — computed from raw data, independent of the days window
+  const todayStr = now.toISOString().slice(0, 10);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+  const sevenAgo = new Date(now);
+  sevenAgo.setDate(sevenAgo.getDate() - 7);
+  const sevenAgoStr = sevenAgo.toISOString().slice(0, 10);
+  const fourteenAgo = new Date(now);
+  fourteenAgo.setDate(fourteenAgo.getDate() - 14);
+  const fourteenAgoStr = fourteenAgo.toISOString().slice(0, 10);
+  let thisWeekCost = 0;
+  let lastWeekCost = 0;
+
+  // Monthly total — always 30-day window for plan limit comparison
+  let monthlyTotalCost = 0;
+  const monthlyCutoff = new Date(now);
+  monthlyCutoff.setDate(monthlyCutoff.getDate() - 30);
+  const monthlyCutoffStr = monthlyCutoff.toISOString().slice(0, 10);
+
   // Per-session cost tracking for topSessions
   const sessionCostMap: Record<string, { cost: number; tokens: number; model: string; firstMessage: string }> = {};
 
@@ -268,6 +289,21 @@ async function buildCostAnalytics(days: number): Promise<CostAnalyticsResult> {
         const cost = computeCost(pricing, tk.inputTokens, tk.outputTokens, tk.cacheReadTokens, tk.cacheWriteTokens);
 
         const dateKey = tk.timestamp.slice(0, 10);
+
+        // Weekly comparison — always computed from full data, not scoped to days window
+        // Half-open ranges: [today-7d, tomorrow) vs [today-14d, today-7d)
+        if (dateKey >= sevenAgoStr && dateKey < tomorrowStr) {
+          thisWeekCost += cost;
+        }
+        if (dateKey >= fourteenAgoStr && dateKey < sevenAgoStr) {
+          lastWeekCost += cost;
+        }
+
+        // Monthly total — always 30-day window for plan limit comparison
+        if (dateKey >= monthlyCutoffStr) {
+          monthlyTotalCost += cost;
+        }
+
         const inWindow = dateKey >= cutoffStr;
 
         // Totals (scoped to window)
@@ -386,20 +422,7 @@ async function buildCostAnalytics(days: number): Promise<CostAnalyticsResult> {
     }))
     .sort((a, b) => b.count - a.count);
 
-  // Weekly comparison
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const fourteenDaysAgo = new Date(now);
-  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-  const sevenStr = sevenDaysAgo.toISOString().slice(0, 10);
-  const fourteenStr = fourteenDaysAgo.toISOString().slice(0, 10);
-
-  const thisWeekCost = dailyCosts
-    .filter(d => d.date >= sevenStr)
-    .reduce((s, d) => s + d.cost, 0);
-  const lastWeekCost = dailyCosts
-    .filter(d => d.date >= fourteenStr && d.date < sevenStr)
-    .reduce((s, d) => s + d.cost, 0);
+  // Weekly comparison (accumulated from raw data in the loop above)
   const changePct = lastWeekCost > 0 ? Math.round((thisWeekCost / lastWeekCost - 1) * 100) : 0;
 
   // Top sessions by cost
@@ -419,6 +442,7 @@ async function buildCostAnalytics(days: number): Promise<CostAnalyticsResult> {
     byModel,
     byProject,
     totalCost: Math.round(totalCost * 1000) / 1000,
+    monthlyTotalCost: Math.round(monthlyTotalCost * 1000) / 1000,
     totalInputTokens,
     totalOutputTokens,
     totalCacheReadTokens,
