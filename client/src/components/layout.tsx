@@ -30,10 +30,25 @@ import {
   BarChart3,
   Globe,
   Sparkles,
+  CheckSquare,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import React from "react";
 
-const navSections = [
+interface NavItem {
+  path: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  countKey: string | null;
+  children?: NavItem[];
+}
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
   {
     label: "Overview",
     items: [
@@ -43,7 +58,11 @@ const navSections = [
   {
     label: "Entities",
     items: [
-      { path: "/projects", label: "Projects", icon: FolderOpen, countKey: "project" as const },
+      { path: "/projects", label: "Projects", icon: FolderOpen, countKey: "project" as const,
+        children: [
+          { path: "/tasks", label: "Tasks", icon: CheckSquare, countKey: null },
+        ],
+      },
       { path: "/mcps", label: "MCP Servers", icon: Server, countKey: "mcp" as const },
       { path: "/skills", label: "Skills", icon: Wand2, countKey: "skill" as const },
       { path: "/plugins", label: "Plugins", icon: Puzzle, countKey: "plugin" as const },
@@ -192,7 +211,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         </Tooltip>
                       );
                     }
-                    return navContent;
+
+                    return (
+                      <React.Fragment key={item.path}>
+                        {navContent}
+                        {!collapsed && item.children?.map((child) => {
+                          const isChildActive = location.startsWith(child.path);
+                          return (
+                            <Link key={child.path} href={child.path}>
+                              <div
+                                className={cn(
+                                  "flex items-center rounded-md pl-9 pr-3 py-1.5 text-xs transition-all duration-150 cursor-pointer group relative",
+                                  isChildActive
+                                    ? "bg-gradient-to-r from-brand-1/10 via-brand-2/8 to-transparent text-sidebar-accent-foreground font-medium"
+                                    : "text-sidebar-foreground/50 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                                )}
+                              >
+                                <child.icon className={cn("h-3.5 w-3.5 mr-2 flex-shrink-0", isChildActive && "text-nav-active")} />
+                                <span>{child.label}</span>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
                   })}
                 </div>
               </div>
