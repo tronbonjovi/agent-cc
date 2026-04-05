@@ -11,6 +11,13 @@ export const dracula: ThemeDefinition = {
   description: "Dark theme with vibrant, high-contrast colors",
   variant: "dark",
   author: "Dracula Theme",
+  aesthetic: {
+    glowIntensity: 0.4,
+    borderRadius: "medium",
+    cardElevation: "glow",
+    gradientMeshOpacity: 0.04,
+    animationScale: "full",
+  },
   colors: {
     // Background (#282a36) = hsl(231 15% 18%)
     background: "231 15% 18%",

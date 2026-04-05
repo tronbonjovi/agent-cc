@@ -7,9 +7,9 @@ import os from "os";
 const tmpHome = path.join(os.tmpdir(), "cc-api-test-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8));
 fs.mkdirSync(tmpHome, { recursive: true });
 
-// We need COMMAND_CENTER_DATA set so db.ts doesn't write into the real home dir
+// We need AGENT_CC_DATA set so db.ts doesn't write into the real home dir
 const tmpData = path.join(tmpHome, ".cc-data");
-process.env.COMMAND_CENTER_DATA = tmpData;
+process.env.AGENT_CC_DATA = tmpData;
 
 // Mock the utils module to override HOME / CLAUDE_DIR / fileExists so the scanner
 // looks in our temp directory instead of the real home directory.

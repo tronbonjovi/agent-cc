@@ -151,7 +151,7 @@ describe("TRASH_DIR location", () => {
     const { TRASH_DIR } = await import("../server/config");
     const home = os.homedir();
 
-    expect(TRASH_DIR).toContain(".claude-command-center");
+    expect(TRASH_DIR).toContain(".agent-cc");
     expect(TRASH_DIR).toContain("trash");
     expect(TRASH_DIR.startsWith(home.replace(/\\/g, "/"))).toBe(true);
   });

@@ -4,9 +4,9 @@ import path from "path";
 import os from "os";
 import type { Entity, EntityType, CustomNode, CustomEdge } from "@shared/types";
 
-// Set COMMAND_CENTER_DATA before importing storage/db so the module uses our temp dir
+// Set AGENT_CC_DATA before importing storage/db so the module uses our temp dir
 const tmpDir = path.join(os.tmpdir(), "cc-storage-test-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8));
-process.env.COMMAND_CENTER_DATA = tmpDir;
+process.env.AGENT_CC_DATA = tmpDir;
 
 // Dynamic import so env var is read at module init time
 const { Storage } = await import("../server/storage");
@@ -32,7 +32,7 @@ describe("Storage", () => {
 
   beforeEach(() => {
     // Reset the DB file between tests for a clean state
-    const dbPath = path.join(tmpDir, "command-center.json");
+    const dbPath = path.join(tmpDir, "agent-cc.json");
     if (fs.existsSync(dbPath)) {
       fs.unlinkSync(dbPath);
     }

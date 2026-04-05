@@ -285,7 +285,7 @@ router.post("/api/update/apply", (_req: Request, res: Response) => {
   try {
     if (isNpmInstall()) {
       // npm global install — update via npm
-      runStep("npm update", "npm update -g claude-command-center", 120000);
+      runStep("npm update", "npm update -g agent-cc", 120000);
     } else {
       // git clone — update via git pull + rebuild
       const remote = detectUpdateRemote();
@@ -339,7 +339,7 @@ router.post("/api/update/restart", (_req: Request, res: Response) => {
 
   // Pass through PORT and HOST env vars
   const env = { ...process.env };
-  env.COMMAND_CENTER_RESTARTED = "true";
+  env.AGENT_CC_RESTARTED = "true";
 
   res.json({ message: "Restarting server...", cmd: path.basename(cmd), mode: isNpm ? "npm" : "dev" });
 

@@ -1,63 +1,89 @@
 import type { ThemeDefinition } from "./types";
 
-// Anthropic's brand palette — warm earth tones with signature burnt orange accent
-// Based on Anthropic's official brand colors:
-//   Dark: #141413, Light: #faf9f5, Orange: #d97757, Blue: #6a9bcc, Green: #788c5d
+// Anthropic Light — warm cream theme matching the Claude desktop aesthetic
+// Every accent stays within the Anthropic earth-tone palette:
+//   Primary: #d97757 (burnt orange/terra cotta)
+//   Rose:    #b87878 (warm rose — secondary accent, replaces all blue)
+//   Sage:    #788c5d (sage green — success, nature)
+//   Amber:   #c19a50 (warm amber — warning, warmth)
+//   Clay:    #b86a4e (deep terra cotta — error, urgency)
+//   Taupe:   #8a8478 (warm gray — muted, secondary text)
 export const anthropic: ThemeDefinition = {
   id: "anthropic",
-  name: "Anthropic",
-  description: "Warm earth tones inspired by Anthropic's brand",
-  variant: "dark",
+  name: "Anthropic Light",
+  description: "Warm cream light theme — Anthropic earth tones throughout",
+  variant: "light",
   author: "Anthropic",
+  aesthetic: {
+    glowIntensity: 0,
+    borderRadius: "soft",
+    cardElevation: "shadow",
+    gradientMeshOpacity: 0.02,
+    animationScale: "minimal",
+  },
   colors: {
-    background: "40 4% 7%",
-    foreground: "40 33% 96%",
-    card: "40 4% 10%",
-    "card-foreground": "40 33% 96%",
-    popover: "40 4% 10%",
-    "popover-foreground": "40 33% 96%",
-    primary: "16 62% 56%",
+    // Warm cream background (#faf9f5)
+    background: "40 33% 97%",
+    // Near-black warm foreground (#141413)
+    foreground: "40 4% 8%",
+    // Slightly darker cream for cards (#f3f1eb)
+    card: "40 22% 94%",
+    "card-foreground": "40 4% 8%",
+    popover: "40 33% 97%",
+    "popover-foreground": "40 4% 8%",
+    // Burnt orange primary (#d97757)
+    primary: "16 62% 60%",
     "primary-foreground": "40 33% 98%",
-    secondary: "30 6% 15%",
-    "secondary-foreground": "40 33% 96%",
-    muted: "30 6% 15%",
-    "muted-foreground": "30 8% 55%",
-    accent: "30 10% 18%",
-    "accent-foreground": "40 33% 96%",
-    destructive: "0 63% 45%",
+    // Warm gray secondary
+    secondary: "40 12% 90%",
+    "secondary-foreground": "40 4% 8%",
+    muted: "40 12% 90%",
+    // Warm taupe muted text
+    "muted-foreground": "40 6% 47%",
+    accent: "40 15% 88%",
+    "accent-foreground": "40 4% 8%",
+    // Terra cotta red for destructive (warm, not pure red)
+    destructive: "8 45% 48%",
     "destructive-foreground": "40 33% 98%",
-    border: "30 6% 18%",
-    input: "30 6% 18%",
-    ring: "16 62% 56%",
-    "chart-1": "16 62% 56%",
-    "chart-2": "208 44% 58%",
-    "chart-3": "82 22% 50%",
-    "chart-4": "30 50% 65%",
-    "chart-5": "340 45% 55%",
-    sidebar: "40 4% 6%",
-    "sidebar-foreground": "40 33% 96%",
-    "sidebar-border": "30 6% 18%",
+    border: "40 10% 82%",
+    input: "40 10% 82%",
+    ring: "16 62% 60%",
+    // Charts — all warm earth tones
+    "chart-1": "16 62% 56%",    // burnt orange
+    "chart-2": "82 22% 46%",    // sage green
+    "chart-3": "35 48% 54%",    // warm amber
+    "chart-4": "0 25% 60%",     // warm rose
+    "chart-5": "25 30% 50%",    // warm brown
+    // Warm sidebar
+    sidebar: "40 22% 95%",
+    "sidebar-foreground": "40 4% 8%",
+    "sidebar-border": "40 10% 82%",
     "sidebar-primary": "16 62% 56%",
     "sidebar-primary-foreground": "40 33% 98%",
-    "sidebar-accent": "30 10% 18%",
-    "sidebar-accent-foreground": "40 33% 96%",
+    "sidebar-accent": "40 15% 88%",
+    "sidebar-accent-foreground": "40 4% 8%",
+    // Brand gradient — orange to warm rose (NO blue)
     "brand-1": "16 62% 56%",
-    "brand-2": "208 44% 58%",
-    "nav-active": "16 62% 64%",
-    "status-success": "82 22% 50%",
-    "status-warning": "30 50% 65%",
-    "status-error": "0 50% 52%",
-    "info": "208 44% 58%",
-    "entity-project": "208 44% 58%",
-    "entity-mcp": "82 22% 50%",
-    "entity-plugin": "16 62% 56%",
-    "entity-skill": "30 50% 65%",
-    "entity-markdown": "30 8% 55%",
-    "entity-config": "173 40% 42%",
-    "glow-blue": "rgba(106, 155, 204, 0.35)",
-    "glow-purple": "rgba(217, 119, 87, 0.35)",
-    "glow-green": "rgba(120, 140, 93, 0.35)",
-    "glow-amber": "rgba(200, 160, 90, 0.35)",
-    "glow-cyan": "rgba(106, 155, 204, 0.25)",
+    "brand-2": "0 25% 60%",
+    "nav-active": "16 62% 52%",
+    // Status — warm versions
+    "status-success": "82 22% 42%",   // sage green
+    "status-warning": "35 48% 50%",   // warm amber
+    "status-error": "8 45% 48%",      // terra cotta
+    // Warm rose info accent (NO blue)
+    "info": "0 25% 55%",
+    // Entities — all earth tones, no blue or teal
+    "entity-project": "16 45% 52%",   // clay terra cotta
+    "entity-mcp": "82 22% 42%",       // sage green
+    "entity-plugin": "16 62% 56%",    // burnt orange
+    "entity-skill": "35 48% 50%",     // warm amber
+    "entity-markdown": "40 6% 47%",   // warm taupe
+    "entity-config": "82 15% 40%",    // muted sage
+    // Glow colors — warm tones (feed decorative gradients)
+    "glow-blue": "rgba(217, 119, 87, 0.15)",    // warm orange (replaces blue)
+    "glow-purple": "rgba(184, 120, 120, 0.15)",  // warm rose (replaces purple)
+    "glow-green": "rgba(120, 140, 93, 0.12)",    // sage green
+    "glow-amber": "rgba(193, 154, 80, 0.15)",    // warm amber
+    "glow-cyan": "rgba(120, 140, 93, 0.1)",      // sage (replaces cyan)
   },
 };

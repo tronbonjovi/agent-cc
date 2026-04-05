@@ -14,6 +14,13 @@ export const catppuccinMocha: ThemeDefinition = {
   description: "Soothing pastel dark theme from the Catppuccin palette",
   variant: "dark",
   author: "Catppuccin",
+  aesthetic: {
+    glowIntensity: 0.1,
+    borderRadius: "medium",
+    cardElevation: "flat",
+    gradientMeshOpacity: 0.03,
+    animationScale: "minimal",
+  },
   colors: {
     // Base (#1e1e2e) = hsl(240 21% 15%)
     background: "240 21% 15%",

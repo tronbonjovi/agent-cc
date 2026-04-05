@@ -15,6 +15,13 @@ export const tokyoNight: ThemeDefinition = {
   fonts: {
     mono: "\"Cascadia Code\", ui-monospace, monospace",
   },
+  aesthetic: {
+    glowIntensity: 0.15,
+    borderRadius: "medium",
+    cardElevation: "shadow",
+    gradientMeshOpacity: 0.03,
+    animationScale: "minimal",
+  },
   colors: {
     // Background (#1a1b26) = hsl(235 18% 12%)
     background: "235 18% 12%",

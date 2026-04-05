@@ -1,7 +1,7 @@
 /**
  * New-User Safety Tests
  *
- * These tests ensure the Command Center works cleanly for any user who clones
+ * These tests ensure Agent CC works cleanly for any user who clones
  * the repo — no hardcoded paths, no PII, no Saeed-specific references, and all
  * features degrade gracefully when external services aren't available.
  *
@@ -138,7 +138,7 @@ describe("Graceful degradation without Claude CLI", () => {
 });
 
 describe("Nerve center services are configurable", () => {
-  it("defaults to just Command Center when no env var set", () => {
+  it("defaults to just Agent CC when no env var set", () => {
     const content = fs.readFileSync(path.join(ROOT, "server/scanner/nerve-center.ts"), "utf-8");
     expect(content).toContain("NERVE_CENTER_SERVICES");
     expect(content).toContain("defaultServices");

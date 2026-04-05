@@ -6,6 +6,13 @@ export const light: ThemeDefinition = {
   name: "Light",
   description: "Clean light theme with blue accents",
   variant: "light",
+  aesthetic: {
+    glowIntensity: 0,
+    borderRadius: "medium",
+    cardElevation: "shadow",
+    gradientMeshOpacity: 0.02,
+    animationScale: "minimal",
+  },
   colors: {
     background: "0 0% 100%",
     foreground: "222 47% 11%",

@@ -3,14 +3,14 @@ import path from "path";
 import os from "os";
 import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision } from "@shared/types";
 
-const dataDir = process.env.COMMAND_CENTER_DATA
-  ? path.resolve(process.env.COMMAND_CENTER_DATA)
-  : path.join(os.homedir(), ".claude-command-center");
+const dataDir = process.env.AGENT_CC_DATA
+  ? path.resolve(process.env.AGENT_CC_DATA)
+  : path.join(os.homedir(), ".agent-cc");
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, "command-center.json");
+const dbPath = path.join(dataDir, "agent-cc.json");
 const dbTmpPath = dbPath + ".tmp";
 
 export interface DBData {
@@ -34,7 +34,7 @@ export interface DBData {
 }
 
 export const defaultAppSettings: AppSettings = {
-  appName: "Command Center",
+  appName: "Agent CC",
   onboarded: true,
   billingMode: "auto",
   scanPaths: {

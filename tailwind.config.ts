@@ -6,9 +6,9 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem",
-        md: ".375rem",
-        sm: ".1875rem",
+        lg: "var(--card-radius, .5625rem)",
+        md: "calc(var(--card-radius, .375rem) * 0.67)",
+        sm: "calc(var(--card-radius, .1875rem) * 0.33)",
       },
       colors: {
         background: "hsl(var(--background) / <alpha-value>)",

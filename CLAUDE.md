@@ -1,4 +1,4 @@
-# Command Center — Development Guide
+# Agent CC — Development Guide
 
 ## Quick Start
 
@@ -6,14 +6,14 @@
 npm install
 npm run dev        # starts on http://localhost:5100
 npm run check      # TypeScript type-check
-npm test           # run all tests (1595+ tests)
+npm test           # run all tests
 ```
 
 ## Architecture
 
-Express.js backend + React frontend (TypeScript), served from a single process. Session data is read from `~/.claude/projects/` JSONL files. Persistent state stored in `~/.claude-command-center/command-center.json`.
+Express.js backend + React frontend (TypeScript), served from a single process. Session data is read from `~/.claude/projects/` JSONL files. Persistent state stored in `~/.agent-cc/agent-cc.json`.
 
-## New-User Safety Rules
+## Safety Rules
 
 **CRITICAL — Follow these rules for ALL changes:**
 
@@ -95,8 +95,8 @@ When adding integrations with external services:
 |----------|---------|---------|
 | `PORT` | Server port | 5100 |
 | `HOST` | Server host | 127.0.0.1 |
-| `COMMAND_CENTER_DATA` | Data directory | ~/.claude-command-center |
-| `NERVE_CENTER_SERVICES` | Services to monitor (name:port,name:port) | Command Center:5100 |
+| `AGENT_CC_DATA` | Data directory | ~/.agent-cc |
+| `NERVE_CENTER_SERVICES` | Services to monitor (name:port,name:port) | Agent CC:5100 |
 | `VOICE_CALLER_SCRIPT` | Path to voice outbound caller script | (disabled) |
 | `VOICE_PHONE` | Phone number for voice calls | (disabled) |
 | `TELEGRAM_BOT_URL` | Telegram bot HTTP API URL | (disabled) |
@@ -115,7 +115,7 @@ When adding integrations with external services:
 
 ## Pre-commit Hook (PII Guard)
 
-A git pre-commit hook runs `new-user-safety.test.ts` before every commit. If PII is detected, the commit is blocked. This repo is **public** — any leaked data is immediately visible.
+A git pre-commit hook runs `new-user-safety.test.ts` before every commit. If PII is detected, the commit is blocked.
 
 The hook lives at `.git/hooks/pre-commit` (not tracked in git). If it's missing after a fresh clone, recreate it:
 

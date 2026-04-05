@@ -15,6 +15,13 @@ export const nord: ThemeDefinition = {
   fonts: {
     mono: "\"Fira Code\", ui-monospace, monospace",
   },
+  aesthetic: {
+    glowIntensity: 0,
+    borderRadius: "sharp",
+    cardElevation: "flat",
+    gradientMeshOpacity: 0.01,
+    animationScale: "minimal",
+  },
   colors: {
     // Polar Night 1 (#2e3440) = hsl(220 16% 22%)
     background: "220 16% 22%",

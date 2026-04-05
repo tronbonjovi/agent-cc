@@ -12,6 +12,13 @@ export const solarizedDark: ThemeDefinition = {
   description: "Precision colors designed for readability",
   variant: "dark",
   author: "Ethan Schoonover",
+  aesthetic: {
+    glowIntensity: 0,
+    borderRadius: "sharp",
+    cardElevation: "flat",
+    gradientMeshOpacity: 0.01,
+    animationScale: "minimal",
+  },
   colors: {
     // Base03 (#002b36) = hsl(192 100% 11%)
     background: "192 100% 11%",

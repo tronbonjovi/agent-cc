@@ -73,7 +73,7 @@ export async function getNerveCenterData(sessions: SessionData[]): Promise<Nerve
 
   // Check services in parallel — configurable via NERVE_CENTER_SERVICES env var
   // Format: "name:port,name:port" e.g. "My App:3000,Database:5432"
-  const defaultServices = [{ name: "Command Center", port: 5100 }];
+  const defaultServices = [{ name: "Agent CC", port: 5100 }];
   const envServices = process.env.NERVE_CENTER_SERVICES;
   const serviceList = envServices
     ? envServices.split(",").map(s => {

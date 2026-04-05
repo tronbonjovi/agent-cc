@@ -5,216 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.0] - 2026-04-05
 
 ### Added
 - **Task management** — project-level task boards with kanban view, drag-and-drop, and markdown-based task files. Tasks are stored as `.md` files with YAML frontmatter in `{project}/.claude/tasks/`, following the same pattern as skills and memories. Features: flexible hierarchy (roadmap → milestone → task or any user-defined structure), customizable statuses/types/priorities, rich task cards with priority colors and description preview, slide-out detail panel, inline task creation, and board setup flow for new projects
 - **Task API** — full CRUD endpoints at `/api/tasks/` with optimistic concurrency control, atomic file writes, column reorder, and board config management
 - **Task sidebar navigation** — Tasks appears as a sub-item under Projects in the sidebar, with project picker and hierarchy tree
-- **Multi-theme system** — registry-based architecture with 5 named themes (Dark, Light, Glass, Anthropic, Catppuccin Mocha) plus system auto-detect. Each theme is a standalone definition file; adding a new theme requires one file and one line in the registry
-- **Anthropic theme** — warm earth tones with signature burnt orange accent, inspired by Anthropic's brand palette
-- **Catppuccin Mocha theme** — soothing pastel dark theme from the official Catppuccin palette
-- **Theme dropdown picker** — replaces the old cycle button in the sidebar with a dropdown showing color swatches and checkmarks. Full WAI-ARIA accessibility: keyboard navigation, focus management, screen reader support
-- **Theme-aware entity colors** — entity type colors (project, mcp, plugin, skill, markdown, config) now use CSS variables and adapt per theme across all page components
-- **Theme-aware decorative CSS** — gradient mesh background, glass utilities, gradient borders, status panels, section headers, text gradients, and box shadows all respond to theme changes
-- **Light-variant extensibility** — `data-variant` attribute on `<html>` allows theme-specific CSS rules to apply to any theme of the same variant, not just a specific theme ID
-- **Community themes** — Nord, Dracula, Tokyo Night, and Solarized Dark with accurate palettes from official specs
-- **Extended theme tokens** — brand gradient (brand-1/brand-2), nav-active highlight, semantic status colors (success/warning/error), info accent, and optional per-theme font families
-- **Theme-aware sidebar** — brand icon, nav active indicators, and all sidebar accents now fully respond to theme changes
 
 ### Changed
-- Theme state managed via React context (ThemeProvider) instead of independent hook instances
-- Entity colors in tailwind.config.ts changed from hardcoded hex to CSS variable references
-- Box shadows in tailwind.config.ts changed from hardcoded rgba to CSS variable references
 - 1883 tests across 21 test files, all passing
 - New npm dependencies: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` for drag-and-drop
 
-### Fixed
-- **Project key decoding** — added `encodeProjectKey()` for deterministic path-to-key matching, replacing lossy `decodeProjectKey()` in all comparison callsites. Fixes ghost project entries, broken entity linking, and missing session data for hyphenated project names (e.g. "claude-command-center" was showing as "Center")
-- **Ghost project deduplication** — projects discovered via filesystem and session key fallback are now deduplicated by encoded key, preferring paths that exist on disk
-- **Container directory filtering** — extra scan paths that are containers (e.g. `~/dev/projects`) are no longer treated as projects themselves
-- **Docker project discovery** — added `EXTRA_PROJECT_DIRS` env var so the scanner can find host project directories mounted into the container
-- **Dashboard API count mismatch** — removed `config` entity from dashboard stat cards (was mislabeled as "API", showing 1 while the APIs page showed 0). Config entities now correctly labeled "Config" and route to Settings
-- **Editable app name** — removed click-to-rename on the sidebar app name; it's now a static display
-- **MEMORY.md frontmatter false positives** — all MEMORY.md index files are now excluded from frontmatter checks, not just the first one found. Fixes false "missing frontmatter" warnings for multi-project setups
-- **Update system fork support** — update checker now prefers `upstream` remote over `origin`, so forked repos check the source project for updates instead of their own fork. UI shows which remote is being used
+## [2.0.0] - 2026-04-04
 
-## [1.22.0] - 2026-04-04
-
-### Added
-- **Docker support** — multi-stage Dockerfile (node:22-alpine) and docker-compose.yml for homelab deployment
-- Bind mount `~/.claude` read-only for live session data access in container
-- Named volume for persistent app settings across container rebuilds
-- Non-root container execution (runs as `node` user)
-- `.dockerignore` for efficient build context
-- Docker quick start in README
+Project reborn as **Agent CC** (Agent Control Center). Originally started as a fork of sorlen008/claude-command-center, the project diverged significantly and was re-established as an independent private project.
 
 ### Changed
-- Phase 2 (harden) completed — path traversal protection, MCP secret redaction, per-page error boundaries, deep search UX
-- 1595+ tests across 18 test files, all passing
+- Renamed from "Claude Command Center" to "Agent CC" across entire codebase
+- New private GitHub repo (no longer a fork)
+- Data directory changed from `~/.claude-command-center/` to `~/.agent-cc/`
+- Env var changed from `COMMAND_CENTER_DATA` to `AGENT_CC_DATA`
+- Database file renamed from `command-center.json` to `agent-cc.json`
+- Caddy subdomain changed from `ccc.devbox` to `acc.devbox`
+- Removed MIT license, CONTRIBUTING.md, SECURITY.md, and other public open-source artifacts
+- Reset version to 2.0.0 to mark the clean break
 
-## [1.16.1] - 2026-03-18
-
-### Added
-- **New-user safety test suite** — 1,018 automated checks scanning all source files for hardcoded paths, PII, and user-specific strings
-- **CLAUDE.md** development guide with 8 safety rules for contributors
-
-## [1.16.0] - 2026-03-18
-
-### Added
-- **Operations Nerve Center** — real-time service health monitoring, cost pacing, attention items, overnight activity
-- **Continuation Intelligence** — detects unfinished sessions, uncommitted git changes, one-click resume/delegation
-- **Bash Command Knowledge Base** — indexes every shell command across sessions with categories, success rates, failure hotspots, and search
-- **Decision Log** — AI-extracts architectural decisions (topic, alternatives, trade-offs) from sessions via Haiku
-- **Session Delegation** — continue sessions via terminal (cross-platform), Telegram bot, or voice call
-
-### Fixed
-- Removed all hardcoded user paths, phone numbers, and project-specific text from source code
-- Nerve center services now configurable via `NERVE_CENTER_SERVICES` env var (defaults to Command Center only)
-- Voice delegation uses `VOICE_CALLER_SCRIPT` + `VOICE_PHONE` env vars instead of hardcoded values
-- Terminal delegation now cross-platform (Windows, macOS, Linux)
-- All AI features (summarize, NL query, decisions) pre-check Claude CLI availability and return 503 with clear message
-- Generalized MCP catalog descriptions and AI prompt examples
-
-## [1.15.0] - 2026-03-18
-
-### Added
-- **Session Notes** — add/edit/delete personal annotations on any session
-- **Pinned Sessions** — pin sessions to top of list, persisted across reloads
-- **Cross-Session File Timeline** — click any file in heatmap to see every change across all sessions
-- **Natural Language Query** — ask questions about analytics data ("Which project costs the most?")
-
-## [1.14.0] - 2026-03-18
-
-### Added
-- **Project Dashboards** — per-project aggregated view with cost, health, files, topics
-- **Session Diff Viewer** — inline diffs of Write/Edit operations in expanded session cards
-- **Prompt Library** — save/reuse prompt templates with one-click copy
-- **Weekly Digest** — automated weekly summary with accomplishments, project breakdown
-- **Auto-Workflows** — configurable auto-summarize, stale flagging, cost alerts, auto-tag
-
-## [1.13.0] - 2026-03-18
-
-### Added
-- **Deep Search** — full-text search across all session JSONL message content
-- **AI Summaries** — Claude Haiku-generated one-paragraph summaries with topics, outcome, tools, files
-- **Cost Analytics** — per-session, per-project, per-model, daily spend with charts
-- **File Heatmap** — most-touched files with read/edit/write counts
-- **Session Health** — tool error and retry pattern detection (good/fair/poor scoring)
-- **Stale Session Detection** — identifies empty and old sessions with reclaimable storage
-- **Smart Context Loader** — generates context prompts from recent session summaries
-- **Session-to-Commit Linking** — matches git commits to sessions by timestamp
-
-## [1.6.0] - 2026-03-16
-
-### Added
-- **APIs page** (`/apis`) for managing external API connections
-- **API config scanner** — `apis-config.yaml` for declaring external services
-- **Graph view modes** — 6 ways to view your ecosystem: Graph, Tiles, Tree, List, Radial, Matrix
-- **Restart button** with confirmation dialog after updates — spawns new server process, auto-reloads browser
-
-### Fixed
-- Server dying after update with no restart (removed `process.exit`, added proper restart endpoint)
-- Graph page view mode persistence
-
-## [1.3.2] - 2026-03-16
-
-### Fixed
-- Onboarding wizard not persisting -- settings PATCH route was dropping the `onboarded` field from request body
-
-## [1.3.1] - 2026-03-16
-
-### Fixed
-- Cost estimate formula was ~10x too low (treating all input tokens as cache reads)
-- Unknown session status defaulting to "thinking" instead of "stale"
-- Message parsing safety cap (2000 messages) to prevent OOM on large sessions
-
-## [1.3.0] - 2026-03-16
-
-### Added
-- **Cost Analytics page** (`/costs`) -- daily cost chart (30 days), per-model and per-project breakdown, cache savings calculation, plan limit comparison ($100/$200 thresholds)
-- **Error Breakdown** on cost page -- categorizes tool errors, compilation failures, test failures, permission denials, network errors with counts and examples
-- **Message History page** (`/messages`) -- chronological timeline of all user instructions across sessions, expandable conversation view with tool name badges
-- **Session status detection** -- thinking (green pulse), waiting (yellow), idle (grey), stale (dimmed) based on JSONL file mtime
-- **Permission mode badges** -- BYPASS (red) and AUTO (yellow) badges on active sessions in Live view
-- **Git branch display** -- shows current branch per session in Live view (reads .git/HEAD directly)
-- **Plan comparison** -- visual bar comparing monthly spend against Max $100/mo and $200/mo plan limits
-- **Session messages API** (`GET /api/sessions/:id/messages`) -- paginated conversation with role, content, model, token count, tool names
-
-## [1.2.1] - 2026-03-16
-
-### Added
-- **Smart update system** -- detects git clone vs npm install, uses appropriate update strategy
-- Auto-restart server after successful update
-- Auto-reload browser when server comes back online
-- npm global users get `npm update -g` instead of git pull
-
-## [1.2.0] - 2026-03-16
-
-### Added
-- **Onboarding wizard** -- 3-step first-launch setup (welcome, scan results, tips)
-- **Theme system** -- 4 themes: Dark, Light, Glass, System (follows OS). Switcher in sidebar.
-- **Stats page** (`/stats`) -- sessions-per-day chart, top projects, agent/model distribution
-- **Export/Import** (`GET /api/export`, `POST /api/import`) for backup and restore
-- **Keyboard shortcuts** -- press `G` then `D`/`S`/`A`/`G`/`L`/`M`/`P`/`K` to navigate
-- **Dashboard enhancements** -- active session count, keyboard hints, 6 quick actions
-- npm global install with shebang (`npm install -g claude-command-center`)
-
-### Fixed
-- Onboarding "Get Started" button not closing dialog (staleTime: Infinity cache issue)
-
-## [1.1.0] - 2026-03-16
-
-### Added
-- **Stats page** (`/stats`) with sessions-per-day chart, top projects, agent/model distribution
-- **Export/Import** (`GET /api/export`, `POST /api/import`) for backup and restore
-- **Keyboard shortcuts** -- press `G` then `D`/`S`/`A`/`G`/`L`/`M`/`P`/`K` to navigate pages
-- **Graph configuration** -- custom nodes, edges, and entity overrides via `graph-config.yaml`
-- **AI-assisted graph suggestions** via `claude -p` with setup guide for new users
-- **Docker Compose auto-discovery** -- extract services and `depends_on` as graph nodes/edges
-- **Database URL extraction** from MCP environment variables (PostgreSQL, MySQL, MongoDB, Redis)
-- **Custom node types** -- service, database, api, cicd, deploy, queue, cache
-- **CRUD API** for custom graph nodes and edges
-- **Live view enhancements** -- context usage bar, last message, message count, file size, cost estimate per session
-- **Live view agents** -- running and recent agents with task descriptions per session
-- **Dashboard enhancements** -- active session count, keyboard hints, 6 quick actions (Graph, Live, CLAUDE.md, Stats, Export, Discovery)
-- Agent deduplication across plugin marketplaces
-- Fallback YAML parser for agent definitions with malformed frontmatter
-- Hover tooltips on agent stats cards
-- Skill names in markdown files (parent directory name instead of "SKILL.md")
-- CI workflow, CodeQL scanning, dependency review, OpenSSF Scorecard
-- Release workflow with SHA-256 checksums (all GitHub Actions SHA-pinned)
-- Security policy, contributing guide, code of conduct, threat model
-- SETUP.md detailed installation guide with troubleshooting
-- BRANDING.md for fork rebranding reference
-- npm global install support (`npm install -g claude-command-center`)
-- README with centered header, badges, screenshot grid, security section
-
-### Fixed
-- Agent descriptions missing for agents with colons in YAML frontmatter
-- Sidebar agent count showing executions instead of definitions
-- AI suggest timeout (increased to 5 minutes, uses Haiku model for speed)
-- AI suggest command line too long on Windows (now uses stdin pipe)
-- Duplicate agents from overlapping plugin marketplaces
-- Cross-platform test for path validation (Linux CI)
-
-## [1.0.0] - 2026-03-16
-
-### Added
-- Initial release
-- Auto-discovery of projects, MCP servers, skills, plugins, sessions, agents
-- 9 relationship types inferred between entities
-- Interactive graph visualization with React Flow and dagre layout
-- Session browser with search, filter, sort, and bulk delete
-- Agent definitions viewer and execution history
-- Live monitoring of active Claude Code sessions
-- Markdown editor with version history and backups
-- Discovery page for unconfigured projects and MCP servers
-- Config viewer for Claude Code settings and permissions
-- Activity feed from file watcher
-- One-click updates from GitHub remote
-- Cross-platform support (Windows, macOS, Linux)
-- Server-Sent Events for real-time UI updates
-- Zod validation on all API inputs
-- Path traversal protection on file operations
-- Secret redaction in scanned configuration files
+### Carried forward from pre-2.0
+- 14 themes with aesthetic profiles (Dark, Light, Glass, Anthropic Light/Dark, Catppuccin Mocha, Nord, Dracula, Tokyo Night, Solarized Dark, and more)
+- Full session intelligence (deep search, AI summaries, cost analytics, file heatmap, health scores)
+- Operations nerve center, continuation intelligence, bash knowledge base, decision log
+- Docker support, security hardening, path traversal protection, MCP secret redaction
+- 1792+ tests across 19 test files

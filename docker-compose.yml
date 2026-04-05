@@ -1,12 +1,12 @@
 services:
-  command-center:
+  agent-cc:
     build: .
     ports:
       - "5100:5100"
     environment:
       - HOST=0.0.0.0
       - PORT=5100
-      - COMMAND_CENTER_DATA=/data
+      - AGENT_CC_DATA=/data
       # Tell the scanner where host project dirs are mounted (comma-separated).
       # Needed because Docker HOME differs from the host HOME encoded in session keys.
       # - EXTRA_PROJECT_DIRS=/home/youruser/dev/projects
@@ -18,8 +18,8 @@ services:
       # Without this, hyphenated project names decode incorrectly.
       # Adjust the source path to match your project directory location.
       - ~/dev/projects:/home/tron/dev/projects:ro
-      - command-center-data:/data
+      - agent-cc-data:/data
     restart: unless-stopped
 
 volumes:
-  command-center-data:
+  agent-cc-data:

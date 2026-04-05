@@ -6,6 +6,13 @@ export const dark: ThemeDefinition = {
   name: "Dark",
   description: "The original dark theme with navy blues",
   variant: "dark",
+  aesthetic: {
+    glowIntensity: 0.6,
+    borderRadius: "medium",
+    cardElevation: "glow",
+    gradientMeshOpacity: 0.035,
+    animationScale: "full",
+  },
   colors: {
     background: "222 47% 5%",
     foreground: "213 31% 91%",

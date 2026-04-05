@@ -77,7 +77,7 @@ export async function runFullScan(): Promise<void> {
     }
 
     // Update project session counts.
-    // Session keys are full encoded paths (e.g. "-home-tron-dev-projects-claude-command-center")
+    // Session keys are full encoded paths (e.g. "-home-tron-dev-projects-agent-cc")
     // but project entity IDs use the dir basename. Match via encodeProjectKey() instead.
     for (const agg of perProject) {
       const project = Object.values(newEntities).find(

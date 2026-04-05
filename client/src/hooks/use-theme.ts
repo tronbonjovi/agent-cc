@@ -58,6 +58,7 @@ function applyTheme(themeId: ThemeId) {
 
   root.setAttribute("data-theme", resolved.id);
   root.setAttribute("data-variant", resolved.variant);
+  root.setAttribute("data-animation", resolved.aesthetic.animationScale);
 
   if (resolved.variant === "dark") {
     root.classList.add("dark");

@@ -140,7 +140,7 @@ export function scanProjects(): Entity[] {
 
 // Find Claude Code session data for a project directory.
 // Uses encodeProjectKey() (deterministic) instead of decodeProjectKey() (lossy)
-// so that hyphenated project names like "claude-command-center" match correctly.
+// so that hyphenated project names like "my-cool-project" match correctly.
 function getSessionInfo(projectDir: string): { sessionCount: number; sessionSize: number; hasMemory: boolean } {
   const projectsDir = normPath(CLAUDE_DIR, "projects");
   if (!dirExists(projectsDir)) return { sessionCount: 0, sessionSize: 0, hasMemory: false };
