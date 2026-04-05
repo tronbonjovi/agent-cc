@@ -33,3 +33,4 @@ npm-debug.log*
 # Screenshots — always contain live user data, never commit
 docs/screenshots/
 docs/social-preview.png
+.superpowers/
