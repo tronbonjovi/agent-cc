@@ -18,6 +18,7 @@ import statsRouter from "./stats";
 import exportRouter from "./export";
 import costAnalyticsRouter from "./cost-analytics";
 import apisRouter from "./apis";
+import tasksRouter from "./tasks";
 import { spawn } from "child_process";
 import { platform } from "os";
 import path from "path";
@@ -75,6 +76,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.use(exportRouter);
   app.use(costAnalyticsRouter);
   app.use(apisRouter);
+  app.use(tasksRouter);
 
   // Actions — open-folder and open-file share identical logic
   const handleOpen = (req: import("express").Request, res: import("express").Response) => {
