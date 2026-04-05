@@ -100,9 +100,11 @@ if (cliArgs.includes("--report")) {
 
     process.on("SIGTERM", () => {
       terminalManager.shutdown();
+      httpServer.close(() => process.exit(0));
     });
     process.on("SIGINT", () => {
       terminalManager.shutdown();
+      httpServer.close(() => process.exit(0));
     });
 
     app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
