@@ -145,4 +145,102 @@ describe("task routes", () => {
       expect(entity!.path).toBe(projectPath);
     });
   });
+
+  describe("task CRUD flow", () => {
+    it("creates, reads, updates, and deletes a task via I/O functions", async () => {
+      const { writeConfigFile, generateTaskId, writeTaskFile, parseTaskFile, taskFilename } = await import("../server/task-io");
+      const { DEFAULT_TASK_CONFIG } = await import("@shared/task-types");
+
+      const tasksDir = path.join(projectPath, ".claude", "tasks");
+      fs.mkdirSync(tasksDir, { recursive: true });
+      writeConfigFile(path.join(tasksDir, "_config.md"), { ...DEFAULT_TASK_CONFIG });
+
+      const id = generateTaskId();
+      expect(id).toMatch(/^itm-[a-f0-9]{8}$/);
+
+      const filename = taskFilename("task", "Integration Test", id);
+      const filePath = path.join(tasksDir, filename);
+
+      writeTaskFile(filePath, {
+        id,
+        title: "Integration Test",
+        type: "task",
+        status: "todo",
+        priority: "high",
+        labels: ["test"],
+        created: "2026-04-05",
+        updated: "2026-04-05",
+        body: "Test body content.",
+        filePath,
+      });
+
+      const task = parseTaskFile(filePath);
+      expect(task).not.toBeNull();
+      expect(task!.id).toBe(id);
+      expect(task!.title).toBe("Integration Test");
+      expect(task!.priority).toBe("high");
+      expect(task!.body.trim()).toBe("Test body content.");
+
+      task!.status = "done";
+      task!.updated = "2026-04-06";
+      writeTaskFile(filePath, task!);
+
+      const updated = parseTaskFile(filePath);
+      expect(updated!.status).toBe("done");
+      expect(updated!.updated).toBe("2026-04-06");
+
+      fs.unlinkSync(filePath);
+      expect(fs.existsSync(filePath)).toBe(false);
+    });
+
+    it("scans project with hierarchy", async () => {
+      const { writeConfigFile, writeTaskFile, generateTaskId, taskFilename } = await import("../server/task-io");
+      const { scanProjectTasks } = await import("../server/scanner/task-scanner");
+      const { DEFAULT_TASK_CONFIG } = await import("@shared/task-types");
+
+      const tasksDir = path.join(projectPath, ".claude", "tasks");
+      fs.mkdirSync(tasksDir, { recursive: true });
+
+      const config = { ...DEFAULT_TASK_CONFIG };
+      const milestoneId = generateTaskId();
+      const taskId = generateTaskId();
+      config.columnOrder = { todo: [milestoneId, taskId] };
+      writeConfigFile(path.join(tasksDir, "_config.md"), config);
+
+      writeTaskFile(path.join(tasksDir, taskFilename("milestone", "MVP", milestoneId)), {
+        id: milestoneId,
+        title: "MVP",
+        type: "milestone",
+        status: "todo",
+        created: "2026-04-05",
+        updated: "2026-04-05",
+        body: "",
+        filePath: path.join(tasksDir, taskFilename("milestone", "MVP", milestoneId)),
+      });
+
+      writeTaskFile(path.join(tasksDir, taskFilename("task", "Build auth", taskId)), {
+        id: taskId,
+        title: "Build auth",
+        type: "task",
+        status: "todo",
+        parent: milestoneId,
+        priority: "high",
+        created: "2026-04-05",
+        updated: "2026-04-05",
+        body: "",
+        filePath: path.join(tasksDir, taskFilename("task", "Build auth", taskId)),
+      });
+
+      const board = scanProjectTasks(projectPath, projectId, "Test Project");
+      expect(board.items).toHaveLength(2);
+
+      const milestone = board.items.find((i) => i.type === "milestone");
+      const task = board.items.find((i) => i.type === "task");
+      expect(milestone).toBeDefined();
+      expect(task).toBeDefined();
+      expect(task!.parent).toBe(milestoneId);
+      expect(board.config.columnOrder.todo).toContain(milestoneId);
+      expect(board.config.columnOrder.todo).toContain(taskId);
+    });
+  });
 });
