@@ -507,24 +507,22 @@ function CostsTab() {
             ) : (
               <div className="space-y-0.5">
                 <div className="flex items-center text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2 py-1.5">
-                  <span className="flex-1">Model</span>
-                  <span className="w-16 text-right">In</span>
-                  <span className="w-16 text-right">Out</span>
-                  <span className="w-20 text-right">Cache Rd</span>
-                  <span className="w-20 text-right">Cache Wr</span>
-                  <span className="w-16 text-right">Cost</span>
+                  <span className="w-48 min-w-0">Model</span>
+                  <span className="w-14 text-right">In</span>
+                  <span className="w-14 text-right">Out</span>
+                  <span className="w-14 text-right">Cache</span>
+                  <span className="flex-1 text-right">Cost</span>
                 </div>
                 {modelEntries.map(([model, md]) => (
                   <div key={model} className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors">
-                    <span className="flex-1 flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${getModelColor(model)}`} />
-                      <span className="text-muted-foreground text-xs font-mono">{model}</span>
+                    <span className="w-48 min-w-0 flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${getModelColor(model)}`} />
+                      <span className="text-muted-foreground text-xs font-mono truncate">{model.replace("claude-", "")}</span>
                     </span>
-                    <span className="w-16 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.input)}</span>
-                    <span className="w-16 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.output)}</span>
-                    <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.cacheRead)}</span>
-                    <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.cacheCreation)}</span>
-                    <span className="w-16 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(md.cost)}</span>
+                    <span className="w-14 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.input)}</span>
+                    <span className="w-14 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.output)}</span>
+                    <span className="w-14 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.cacheRead)}</span>
+                    <span className="flex-1 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(md.cost)}</span>
                   </div>
                 ))}
               </div>
@@ -586,7 +584,7 @@ function CostsTab() {
                 <span className="w-16 text-right">Cost</span>
               </div>
               {data.topSessions.map((session) => (
-                <div key={session.sessionId} className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer" onClick={() => setLocation(`/sessions/${session.sessionId}`)}>
+                <div key={session.sessionId} className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors">
                   <span className="flex-1 truncate text-muted-foreground hover:text-foreground transition-colors">
                     {session.firstMessage || session.sessionId.slice(0, 8)}
                     {session.subagentCount > 0 && (
