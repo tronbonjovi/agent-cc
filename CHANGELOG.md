@@ -14,12 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Task project picker** — replaced sidebar project list with dropdown combobox in top bar, eliminating double-sidebar clutter
 - **Project scanner** — fixed phantom projects (Docker, Tron, home dir) appearing in project list; session key fallback now requires project markers; home-level infra dirs excluded
-- **Docker volumes** — removed read-only (`:ro`) mounts so the app can write to projects and `.claude` config
-- **Anthropic Dark theme** — replaced warm brown palette with neutral greys matching Claude app UI; accent color updated to Anthropic brand orange (#da7756)
+- **Anthropic Dark theme** — replaced warm brown palette with neutral greys matching Claude app UI; accent color updated to Anthropic brand orange (#da7756); now the default theme
 - **Terminal colors** — neutral dark grey background instead of blue-tinted
+- **Deployment** — switched from Docker to bare metal systemd service for reduced friction
+
+### Fixed
+- **Terminal security** — WebSocket origin validation, sanitized PTY environment, cwd restriction, terminal ID collision handling, max 10 concurrent terminals, cols/rows bounds checking
+- **Terminal React state** — rewrote panel with useReducer for atomic state transitions, fixed stale closures in resize/persist handlers
+- **Shell fallback** — use `/bin/sh` instead of `bash` for cross-platform compatibility (Alpine, minimal containers)
+- **Build externals** — keep node-pty and ws as external requires (native addon can't be bundled)
 
 ### Removed
-- **Standalone docker-compose.yml** — deleted from source repo; homelab compose at `~/docker/docker-compose.yml` is the single source of truth
+- **Docker deployment for Agent CC** — replaced with bare metal systemd; other homelab services still use Docker
 - **Task sidebar component** — replaced by dropdown project picker
 
 ## [2.1.0] - 2026-04-05
