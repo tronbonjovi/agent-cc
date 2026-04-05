@@ -4,6 +4,7 @@ import { scanSkills } from "./skill-scanner";
 import { scanPlugins } from "./plugin-scanner";
 import { scanProjects, scanEnvServices, scanGitRemotes } from "./project-scanner";
 import { scanMarkdown } from "./markdown-scanner";
+import { scanProjectTasks } from "./task-scanner";
 import { scanConfigs } from "./config-scanner";
 import { scanAllSessions } from "./session-scanner";
 import { scanAgentDefinitions, scanAgentExecutions } from "./agent-scanner";

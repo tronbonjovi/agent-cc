@@ -21,6 +21,8 @@ export function scanMarkdown(): Entity[] {
   function addMarkdownFile(filePath: string) {
     const normalized = filePath.replace(/\\/g, "/");
     if (seen.has(normalized)) return;
+    // Skip task management files — handled by task-scanner
+    if (normalized.includes("/.claude/tasks/") || normalized.includes("\\.claude\\tasks\\")) return;
     seen.add(normalized);
 
     const stat = getFileStat(normalized);
