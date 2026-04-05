@@ -96,9 +96,12 @@ if (cliArgs.includes("--report")) {
   (async () => {
     await registerRoutes(httpServer, app);
 
-    const terminalManager = attachTerminalWebSocket(httpServer);
+    const terminalManager = attachTerminalWebSocket(httpServer, allowedOrigins);
 
     process.on("SIGTERM", () => {
+      terminalManager.shutdown();
+    });
+    process.on("SIGINT", () => {
       terminalManager.shutdown();
     });
 

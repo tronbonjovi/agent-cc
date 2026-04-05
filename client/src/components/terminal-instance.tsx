@@ -14,6 +14,10 @@ export function TerminalInstance({ id, isVisible }: TerminalInstanceProps) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const isVisibleRef = useRef(isVisible);
+
+  // Keep ref in sync so ResizeObserver closure always has current value
+  isVisibleRef.current = isVisible;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -53,10 +57,6 @@ export function TerminalInstance({ id, isVisible }: TerminalInstanceProps) {
     const wsUrl = `${protocol}//${window.location.host}/ws/terminal?id=${id}&cols=${terminal.cols}&rows=${terminal.rows}`;
     const ws = new WebSocket(wsUrl);
 
-    ws.onopen = () => {
-      // Connection established
-    };
-
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -82,9 +82,9 @@ export function TerminalInstance({ id, isVisible }: TerminalInstanceProps) {
 
     wsRef.current = ws;
 
-    // Handle resize
+    // Handle resize — uses ref so closure always reads current visibility
     const resizeObserver = new ResizeObserver(() => {
-      if (isVisible) {
+      if (isVisibleRef.current) {
         fitAddon.fit();
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(
