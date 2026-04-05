@@ -718,10 +718,17 @@ export interface SessionStats {
 
 export type BillingMode = "subscription" | "pay-as-you-go" | "auto";
 
+export interface SessionHealthThresholds {
+  context: { yellow: number; red: number };
+  cost: { yellow: number; red: number };
+  messages: { yellow: number; red: number };
+}
+
 export interface AppSettings {
   appName: string;
   onboarded: boolean;
   billingMode: BillingMode;
+  healthThresholds: SessionHealthThresholds;
   scanPaths: {
     homeDir: string | null;
     claudeDir: string | null;

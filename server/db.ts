@@ -40,6 +40,11 @@ export const defaultAppSettings: AppSettings = {
   appName: "Agent CC",
   onboarded: true,
   billingMode: "auto",
+  healthThresholds: {
+    context: { yellow: 20, red: 50 },
+    cost: { yellow: 3, red: 5 },
+    messages: { yellow: 30, red: 60 },
+  },
   scanPaths: {
     homeDir: null,
     claudeDir: null,
