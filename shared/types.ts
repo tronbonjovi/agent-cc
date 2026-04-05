@@ -731,3 +731,109 @@ export interface AppSettings {
     extraPluginDirs: string[];
   };
 }
+
+// --- Cost Data Precision ---
+
+export interface CostPricingSnapshot {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreation: number;
+}
+
+export interface CostRecord {
+  id: string;                     // hash of sessionId + timestamp + model
+  sessionId: string;
+  parentSessionId: string | null; // non-null if this is a subagent
+  projectKey: string;
+  model: string;                  // exact: "claude-opus-4-6"
+  modelFamily: string;            // derived: "opus-4-6"
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  cost: number;                   // USD at time of indexing
+  pricingSnapshot: CostPricingSnapshot;
+  timestamp: string;              // ISO 8601 from JSONL
+  indexedAt: string;
+}
+
+export interface CostIndexState {
+  files: Record<string, {
+    filePath: string;
+    lastOffset: number;
+    lastTimestamp: string;
+    recordCount: number;
+    fileSize: number;             // detect truncation/rewrite
+  }>;
+  totalRecords: number;
+  lastIndexAt: string;
+  version: number;
+}
+
+export interface CostTokenBreakdown {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreation: number;
+}
+
+export interface CostSummary {
+  totalCost: number;
+  totalTokens: CostTokenBreakdown;
+  weeklyComparison: { thisWeek: number; lastWeek: number; changePct: number };
+  monthlyTotalCost: number;
+  byModel: Record<string, {
+    cost: number;
+    tokens: CostTokenBreakdown;
+    sessions: number;
+  }>;
+  byProject: Array<{
+    projectKey: string;
+    projectName: string;
+    cost: number;
+    sessions: number;
+  }>;
+  byDay: Array<{
+    date: string;
+    cost: number;
+    computeCost: number;
+    cacheCost: number;
+  }>;
+  topSessions: Array<{
+    sessionId: string;
+    firstMessage: string;
+    model: string;
+    cost: number;
+    subagentCount: number;
+    subagentCost: number;
+    tokens: CostTokenBreakdown;
+  }>;
+  planLimits: {
+    pro: { limit: number; label: string };
+    max5x: { limit: number; label: string };
+    max20x: { limit: number; label: string };
+  };
+}
+
+export interface SessionCostDetail {
+  sessionId: string;
+  firstMessage: string;
+  totalCost: number;
+  directCost: number;
+  directTokens: CostTokenBreakdown;
+  directModel: string;
+  subagents: Array<{
+    sessionId: string;
+    model: string;
+    cost: number;
+    tokens: CostTokenBreakdown;
+  }>;
+  ratesApplied: {
+    model: string;
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheCreation: number;
+  };
+}
