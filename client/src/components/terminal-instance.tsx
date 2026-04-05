@@ -1,0 +1,126 @@
+import { useEffect, useRef } from "react";
+import { Terminal } from "xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import "xterm/css/xterm.css";
+
+interface TerminalInstanceProps {
+  id: string;
+  isVisible: boolean;
+}
+
+export function TerminalInstance({ id, isVisible }: TerminalInstanceProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const terminal = new Terminal({
+      cursorBlink: true,
+      fontSize: 14,
+      fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace",
+      theme: {
+        background: "#0a0a16",
+        foreground: "#c8d3f5",
+        cursor: "#c8d3f5",
+        selectionBackground: "#2a2a4a",
+        black: "#1a1a2e",
+        red: "#ff757f",
+        green: "#c3e88d",
+        yellow: "#ffc777",
+        blue: "#82aaff",
+        magenta: "#c792ea",
+        cyan: "#86e1fc",
+        white: "#c8d3f5",
+      },
+    });
+
+    const fitAddon = new FitAddon();
+    terminal.loadAddon(fitAddon);
+    terminal.loadAddon(new WebLinksAddon());
+
+    terminal.open(containerRef.current);
+    fitAddon.fit();
+
+    terminalRef.current = terminal;
+    fitAddonRef.current = fitAddon;
+
+    // Connect WebSocket
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/ws/terminal?id=${id}&cols=${terminal.cols}&rows=${terminal.rows}`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      // Connection established
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "output") {
+          terminal.write(msg.data);
+        } else if (msg.type === "exit") {
+          terminal.write("\r\n\x1b[90m[Process exited]\x1b[0m\r\n");
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    };
+
+    ws.onclose = () => {
+      terminal.write("\r\n\x1b[90m[Disconnected]\x1b[0m\r\n");
+    };
+
+    terminal.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "input", data }));
+      }
+    });
+
+    wsRef.current = ws;
+
+    // Handle resize
+    const resizeObserver = new ResizeObserver(() => {
+      if (isVisible) {
+        fitAddon.fit();
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(
+            JSON.stringify({
+              type: "resize",
+              cols: terminal.cols,
+              rows: terminal.rows,
+            })
+          );
+        }
+      }
+    });
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      ws.close();
+      terminal.dispose();
+      terminalRef.current = null;
+      fitAddonRef.current = null;
+      wsRef.current = null;
+    };
+  }, [id]);
+
+  // Re-fit when visibility changes
+  useEffect(() => {
+    if (isVisible && fitAddonRef.current) {
+      setTimeout(() => fitAddonRef.current?.fit(), 0);
+    }
+  }, [isVisible]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="h-full w-full"
+      style={{ display: isVisible ? "block" : "none" }}
+    />
+  );
+}
