@@ -345,10 +345,14 @@ function CostsTab() {
 
   if (isLoading || !data) return <LoadingSkeleton title="cost data" />;
 
-  const inputPricePerToken = 3 / 1_000_000;
-  const cacheReadPricePerToken = 0.3 / 1_000_000;
-  const costWithoutCache = data.totalCost + data.totalCacheReadTokens * (inputPricePerToken - cacheReadPricePerToken);
-  const cacheSavings = costWithoutCache > 0 ? ((costWithoutCache - data.totalCost) / costWithoutCache) * 100 : 0;
+  const dominantModel = Object.entries(data.byModel).sort((a, b) => b[1].cost - a[1].cost)[0];
+  const modelKey = dominantModel ? dominantModel[0].toLowerCase() : "sonnet";
+  const inputRate = modelKey.includes("opus") ? 15 : modelKey.includes("haiku") ? 0.80 : 3;
+  const cacheReadRate = inputRate * 0.1;
+  const savingsPerToken = (inputRate - cacheReadRate) / 1_000_000;
+  const totalSaved = data.totalCacheReadTokens * savingsPerToken;
+  const costWithoutCache = data.totalCost + totalSaved;
+  const cacheSavings = costWithoutCache > 0 ? (totalSaved / costWithoutCache) * 100 : 0;
   const maxDayCost = Math.max(...data.dailyCosts.map((d) => d.cost), 0.01);
   const currentSpend = data.totalCost;
   const maxPlanLimit = data.planLimits.max20x.limit;
