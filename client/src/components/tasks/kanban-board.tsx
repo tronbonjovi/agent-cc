@@ -139,9 +139,17 @@ export function KanbanBoard({ config, items, onReorder, onStatusChange, onAddTas
             status={status}
             items={getOrderedItems(items, status, effectiveOrder)}
             onAddTask={onAddTask}
-            renderCard={(item) => (
-              <TaskCard key={item.id} task={item} onClick={() => onClickTask(item)} />
-            )}
+            renderCard={(item) => {
+              const parentItem = item.parent ? items.find((i) => i.id === item.parent) : undefined;
+              return (
+                <TaskCard
+                  key={item.id}
+                  task={item}
+                  onClick={() => onClickTask(item)}
+                  parentTitle={parentItem?.title}
+                />
+              );
+            }}
             inlineCreate={inlineCreateStatus === status ? (
               <InlineCreate status={status} onSubmit={onCreateSubmit} onCancel={onCreateCancel} />
             ) : undefined}

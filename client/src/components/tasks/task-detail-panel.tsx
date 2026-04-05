@@ -67,7 +67,7 @@ export function TaskDetailPanel({ task, config, open, onClose, onUpdate, onDelet
     setLabelInput("");
   };
 
-  const parentOptions = allItems.filter((i) => i.id !== task.id && i.type !== "task");
+  const parentOptions = allItems.filter((i) => i.id !== task.id);
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>

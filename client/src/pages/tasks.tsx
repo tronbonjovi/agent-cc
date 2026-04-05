@@ -20,6 +20,7 @@ export default function TasksPage() {
   const [selectedParent, setSelectedParent] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [inlineCreateStatus, setInlineCreateStatus] = useState<string | null>(null);
+  const [boardInitialized, setBoardInitialized] = useState(false);
 
   useEffect(() => {
     if (!selectedProjectId && projects?.length) {
@@ -31,6 +32,7 @@ export default function TasksPage() {
     if (selectedProjectId && selectedProjectId !== params.projectId) {
       setLocation(`/tasks/${selectedProjectId}`);
     }
+    setBoardInitialized(false);
   }, [selectedProjectId]);
 
   const { data: board, isLoading: loadingBoard } = useTaskBoard(selectedProjectId || undefined);
@@ -81,14 +83,16 @@ export default function TasksPage() {
   };
 
   const handleSetupBoard = () => {
-    updateConfig.mutate({});
+    updateConfig.mutate({}, {
+      onSuccess: () => setBoardInitialized(true),
+    });
   };
 
   if (loadingProjects) {
     return <div className="flex items-center justify-center h-full"><div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground/30 border-t-primary" /></div>;
   }
 
-  const hasBoard = board && (board.items.length > 0 || Object.keys(board.config.columnOrder).length > 0);
+  const hasBoard = board && (board.items.length > 0 || Object.keys(board.config.columnOrder).length > 0 || boardInitialized);
   const needsSetup = selectedProjectId && board && !hasBoard;
 
   return (

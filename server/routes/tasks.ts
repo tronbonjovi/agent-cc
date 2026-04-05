@@ -9,6 +9,11 @@ import type { TaskItem, CreateTaskInput, UpdateTaskInput, ReorderInput } from "@
 
 const router = Router();
 
+function sanitizeTaskForResponse(task: TaskItem): Omit<TaskItem, 'filePath'> & { filePath?: never } {
+  const { filePath, ...safe } = task;
+  return safe;
+}
+
 function getProjectPath(projectId: string): string | null {
   const entity = storage.getEntity(projectId);
   if (!entity || entity.type !== "project") return null;
@@ -37,7 +42,10 @@ router.get("/api/tasks/project/:projectId", (req, res) => {
   if (!projectPath) return res.status(404).json({ error: "Project not found" });
   const entity = storage.getEntity(req.params.projectId)!;
   const board = scanProjectTasks(projectPath, req.params.projectId, entity.name);
-  return res.json(board);
+  return res.json({
+    ...board,
+    items: board.items.map(sanitizeTaskForResponse),
+  });
 });
 
 // GET /api/tasks/project/:projectId/config — must be before /:taskId to avoid collision
@@ -57,7 +65,7 @@ router.get("/api/tasks/:taskId", (req, res) => {
   if (!projectPath) return res.status(404).json({ error: "Project not found" });
   const task = findTaskFile(getTasksDir(projectPath), req.params.taskId);
   if (!task) return res.status(404).json({ error: "Task not found" });
-  return res.json(task);
+  return res.json(sanitizeTaskForResponse(task));
 });
 
 // POST /api/tasks/project/:projectId
@@ -75,6 +83,10 @@ router.post("/api/tasks/project/:projectId", (req, res) => {
   }
   const input: CreateTaskInput = req.body;
   if (!input.title) return res.status(400).json({ error: "title is required" });
+  // Validate type field to prevent path traversal
+  if (input.type && /[\/\\.]/.test(input.type)) {
+    return res.status(400).json({ error: "Invalid type — cannot contain path characters" });
+  }
   const configPath = path.join(tasksDir, "_config.md");
   const config = parseConfigFile(configPath) || { ...DEFAULT_TASK_CONFIG };
   const id = generateTaskId();
@@ -102,7 +114,7 @@ router.post("/api/tasks/project/:projectId", (req, res) => {
   const col = config.columnOrder[task.status];
   if (col) { col.push(id); } else { config.columnOrder[task.status] = [id]; }
   writeConfigFile(configPath, config);
-  return res.status(201).json(task);
+  return res.status(201).json(sanitizeTaskForResponse(task));
 });
 
 // PUT /api/tasks/project/:projectId/reorder — must be before /:taskId to avoid collision
@@ -180,7 +192,7 @@ router.put("/api/tasks/:taskId", (req, res) => {
     config.columnOrder[input.status].push(existing.id);
     writeConfigFile(configPath, config);
   }
-  return res.json(existing);
+  return res.json(sanitizeTaskForResponse(existing));
 });
 
 // DELETE /api/tasks/:taskId

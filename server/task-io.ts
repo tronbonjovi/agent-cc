@@ -8,17 +8,29 @@ export function generateTaskId(): string {
 }
 
 export function taskFilename(type: string, title: string, id: string): string {
+  const safeType = type
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    || "item";
   const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
-    .slice(0, 50);
-  // id may be full "itm-a1b2c3d4" or bare hex — take first 4 hex chars after any prefix
-  const hexPart = id.startsWith("itm-") ? id.slice(4) : id;
-  const suffix = hexPart.slice(0, 4);
-  return `${type}-${slug}-${suffix}.md`;
+    .slice(0, 50)
+    || "untitled";
+  const suffix = id.replace(/^itm-/, "").slice(0, 4);
+  return `${safeType}-${slug}-${suffix}.md`;
+}
+
+function normalizeDate(val: unknown): string {
+  if (val instanceof Date) {
+    return val.toISOString().split("T")[0];
+  }
+  return String(val);
 }
 
 export function parseTaskFile(filePath: string): TaskItem | null {
@@ -39,8 +51,8 @@ export function parseTaskFile(filePath: string): TaskItem | null {
       parent: d.parent ? String(d.parent) : undefined,
       priority: d.priority ? String(d.priority) : undefined,
       labels: Array.isArray(d.labels) ? d.labels.map(String) : undefined,
-      created: String(d.created),
-      updated: String(d.updated),
+      created: normalizeDate(d.created),
+      updated: normalizeDate(d.updated),
       body: parsed.content,
       filePath: filePath.replace(/\\/g, "/"),
     };

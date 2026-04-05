@@ -20,9 +20,10 @@ const priorityBadge: Record<string, string> = {
 interface TaskCardProps {
   task: TaskItem;
   onClick: () => void;
+  parentTitle?: string;
 }
 
-export function TaskCard({ task, onClick }: TaskCardProps) {
+export function TaskCard({ task, onClick, parentTitle }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
 
   const style = {
@@ -48,8 +49,8 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium leading-tight">{task.title}</div>
-          {task.parent && (
-            <div className="text-[11px] text-muted-foreground/40 mt-0.5 truncate">{task.parent}</div>
+          {(parentTitle || task.parent) && (
+            <div className="text-[11px] text-muted-foreground/40 mt-0.5 truncate">{parentTitle || task.parent}</div>
           )}
         </div>
 
