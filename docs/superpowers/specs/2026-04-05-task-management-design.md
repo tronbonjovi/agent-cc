@@ -2,7 +2,7 @@
 
 ## Overview
 
-Add a flexible, project-level task management system to Agent CC. Tasks are markdown files with YAML frontmatter — following the same pattern as skills and memories — stored in `.claude/tasks/` directories. The UI provides a kanban board with drag-and-drop, nested hierarchy navigation, and rich task cards.
+Add a flexible, project-level task management system to Agent CC. Tasks are markdown files with YAML frontmatter — following the same pattern as skills and memories — stored in `{project}/.claude/tasks/` directories. The UI provides a kanban board with drag-and-drop, hierarchy navigation, and rich task cards.
 
 This deepens what "project" means in Agent CC: from a passive directory view to a living workspace with roadmaps, milestones, tasks, and lifecycle tracking.
 
@@ -14,14 +14,13 @@ Every item (task, milestone, roadmap, or any user-defined type) is a markdown fi
 
 ```markdown
 ---
-id: itm-a1b2c3
+id: itm-a1b2c3d4
 title: Implement OAuth login
 type: task
 status: in-progress
-parent: itm-xyz789
+parent: itm-xyz78901
 priority: high
 labels: [auth, backend]
-order: 2
 created: 2026-04-05
 updated: 2026-04-05
 ---
@@ -33,18 +32,19 @@ Description, notes, acceptance criteria — whatever the user wants here.
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `id` | yes | Unique identifier, generated on creation (`itm-{nanoid}`) |
+| `id` | yes | Unique identifier, generated on creation (`itm-{nanoid(8)}`) |
 | `title` | yes | Display name |
 | `type` | yes | Freeform string — `task`, `milestone`, `roadmap`, or any user-defined type |
 | `status` | yes | Current status — must match a status in the board config |
 | `parent` | no | ID of parent item. No parent = top-level. Creates hierarchy. |
 | `priority` | no | Freeform — defaults suggest `low`, `medium`, `high` |
 | `labels` | no | Array of freeform strings for categorization |
-| `order` | no | Numeric sort order within parent/status group |
 | `created` | yes | ISO date, set on creation |
 | `updated` | yes | ISO date, updated on every write |
 
 **Body:** Freeform markdown. Description, acceptance criteria, notes, links — whatever fits the work. Can be empty.
+
+**Note:** Task ordering is not stored per-file. Column order is managed centrally in `_config.md` (see Board Configuration below). This means reordering a column is a single file write, not N writes.
 
 ### Hierarchy
 
@@ -52,6 +52,8 @@ Description, notes, acceptance criteria — whatever the user wants here.
 - **Any item can contain any other item.** The system does not enforce what types nest under what.
 - **Nesting depth is unlimited** — one level, three levels, five levels, the user decides.
 - **No parent = top-level item.** A flat list of tasks with no parents is valid.
+- **Orphaned parents:** If a task references a `parent` ID that doesn't exist (deleted parent, hand-edited typo), the task is treated as top-level and the UI shows a warning indicator on the card.
+- **Deleting items with children:** When an item with children is deleted, its children become top-level items (their `parent` field is cleared). No recursive deletion — the user explicitly deletes what they want to delete.
 
 ### Board Configuration
 
@@ -64,6 +66,12 @@ statuses: [backlog, todo, in-progress, review, done]
 types: [roadmap, milestone, task]
 default_type: task
 default_priority: medium
+column_order:
+  backlog: [itm-a1b2c3d4, itm-e5f6g7h8]
+  todo: [itm-i9j0k1l2]
+  in-progress: [itm-m3n4o5p6]
+  review: []
+  done: [itm-q7r8s9t0]
 ---
 ```
 
@@ -71,17 +79,21 @@ default_priority: medium
 - `types` — suggested item types (not enforced, just populates dropdowns)
 - `default_type` — type pre-selected when creating new items
 - `default_priority` — priority pre-selected when creating new items
+- `column_order` — ordered lists of task IDs per status column. Reordering a column or moving a task between columns updates this single file. Tasks not listed in `column_order` are appended to the end of their status column.
 
-All fields are customizable. The system ships with sensible defaults (the values shown above) but nothing is enforced.
+All fields are customizable. The system ships with sensible defaults but nothing is enforced.
 
 ### File Locations
 
-Following the existing Claude ecosystem pattern (like CLAUDE.md, memories, settings):
+Project-scoped only for MVP:
 
 - **Project tasks:** `{project}/.claude/tasks/` — lives with the project, Claude Code sees them natively
-- **Global tasks:** `~/.claude/tasks/` — personal workspace, cross-project items
-- **Filenames:** `{type}-{slug}.md` — human-readable (e.g., `task-oauth-login.md`, `milestone-auth-system.md`)
+- **Filenames:** `{type}-{slug}-{id-suffix}.md` — human-readable with 4-char ID suffix to prevent collisions (e.g., `task-oauth-login-a1b2.md`, `milestone-auth-system-e5f6.md`)
 - **Config:** `_config.md` — underscore prefix sorts first, visually separated from task files
+
+### Project ID Resolution
+
+The `:projectId` parameter in API routes is the **entity hash ID** (generated by `entityId()` in `server/scanner/utils.ts`). The API resolves this to a filesystem path via `storage.getEntity(projectId).path` to locate the project's `.claude/tasks/` directory. If the entity is not found, routes return 404.
 
 ## UI Design
 
@@ -100,16 +112,14 @@ Entities
 
 Clicking Tasks opens the task management page.
 
-### Page Layout: Hybrid Collapsible Sidebar + Breadcrumb
+### Page Layout: Sidebar + Breadcrumb
 
 The task page has two zones:
 
-1. **Collapsible sidebar (left):**
-   - Collapsed state: shows project initials as icon buttons for quick switching
-   - Expanded state: project list + hierarchy tree (expandable/collapsible nodes)
-   - Click a project to load its task board
-   - Click a hierarchy node (roadmap, milestone) to scope the board to that level
-   - Toggle expand/collapse via hamburger icon
+1. **Sidebar (left):**
+   - Project list — click to load that project's task board
+   - Hierarchy tree below the project list — expandable/collapsible nodes showing the item hierarchy for the selected project
+   - Click a hierarchy node (roadmap, milestone) to scope the board to that level's children
 
 2. **Main area (right):**
    - Breadcrumb bar at top: `project › roadmap › milestone` — each segment clickable to navigate up
@@ -134,21 +144,21 @@ Each card displays:
 - **Description preview** — first line or two of the markdown body, truncated
 - **Labels** — small badges for each label
 - **Date** — creation date
-- **Progress indicator** — bar showing child task completion (for items with children)
 - **Left border accent** — colored by priority
 
 ### Drag-and-Drop
 
-Powered by `@dnd-kit`. Three operations:
+Powered by `@dnd-kit`. Two operations for MVP:
 
-1. **Between columns** — changes the task's `status` field
-2. **Within a column** — changes the task's `order` field
-3. **Between hierarchy levels** — changes the task's `parent` field (deferred to post-MVP)
+1. **Between columns** — changes the task's `status` field and updates `column_order` in `_config.md`
+2. **Within a column** — updates `column_order` in `_config.md`
 
-All drag operations:
+Both operations:
 - Write immediately on drop (optimistic UI)
-- Show an undo toast: "Moved 'Task name' to In Progress — **Undo**" (5-second window)
-- Undo reverts the file write
+- Card animates into its new position (`@dnd-kit` provides smooth drop animation)
+- Column counts update instantly
+- Card briefly highlights to confirm the drop landed
+- Single file write to `_config.md` for reordering; status change also writes the task file's `status` field
 
 ### Detail Panel (Slide-Out)
 
@@ -183,9 +193,9 @@ Close panel to return to the board.
 
 The existing scanner learns to discover task files:
 - Scans `{project}/.claude/tasks/*.md` for each known project
-- Scans `~/.claude/tasks/*.md` for global tasks
-- Parses YAML frontmatter, assembles hierarchy from `parent` references
-- Recognizes `_config.md` as board configuration (not a task)
+- Parses YAML frontmatter using `gray-matter` (already a project dependency), assembles hierarchy from `parent` references
+- Recognizes `_config.md` as board configuration (not a task item)
+- **Scanner exclusion:** The existing markdown scanner (`markdown-scanner.ts`) must exclude files inside `tasks/` directories to prevent task files from appearing as generic markdown entities. Add a path check: if a file is inside a `.claude/tasks/` directory, skip it in the markdown scanner.
 
 ### API Routes
 
@@ -193,30 +203,58 @@ New route group at `/api/tasks`:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/tasks` | All tasks across all projects |
 | `GET` | `/api/tasks/project/:projectId` | Tasks for a specific project with assembled hierarchy |
-| `POST` | `/api/tasks/project/:projectId` | Create a new task (writes markdown file) |
+| `POST` | `/api/tasks/project/:projectId` | Create a new task (writes markdown file, updates `column_order`) |
 | `GET` | `/api/tasks/:taskId` | Single task detail |
-| `PUT` | `/api/tasks/:taskId` | Update task (rewrites frontmatter + body) |
-| `DELETE` | `/api/tasks/:taskId` | Delete task file |
-| `PATCH` | `/api/tasks/:taskId/move` | Reorder or change status/parent (drag-and-drop) |
+| `PUT` | `/api/tasks/:taskId` | Update task (rewrites frontmatter + body). Accepts `expectedUpdated` for concurrency control. |
+| `DELETE` | `/api/tasks/:taskId` | Delete task file, clear from `column_order`, orphan children |
+| `PUT` | `/api/tasks/project/:projectId/reorder` | Update `column_order` in `_config.md` (drag-and-drop) |
 | `GET` | `/api/tasks/project/:projectId/config` | Get board config |
 | `PUT` | `/api/tasks/project/:projectId/config` | Update board config |
 
+**Route parameter resolution:** `:projectId` is the entity hash ID. Resolved via `storage.getEntity(projectId)` to get the project's filesystem path. `:taskId` is the task's `id` field from frontmatter. The API locates the task file by scanning the project's tasks directory for a file containing that ID.
+
+### Directory Creation
+
+On first task creation for a project (when `{project}/.claude/tasks/` does not exist):
+- The API creates the `tasks/` directory and writes `_config.md` with default values
+- Returns 403 if the directory cannot be created (read-only filesystem, permissions)
+- The UI handles 403 by showing an inline error: "Cannot create tasks — directory is not writable"
+
 ### File Writing
 
-- Atomic writes: write to `.tmp` file, then rename (same pattern as existing DB)
-- Frontmatter updates preserve the markdown body untouched
-- Reorder operations update the `order` field in all affected files
-- `updated` timestamp set on every write
+- **Atomic writes:** Write to `.tmp` file, then rename (same pattern as existing DB)
+- **Frontmatter serialization:** Use `gray-matter`'s `stringify()` to write back. Accept that YAML may be reformatted on save — this is acceptable since task files are primarily managed through the UI.
+- **Status changes via drag-and-drop:** Write two files — the task file (update `status` + `updated`) and `_config.md` (update `column_order`). Both atomic writes.
+- **Reorder only:** Single write to `_config.md`.
+- **`updated` timestamp:** Set on every content/status change. NOT updated on reorder-only operations (reorder changes column_order in config, not the task file itself).
+
+### Concurrent Write Handling
+
+The `PUT /api/tasks/:taskId` endpoint accepts an `expectedUpdated` field (ISO timestamp from the task's current `updated` value). Before writing:
+1. Read the task file's current `updated` timestamp
+2. If it doesn't match `expectedUpdated`, return 409 Conflict with the current file state
+3. The client refreshes its data and the user retries
+
+This prevents two browser tabs from silently overwriting each other's changes. Drag-and-drop reorder operations (which only modify `_config.md`) use a simpler last-write-wins model since order conflicts are low-stakes.
 
 ### Malformed File Handling
 
-Task files with invalid or missing frontmatter are skipped during scanning with a console warning. They do not crash the scanner or break the board. The UI could surface a "X files skipped" indicator so the user knows something needs fixing.
+Task files with invalid or missing frontmatter are skipped during scanning with a console warning. They do not crash the scanner or break the board. The UI surfaces a "N files skipped" indicator when malformed files are detected, so the user knows something needs fixing.
+
+### Write Error Handling
+
+All write endpoints return structured errors:
+- **403** — permission denied (read-only filesystem, insufficient permissions). Message: human-readable reason.
+- **404** — project or task not found.
+- **409** — conflict (concurrent write detected). Response includes current file state.
+- **500** — unexpected filesystem error. Message: human-readable reason.
+
+The UI shows an inline error banner on the board (not a toast) when writes fail. The board state reverts to pre-drag position on error.
 
 ### ID Generation
 
-Task IDs use the format `itm-{nanoid(8)}` — short, unique, URL-safe. Generated server-side on creation.
+Task IDs use the format `itm-{nanoid(8)}` — short, unique, URL-safe. Generated server-side on creation using Node's `crypto.randomBytes()` to avoid adding a `nanoid` dependency. The 8-character hex suffix provides sufficient uniqueness for the expected task volume.
 
 ## Default Template
 
@@ -232,7 +270,10 @@ The user is prompted to accept the defaults or customize before the board is cre
 
 These features are explicitly deferred but the data model and architecture support them:
 
-- **Global tasks page** — aggregation view across all projects (API endpoint exists: `GET /api/tasks`)
+- **Global tasks** — `~/.claude/tasks/` for cross-project items, plus `GET /api/tasks` aggregation endpoint
+- **Progress indicators** — bar on task cards showing child task completion (requires tree traversal)
+- **Undo toast** — "Moved X to Y — Undo" with 5-second revert window on drag-and-drop
+- **Collapsible sidebar** — collapsed state shows project initials, expand for full tree
 - **Cross-project task linking** — add a `links` array to frontmatter for cross-references
 - **Session awareness** — link tasks to Claude Code sessions by session ID or time range
 - **AI-assisted creation** — use `claude -p` to generate task structures from descriptions
@@ -242,6 +283,7 @@ These features are explicitly deferred but the data model and architecture suppo
 - **Activity log** — track changes over time per task
 - **Due dates and reminders** — add `due` field to frontmatter
 - **Search and filter** — full-text search across task titles, descriptions, labels
+- **Drag between hierarchy levels** — change a task's `parent` via drag-and-drop
 
 ## Dependencies
 
@@ -249,5 +291,7 @@ New npm packages:
 - `@dnd-kit/core` — drag-and-drop primitives
 - `@dnd-kit/sortable` — sortable list/column behavior
 - `@dnd-kit/utilities` — helpers
-- `gray-matter` — YAML frontmatter parsing (check if already used)
-- `nanoid` — ID generation (check if already used)
+
+Existing packages used (no new installs):
+- `gray-matter` — YAML frontmatter parsing (already in project)
+- `crypto` — Node built-in for ID generation
