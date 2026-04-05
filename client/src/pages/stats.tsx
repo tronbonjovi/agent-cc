@@ -17,8 +17,6 @@ import {
   DollarSign,
   TrendingUp,
   Zap,
-  AlertTriangle,
-  Server,
   Cpu,
   Shield,
   Activity,
@@ -48,55 +46,49 @@ interface StatsOverview {
   averageSessionSize: number;
 }
 
-interface DailyCost {
-  date: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  cost: number;
-}
-
-interface ModelBreakdown {
-  inputTokens: number;
-  outputTokens: number;
-  cost: number;
-  sessions: number;
-}
-
-interface ProjectBreakdown {
-  project: string;
-  inputTokens: number;
-  outputTokens: number;
-  cost: number;
-  sessions: number;
-}
-
-interface ErrorEntry {
-  type: string;
-  count: number;
-  lastSeen: string;
-  example: string;
+interface CostTokenBreakdown {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreation: number;
 }
 
 interface CostAnalytics {
-  dailyCosts: DailyCost[];
-  byModel: Record<string, ModelBreakdown>;
-  byProject: ProjectBreakdown[];
   totalCost: number;
+  totalTokens: CostTokenBreakdown;
+  weeklyComparison: { thisWeek: number; lastWeek: number; changePct: number };
   monthlyTotalCost: number;
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  totalCacheReadTokens: number;
-  totalCacheWriteTokens: number;
+  byModel: Record<string, {
+    cost: number;
+    tokens: CostTokenBreakdown;
+    sessions: number;
+  }>;
+  byProject: Array<{
+    projectKey: string;
+    projectName: string;
+    cost: number;
+    sessions: number;
+  }>;
+  byDay: Array<{
+    date: string;
+    cost: number;
+    computeCost: number;
+    cacheCost: number;
+  }>;
+  topSessions: Array<{
+    sessionId: string;
+    firstMessage: string;
+    model: string;
+    cost: number;
+    subagentCount: number;
+    subagentCost: number;
+    tokens: CostTokenBreakdown;
+  }>;
   planLimits: {
     pro: { limit: number; label: string };
     max5x: { limit: number; label: string };
     max20x: { limit: number; label: string };
   };
-  errors: ErrorEntry[];
-  weeklyComparison: { thisWeek: number; lastWeek: number; changePct: number };
-  topSessions: Array<{ sessionId: string; firstMessage: string; cost: number; tokens: number; model: string }>;
 }
 
 // ---- Utilities ----
@@ -111,12 +103,6 @@ function formatCost(n: number): string {
   return "$" + n.toFixed(2);
 }
 
-function lastPathSegment(fullPath: string): string {
-  if (!fullPath || fullPath === "(no project)") return fullPath || "Unknown";
-  const normalized = fullPath.replace(/\\/g, "/").replace(/\/$/, "");
-  const parts = normalized.split("/");
-  return parts[parts.length - 1] || fullPath;
-}
 
 const distributionColors: Record<string, string> = {
   Explore: "bg-blue-500",
@@ -154,14 +140,6 @@ function getModelColor(model: string): string {
   return fallbacks[Math.abs(hash) % fallbacks.length];
 }
 
-const ERROR_STYLES: Record<string, { bg: string; border: string; text: string; icon: typeof AlertTriangle }> = {
-  tool_error: { bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-400", icon: AlertTriangle },
-  compilation: { bg: "bg-orange-500/10", border: "border-orange-500/30", text: "text-orange-400", icon: Cpu },
-  test_failure: { bg: "bg-yellow-500/10", border: "border-yellow-500/30", text: "text-yellow-400", icon: AlertTriangle },
-  permission: { bg: "bg-purple-500/10", border: "border-purple-500/30", text: "text-purple-400", icon: Shield },
-  network: { bg: "bg-blue-500/10", border: "border-blue-500/30", text: "text-blue-400", icon: Server },
-  other: { bg: "bg-zinc-500/10", border: "border-zinc-500/30", text: "text-zinc-400", icon: AlertTriangle },
-};
 
 // ---- Shared components ----
 
@@ -354,15 +332,7 @@ function CostsTab() {
 
   if (isLoading || !data) return <LoadingSkeleton title="cost data" />;
 
-  const dominantModel = Object.entries(data.byModel).sort((a, b) => b[1].cost - a[1].cost)[0];
-  const modelKey = dominantModel ? dominantModel[0].toLowerCase() : "sonnet";
-  const inputRate = modelKey.includes("opus") ? 15 : modelKey.includes("haiku") ? 0.80 : 3;
-  const cacheReadRate = inputRate * 0.1;
-  const savingsPerToken = (inputRate - cacheReadRate) / 1_000_000;
-  const totalSaved = data.totalCacheReadTokens * savingsPerToken;
-  const costWithoutCache = data.totalCost + totalSaved;
-  const cacheSavings = costWithoutCache > 0 ? (totalSaved / costWithoutCache) * 100 : 0;
-  const maxDayCost = Math.max(...data.dailyCosts.map((d) => d.cost), 0.01);
+  const maxDayCost = Math.max(...data.byDay.map((d) => d.cost), 0.01);
   const currentSpend = data.monthlyTotalCost;
   const maxPlanLimit = data.planLimits.max20x.limit;
   const spendPctOf100 = maxPlanLimit > 0 ? (currentSpend / data.planLimits.max5x.limit) * 100 : 0;
@@ -395,9 +365,9 @@ function CostsTab() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { icon: DollarSign, color: "text-green-400", label: `Cost (${period}d)`, value: formatCost(data.totalCost) },
-          { icon: TrendingUp, color: "text-blue-400", label: "Input Tokens", value: formatTokens(data.totalInputTokens) },
-          { icon: Zap, color: "text-amber-400", label: "Output Tokens", value: formatTokens(data.totalOutputTokens) },
-          { icon: Shield, color: "text-purple-400", label: "Cache Savings", value: `${cacheSavings.toFixed(0)}%`, sub: `${formatTokens(data.totalCacheReadTokens)} cached reads` },
+          { icon: TrendingUp, color: "text-blue-400", label: "Compute Tokens", value: formatTokens(data.totalTokens.input + data.totalTokens.output) },
+          { icon: Zap, color: "text-amber-400", label: "Cache Tokens", value: formatTokens(data.totalTokens.cacheRead + data.totalTokens.cacheCreation) },
+          { icon: Shield, color: "text-purple-400", label: "Sessions", value: Object.values(data.byModel).reduce((s, m) => s + m.sessions, 0).toString() },
         ].map((item, i) => (
           <div key={item.label} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
             <Card className="gradient-border">
@@ -407,9 +377,6 @@ function CostsTab() {
                   <span className="text-xs font-medium">{item.label}</span>
                 </div>
                 <div className="text-2xl font-bold font-mono tabular-nums">{item.value}</div>
-                {"sub" in item && item.sub && (
-                  <div className="text-[10px] text-muted-foreground/60 mt-0.5">{item.sub}</div>
-                )}
               </CardContent>
             </Card>
           </div>
@@ -459,8 +426,10 @@ function CostsTab() {
         </CardHeader>
         <CardContent>
           <div className="flex items-end gap-1 h-48">
-            {data.dailyCosts.map((day) => {
-              const heightPct = maxDayCost > 0 ? (day.cost / maxDayCost) * 100 : 0;
+            {data.byDay.map((day) => {
+              const totalHeight = maxDayCost > 0 ? (day.cost / maxDayCost) * 100 : 0;
+              const cacheHeight = maxDayCost > 0 ? (day.cacheCost / maxDayCost) * 100 : 0;
+              const computeHeight = totalHeight - cacheHeight;
               const today = isToday(day.date);
               return (
                 <div key={day.date} className="flex-1 flex flex-col items-center gap-1 group">
@@ -468,10 +437,18 @@ function CostsTab() {
                     ${day.cost.toFixed(2)}
                   </span>
                   <div className="w-full flex-1 flex items-end">
-                    <div
-                      className={`w-full rounded-t-sm transition-all duration-300 min-h-[2px] ${today ? "bg-gradient-to-t from-green-500 to-green-400 shadow-[0_0_8px_rgba(34,197,94,0.3)]" : day.cost > 0 ? "bg-gradient-to-t from-green-500/60 to-green-400/40 group-hover:from-green-500/80 group-hover:to-green-400/60" : "bg-muted/20"}`}
-                      style={{ height: `${Math.max(heightPct, 2)}%` }}
-                    />
+                    <div className="w-full flex flex-col items-stretch">
+                      <div
+                        className={`w-full rounded-t-sm ${today ? "bg-blue-400" : "bg-blue-400/50 group-hover:bg-blue-400/70"}`}
+                        style={{ height: `${Math.max(computeHeight, 0)}%` }}
+                        title={`Compute: $${day.computeCost.toFixed(2)}`}
+                      />
+                      <div
+                        className={`w-full ${today ? "bg-green-500" : "bg-green-500/50 group-hover:bg-green-500/70"}`}
+                        style={{ height: `${Math.max(cacheHeight, day.cost > 0 ? 2 : 0)}%` }}
+                        title={`Cache: $${day.cacheCost.toFixed(2)}`}
+                      />
+                    </div>
                   </div>
                   <span className={`text-[8px] whitespace-nowrap ${today ? "text-green-400 font-semibold" : "text-muted-foreground/60"}`}>
                     {formatDayLabel(day.date)}
@@ -479,6 +456,10 @@ function CostsTab() {
                 </div>
               );
             })}
+          </div>
+          <div className="flex items-center gap-4 mt-2 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-blue-400" />Compute (input + output)</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-green-500" />Cache (read + write)</span>
           </div>
         </CardContent>
       </Card>
@@ -527,21 +508,23 @@ function CostsTab() {
               <div className="space-y-0.5">
                 <div className="flex items-center text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2 py-1.5">
                   <span className="flex-1">Model</span>
-                  <span className="w-20 text-right">Input</span>
-                  <span className="w-20 text-right">Output</span>
+                  <span className="w-16 text-right">In</span>
+                  <span className="w-16 text-right">Out</span>
+                  <span className="w-20 text-right">Cache Rd</span>
+                  <span className="w-20 text-right">Cache Wr</span>
                   <span className="w-16 text-right">Cost</span>
-                  <span className="w-16 text-right">Sessions</span>
                 </div>
                 {modelEntries.map(([model, md]) => (
                   <div key={model} className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors">
                     <span className="flex-1 flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${getModelColor(model)}`} />
-                      <span className="text-muted-foreground capitalize">{model}</span>
+                      <span className="text-muted-foreground text-xs font-mono">{model}</span>
                     </span>
-                    <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.inputTokens)}</span>
-                    <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.outputTokens)}</span>
+                    <span className="w-16 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.input)}</span>
+                    <span className="w-16 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.output)}</span>
+                    <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.cacheRead)}</span>
+                    <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.cacheCreation)}</span>
                     <span className="w-16 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(md.cost)}</span>
-                    <span className="w-16 text-right font-mono tabular-nums text-xs text-muted-foreground">{md.sessions}</span>
                   </div>
                 ))}
               </div>
@@ -568,11 +551,13 @@ function CostsTab() {
                 </div>
                 {data.byProject.map((project) => (
                   <div
-                    key={project.project}
+                    key={project.projectKey}
                     className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer"
-                    onClick={() => setLocation(`/sessions?project=${encodeURIComponent(project.project)}`)}
+                    onClick={() => setLocation(`/sessions?project=${encodeURIComponent(project.projectKey)}`)}
                   >
-                    <span className="flex-1 truncate text-muted-foreground hover:text-foreground transition-colors">{lastPathSegment(project.project)}</span>
+                    <span className="flex-1 truncate text-muted-foreground hover:text-foreground transition-colors">
+                      {project.projectName}
+                    </span>
                     <span className="w-16 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(project.cost)}</span>
                     <span className="w-16 text-right font-mono tabular-nums text-xs text-muted-foreground">{project.sessions}</span>
                   </div>
@@ -597,27 +582,26 @@ function CostsTab() {
             <div className="space-y-0.5 max-h-[500px] overflow-auto">
               <div className="flex items-center text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2 py-1.5 sticky top-0 bg-card">
                 <span className="flex-1">Session</span>
-                <span className="w-16 text-right">Model</span>
-                <span className="w-20 text-right">Tokens</span>
+                <span className="w-24 text-right">Model</span>
                 <span className="w-16 text-right">Cost</span>
               </div>
               {data.topSessions.map((session) => (
-                <div
-                  key={session.sessionId}
-                  className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer"
-                  onClick={() => setLocation(`/sessions/${session.sessionId}`)}
-                >
+                <div key={session.sessionId} className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer" onClick={() => setLocation(`/sessions/${session.sessionId}`)}>
                   <span className="flex-1 truncate text-muted-foreground hover:text-foreground transition-colors">
                     {session.firstMessage || session.sessionId.slice(0, 8)}
+                    {session.subagentCount > 0 && (
+                      <span className="ml-2 text-[10px] text-purple-400">
+                        {session.subagentCount} agent{session.subagentCount > 1 ? "s" : ""} (+{formatCost(session.subagentCost)})
+                      </span>
+                    )}
                   </span>
-                  <span className="w-16 text-right">
+                  <span className="w-24 text-right">
                     <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
-                      session.model === "opus" ? "text-orange-400 border-orange-400/30" :
-                      session.model === "haiku" ? "text-green-400 border-green-400/30" :
+                      session.model.includes("opus") ? "text-orange-400 border-orange-400/30" :
+                      session.model.includes("haiku") ? "text-green-400 border-green-400/30" :
                       "text-blue-400 border-blue-400/30"
-                    }`}>{session.model}</Badge>
+                    }`}>{session.model.replace("claude-", "")}</Badge>
                   </span>
-                  <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(session.tokens)}</span>
                   <span className="w-16 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(session.cost)}</span>
                 </div>
               ))}
@@ -626,39 +610,6 @@ function CostsTab() {
         </Card>
       )}
 
-      {/* Error Breakdown */}
-      {data.errors.length > 0 && (
-        <Card className="animate-fade-in-up" style={{ animationDelay: "400ms" }}>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-400" />
-              Error Breakdown
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1">
-                {data.errors.reduce((sum, e) => sum + e.count, 0)} total
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {data.errors.map((err) => {
-                const style = ERROR_STYLES[err.type] || ERROR_STYLES.other;
-                const Icon = style.icon;
-                return (
-                  <div key={err.type} className={`rounded-lg border p-3 ${style.bg} ${style.border}`}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Icon className={`h-4 w-4 ${style.text}`} />
-                      <span className={`text-sm font-medium ${style.text}`}>{err.type.replace(/_/g, " ")}</span>
-                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ml-auto ${style.text} border-current`}>{err.count}</Badge>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground line-clamp-2">{err.example}</p>
-                    {err.lastSeen && <p className="text-[10px] text-muted-foreground/50 mt-1">Last: {new Date(err.lastSeen).toLocaleDateString()}</p>}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
