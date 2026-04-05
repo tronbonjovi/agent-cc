@@ -3,7 +3,7 @@ import { themes, themeMap, buildThemeCSS, type ThemeDefinition } from "@/themes"
 
 const STORAGE_KEY = "cc-theme";
 const STYLE_ID = "cc-theme-variables";
-const DEFAULT_THEME = "dark";
+const DEFAULT_THEME = "anthropic-dark";
 
 export type ThemeId = string;
 

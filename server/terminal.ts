@@ -88,7 +88,7 @@ export class TerminalManager {
       this.terminals.delete(id);
     }
 
-    const shell = process.env.SHELL || (process.platform === "win32" ? "powershell.exe" : "bash");
+    const shell = process.env.SHELL || (process.platform === "win32" ? "powershell.exe" : "/bin/sh");
     const safeCols = clampInt(String(cols), 80, MIN_COLS, MAX_COLS);
     const safeRows = clampInt(String(rows), 24, MIN_ROWS, MAX_ROWS);
 
