@@ -22,6 +22,7 @@ import {
 import type { SessionData, DeepSearchMatch } from "@shared/types";
 import { formatBytes, relativeTime as _relativeTime } from "@/lib/utils";
 import { EmptyState } from "@/components/empty-state";
+import { SessionHealthPanel } from "@/components/session-health-panel";
 
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -246,6 +247,8 @@ export default function Sessions() {
           </div>
         ))}
       </div>
+
+      <SessionHealthPanel />
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-border">
