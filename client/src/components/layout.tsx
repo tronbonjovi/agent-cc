@@ -8,6 +8,7 @@ import { SearchTrigger } from "@/components/global-search";
 import { SyncIndicator } from "@/components/sync-indicator";
 import { UpdateIndicator } from "@/components/update-indicator";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { TerminalPanel } from "./terminal-panel";
 
 import {
   LayoutDashboard,
@@ -258,10 +259,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <div className="page-enter">
-          {children}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-auto">
+          <div className="page-enter">
+            {children}
+          </div>
         </div>
+        <TerminalPanel />
       </main>
     </div>
   );
