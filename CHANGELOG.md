@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Embedded terminal panel** — VS Code-style bottom panel with xterm.js rendering and node-pty backend. Features: multiple terminal tabs, side-by-side split view (max 2 panes), resizable drag handle, collapsible panel, state persistence across navigation and reloads. WebSocket bridge at `/ws/terminal` with origin validation, sanitized environment, cwd restriction to home directory, and max 10 concurrent terminals
+- **Terminal React hooks** — `useTerminalPanel()` and `useUpdateTerminalPanel()` for panel state management
+
 ### Changed
 - **Task project picker** — replaced sidebar project list with dropdown combobox in top bar, eliminating double-sidebar clutter
 - **Project scanner** — fixed phantom projects (Docker, Tron, home dir) appearing in project list; session key fallback now requires project markers; home-level infra dirs excluded
 - **Docker volumes** — removed read-only (`:ro`) mounts so the app can write to projects and `.claude` config
+- **Anthropic Dark theme** — replaced warm brown palette with neutral greys matching Claude app UI; accent color updated to Anthropic brand orange (#da7756)
+- **Terminal colors** — neutral dark grey background instead of blue-tinted
 
 ### Removed
 - **Standalone docker-compose.yml** — deleted from source repo; homelab compose at `~/docker/docker-compose.yml` is the single source of truth
