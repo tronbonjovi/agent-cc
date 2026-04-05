@@ -75,9 +75,12 @@ interface CostAnalyticsResult {
     lastSeen: string;
     example: string;
   }>;
+  weeklyComparison: { thisWeek: number; lastWeek: number; changePct: number };
+  topSessions: Array<{ sessionId: string; firstMessage: string; cost: number; tokens: number; model: string }>;
 }
 
 let cachedResult: CostAnalyticsResult | null = null;
+let cachedCacheKey = "";
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -177,16 +180,16 @@ async function processSessionFile(filePath: string): Promise<{
   });
 }
 
-async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
+async function buildCostAnalytics(days: number): Promise<CostAnalyticsResult> {
   const sessions = getCachedSessions();
 
-  // Date cutoff: 30 days ago
+  // Date cutoff: `days` days ago
   const now = new Date();
   const cutoffDate = new Date(now);
-  cutoffDate.setDate(cutoffDate.getDate() - 30);
+  cutoffDate.setDate(cutoffDate.getDate() - days);
   const cutoffStr = cutoffDate.toISOString().slice(0, 10);
 
-  // Initialize daily buckets for last 30 days
+  // Initialize daily buckets for last `days` days
   const dailyMap: Record<string, {
     inputTokens: number;
     outputTokens: number;
@@ -194,7 +197,7 @@ async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
     cacheWriteTokens: number;
     cost: number;
   }> = {};
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < days; i++) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
     const dateKey = d.toISOString().slice(0, 10);
@@ -223,6 +226,9 @@ async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
   let totalOutputTokens = 0;
   let totalCacheReadTokens = 0;
   let totalCacheWriteTokens = 0;
+
+  // Per-session cost tracking for topSessions
+  const sessionCostMap: Record<string, { cost: number; tokens: number; model: string; firstMessage: string }> = {};
 
   // Error aggregation
   const errorTypeMap: Record<string, {
@@ -254,22 +260,28 @@ async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
 
       // Determine model families seen in this session for model-level session counting
       const modelFamiliesSeen = new Set<string>();
+      let hasInWindowTokens = false;
 
       for (const tk of result.tokens) {
         const family = getModelFamily(tk.model);
         const pricing = getPricing(tk.model);
         const cost = computeCost(pricing, tk.inputTokens, tk.outputTokens, tk.cacheReadTokens, tk.cacheWriteTokens);
 
-        // Totals (all time within files)
-        totalInputTokens += tk.inputTokens;
-        totalOutputTokens += tk.outputTokens;
-        totalCacheReadTokens += tk.cacheReadTokens;
-        totalCacheWriteTokens += tk.cacheWriteTokens;
-        totalCost += cost;
-
-        // Daily (only last 30 days)
         const dateKey = tk.timestamp.slice(0, 10);
-        if (dateKey >= cutoffStr && dailyMap[dateKey]) {
+        const inWindow = dateKey >= cutoffStr;
+
+        // Totals (scoped to window)
+        if (inWindow) {
+          totalInputTokens += tk.inputTokens;
+          totalOutputTokens += tk.outputTokens;
+          totalCacheReadTokens += tk.cacheReadTokens;
+          totalCacheWriteTokens += tk.cacheWriteTokens;
+          totalCost += cost;
+          hasInWindowTokens = true;
+        }
+
+        // Daily buckets
+        if (inWindow && dailyMap[dateKey]) {
           dailyMap[dateKey].inputTokens += tk.inputTokens;
           dailyMap[dateKey].outputTokens += tk.outputTokens;
           dailyMap[dateKey].cacheReadTokens += tk.cacheReadTokens;
@@ -277,31 +289,48 @@ async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
           dailyMap[dateKey].cost += cost;
         }
 
-        // Per-model
-        if (!modelMap[family]) {
-          modelMap[family] = { inputTokens: 0, outputTokens: 0, cost: 0, sessionSet: new Set() };
+        // Per-model (scoped)
+        if (inWindow) {
+          if (!modelMap[family]) {
+            modelMap[family] = { inputTokens: 0, outputTokens: 0, cost: 0, sessionSet: new Set() };
+          }
+          modelMap[family].inputTokens += tk.inputTokens;
+          modelMap[family].outputTokens += tk.outputTokens;
+          modelMap[family].cost += cost;
+          modelFamiliesSeen.add(family);
         }
-        modelMap[family].inputTokens += tk.inputTokens;
-        modelMap[family].outputTokens += tk.outputTokens;
-        modelMap[family].cost += cost;
-        modelFamiliesSeen.add(family);
 
-        // Per-project
-        if (!projectMap[projectPath]) {
-          projectMap[projectPath] = { inputTokens: 0, outputTokens: 0, cost: 0, sessionSet: new Set() };
+        // Per-project (scoped)
+        if (inWindow) {
+          if (!projectMap[projectPath]) {
+            projectMap[projectPath] = { inputTokens: 0, outputTokens: 0, cost: 0, sessionSet: new Set() };
+          }
+          projectMap[projectPath].inputTokens += tk.inputTokens;
+          projectMap[projectPath].outputTokens += tk.outputTokens;
+          projectMap[projectPath].cost += cost;
         }
-        projectMap[projectPath].inputTokens += tk.inputTokens;
-        projectMap[projectPath].outputTokens += tk.outputTokens;
-        projectMap[projectPath].cost += cost;
+
+        // Per-session cost tracking
+        if (inWindow) {
+          const sid = session.id;
+          if (!sessionCostMap[sid]) {
+            sessionCostMap[sid] = { cost: 0, tokens: 0, model: "", firstMessage: session.firstMessage || "" };
+          }
+          sessionCostMap[sid].cost += cost;
+          sessionCostMap[sid].tokens += tk.inputTokens + tk.outputTokens;
+          if (!sessionCostMap[sid].model) sessionCostMap[sid].model = family;
+        }
       }
 
-      // Count session once per model family
-      Array.from(modelFamiliesSeen).forEach((family) => {
-        modelMap[family].sessionSet.add(session.id);
-      });
+      // Count session once per model family (only if it had in-window tokens)
+      if (hasInWindowTokens) {
+        Array.from(modelFamiliesSeen).forEach((family) => {
+          modelMap[family].sessionSet.add(session.id);
+        });
+      }
 
-      // Count session once per project (if it had any tokens)
-      if (result.tokens.length > 0) {
+      // Count session once per project (only if it had in-window tokens)
+      if (hasInWindowTokens) {
         projectMap[projectPath].sessionSet.add(session.id);
       }
 
@@ -357,6 +386,34 @@ async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
     }))
     .sort((a, b) => b.count - a.count);
 
+  // Weekly comparison
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const fourteenDaysAgo = new Date(now);
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+  const sevenStr = sevenDaysAgo.toISOString().slice(0, 10);
+  const fourteenStr = fourteenDaysAgo.toISOString().slice(0, 10);
+
+  const thisWeekCost = dailyCosts
+    .filter(d => d.date >= sevenStr)
+    .reduce((s, d) => s + d.cost, 0);
+  const lastWeekCost = dailyCosts
+    .filter(d => d.date >= fourteenStr && d.date < sevenStr)
+    .reduce((s, d) => s + d.cost, 0);
+  const changePct = lastWeekCost > 0 ? Math.round((thisWeekCost / lastWeekCost - 1) * 100) : 0;
+
+  // Top sessions by cost
+  const topSessions = Object.entries(sessionCostMap)
+    .map(([sessionId, data]) => ({
+      sessionId,
+      firstMessage: data.firstMessage.slice(0, 100),
+      cost: Math.round(data.cost * 1000) / 1000,
+      tokens: data.tokens,
+      model: data.model,
+    }))
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 20);
+
   return {
     dailyCosts,
     byModel,
@@ -372,19 +429,30 @@ async function buildCostAnalytics(): Promise<CostAnalyticsResult> {
       max20x: { limit: 200, label: "Max $200/mo" },
     },
     errors,
+    weeklyComparison: {
+      thisWeek: Math.round(thisWeekCost * 100) / 100,
+      lastWeek: Math.round(lastWeekCost * 100) / 100,
+      changePct,
+    },
+    topSessions,
   };
 }
 
 // --- Route handler ---
-router.get("/api/analytics/costs", async (_req, res) => {
+router.get("/api/analytics/costs", async (req, res) => {
   try {
+    const rawDays = parseInt(req.query.days as string, 10);
+    const days = [7, 30, 90].includes(rawDays) ? rawDays : 30;
+
     const now = Date.now();
-    if (cachedResult && (now - cacheTimestamp) < CACHE_TTL_MS) {
+    const cacheKey = `${days}`;
+    if (cachedResult && cachedCacheKey === cacheKey && (now - cacheTimestamp) < CACHE_TTL_MS) {
       return res.json(cachedResult);
     }
 
-    const result = await buildCostAnalytics();
+    const result = await buildCostAnalytics(days);
     cachedResult = result;
+    cachedCacheKey = cacheKey;
     cacheTimestamp = Date.now();
     res.json(result);
   } catch (err) {
