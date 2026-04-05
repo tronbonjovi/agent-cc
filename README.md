@@ -6,16 +6,6 @@ Currently built around [Claude Code](https://docs.anthropic.com/en/docs/claude-c
 
 ## Quick Start
 
-### Docker (recommended for homelab)
-
-```bash
-git clone https://github.com/tronbonjovi/agent-cc.git
-cd agent-cc
-docker compose up -d --build
-```
-
-### From source
-
 ```bash
 git clone https://github.com/tronbonjovi/agent-cc.git
 cd agent-cc
@@ -25,7 +15,7 @@ npm run dev
 
 Open [http://localhost:5100](http://localhost:5100). Everything is auto-discovered from your `~/.claude/` directory.
 
-See [SETUP.md](SETUP.md) for detailed installation and troubleshooting.
+For production, Agent CC runs bare metal via systemd. See [SETUP.md](SETUP.md) for detailed installation and deployment.
 
 ## Requirements
 
@@ -45,27 +35,27 @@ See [SETUP.md](SETUP.md) for detailed installation and troubleshooting.
 - **Natural language query** — ask questions about your analytics data
 - **Session delegation** — continue sessions via terminal, Telegram, or voice
 - **14 themes** — Dark, Light, Glass, Anthropic Light/Dark, Catppuccin Mocha, Nord, Dracula, Tokyo Night, Solarized Dark, and more. Each theme has its own aesthetic profile controlling glow, borders, elevation, and animation
-- **Live view** — real-time monitoring with context usage, message counts, cost estimates
+- **Live monitoring** — real-time active sessions, context usage, cost estimates, agent tracking (integrated into Dashboard)
 - **Graph visualization** — interactive ecosystem map with AI-assisted suggestions
 - **Markdown editor** — edit `CLAUDE.md` and memory files with version history
+- **Embedded terminal** — VS Code-style bottom panel with xterm.js, multiple tabs, split view
 
 ## Pages
 
 | Page | What it shows |
 |------|---------------|
-| Dashboard | Entity counts, health indicators, quick stats |
-| Projects | Discovered projects with sessions, tech stack, cost |
+| Dashboard | Live session monitoring, entity counts, system health, recent activity |
+| Projects | Discovered projects with sessions, tech stack, cost, task boards |
 | MCP Servers | Every MCP server from `.mcp.json` files |
 | Skills | User-invocable and system skills |
 | Plugins | Installed and available plugins |
 | Markdown | CLAUDE.md, memory files, READMEs with inline editing |
 | Sessions | Deep search, AI summaries, cost, diffs, notes, pins, delegation |
+| Messages | Message history + prompt templates (split-screen) |
 | Agents | Agent definitions and execution logs |
-| Live | Active sessions, context usage, cost estimates |
 | Graph | Interactive node graph with custom nodes and AI suggestions |
-| Discovery | Unconfigured projects and MCP server suggestions |
-| Config | Claude Code settings, permissions, MCP configs |
-| Activity | File-change timeline |
+| Analytics | Usage stats, cost tracking, filesystem activity, GitHub discovery |
+| Settings | Claude Code settings, permissions, MCP configs |
 
 ## Security and Privacy
 

@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Terminal React hooks** — `useTerminalPanel()` and `useUpdateTerminalPanel()` for panel state management
 
 ### Changed
+- **UI consolidation** — reduced sidebar navigation from 15 items to 11 by merging related pages:
+  - Dashboard + Live View → Dashboard (combined status bar, active sessions, recent activity)
+  - Messages + Prompts → Messages (split-screen: message history left, prompt templates right)
+  - Activity & Discover + Analytics & Cost → Analytics (four tabs: Usage, Costs, Activity, Discover)
+  - APIs removed from sidebar (route still accessible directly)
+- **Fluid page width** — removed rigid `max-w-[1400px]` from all pages; content now fills available screen width dynamically
+- **Analytics deep-linking** — `/stats?tab=discover` and `?tab=activity` link directly to specific tabs; old routes (`/live`, `/prompts`, `/activity`) redirect to merged destinations
 - **Task project picker** — replaced sidebar project list with dropdown combobox in top bar, eliminating double-sidebar clutter
 - **Project scanner** — fixed phantom projects (Docker, Tron, home dir) appearing in project list; session key fallback now requires project markers; home-level infra dirs excluded
 - **Anthropic Dark theme** — replaced warm brown palette with neutral greys matching Claude app UI; accent color updated to Anthropic brand orange (#da7756); now the default theme
