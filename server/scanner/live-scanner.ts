@@ -73,7 +73,7 @@ function getGitBranch(cwd: string): string | undefined {
   }
 }
 
-import { getPricing as getModelPricingShared, getMaxTokens } from "./pricing";
+import { getPricing as getModelPricingShared, computeCost, getMaxTokens } from "./pricing";
 
 const STALE_SESSION_FILE_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -156,10 +156,6 @@ function readTailLines(filePath: string, chunkSize = 65536): string[] {
   }
 }
 
-function getModelPricing(model: string) {
-  return getModelPricingShared(model);
-}
-
 interface SessionDetails {
   contextUsage?: ActiveSession["contextUsage"];
   lastMessage?: string;
@@ -174,6 +170,8 @@ function getSessionDetails(filePath: string): SessionDetails {
   let lastMessage: string | undefined;
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let totalCacheReadTokens = 0;
+  let totalCacheCreationTokens = 0;
   let model = "";
   let sizeBytes = 0;
 
@@ -214,8 +212,10 @@ function getSessionDetails(filePath: string): SessionDetails {
         messageCount++;
         const u = record.message?.usage;
         if (u) {
-          totalInputTokens += (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+          totalInputTokens += u.input_tokens || 0;
           totalOutputTokens += u.output_tokens || 0;
+          totalCacheReadTokens += u.cache_read_input_tokens || 0;
+          totalCacheCreationTokens += u.cache_creation_input_tokens || 0;
           if (!model && record.message?.model) model = record.message.model;
         }
       }
@@ -240,12 +240,8 @@ function getSessionDetails(filePath: string): SessionDetails {
   }
 
   // Estimate cost (note: we only have partial data from the tail chunk)
-  // totalInputTokens here includes input + cache_create + cache_read from the tail chunk.
-  // Most tokens are cache reads (90% cheaper). Use a blended rate.
-  const pricing = getModelPricing(model);
-  const cacheReadRate = pricing.input * 0.1;
-  const blendedInputRate = totalInputTokens > 0 ? cacheReadRate : 0; // Most input is cache reads
-  const costEstimate = (totalInputTokens / 1_000_000 * blendedInputRate) + (totalOutputTokens / 1_000_000 * pricing.output);
+  const pricing = getModelPricingShared(model);
+  const costEstimate = computeCost(pricing, totalInputTokens, totalOutputTokens, totalCacheReadTokens, totalCacheCreationTokens);
 
   return {
     contextUsage,
