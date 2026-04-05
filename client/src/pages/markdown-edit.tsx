@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/skeleton";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ArrowLeft, Save, History, RotateCcw, Check, List, Info, ShieldCheck, AlertTriangle, CheckCircle, FileWarning, Lock, Unlock, Zap, FileText, Plus } from "lucide-react";
 import MDEditor from "@uiw/react-md-editor";
+import { useTheme } from "@/hooks/use-theme";
 
 /** Extract headings from markdown content for TOC */
 function extractHeadings(content: string): Array<{ level: number; text: string; id: string }> {
@@ -88,6 +89,7 @@ export default function MarkdownEdit() {
   const relativePath = (p: string) => makeRelativePath(p, homeDir);
   const { data: history, refetch: refetchHistory } = useMarkdownHistory(params.id);
   const { data: allFiles } = useMarkdownFiles(undefined);
+  const { resolvedTheme } = useTheme();
   const { data: fileMeta } = useMarkdownMeta();
   const updateMeta = useUpdateMarkdownMeta();
   const saveMutation = useSaveMarkdown();
@@ -317,7 +319,7 @@ export default function MarkdownEdit() {
           </Card>
         )}
 
-        <div className="flex-1" data-color-mode="dark">
+        <div className="flex-1" data-color-mode={resolvedTheme.variant}>
           <MDEditor value={content} onChange={(val) => { if (!isLocked) { setContent(val || ""); setDirty(true); } }}
             height="100%" preview="live" />
         </div>

@@ -106,6 +106,88 @@ pre code {
   font-family: "JetBrains Mono", ui-monospace, monospace;
 }
 
+/* Markdown editor — theme integration */
+.w-md-editor {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+.w-md-editor-toolbar {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+.w-md-editor-toolbar li > button {
+  color: hsl(var(--muted-foreground)) !important;
+}
+.w-md-editor-toolbar li > button:hover,
+.w-md-editor-toolbar li > button:active {
+  color: hsl(var(--foreground)) !important;
+  background-color: hsl(var(--accent)) !important;
+}
+.w-md-editor-content {
+  background-color: hsl(var(--background)) !important;
+}
+.w-md-editor-preview {
+  border-color: hsl(var(--border)) !important;
+}
+.w-md-editor .cm-editor,
+.w-md-editor .cm-scroller {
+  background-color: hsl(var(--background)) !important;
+}
+.w-md-editor .cm-line {
+  color: hsl(var(--foreground)) !important;
+}
+.w-md-editor .cm-gutters {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+.w-md-editor .cm-activeLineGutter,
+.w-md-editor .cm-activeLine {
+  background-color: hsl(var(--accent) / 0.3) !important;
+}
+.w-md-editor .cm-cursor {
+  border-color: hsl(var(--foreground)) !important;
+}
+.wmde-markdown {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+.wmde-markdown code {
+  background-color: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+.wmde-markdown pre {
+  background-color: hsl(var(--card)) !important;
+}
+.wmde-markdown pre code {
+  background-color: transparent !important;
+}
+.wmde-markdown hr {
+  background-color: hsl(var(--border)) !important;
+}
+.wmde-markdown blockquote {
+  border-left-color: hsl(var(--border)) !important;
+  color: hsl(var(--muted-foreground)) !important;
+}
+.wmde-markdown table th,
+.wmde-markdown table td {
+  border-color: hsl(var(--border)) !important;
+}
+.wmde-markdown table tr {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+.wmde-markdown table tr:nth-child(2n) {
+  background-color: hsl(var(--card)) !important;
+}
+.wmde-markdown a {
+  color: hsl(var(--primary)) !important;
+}
+.wmde-markdown h1,
+.wmde-markdown h2 {
+  border-color: hsl(var(--border)) !important;
+}
+
 /* React Flow overrides for dark mode */
 .react-flow__attribution {
   display: none !important;
@@ -504,16 +586,6 @@ pre code {
   animation: float 3s ease-in-out infinite;
 }
 
-/* Brand icon slow rotation glow */
-@keyframes brand-glow-rotate {
-  0% { filter: drop-shadow(0 0 8px var(--glow-blue)) hue-rotate(0deg); }
-  50% { filter: drop-shadow(0 0 12px var(--glow-purple)) hue-rotate(15deg); }
-  100% { filter: drop-shadow(0 0 8px var(--glow-blue)) hue-rotate(0deg); }
-}
-.brand-glow {
-  animation: brand-glow-rotate 20s ease-in-out infinite;
-  opacity: var(--glow-intensity, 1);
-}
 
 /* Nav hover gradient sweep */
 @keyframes nav-sweep {
@@ -566,9 +638,6 @@ mark {
 
 /* When animation scale is minimal, disable decorative animations */
 :root[data-animation="minimal"] #root::before {
-  animation: none !important;
-}
-:root[data-animation="minimal"] .brand-glow {
   animation: none !important;
 }
 :root[data-animation="minimal"] .empty-state-dot,

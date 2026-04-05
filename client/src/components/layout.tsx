@@ -20,7 +20,6 @@ import {
   GitBranch,
   Settings,
   SlidersHorizontal,
-  Terminal,
   ChevronLeft,
   ChevronRight,
   Activity,
@@ -125,12 +124,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Brand */}
-        <div className={cn("flex items-center gap-2.5 h-14", collapsed ? "px-3 justify-center" : "px-4")}>
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-1 to-brand-2 flex items-center justify-center shrink-0 shadow-glow ring-1 ring-nav-active/20 brand-glow">
-            <Terminal className="h-4 w-4 text-white" />
-          </div>
+        <div className={cn("flex items-center h-14", collapsed ? "px-3 justify-center" : "px-4")}>
           {!collapsed && (
-            <span className="font-semibold text-sm whitespace-nowrap flex-1">
+            <span className="font-semibold text-sm whitespace-nowrap">
               {appName}
             </span>
           )}
@@ -260,7 +256,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="page-enter">
             {children}
           </div>

@@ -2,6 +2,7 @@ import { useReducer, useRef, useCallback, useEffect } from "react";
 import { TerminalInstance } from "./terminal-instance";
 import { useTerminalPanel, useUpdateTerminalPanel } from "@/hooks/use-terminal";
 import type { TerminalTab } from "@shared/types";
+import { Plus, X, Columns2, ChevronDown, ChevronUp, Terminal } from "lucide-react";
 
 const MAX_TAB_NAME_LENGTH = 100;
 
@@ -221,13 +222,15 @@ export function TerminalPanel() {
 
   if (state.collapsed) {
     return (
-      <div className="border-t bg-background">
-        <div className="flex items-center h-8 px-2 gap-2">
+      <div className="border-t border-border bg-background">
+        <div className="flex items-center h-8 px-2">
           <button
             onClick={toggleCollapse}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-accent/50"
           >
-            ▲ Terminal
+            <ChevronUp className="h-3 w-3" />
+            <Terminal className="h-3 w-3" />
+            <span>Terminal</span>
           </button>
         </div>
       </div>
@@ -239,9 +242,9 @@ export function TerminalPanel() {
       {/* Drag handle */}
       <div
         onMouseDown={handleMouseDown}
-        className="h-1 cursor-row-resize flex items-center justify-center hover:bg-accent transition-colors"
+        className="h-1.5 cursor-row-resize flex items-center justify-center hover:bg-accent/50 transition-colors group"
       >
-        <div className="w-8 h-0.5 bg-muted-foreground/30 rounded-full" />
+        <div className="w-10 h-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
       </div>
 
       {/* Tab bar */}
@@ -270,39 +273,39 @@ export function TerminalPanel() {
                   e.stopPropagation();
                   closeTab(tab.id);
                 }}
-                className="ml-1 text-muted-foreground hover:text-foreground"
+                className="ml-1 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
               >
-                ×
+                <X className="h-3 w-3" />
               </button>
             )}
           </div>
         ))}
 
-        <div className="flex items-center ml-auto gap-1 px-1">
+        <div className="flex items-center ml-auto gap-0.5 px-1">
           {state.tabs.length >= 2 && (
             <button
               onClick={toggleSplit}
-              className={`px-1.5 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors ${
-                state.splitTabId ? "bg-accent text-foreground" : ""
+              className={`p-1 rounded hover:bg-accent/50 transition-colors ${
+                state.splitTabId ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
               title={state.splitTabId ? "Unsplit" : "Split view"}
             >
-              ⬜⬜
+              <Columns2 className="h-3.5 w-3.5" />
             </button>
           )}
           <button
             onClick={addTab}
-            className="px-1.5 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
             title="New terminal"
           >
-            ＋
+            <Plus className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={toggleCollapse}
-            className="px-1.5 py-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
             title="Collapse panel"
           >
-            ▼
+            <ChevronDown className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>

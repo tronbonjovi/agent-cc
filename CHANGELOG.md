@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Task project picker** — replaced sidebar project list with dropdown combobox in top bar, eliminating double-sidebar clutter
 - **Project scanner** — fixed phantom projects (Docker, Tron, home dir) appearing in project list; session key fallback now requires project markers; home-level infra dirs excluded
 - **Anthropic Dark theme** — replaced warm brown palette with neutral greys matching Claude app UI; accent color updated to Anthropic brand orange (#da7756); now the default theme
-- **Terminal colors** — neutral dark grey background instead of blue-tinted
+- **Terminal colors** — theme-reactive: background, foreground, cursor, and selection colors now derive from the active theme and update live on theme switch; separate ANSI palettes for dark and light variants
+- **Terminal panel UI** — replaced text symbols with Lucide icons (Plus, X, Columns2, ChevronUp/Down, Terminal); improved drag handle hover feedback; polished collapsed state bar
+- **Markdown editor theming** — editor now matches the selected theme; dynamic `data-color-mode` based on theme variant with CSS overrides mapping editor backgrounds, toolbar, borders, code blocks, tables, and links to theme variables
 - **Deployment** — switched from Docker to bare metal systemd service for reduced friction
 
 ### Fixed
@@ -23,10 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Terminal React state** — rewrote panel with useReducer for atomic state transitions, fixed stale closures in resize/persist handlers
 - **Shell fallback** — use `/bin/sh` instead of `bash` for cross-platform compatibility (Alpine, minimal containers)
 - **Build externals** — keep node-pty and ws as external requires (native addon can't be bundled)
+- **Horizontal scroll** — prevented infinite horizontal scrolling on main content area
 
 ### Removed
 - **Docker deployment for Agent CC** — replaced with bare metal systemd; other homelab services still use Docker
 - **Task sidebar component** — replaced by dropdown project picker
+- **App brand icon** — removed gradient Terminal icon from sidebar and associated brand-glow CSS animations; placeholder for new icon
 
 ## [2.1.0] - 2026-04-05
 
