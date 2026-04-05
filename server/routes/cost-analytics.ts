@@ -353,7 +353,7 @@ async function buildCostAnalytics(days: number): Promise<CostAnalyticsResult> {
             sessionCostMap[sid] = { cost: 0, tokens: 0, model: "", firstMessage: session.firstMessage || "" };
           }
           sessionCostMap[sid].cost += cost;
-          sessionCostMap[sid].tokens += tk.inputTokens + tk.outputTokens;
+          sessionCostMap[sid].tokens += tk.inputTokens + tk.outputTokens + tk.cacheReadTokens + tk.cacheWriteTokens;
           if (!sessionCostMap[sid].model) sessionCostMap[sid].model = family;
         }
       }
