@@ -11,6 +11,7 @@ import { scanAgentDefinitions, scanAgentExecutions } from "./agent-scanner";
 import { scanDockerCompose } from "./importers/docker-compose";
 import { scanGraphConfig } from "./graph-config-scanner";
 import { scanApiConfig } from "./api-config-scanner";
+import { indexCosts } from "./cost-indexer";
 import { entityId, clearProjectDirsCache, encodeProjectKey } from "./utils";
 import { buildRelationships } from "./relationships";
 import { getDB, save } from "../db";
@@ -68,6 +69,9 @@ export async function runFullScan(): Promise<void> {
     // Agent scanners
     scanAgentDefinitions();
     scanAgentExecutions();
+
+    // Cost indexing — incremental parse of session JSONL files
+    indexCosts();
 
     // Build new entity map atomically (no delete-then-reinsert gap)
     const allEntities: Entity[] = [...mcps, ...skills, ...plugins, ...projects, ...markdowns, ...configs];
