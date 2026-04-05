@@ -49,10 +49,8 @@ npm run build        # production build
 Agent CC runs bare metal via systemd on the devbox. After making changes:
 
 ```bash
-npm run build                          # rebuild production bundle
-sudo systemctl restart agent-cc        # restart the service
-sudo systemctl status agent-cc         # verify it's running
-journalctl -u agent-cc -f              # tail logs
+scripts/deploy.sh                      # build, restart, verify (one command)
+journalctl -u agent-cc -f              # tail logs if needed
 ```
 
 The systemd unit file is at `/etc/systemd/system/agent-cc.service`. Caddy reverse-proxies `acc.devbox` to `localhost:5100`.
@@ -124,7 +122,7 @@ When adding integrations with external services:
 
 ## Tests
 
-- **2050+ unit tests** covering parsers, routes, storage, validation, scanners, cost indexer, task I/O, path safety, API integration, terminal
+- **2080+ unit tests** covering parsers, routes, storage, validation, scanners, cost indexer, task I/O, path safety, API integration, terminal
 - **`new-user-safety.test.ts`** — automated guardrail that scans all source files for:
   - Hardcoded user paths (both decoded `C:/Users/...` and encoded `C--Users-...`)
   - Phone numbers / PII

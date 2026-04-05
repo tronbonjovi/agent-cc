@@ -38,8 +38,7 @@ User noticed 37K tokens used in just 2 messages. Audited the full Claude Code se
   - **CLAUDE.md / memories** = behavioral guardrails for Claude (how it works)
   - **Agent CC features** = observability for the user (context bar, threshold indicators)
   - **Handoff notes** = escape valve for long sessions (graceful wrap-up)
-- Agent CC feature: session health indicators (context %, message count, cost) in Sessions & Agents section
-- Not yet built — fits into the broader UI rework
+- Agent CC feature: session health indicators — BUILT AND DEPLOYED (context %, message count, cost with configurable thresholds)
 
 ### Agent CC Feature Vision — Captured
 - Full UI/UX rework brainstormed: nav consolidation, sessions rework, visual cleanup
@@ -48,7 +47,6 @@ User noticed 37K tokens used in just 2 messages. Audited the full Claude Code se
 - Next step: brainstorm + plan when ready to implement the UI rework
 
 ## What's Still Open
-- Build session health indicators as part of Sessions & Agents UI rework
-- Full UI/UX consolidation (workspace/config/tools nav restructure)
+- Full UI/UX consolidation (workspace/config/tools nav restructure) — see project_ui_rework_vision.md
 - Visual pass to unify branding, remove leftover neon colors
 - Audit baked-in help menus and AI features
