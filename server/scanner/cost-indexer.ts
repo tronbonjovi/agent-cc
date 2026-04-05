@@ -150,7 +150,10 @@ export function indexCosts(): void {
       projectKey: session.projectKey,
     });
 
-    const sessionDir = session.filePath.replace(/\/[^/]+\.jsonl$/, "");
+    // Subagents live in {projectDir}/{sessionId}/subagents/, not alongside the JSONL file.
+    // Session file: .../projects/{projectKey}/{sessionId}.jsonl
+    // Subagent dir: .../projects/{projectKey}/{sessionId}/subagents/
+    const sessionDir = session.filePath.replace(/\.jsonl$/, "");
     const subagentsDir = sessionDir + "/subagents";
     try {
       if (fs.existsSync(subagentsDir)) {
