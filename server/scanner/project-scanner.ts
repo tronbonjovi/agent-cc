@@ -58,7 +58,7 @@ export function scanProjects(): Entity[] {
     if (hasProjectMarkers(normalized) && !projectDirs.includes(normalized)) {
       projectDirs.push(normalized);
     }
-    // Also scan children (treat extra paths as potential containers)
+    // Also scan children — user explicitly configured this dir, so include all subdirs
     try {
       const children = fs.readdirSync(normalized, { withFileTypes: true });
       for (const child of children) {

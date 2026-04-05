@@ -1,10 +1,10 @@
 import { useParams, useLocation } from "wouter";
 import { useEntities } from "@/hooks/use-entities";
 import { useTaskBoard, useCreateTask, useUpdateTask, useDeleteTask, useReorderTasks, useUpdateTaskConfig } from "@/hooks/use-tasks";
-import { TaskSidebar } from "@/components/tasks/task-sidebar";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { BoardSetup } from "@/components/tasks/board-setup";
+import { ProjectPicker } from "@/components/tasks/project-picker";
 import { ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -96,66 +96,58 @@ export default function TasksPage() {
   const needsSetup = selectedProjectId && board && !hasBoard;
 
   return (
-    <div className="flex h-full">
-      <TaskSidebar
-        projects={projects || []}
-        selectedProjectId={selectedProjectId}
-        onSelectProject={setSelectedProjectId}
-        items={board?.items || []}
-        selectedParent={selectedParent}
-        onSelectParent={setSelectedParent}
-      />
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-1.5 px-4 py-2.5 border-b text-sm">
+        <ProjectPicker
+          projects={projects || []}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={(id) => { setSelectedProjectId(id); setSelectedParent(null); }}
+        />
+        {breadcrumbs.slice(1).map((crumb, i) => (
+          <span key={i} className="flex items-center gap-1.5">
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30" />
+            <button
+              onClick={() => setSelectedParent(crumb.id)}
+              className={cn(
+                "hover:text-foreground transition-colors",
+                i === breadcrumbs.slice(1).length - 1 ? "text-foreground font-medium" : "text-muted-foreground"
+              )}
+            >
+              {crumb.label}
+            </button>
+          </span>
+        ))}
+        {board?.malformedCount ? (
+          <span className="ml-auto text-[10px] text-amber-500/70">{board.malformedCount} file(s) skipped</span>
+        ) : null}
+      </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {selectedProjectId && (
-          <div className="flex items-center gap-1.5 px-4 py-2.5 border-b text-sm">
-            {breadcrumbs.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-1.5">
-                {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30" />}
-                <button
-                  onClick={() => setSelectedParent(crumb.id)}
-                  className={cn(
-                    "hover:text-foreground transition-colors",
-                    i === breadcrumbs.length - 1 ? "text-foreground font-medium" : "text-muted-foreground"
-                  )}
-                >
-                  {crumb.label}
-                </button>
-              </span>
-            ))}
-            {board?.malformedCount ? (
-              <span className="ml-auto text-[10px] text-amber-500/70">{board.malformedCount} file(s) skipped</span>
-            ) : null}
-          </div>
+      <div className="flex-1 overflow-auto p-4">
+        {!selectedProjectId && (
+          <div className="flex items-center justify-center h-full text-muted-foreground">Select a project to view tasks</div>
         )}
 
-        <div className="flex-1 overflow-auto p-4">
-          {!selectedProjectId && (
-            <div className="flex items-center justify-center h-full text-muted-foreground">Select a project to view tasks</div>
-          )}
+        {selectedProjectId && loadingBoard && (
+          <div className="flex items-center justify-center h-full"><div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground/30 border-t-primary" /></div>
+        )}
 
-          {selectedProjectId && loadingBoard && (
-            <div className="flex items-center justify-center h-full"><div className="h-8 w-8 animate-spin rounded-full border-4 border-muted-foreground/30 border-t-primary" /></div>
-          )}
+        {selectedProjectId && !loadingBoard && needsSetup && (
+          <BoardSetup projectName={selectedProject?.name || ""} onAcceptDefaults={handleSetupBoard} />
+        )}
 
-          {selectedProjectId && !loadingBoard && needsSetup && (
-            <BoardSetup projectName={selectedProject?.name || ""} onAcceptDefaults={handleSetupBoard} />
-          )}
-
-          {selectedProjectId && board && hasBoard && (
-            <KanbanBoard
-              config={board.config}
-              items={visibleItems}
-              onReorder={(input) => reorderTasks.mutate(input)}
-              onStatusChange={handleStatusChange}
-              onAddTask={handleAddTask}
-              onClickTask={setSelectedTask}
-              inlineCreateStatus={inlineCreateStatus}
-              onCreateSubmit={handleCreateTask}
-              onCreateCancel={() => setInlineCreateStatus(null)}
-            />
-          )}
-        </div>
+        {selectedProjectId && board && hasBoard && (
+          <KanbanBoard
+            config={board.config}
+            items={visibleItems}
+            onReorder={(input) => reorderTasks.mutate(input)}
+            onStatusChange={handleStatusChange}
+            onAddTask={handleAddTask}
+            onClickTask={setSelectedTask}
+            inlineCreateStatus={inlineCreateStatus}
+            onCreateSubmit={handleCreateTask}
+            onCreateCancel={() => setInlineCreateStatus(null)}
+          />
+        )}
       </div>
 
       {board && (

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- **Task project picker** — replaced sidebar project list with dropdown combobox in top bar, eliminating double-sidebar clutter
+- **Project scanner** — fixed phantom projects (Docker, Tron, home dir) appearing in project list; session key fallback now requires project markers; home-level infra dirs excluded
+- **Docker volumes** — removed read-only (`:ro`) mounts so the app can write to projects and `.claude` config
+
+### Removed
+- **Standalone docker-compose.yml** — deleted from source repo; homelab compose at `~/docker/docker-compose.yml` is the single source of truth
+- **Task sidebar component** — replaced by dropdown project picker
+
 ## [2.1.0] - 2026-04-05
 
 ### Added
@@ -20,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Save feedback** — detail panel now shows toast and closes on save
 
 ### Changed
-- 1945 tests across 22 test files, all passing
+- 1956 tests across 22 test files, all passing
 - New npm dependencies: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` for drag-and-drop
 
 ## [2.0.0] - 2026-04-04

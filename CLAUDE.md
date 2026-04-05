@@ -42,8 +42,22 @@ npm run dev          # dev server with hot reload
 npm run check        # TypeScript type-check (must pass before commit)
 npm test             # all tests including new-user-safety checks
 npm run build        # production build
-docker compose up -d --build  # run in Docker
 ```
+
+## Deployment
+
+There is NO docker-compose.yml in this repo. Agent CC is deployed as part of the homelab stack at `~/docker/docker-compose.yml`. After making changes:
+
+```bash
+# 1. Rsync source to Docker build context
+rsync -a --delete --exclude node_modules --exclude .git --exclude dist \
+  ~/dev/projects/agent-cc/ ~/docker/agent-cc/
+
+# 2. Rebuild via the homelab compose file (the ONLY compose file)
+docker compose -f ~/docker/docker-compose.yml up -d --build agent-cc
+```
+
+If Docker config changes are needed (volumes, env vars, ports), edit `~/docker/docker-compose.yml` directly. Never create a standalone compose file in this repo.
 
 ## Commit Format
 
@@ -105,7 +119,7 @@ When adding integrations with external services:
 
 ## Tests
 
-- **1945 unit tests** covering parsers, routes, storage, validation, scanners, task I/O, path safety, API integration
+- **1956 unit tests** covering parsers, routes, storage, validation, scanners, task I/O, path safety, API integration
 - **`new-user-safety.test.ts`** — automated guardrail that scans all source files for:
   - Hardcoded user paths (both decoded `C:/Users/...` and encoded `C--Users-...`)
   - Phone numbers / PII

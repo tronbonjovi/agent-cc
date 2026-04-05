@@ -112,6 +112,12 @@ const PROJECT_CONTAINER_NAMES = new Set([
   "code", "developer", "dev", "workspace", "workspaces", "git",
 ]);
 
+/** Directories directly under HOME that are not dev projects even if they have .git */
+const HOME_DIR_EXCLUDES = new Set([
+  "docker", "docker-compose", "dotfiles", "config", "backup", "backups",
+  "data", "media", "downloads", "documents", "pictures", "videos", "music",
+]);
+
 /** Cache for discoverProjectDirs() — avoids redundant filesystem scans
  *  when multiple scanners call it during a single scan cycle. */
 let cachedProjectDirs: string[] | null = null;
@@ -148,6 +154,7 @@ export function discoverProjectDirs(): string[] {
     const entries = fs.readdirSync(HOME, { withFileTypes: true });
     for (const e of entries) {
       if (!e.isDirectory() || e.name.startsWith(".") || e.name === "node_modules") continue;
+      if (HOME_DIR_EXCLUDES.has(e.name.toLowerCase())) continue;
       const full = path.join(HOME, e.name).replace(/\\/g, "/");
 
       // Check if this top-level dir is itself a project
@@ -183,7 +190,9 @@ export function discoverProjectDirs(): string[] {
         const decoded = decodeProjectKey(e.name);
         if (seen.has(decoded)) continue;
         seen.add(decoded);
-        results.push(decoded);
+        if (dirExists(decoded) && hasProjectMarkers(decoded)) {
+          results.push(decoded);
+        }
       }
     } catch {}
   }
