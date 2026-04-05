@@ -46,8 +46,20 @@ export function KanbanBoard({ config, items, onReorder, onStatusChange, onAddTas
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const task = items.find((i) => i.id === event.active.id);
     if (task) setActiveTask(task);
-    setLocalOrder({ ...config.columnOrder });
-  }, [items, config.columnOrder]);
+    // Build a complete local order that includes ALL items, not just those in columnOrder.
+    // Ensure every status has an array and every item is present in its status column.
+    const order: Record<string, string[]> = {};
+    for (const status of config.statuses) {
+      order[status] = [...(config.columnOrder[status] || [])];
+    }
+    for (const item of items) {
+      const col = order[item.status];
+      if (col && !col.includes(item.id)) {
+        col.push(item.id);
+      }
+    }
+    setLocalOrder(order);
+  }, [items, config.columnOrder, config.statuses]);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
@@ -75,6 +87,8 @@ export function KanbanBoard({ config, items, onReorder, onStatusChange, onAddTas
     setLocalOrder((prev) => {
       if (!prev) return prev;
       const next = { ...prev };
+      if (!next[activeColumn!]) next[activeColumn!] = [];
+      if (!next[overColumn!]) next[overColumn!] = [];
       next[activeColumn!] = next[activeColumn!].filter((id) => id !== activeId);
       const overIndex = next[overColumn!].indexOf(overId);
       if (overIndex >= 0) {
@@ -105,11 +119,12 @@ export function KanbanBoard({ config, items, onReorder, onStatusChange, onAddTas
 
     if (!activeColumn) { setLocalOrder(null); return; }
 
-    if (activeId !== overId && localOrder[activeColumn].includes(overId)) {
-      const oldIndex = localOrder[activeColumn].indexOf(activeId);
-      const newIndex = localOrder[activeColumn].indexOf(overId);
+    const colArr = localOrder[activeColumn] || [];
+    if (activeId !== overId && colArr.includes(overId)) {
+      const oldIndex = colArr.indexOf(activeId);
+      const newIndex = colArr.indexOf(overId);
       const newOrder = { ...localOrder };
-      newOrder[activeColumn] = arrayMove(newOrder[activeColumn], oldIndex, newIndex);
+      newOrder[activeColumn] = arrayMove(newOrder[activeColumn] || [], oldIndex, newIndex);
       setLocalOrder(newOrder);
       onReorder({ columnOrder: newOrder });
     } else {
