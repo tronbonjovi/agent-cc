@@ -1,3 +1,16 @@
+export interface TerminalTab {
+  id: string;
+  name: string;
+}
+
+export interface TerminalPanelState {
+  height: number;
+  collapsed: boolean;
+  tabs: TerminalTab[];
+  activeTabId: string | null;
+  splitTabId: string | null;
+}
+
 export type EntityType = "project" | "mcp" | "plugin" | "skill" | "markdown" | "config";
 export type GraphNodeType = EntityType | "session" | "agent" | "custom";
 

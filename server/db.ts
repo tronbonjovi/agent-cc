@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision } from "@shared/types";
+import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision, TerminalPanelState } from "@shared/types";
 
 const dataDir = process.env.AGENT_CC_DATA
   ? path.resolve(process.env.AGENT_CC_DATA)
@@ -31,6 +31,7 @@ export interface DBData {
   pinnedSessions: string[];
   decisions: Decision[];
   markdownMeta: Record<string, { locked?: boolean; pinned?: boolean }>;
+  terminalPanel: TerminalPanelState;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -66,6 +67,13 @@ function defaultData(): DBData {
     pinnedSessions: [],
     decisions: [],
     markdownMeta: {},
+    terminalPanel: {
+      height: 300,
+      collapsed: false,
+      tabs: [],
+      activeTabId: null,
+      splitTabId: null,
+    },
   };
 }
 
@@ -92,6 +100,7 @@ try {
     if (!data.pinnedSessions) data.pinnedSessions = [];
     if (!data.decisions) data.decisions = [];
     if (!data.markdownMeta) data.markdownMeta = {};
+    if (!data.terminalPanel) data.terminalPanel = defaultData().terminalPanel;
     if (data.appSettings.onboarded === undefined) data.appSettings.onboarded = false;
     if (!data.appSettings.billingMode) data.appSettings.billingMode = "auto";
   } else {

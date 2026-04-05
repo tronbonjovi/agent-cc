@@ -7,6 +7,8 @@ const allowlist = [
   "express",
   "gray-matter",
   "zod",
+  "node-pty",
+  "ws",
 ];
 
 async function buildAll() {

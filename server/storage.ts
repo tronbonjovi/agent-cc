@@ -1,5 +1,5 @@
 import { getDB, save } from "./db";
-import type { Entity, EntityType, Relationship, MarkdownBackup, ScanStatus, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision } from "@shared/types";
+import type { Entity, EntityType, Relationship, MarkdownBackup, ScanStatus, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision, TerminalPanelState } from "@shared/types";
 import { getCachedStats } from "./scanner/session-scanner";
 import { getCachedAgentStats } from "./scanner/agent-scanner";
 
@@ -378,6 +378,18 @@ export class Storage {
       save();
       return true;
     }
+  }
+
+  // Terminal Panel
+  getTerminalPanel(): TerminalPanelState {
+    return getDB().terminalPanel;
+  }
+
+  updateTerminalPanel(patch: Partial<TerminalPanelState>): TerminalPanelState {
+    const db = getDB();
+    db.terminalPanel = { ...db.terminalPanel, ...patch };
+    save();
+    return db.terminalPanel;
   }
 
   // Stats
