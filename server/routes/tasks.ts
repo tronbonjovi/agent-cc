@@ -185,11 +185,15 @@ router.put("/api/tasks/:taskId", (req, res) => {
   if (input.status !== undefined && input.status !== oldStatus) {
     const configPath = path.join(tasksDir, "_config.md");
     const config = parseConfigFile(configPath) || { ...DEFAULT_TASK_CONFIG };
+    // Remove from old column
     if (config.columnOrder[oldStatus]) {
       config.columnOrder[oldStatus] = config.columnOrder[oldStatus].filter((id: string) => id !== existing.id);
     }
+    // Add to new column only if not already there (reorder endpoint may have already placed it)
     if (!config.columnOrder[input.status]) config.columnOrder[input.status] = [];
-    config.columnOrder[input.status].push(existing.id);
+    if (!config.columnOrder[input.status].includes(existing.id)) {
+      config.columnOrder[input.status].push(existing.id);
+    }
     writeConfigFile(configPath, config);
   }
   return res.json(sanitizeTaskForResponse(existing));
