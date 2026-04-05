@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Costs page time period selector** — 7d / 30d / 90d pill toggle, all data scoped to selected window
+- **Weekly cost comparison** — banner showing this week vs last week spend with % change
+- **Top sessions table** — 20 most expensive sessions with model, token count, and cost
+- **Cost data precision spec** — design for cost-indexer rebuild with incremental parsing, exact model versions, subagent parent-child linking, and compute/cache cost split
+
+### Fixed
+- **Opus 4.5/4.6 pricing** — was using Opus 4.0 rates ($15/$75 per MTok), actual Opus 4.6 rate is $5/$25. Costs were inflated 3x
+- **Haiku 4.5 pricing** — was using Haiku 3.5 rates ($0.80/$4), actual Haiku 4.5 rate is $1/$5
+- **Live-scanner cost estimate** — was applying cache-read rate (10%) to all input tokens instead of proper per-category rates
+- **Unified pricing module** — cost-analytics.ts was duplicating pricing definitions; now imports from single source
+- **Cache savings calculation** — was hardcoded to Sonnet pricing; now uses dominant model's actual rates
+- **Weekly comparison accuracy** — was computed from truncated daily window (broken in 7d mode, off-by-one in all modes); now computed from raw token data with equal half-open 7-day ranges
+- **Plan limit comparison** — was using period-scoped total against monthly cap; now uses dedicated 30-day `monthlyTotalCost`
+- **Cost totals scoped to period** — `/api/analytics/costs` totals were all-time while chart showed 30 days; now both respect the `days` query param
+- **Token display in top sessions** — was only showing input+output; now includes cache tokens so numbers explain the cost
+
+### Changed
 - **Embedded terminal panel** — VS Code-style bottom panel with xterm.js rendering and node-pty backend. Features: multiple terminal tabs, side-by-side split view (max 2 panes), resizable drag handle, collapsible panel, state persistence across navigation and reloads. WebSocket bridge at `/ws/terminal` with origin validation, sanitized environment, cwd restriction to home directory, and max 10 concurrent terminals
 - **Terminal React hooks** — `useTerminalPanel()` and `useUpdateTerminalPanel()` for panel state management
 
