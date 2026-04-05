@@ -92,6 +92,13 @@ When adding features that use `claude -p`:
 4. Handle errors gracefully — return 500 with descriptive message
 5. Set reasonable timeouts (60s for queries, 300s for summarization)
 
+## Tool Call Efficiency
+
+- Prefer 1 targeted file read over multiple speculative globs
+- Batch independent tool calls in a single message
+- Every round-trip re-sends full context — have a clear reason for each call
+- Don't explore "just in case" — if you know the file path, read it directly
+
 ## Adding New Services/Integrations
 
 When adding integrations with external services:

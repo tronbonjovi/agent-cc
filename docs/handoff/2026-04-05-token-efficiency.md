@@ -22,28 +22,33 @@ User noticed 37K tokens used in just 2 messages. Audited the full Claude Code se
 - context7 and playwright remain (heavily used)
 - Microsoft Learn — check if still connected, was never used
 
+## Decisions Made (2026-04-05, session 2)
+
+### Model Routing — CLOSED
+- Opus stays default for all interactive work. Sonnet/Haiku for subagents only.
+- Switching models mid-session has more friction than value. No action needed.
+
+### Tool Call Discipline — DONE
+- Added `## Tool Call Efficiency` section to CLAUDE.md (4 rules, concise)
+- Feedback memory already existed, now backed by durable CLAUDE.md guidance
+- Key principle: targeted reads over speculative globs, batch independent calls
+
+### Session Length Strategy — Direction Set
+- Three non-competing layers identified:
+  - **CLAUDE.md / memories** = behavioral guardrails for Claude (how it works)
+  - **Agent CC features** = observability for the user (context bar, threshold indicators)
+  - **Handoff notes** = escape valve for long sessions (graceful wrap-up)
+- Agent CC feature: session health indicators (context %, message count, cost) in Sessions & Agents section
+- Not yet built — fits into the broader UI rework
+
+### Agent CC Feature Vision — Captured
+- Full UI/UX rework brainstormed: nav consolidation, sessions rework, visual cleanup
+- Session health indicators are part of this, not a standalone feature
+- Detailed notes saved in project memory (project_ui_rework_vision.md)
+- Next step: brainstorm + plan when ready to implement the UI rework
+
 ## What's Still Open
-
-### Session Length Strategy
-- Agreed that handoff notes (like this one) solve the "all or nothing" context problem
-- Need to define concrete habits: when to wrap up, how to measure, what signals to watch
-- Agent CC feature opportunity: surface session health metrics, suggest wrap-up timing
-
-### Model Routing
-- Opus runs everything by default, Sonnet/Haiku configured for subagents only
-- Need strategy for when to use /model to switch mid-session
-- Or: should certain task types auto-route to cheaper models?
-
-### Tool Call Discipline
-- Claude tends to make speculative/redundant tool calls (5 globs when 1 targeted read would do)
-- Each round-trip re-sends full context — fewer calls = significant savings
-- Need concrete guidance in CLAUDE.md or feedback memory
-
-### Agent CC Feature Vision
-- Dashboard for managing agents/plugins/skills (enable/disable, usage stats, token cost)
-- Session health monitoring (token spend, turn count, context utilization)
-- "Good time to hand off" prompts based on session metrics
-- This connects to the broader Agent CC roadmap as a workspace management tool
-
-## How to Resume
-Start next session with: "Let's continue the token efficiency work — read docs/handoff/2026-04-05-token-efficiency.md"
+- Build session health indicators as part of Sessions & Agents UI rework
+- Full UI/UX consolidation (workspace/config/tools nav restructure)
+- Visual pass to unify branding, remove leftover neon colors
+- Audit baked-in help menus and AI features
