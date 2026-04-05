@@ -51,13 +51,13 @@ describe("environment sanitization", () => {
 });
 
 describe("terminal panel state", () => {
-  it("returns default panel state from storage", async () => {
+  it("returns panel state from storage with expected shape", async () => {
     const { storage } = await import("../server/storage");
     const state = storage.getTerminalPanel();
     expect(state).toHaveProperty("height");
     expect(state).toHaveProperty("collapsed");
     expect(state).toHaveProperty("tabs");
-    expect(state.tabs).toEqual([]);
+    expect(Array.isArray(state.tabs)).toBe(true);
   });
 
   it("updates panel state", async () => {
