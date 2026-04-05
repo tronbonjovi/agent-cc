@@ -32,8 +32,7 @@ if (cliArgs.includes("--report")) {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: false }));
 
-  // CORS — only allow requests from the dashboard's own origin.
-  // Blocks CSRF attacks from malicious websites visiting localhost:5100.
+  // CORS — allow requests from the dashboard's own origin and configured proxies.
   const port = parseInt(process.env.PORT || "5100", 10);
   const host = process.env.HOST || "127.0.0.1";
   const allowedOrigins = new Set([
@@ -41,6 +40,14 @@ if (cliArgs.includes("--report")) {
     `http://127.0.0.1:${port}`,
     `http://${host}:${port}`,
   ]);
+  // Add configured proxy origins (e.g. ALLOWED_ORIGINS=https://acc.devbox,https://other.host)
+  const extraOrigins = process.env.ALLOWED_ORIGINS;
+  if (extraOrigins) {
+    for (const o of extraOrigins.split(",")) {
+      const trimmed = o.trim();
+      if (trimmed) allowedOrigins.add(trimmed);
+    }
+  }
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin && allowedOrigins.has(origin)) {
