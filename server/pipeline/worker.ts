@@ -14,6 +14,10 @@ import {
   rebaseOnto,
 } from "./git-ops";
 
+class PausedError extends Error {
+  constructor() { super("worker paused"); this.name = "PausedError"; }
+}
+
 interface WorkerOpts {
   task: TaskItem;
   milestoneRunId: string;
@@ -34,6 +38,7 @@ export class PipelineWorker {
   private budget: BudgetTracker;
   private events: PipelineEventBus;
   private onStageChange: (taskId: string, stage: PipelineStage) => void;
+  private _paused = false;
 
   private state: WorkerState;
 
@@ -68,9 +73,23 @@ export class PipelineWorker {
     return { ...this.state };
   }
 
+  /** Signal the worker to stop at the next checkpoint */
+  pause(): void { this._paused = true; }
+
+  /** Allow the worker to continue */
+  resume(): void { this._paused = false; }
+
+  /** Check if paused — throws to break out of the build loop */
+  private checkPaused(): void {
+    if (this._paused) {
+      throw new PausedError();
+    }
+  }
+
   /** Run the full task lifecycle: build → ai-review (or blocked) */
   async run(): Promise<void> {
     try {
+      this.checkPaused();
       // Setup worktree
       this.setStage("build");
       this.setActivity("creating worktree");
@@ -103,6 +122,10 @@ export class PipelineWorker {
         await this.runAiReview(worktreePath);
       }
     } catch (err) {
+      if (err instanceof PausedError) {
+        this.state.currentActivity = "paused";
+        return; // Don't set blocked — worker is just paused
+      }
       this.setStage("blocked");
       this.state.currentActivity = `unexpected error: ${err instanceof Error ? err.message : String(err)}`;
     }
@@ -110,6 +133,7 @@ export class PipelineWorker {
 
   private async buildWithRetries(worktreePath: string, snapshotRef: string): Promise<boolean> {
     while (true) {
+      this.checkPaused();
       const escalation = this.budget.getEscalationLevel(this.task.id);
       if (escalation === "blocked") {
         this.setStage("blocked");

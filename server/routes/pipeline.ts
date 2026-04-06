@@ -9,6 +9,7 @@ import type { PipelineConfig } from "../pipeline/types";
 import { getDB, save } from "../db";
 import { storage } from "../storage";
 import { updateTaskField } from "../task-io";
+import { scanProjectTasks } from "../scanner/task-scanner";
 
 /** Resolve a project path from a trusted project ID. Returns null if invalid. */
 function resolveProjectPath(projectId: string): string | null {
@@ -76,10 +77,10 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
 
   // --- Milestone lifecycle ---
   router.post("/api/pipeline/milestone/start", async (req: Request, res: Response) => {
-    const { milestoneTaskId, projectId, baseBranch, tasks, taskOrder, parallelGroups } = req.body;
+    const { milestoneTaskId, projectId, baseBranch, taskOrder, parallelGroups } = req.body;
 
-    if (!milestoneTaskId || !projectId || !tasks || !taskOrder) {
-      return res.status(400).json({ error: "Missing required fields: milestoneTaskId, projectId, tasks, taskOrder" });
+    if (!milestoneTaskId || !projectId || !taskOrder) {
+      return res.status(400).json({ error: "Missing required fields: milestoneTaskId, projectId, taskOrder" });
     }
 
     // Resolve project path from trusted server-side project store — never trust client-supplied paths
@@ -87,6 +88,20 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     if (!projectPath) {
       return res.status(400).json({ error: `Unknown project or not a git repository: ${projectId}` });
     }
+
+    // Load tasks from trusted server-side task store — never trust client-supplied task payloads
+    const project = storage.getEntities("project").find((e) => e.id === projectId);
+    const projectName = project ? (project as any).name ?? projectId : projectId;
+    const board = scanProjectTasks(projectPath, projectId, projectName);
+
+    // Validate every requested task ID exists in this project's board
+    const taskMap = new Map(board.items.map((t) => [t.id, t]));
+    const invalidIds = (taskOrder as string[]).filter((id: string) => !taskMap.has(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({ error: `Task IDs not found in project: ${invalidIds.join(", ")}` });
+    }
+
+    const tasks = (taskOrder as string[]).map((id: string) => taskMap.get(id)!);
 
     try {
       const run = await manager.startMilestone({

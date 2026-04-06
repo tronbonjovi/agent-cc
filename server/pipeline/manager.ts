@@ -84,11 +84,15 @@ export class PipelineManager {
     return this.currentRun;
   }
 
-  /** Pause the current milestone run */
+  /** Pause the current milestone run — signals active workers to stop at next checkpoint */
   pause(reason: string): void {
     if (this.currentRun) {
       this.currentRun.status = "paused";
       this.currentRun.pauseReason = reason;
+      // Signal all active workers to stop
+      for (const worker of Array.from(this.workers.values())) {
+        worker.pause();
+      }
       this.events.emit("milestone-paused", {
         milestoneRunId: this.currentRun.id,
         reason,
@@ -96,11 +100,15 @@ export class PipelineManager {
     }
   }
 
-  /** Resume a paused milestone */
+  /** Resume a paused milestone — resumes workers and continues scheduling */
   resume(): void {
     if (this.currentRun && this.currentRun.status === "paused") {
       this.currentRun.status = "running";
       this.currentRun.pauseReason = undefined;
+      // Resume paused workers
+      for (const worker of Array.from(this.workers.values())) {
+        worker.resume();
+      }
       this.scheduleNext();
     }
   }
@@ -140,7 +148,15 @@ export class PipelineManager {
       milestoneRunId: this.currentRun.id,
     });
 
-    // Re-evaluate milestone state after descoping
+    // Re-evaluate milestone state after descoping — recover from stalled if blockers removed
+    if (this.currentRun.status === "stalled") {
+      // Check if any blocked tasks remain
+      const remainingBlocked = this.getBlockedTasks();
+      if (remainingBlocked.length === 0) {
+        // Recover: transition to running so scheduleNext can re-evaluate
+        this.currentRun.status = "running";
+      }
+    }
     this.scheduleNext();
     return descoped;
   }

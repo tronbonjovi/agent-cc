@@ -46,7 +46,6 @@ export function MilestoneControls({ projectId, items }: MilestoneControlsProps) 
     startMutation.mutate({
       milestoneTaskId: milestone.id,
       projectId,
-      tasks,
       taskOrder: tasks.map((t) => t.id),
       parallelGroups: [],
     });

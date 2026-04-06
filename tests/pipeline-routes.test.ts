@@ -35,6 +35,17 @@ vi.mock("../server/task-io", () => ({
   taskFileIndex: new Map(),
 }));
 
+vi.mock("../server/scanner/task-scanner", () => ({
+  scanProjectTasks: vi.fn().mockReturnValue({
+    projectId: "proj-1",
+    projectName: "Test",
+    projectPath: "/mock",
+    config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
+    items: [],
+    malformedCount: 0,
+  }),
+}));
+
 let app: express.Express;
 
 beforeEach(() => {
@@ -76,7 +87,6 @@ describe("POST /api/pipeline/milestone/start", () => {
       .send({
         milestoneTaskId: "m-1",
         projectId: "unknown-project",
-        tasks: [{ id: "t-1", title: "test" }],
         taskOrder: ["t-1"],
       });
     expect(res.status).toBe(400);

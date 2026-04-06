@@ -52,7 +52,6 @@ export function useStartMilestone() {
       milestoneTaskId: string;
       projectId: string;
       baseBranch?: string;
-      tasks: unknown[];
       taskOrder: string[];
       parallelGroups?: string[][];
     }) => {
