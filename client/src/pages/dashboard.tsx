@@ -73,8 +73,8 @@ function useTick(ms: number): number {
 
 const STATUS_CONFIG: Record<string, { dotClass: string; borderClass: string; cardClass: string; label: string }> = {
   thinking: {
-    dotClass: "bg-green-500 animate-pulse drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]",
-    borderClass: "border-green-500/20",
+    dotClass: "bg-primary animate-pulse drop-shadow-[0_0_4px_hsl(var(--primary)/0.5)]",
+    borderClass: "border-primary/20",
     cardClass: "",
     label: "Thinking",
   },
@@ -175,23 +175,23 @@ export default function Dashboard() {
       </div>
 
       {/* Combined system + live status bar */}
-      <div className={`flex items-center gap-4 px-4 py-2.5 rounded-lg border border-border/50 status-panel flex-wrap ${hasActive ? "live-border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.08)]" : ""}`}>
+      <div className={`flex items-center gap-4 px-4 py-2.5 rounded-lg border border-border/50 status-panel flex-wrap ${hasActive ? "live-border border-primary/20 shadow-[0_0_20px_hsl(var(--primary)/0.08)]" : ""}`}>
         {/* System health indicators */}
         <span className="text-xs font-semibold text-nav-active/80 uppercase tracking-wider">System</span>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
+          <span className="w-2 h-2 rounded-full bg-primary animate-glow-pulse neon-glow-primary" />
           <span className="text-xs text-muted-foreground">Server</span>
         </div>
         <div className="flex items-center gap-1.5">
           {status?.scanning ? (
             <Loader2 className="h-3 w-3 text-primary animate-spin" />
           ) : (
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
+            <span className="w-2 h-2 rounded-full bg-primary animate-glow-pulse neon-glow-primary" />
           )}
           <span className="text-xs text-muted-foreground">Scanner</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-glow-pulse shadow-glow-green" />
+          <span className="w-2 h-2 rounded-full bg-primary animate-glow-pulse neon-glow-primary" />
           <span className="text-xs text-muted-foreground">Watcher</span>
         </div>
 
@@ -206,7 +206,7 @@ export default function Dashboard() {
               {(stats?.activeSessionCount ?? 0) !== 1 ? "sessions" : "session"}
             </span>
           </span>
-          {hasActive && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
+          {hasActive && <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
         </div>
 
         {/* Agent count with dropdown */}
@@ -230,10 +230,10 @@ export default function Dashboard() {
                 Active Agents ({allAgents.length})
               </div>
               {allAgents.map(({ agent, session }) => (
-                <div key={agent.agentId} className={`rounded-lg border px-3 py-2 ${agent.status === "running" ? "border-green-500/20 bg-green-500/5" : "border-border/30 bg-muted/20"}`}>
+                <div key={agent.agentId} className={`rounded-lg border px-3 py-2 ${agent.status === "running" ? "border-primary/20 bg-primary/5" : "border-border/30 bg-muted/20"}`}>
                   <div className="flex items-center gap-2">
                     {agent.status === "running" ? (
-                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
+                      <span className="w-2 h-2 rounded-full bg-primary animate-pulse drop-shadow-[0_0_4px_hsl(var(--primary)/0.5)]" />
                     ) : (
                       <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
                     )}
@@ -278,7 +278,7 @@ export default function Dashboard() {
         {activeSessions.some(s => (s.costEstimate ?? 0) > 0) && (
           <>
             <div className="w-px h-5 bg-border" />
-            <span className="text-xs font-mono text-green-400">
+            <span className="text-xs font-mono text-primary">
               ${activeSessions.reduce((sum, s) => sum + (s.costEstimate ?? 0), 0).toFixed(2)}
             </span>
             <span className="text-[10px] text-muted-foreground">active spend</span>
@@ -412,7 +412,7 @@ function ActiveSessionCard({
 
   return (
     <Card
-      className={`animate-fade-in-up ${sc.cardClass} ${sc.borderClass ? `border ${sc.borderClass}` : ""} ${isNew ? "ring-2 ring-green-500/40 shadow-[0_0_20px_rgba(34,197,94,0.2)]" : ""}`}
+      className={`animate-fade-in-up ${sc.cardClass} ${sc.borderClass ? `border ${sc.borderClass}` : ""} ${isNew ? "ring-2 ring-primary/40 shadow-[0_0_20px_hsl(var(--primary)/0.2)]" : ""}`}
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <CardContent className="p-4">
@@ -572,10 +572,10 @@ function ActiveSessionCard({
                   Agents ({session.activeAgents.filter(a => a.status === "running").length} running, {session.activeAgents.filter(a => a.status === "recent").length} recent)
                 </span>
                 {session.activeAgents.map(agent => (
-                  <div key={agent.agentId} className={`rounded-md border px-2.5 py-1.5 ${agent.status === "running" ? "border-green-500/20 bg-green-500/5" : "border-border/30 bg-muted/20"}`}>
+                  <div key={agent.agentId} className={`rounded-md border px-2.5 py-1.5 ${agent.status === "running" ? "border-primary/20 bg-primary/5" : "border-border/30 bg-muted/20"}`}>
                     <div className="flex items-center gap-2 text-xs">
                       {agent.status === "running" ? (
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0 drop-shadow-[0_0_4px_rgba(34,197,94,0.5)]" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse flex-shrink-0 drop-shadow-[0_0_4px_hsl(var(--primary)/0.5)]" />
                       ) : (
                         <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 flex-shrink-0" />
                       )}
