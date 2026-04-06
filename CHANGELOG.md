@@ -14,9 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Model tags** — now show versioned names (Opus 4.6, Sonnet 4.6, Haiku 4.5) instead of just family name
-- **Dashboard layout** — active sessions and recent activity have fixed height with scroll; removed stat cards, quick actions, session stats, system card, and recent changes sections
+- **Dashboard layout** — active sessions and recent activity have fixed height with scroll (~3 cards visible, scrollable); removed stat cards, quick actions, session stats, system card, and recent changes sections
+- **Dashboard accents** — decorative green highlights (status dots, live border, running agent indicators, new session ring, cost display) now use theme-aware primary color instead of hardcoded green. Health traffic-light colors (green/yellow/red) unchanged
+- **CSS animations** — `live-border` pulse and glow classes now use `--primary` CSS variable, adapting to active theme (orange in Anthropic, blue in default dark)
+- **Sessions top bar** — restructured into two rows: title + search on top, filters + actions below. Filter buttons use theme primary accent when active
 - **Project paths** — encoded project keys now display as readable paths (`~/dev/projects/agent-cc` instead of dashes)
 - **Health threshold colors** — message count and cost on active session cards colored green/yellow/red based on configured thresholds
+
+### Removed
+- **Session stat cards** — Total/Storage/Active/Empty cards removed from Sessions page (info already in subtitle)
 
 ### Removed
 - **Ask a Question** — NL query section removed from analytics (AI integration not a current focus)
