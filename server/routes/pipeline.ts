@@ -94,11 +94,22 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     const projectName = project ? (project as any).name ?? projectId : projectId;
     const board = scanProjectTasks(projectPath, projectId, projectName);
 
-    // Validate every requested task ID exists in this project's board
+    // Validate every requested task ID exists in this project's board AND belongs to the milestone
     const taskMap = new Map(board.items.map((t) => [t.id, t]));
     const invalidIds = (taskOrder as string[]).filter((id: string) => !taskMap.has(id));
     if (invalidIds.length > 0) {
       return res.status(400).json({ error: `Task IDs not found in project: ${invalidIds.join(", ")}` });
+    }
+
+    // Scope: only tasks that are children of this milestone and type === "task"
+    const scopeErrors = (taskOrder as string[]).filter((id: string) => {
+      const task = taskMap.get(id)!;
+      return task.parent !== milestoneTaskId || task.type !== "task";
+    });
+    if (scopeErrors.length > 0) {
+      return res.status(400).json({
+        error: `Task IDs not scoped to milestone ${milestoneTaskId}: ${scopeErrors.join(", ")}. Tasks must be children of the milestone with type "task".`,
+      });
     }
 
     const tasks = (taskOrder as string[]).map((id: string) => taskMap.get(id)!);

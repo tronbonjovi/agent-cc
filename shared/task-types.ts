@@ -33,7 +33,7 @@ export interface TaskConfig {
 }
 
 export const DEFAULT_TASK_CONFIG: TaskConfig = {
-  statuses: ["backlog", "brainstorm", "plan", "queued", "build", "ai-review", "human-review", "done"],
+  statuses: ["backlog", "todo", "in-progress", "brainstorm", "plan", "queued", "build", "ai-review", "human-review", "review", "done"],
   types: ["roadmap", "milestone", "task"],
   defaultType: "task",
   defaultPriority: "medium",

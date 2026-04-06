@@ -46,10 +46,10 @@ export class PipelineManager {
       throw new Error(`milestone already exists (status: ${this.currentRun.status}) — approve or cancel it first`);
     }
 
-    // Safety: concurrent workers require parallelGroups enforcement (not yet implemented).
-    // Hard-block concurrency > 1 until that's in place to prevent overlapping edits.
-    if (this.config.maxConcurrentWorkers > 1 && opts.parallelGroups.length === 0) {
-      throw new Error("maxConcurrentWorkers > 1 requires parallelGroups to be specified — parallel safety is not yet enforced without them");
+    // Safety: parallel scheduling is not yet implemented. Hard-block concurrency > 1
+    // regardless of parallelGroups to prevent overlapping edits and nondeterministic merges.
+    if (this.config.maxConcurrentWorkers > 1) {
+      throw new Error("maxConcurrentWorkers > 1 is not yet supported — parallel safety enforcement is not implemented");
     }
 
     const run: MilestoneRun = {
