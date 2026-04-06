@@ -1,39 +1,27 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { StatCard } from "@/components/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { EntityIcon } from "@/components/entity-badge";
 import { EmptyState } from "@/components/empty-state";
-import { useScanStatus, useRescan, useEntities } from "@/hooks/use-entities";
-import { useRuntimeConfig } from "@/hooks/use-config";
-import { useProjects } from "@/hooks/use-projects";
+import { useScanStatus, useRescan } from "@/hooks/use-entities";
 import { useLiveData } from "@/hooks/use-agents";
 import { useTogglePin, useSessionNames, useRenameSession } from "@/hooks/use-sessions";
 import { useAppSettings } from "@/hooks/use-settings";
 import { getSessionDisplayName } from "@/lib/session-display-name";
 import {
-  RefreshCw, Clock, HardDrive, Cpu, Activity, Database,
-  Server, FileText, GitBranch, Search,
-  BarChart3, Zap, Loader2,
-  Terminal, Keyboard, Download, Bot, Monitor, Check, Pin,
+  RefreshCw, Clock, Cpu, Activity,
+  GitBranch, Loader2,
+  Terminal, Keyboard, Bot, Monitor, Check, Pin,
   ChevronDown, Pencil,
 } from "lucide-react";
 
 import type { EntityType, ActiveSession, AgentExecution } from "@shared/types";
-import { formatBytes, relativeTime as _relativeTime, shortModel, getTypeColor } from "@/lib/utils";
+import { relativeTime as _relativeTime, shortModel, getTypeColor } from "@/lib/utils";
 
 const entityTypes: EntityType[] = ["project", "mcp", "skill", "plugin", "markdown"];
 
-const quickActions = [
-  { label: "View Graph", description: "Explore entity relationships", icon: GitBranch, path: "/graph", color: "text-indigo-400", bg: "bg-indigo-500/10" },
-  { label: "Edit CLAUDE.md", description: "Project instructions", icon: FileText, path: "/markdown", color: "text-blue-400", bg: "bg-blue-500/10" },
-  { label: "Stats", description: "Usage analytics", icon: BarChart3, path: "/stats", color: "text-amber-400", bg: "bg-amber-500/10" },
-  { label: "Export Data", description: "Download backup", icon: Download, path: "/api/export", color: "text-cyan-400", bg: "bg-cyan-500/10" },
-  { label: "Search GitHub", description: "Discover MCP servers", icon: Search, path: "/stats?tab=discover", color: "text-emerald-400", bg: "bg-emerald-500/10" },
-];
 
 const relativeTime = (dateStr: string | null) => dateStr ? _relativeTime(dateStr) : "-";
 
@@ -117,9 +105,6 @@ function getStatusConfig(status?: string) {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { data: status } = useScanStatus();
-  const { data: runtime } = useRuntimeConfig();
-  const { data: entities } = useEntities();
-  const { data: projects } = useProjects();
   const rescan = useRescan();
   const { data: liveData } = useLiveData();
   const togglePin = useTogglePin();
@@ -132,31 +117,10 @@ export default function Dashboard() {
   const prevSessionIdsRef = useRef<Set<string> | null>(null);
   const [newSessionIds, setNewSessionIds] = useState<Set<string>>(new Set());
 
-  const counts = (status?.entityCounts || {}) as Record<string, number>;
   const activeSessions = liveData?.activeSessions || [];
   const stats = liveData?.stats;
   const recentActivity = liveData?.recentActivity || [];
   const hasActive = (stats?.activeSessionCount ?? 0) > 0;
-
-  // Session stats from projects
-  const totalSessions = (projects || []).reduce((sum, p) => sum + (p.data.sessionCount || 0), 0);
-  const totalSessionSize = (projects || []).reduce((sum, p) => sum + (p.data.sessionSize || 0), 0);
-
-  // Recent changes (sorted by lastModified)
-  const recentEntities = (entities || [])
-    .filter((e) => e.lastModified)
-    .sort((a, b) => (b.lastModified! > a.lastModified! ? 1 : -1))
-    .slice(0, 10);
-
-  // Entity color for border
-  const entityBorderColor: Record<string, string> = {
-    project: "border-l-entity-project shadow-[inset_4px_0_8px_-4px_var(--glow-blue)]",
-    mcp: "border-l-entity-mcp shadow-[inset_4px_0_8px_-4px_var(--glow-green)]",
-    skill: "border-l-entity-skill shadow-[inset_4px_0_8px_-4px_var(--glow-amber)]",
-    plugin: "border-l-entity-plugin shadow-[inset_4px_0_8px_-4px_var(--glow-purple)]",
-    markdown: "border-l-entity-markdown shadow-[inset_4px_0_8px_-4px_hsl(var(--entity-markdown)_/_0.15)]",
-    config: "border-l-entity-config shadow-[inset_4px_0_8px_-4px_hsl(var(--entity-config)_/_0.15)]",
-  };
 
   // Track new sessions for highlight glow
   useEffect(() => {
@@ -336,7 +300,7 @@ export default function Dashboard() {
               <EmptyState icon={Monitor} title="No active Claude sessions" description="Sessions will appear here when Claude Code is running" />
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
               {activeSessions.map((session, i) => (
                 <ActiveSessionCard
                   key={session.sessionId}
@@ -372,176 +336,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {entityTypes.map((type, i) => (
-          <div key={type} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
-            <StatCard
-              type={type}
-              count={counts[type] || 0}
-              onClick={() => setLocation(type === "markdown" ? "/markdown" : `/${type}s`)}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Quick Actions + Session Stats row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Quick Actions */}
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Zap className="h-4 w-4 text-yellow-400" />
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-            {quickActions.map((action) => (
-              <button
-                key={action.path}
-                onClick={() => {
-                  if (action.path.startsWith("/api/")) {
-                    window.open(action.path, "_blank");
-                  } else {
-                    setLocation(action.path);
-                  }
-                }}
-                className="flex items-center gap-2.5 rounded-lg border border-border/50 px-3 py-3 text-xs hover:bg-accent/50 hover:scale-[1.02] transition-all text-left group gradient-border"
-              >
-                <div className={`rounded-lg p-1.5 ${action.bg} transition-transform group-hover:scale-110`}>
-                  <action.icon className={`h-3.5 w-3.5 ${action.color} transition-transform group-hover:-translate-y-0.5`} />
-                </div>
-                <div className="min-w-0">
-                  <span className="font-medium block">{action.label}</span>
-                  <span className="text-[10px] text-muted-foreground">{action.description}</span>
-                </div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Session Stats */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              <button
-                onClick={() => setLocation("/sessions")}
-                className="hover:text-primary transition-colors"
-              >
-                Sessions
-              </button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Total sessions</span>
-              <span className="font-mono font-semibold">{totalSessions.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Storage used</span>
-              <span className="font-mono font-semibold">{formatBytes(totalSessionSize)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Projects</span>
-              <span className="font-mono font-semibold">{(projects || []).length}</span>
-            </div>
-            {/* Mini breakdown */}
-            <div className="pt-2 border-t border-border/50 space-y-1.5">
-              {(projects || []).map((p) => (
-                <button
-                  key={p.id}
-                  className="flex justify-between text-xs w-full hover:bg-accent/30 -mx-1 px-1 rounded transition-colors"
-                  onClick={() => setLocation(`/projects/${p.id}`)}
-                >
-                  <span className="text-muted-foreground truncate mr-2">{p.name}</span>
-                  <span className="font-mono tabular-nums text-muted-foreground">
-                    {p.data.sessionCount}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Runtime + Scanner combined */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Activity className="h-4 w-4 text-emerald-400" />
-              System
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {runtime ? (
-              <>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <div className="rounded-md bg-muted/30 p-1"><Cpu className="h-3 w-3" /></div> Node
-                  </span>
-                  <span className="font-mono text-xs">{runtime.nodeVersion}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <div className="rounded-md bg-muted/30 p-1"><HardDrive className="h-3 w-3" /></div> Platform
-                  </span>
-                  <span className="font-mono text-xs">{runtime.platform}/{runtime.arch}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <div className="rounded-md bg-muted/30 p-1"><Database className="h-3 w-3" /></div> Memory
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const rss = runtime.memoryUsage?.rss || 0;
-                      const rssMB = Math.round(rss / 1048576);
-                      const ceiling = 512;
-                      const pct = Math.min(Math.round((rssMB / ceiling) * 100), 100);
-                      const circumference = 2 * Math.PI * 13;
-                      const color = pct > 80 ? "#ef4444" : pct > 50 ? "#f59e0b" : "#22c55e";
-                      return (
-                        <div className="flex items-center gap-2" title={`${rssMB} MB RSS / ${ceiling} MB ceiling`}>
-                          <svg className="h-8 w-8" viewBox="0 0 36 36">
-                            <circle cx="18" cy="18" r="13" fill="none" stroke="hsl(var(--muted) / 0.5)" strokeWidth="2.5" />
-                            <circle
-                              cx="18" cy="18" r="13" fill="none"
-                              stroke={color} strokeWidth="2.5"
-                              strokeDasharray={circumference}
-                              strokeDashoffset={circumference - (circumference * pct / 100)}
-                              strokeLinecap="round"
-                              className="memory-ring-track"
-                              transform="rotate(-90 18 18)"
-                            />
-                            <text x="18" y="19.5" textAnchor="middle" className="fill-foreground text-[7px] font-mono font-bold">{rssMB}</text>
-                          </svg>
-                          <span className="font-mono text-xs">{rssMB} MB</span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-muted-foreground text-xs">Loading...</div>
-            )}
-            <div className="pt-2 border-t border-border/50">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="h-3 w-3" /> Last scan
-                </span>
-                <span className="font-mono text-xs">
-                  {status?.lastScanAt ? _relativeTime(status.lastScanAt) : "never"}
-                </span>
-              </div>
-              <div className="flex justify-between mt-1.5">
-                <span className="text-muted-foreground">Entities / Relationships</span>
-                <span className="font-mono text-xs">{status?.totalEntities || 0} / {status?.totalRelationships || 0}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Keyboard Shortcuts Hint */}
       <button
         onClick={() => window.dispatchEvent(new CustomEvent("toggle-shortcuts-overlay"))}
@@ -561,50 +355,6 @@ export default function Dashboard() {
         </span>
       </button>
 
-      {/* Recent Changes */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Recent Changes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentEntities.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No recent changes detected</p>
-          ) : (
-            <div className="space-y-1">
-              {recentEntities.map((entity, i) => (
-                <button
-                  key={entity.id}
-                  className={`flex items-center gap-3 py-2.5 w-full text-left hover:bg-accent/30 -mx-2 px-2 rounded-md transition-colors border-l-[3px] animate-fade-in-up ${entityBorderColor[entity.type] || "border-l-transparent"}`}
-                  style={{ animationDelay: `${i * 30}ms` }}
-                  onClick={() => {
-                    if (entity.type === "markdown") setLocation(`/markdown`);
-                    else if (entity.type === "project") setLocation(`/projects/${entity.id}`);
-                    else if (entity.type === "mcp") setLocation(`/mcps`);
-                    else if (entity.type === "skill") setLocation(`/skills`);
-                    else if (entity.type === "plugin") setLocation(`/plugins`);
-                    else if (entity.type === "config") setLocation(`/settings`);
-                  }}
-                >
-                  <EntityIcon type={entity.type} className="h-4 w-4 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium">{entity.name}</span>
-                    {entity.description && (
-                      <p className="text-[11px] text-muted-foreground truncate">{entity.description}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">{entity.type}</Badge>
-                    <span className="text-[11px] text-muted-foreground font-mono whitespace-nowrap flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {entity.lastModified ? _relativeTime(entity.lastModified) : ""}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
