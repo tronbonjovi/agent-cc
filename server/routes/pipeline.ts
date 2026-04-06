@@ -141,6 +141,24 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     res.json(updated);
   });
 
+  /**
+   * Guard: reject mutation requests that don't match the active run's project.
+   * Prevents one project's UI from pausing/cancelling/approving another project's run.
+   */
+  function requireActiveRun(req: Request, res: Response): boolean {
+    const run = manager.getStatus();
+    if (!run) {
+      res.status(409).json({ error: "no active pipeline run" });
+      return false;
+    }
+    const projectId = req.body?.projectId ?? req.query?.projectId;
+    if (projectId && projectId !== run.projectId) {
+      res.status(403).json({ error: `pipeline run belongs to project ${run.projectId}, not ${projectId}` });
+      return false;
+    }
+    return true;
+  }
+
   // --- Milestone lifecycle ---
   router.post("/api/pipeline/milestone/start", async (req: Request, res: Response) => {
     const { milestoneTaskId, projectId, baseBranch, taskOrder, parallelGroups } = req.body;
@@ -228,17 +246,20 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     }
   });
 
-  router.post("/api/pipeline/milestone/pause", (_req: Request, res: Response) => {
+  router.post("/api/pipeline/milestone/pause", (req: Request, res: Response) => {
+    if (!requireActiveRun(req, res)) return;
     manager.pause("paused by user");
     res.json({ run: manager.getStatus() });
   });
 
-  router.post("/api/pipeline/milestone/resume", (_req: Request, res: Response) => {
+  router.post("/api/pipeline/milestone/resume", (req: Request, res: Response) => {
+    if (!requireActiveRun(req, res)) return;
     manager.resume();
     res.json({ run: manager.getStatus() });
   });
 
-  router.post("/api/pipeline/milestone/approve", async (_req: Request, res: Response) => {
+  router.post("/api/pipeline/milestone/approve", async (req: Request, res: Response) => {
+    if (!requireActiveRun(req, res)) return;
     const result = await manager.approveMilestone();
     if (!result.approved) {
       return res.status(409).json({ approved: false, reason: result.reason });
@@ -246,13 +267,15 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     res.json({ approved: true, milestoneBranch: result.milestoneBranch });
   });
 
-  router.post("/api/pipeline/milestone/cancel", async (_req: Request, res: Response) => {
+  router.post("/api/pipeline/milestone/cancel", async (req: Request, res: Response) => {
+    if (!requireActiveRun(req, res)) return;
     await manager.cancelMilestone();
     res.json({ cancelled: true });
   });
 
   // --- Task actions ---
   router.post("/api/pipeline/task/:taskId/descope", (req: Request, res: Response) => {
+    if (!requireActiveRun(req, res)) return;
     const taskId = req.params.taskId as string;
     const descoped = manager.descopeTask(taskId);
     res.json({ descoped, run: manager.getStatus() });

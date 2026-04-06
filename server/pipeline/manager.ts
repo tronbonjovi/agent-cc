@@ -319,9 +319,14 @@ export class PipelineManager {
     return { approved: true, milestoneBranch: completedRun.milestoneBranch };
   }
 
-  /** Cancel the current milestone run — cleans up workers and releases the run slot */
+  /** Cancel the current milestone run — cleans up workers, resets task metadata, releases the run slot */
   async cancelMilestone(): Promise<void> {
     if (!this.currentRun) return;
+
+    // Reset pipeline metadata on all tasks so the board doesn't show stale stages
+    for (const taskId of this.currentRun.taskOrder) {
+      this.onTaskStatusChange(taskId, "backlog", this.currentRun.projectId);
+    }
 
     for (const worker of Array.from(this.workers.values())) {
       await worker.cleanup();
@@ -374,21 +379,26 @@ export class PipelineManager {
         // Run the project's test suite on the merged branch.
         // Resolve the test command from config or auto-detect from the repo.
         const testCmd = resolveTestCommand(this.config.testCommand, milestoneWorktree.worktreePath);
-        if (testCmd) {
-          try {
-            execFileSync(testCmd.bin, testCmd.args, {
-              cwd: milestoneWorktree.worktreePath,
-              encoding: "utf-8",
-              timeout: 300000, // 5 min for tests
-              stdio: "pipe",
-            });
-          } catch {
-            removeWorktree(projectPath, milestoneWorktree.worktreePath);
-            return { passed: false, reason: `integration tests failed (${testCmd.bin} ${testCmd.args.join(" ")}) on the merged milestone branch` };
-          }
+        if (!testCmd) {
+          // Fail closed: if we can't figure out how to test this repo, don't approve blindly.
+          // The operator should set testCommand in pipeline config for non-standard repos.
+          removeWorktree(projectPath, milestoneWorktree.worktreePath);
+          return {
+            passed: false,
+            reason: "could not detect a test command for this repository — set testCommand in pipeline config (e.g. \"cargo test\", \"make test\")",
+          };
         }
-        // If no test command could be resolved, skip tests with a warning
-        // (the merge itself is still validated)
+        try {
+          execFileSync(testCmd.bin, testCmd.args, {
+            cwd: milestoneWorktree.worktreePath,
+            encoding: "utf-8",
+            timeout: 300000, // 5 min for tests
+            stdio: "pipe",
+          });
+        } catch {
+          removeWorktree(projectPath, milestoneWorktree.worktreePath);
+          return { passed: false, reason: `integration tests failed (${testCmd.bin} ${testCmd.args.join(" ")}) on the merged milestone branch` };
+        }
 
         // Tests passed — publish the milestone branch ref so it persists after worktree cleanup.
         // Use -f so reruns of the same milestone overwrite the prior branch cleanly.

@@ -70,7 +70,7 @@ describe("PipelineManager", () => {
     events = new PipelineEventBus();
     onTaskStatusChange = vi.fn();
     manager = new PipelineManager({
-      config: DEFAULT_PIPELINE_CONFIG,
+      config: { ...DEFAULT_PIPELINE_CONFIG, testCommand: "true" },
       events,
       onTaskStatusChange,
     });
