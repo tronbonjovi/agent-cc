@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Search, Terminal, Trash2, Copy, Check, ChevronDown, ChevronRight,
-  HardDrive, MessageSquare, Clock, Hash, X, AlertTriangle, Undo2, FolderOpen,
+  MessageSquare, Clock, X, AlertTriangle, Undo2, FolderOpen,
   Sparkles, Loader2, Zap, DollarSign, FileText, Activity, Archive,
   GitCommit, BarChart3, FolderKanban, Calendar, Settings,
   Plus, Play, BookOpen, Pin, StickyNote,
@@ -140,13 +140,6 @@ export default function Sessions() {
     try { await apiRequest("POST", "/api/actions/open-folder", { path: folder }); } catch {}
   };
 
-  const statCards = [
-    { label: "Total", value: stats?.totalCount ?? 0, icon: MessageSquare, color: "text-blue-400" },
-    { label: "Storage", value: formatBytes(stats?.totalSize ?? 0), icon: HardDrive, color: "text-purple-400" },
-    { label: "Active", value: stats?.activeCount ?? 0, icon: Clock, color: "text-green-400" },
-    { label: "Empty", value: stats?.emptyCount ?? 0, icon: Hash, color: "text-amber-400" },
-  ];
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -232,23 +225,6 @@ export default function Sessions() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {statCards.map((s, i) => (
-          <div key={s.label} className="rounded-xl border bg-card p-4 animate-fade-in-up gradient-border" style={{ animationDelay: `${i * 50}ms` }}>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">{s.label}</p>
-                <p className="text-2xl font-bold font-mono mt-1">{s.value}</p>
-              </div>
-              <div className="rounded-xl bg-muted/50 p-2.5">
-                <s.icon className={`h-5 w-5 ${s.color}`} />
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
 
       <SessionHealthPanel />
