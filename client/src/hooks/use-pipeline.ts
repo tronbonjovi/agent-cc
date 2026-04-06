@@ -1,6 +1,7 @@
 // client/src/hooks/use-pipeline.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 // --- API hooks ---
 
@@ -39,8 +40,12 @@ export function useUpdatePipelineConfig() {
       if (!res.ok) throw new Error("Failed to update pipeline config");
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pipeline", "config"] });
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to update pipeline config");
     },
   });
 }
@@ -66,9 +71,12 @@ export function useStartMilestone() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to start milestone");
     },
   });
 }
@@ -81,8 +89,12 @@ export function usePauseMilestone() {
       if (!res.ok) throw new Error("Failed to pause milestone");
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to pause milestone");
     },
   });
 }
@@ -95,8 +107,12 @@ export function useResumeMilestone() {
       if (!res.ok) throw new Error("Failed to resume milestone");
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to resume milestone");
     },
   });
 }
@@ -112,9 +128,12 @@ export function useApproveMilestone() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to approve milestone");
     },
   });
 }
@@ -127,9 +146,12 @@ export function useDescopeTask() {
       if (!res.ok) throw new Error("Failed to descope task");
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to descope task");
     },
   });
 }
