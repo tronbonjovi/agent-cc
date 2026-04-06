@@ -4,10 +4,8 @@
 
 set -euo pipefail
 
-PROJECT_DIR="${HOME}/dev/test-projects/pipeline-test"
+PROJECT_DIR="${HOME}/dev/pipeline-test"
 TASKS_DIR="${PROJECT_DIR}/.claude/tasks"
-AGENT_CC_DATA="${AGENT_CC_DATA:-${HOME}/.agent-cc}"
-DB_FILE="${AGENT_CC_DATA}/agent-cc.json"
 
 echo "Setting up test project at ${PROJECT_DIR}..."
 
@@ -164,27 +162,5 @@ updated: "2026-04-06"
 Cron job that deletes expired refresh tokens from the database. Runs every hour.
 EOF
 
-# Register project in Agent CC entity store
-if [ -f "${DB_FILE}" ]; then
-  # Use node to safely update JSON
-  node -e "
-    const fs = require('fs');
-    const db = JSON.parse(fs.readFileSync('${DB_FILE}', 'utf-8'));
-    if (!db.entities) db.entities = {};
-    db.entities['pipeline-test'] = {
-      id: 'pipeline-test',
-      type: 'project',
-      name: 'Pipeline Test',
-      path: '${PROJECT_DIR}',
-      created: new Date().toISOString(),
-      updated: new Date().toISOString()
-    };
-    fs.writeFileSync('${DB_FILE}', JSON.stringify(db, null, 2));
-    console.log('Registered project in Agent CC entity store');
-  "
-else
-  echo "Warning: Agent CC database not found at ${DB_FILE} — project won't appear in picker"
-fi
-
 echo "Done! Test project created with 1 milestone and 6 tasks."
-echo "Refresh Agent CC to see it in the project picker."
+echo "The scanner auto-discovers ~/dev/* projects — trigger a rescan or restart Agent CC."

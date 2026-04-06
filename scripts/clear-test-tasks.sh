@@ -3,9 +3,7 @@
 
 set -euo pipefail
 
-PROJECT_DIR="${HOME}/dev/test-projects/pipeline-test"
-AGENT_CC_DATA="${AGENT_CC_DATA:-${HOME}/.agent-cc}"
-DB_FILE="${AGENT_CC_DATA}/agent-cc.json"
+PROJECT_DIR="${HOME}/dev/pipeline-test"
 
 if [ -d "${PROJECT_DIR}" ]; then
   rm -rf "${PROJECT_DIR}"
@@ -14,16 +12,4 @@ else
   echo "No test project found at ${PROJECT_DIR}"
 fi
 
-if [ -f "${DB_FILE}" ]; then
-  node -e "
-    const fs = require('fs');
-    const db = JSON.parse(fs.readFileSync('${DB_FILE}', 'utf-8'));
-    if (db.entities && db.entities['pipeline-test']) {
-      delete db.entities['pipeline-test'];
-      fs.writeFileSync('${DB_FILE}', JSON.stringify(db, null, 2));
-      console.log('Removed project from Agent CC entity store');
-    }
-  "
-fi
-
-echo "Done!"
+echo "Done! Trigger a rescan or restart Agent CC to remove it from the project list."
