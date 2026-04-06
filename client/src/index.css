@@ -304,7 +304,7 @@ pre code {
 /* Live view breathing border */
 @keyframes live-border {
   0%, 100% { border-color: hsl(var(--border)); }
-  50% { border-color: hsl(142 76% 36% / 0.3); }
+  50% { border-color: hsl(var(--primary) / 0.3); }
 }
 .live-border {
   animation: live-border 3s ease-in-out infinite;
@@ -404,6 +404,7 @@ pre code {
 .neon-glow-green { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) var(--glow-green); }
 .neon-glow-purple { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) var(--glow-purple); }
 .neon-glow-amber { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) var(--glow-amber); }
+.neon-glow-primary { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) hsl(var(--primary) / 0.4); }
 
 /* Colored glass morphism tints */
 .glass-blue { background: hsl(var(--entity-project) / 0.05); backdrop-filter: blur(16px) saturate(1.5); }
