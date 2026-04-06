@@ -143,27 +143,44 @@ export default function Sessions() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Sessions</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {sessions.length} session{sessions.length !== 1 ? "s" : ""}{stats ? `, ${formatBytes(stats.totalSize)}` : ""} — Browse and manage Claude sessions
-          </p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Sessions</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {sessions.length} session{sessions.length !== 1 ? "s" : ""}{stats ? `, ${formatBytes(stats.totalSize)}` : ""}
+            </p>
+          </div>
+          <div className="flex items-center gap-0">
+            <div className="relative w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input placeholder={searchMode === "deep" ? "Deep search content..." : "Search sessions..."} value={search} onChange={e => setSearch(e.target.value)} className="pl-9 rounded-r-none" />
+            </div>
+            <div className="flex border border-l-0 border-border rounded-r-md overflow-hidden">
+              <button
+                onClick={() => setSearchMode("titles")}
+                className={`text-[11px] px-2.5 py-[7px] transition-colors ${
+                  searchMode === "titles" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                Titles
+              </button>
+              <button
+                onClick={() => setSearchMode("deep")}
+                className={`text-[11px] px-2.5 py-[7px] transition-colors ${
+                  searchMode === "deep" ? "bg-purple-500/10 text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                <Zap className="h-3 w-3 inline mr-0.5" />Deep
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setDeleteConfirm({ type: "all" })}
-            disabled={sessions.length === 0}
-            className="gap-1.5"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Delete All
-          </Button>
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setHideEmpty(!hideEmpty)}
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors ${
-              hideEmpty ? "border-blue-500/30 bg-blue-500/10 text-blue-400" : "border-border text-muted-foreground hover:text-foreground"
+              hideEmpty ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
             Hide Empty
@@ -171,7 +188,7 @@ export default function Sessions() {
           <button
             onClick={() => setActiveOnly(!activeOnly)}
             className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors ${
-              activeOnly ? "border-green-500/30 bg-green-500/10 text-green-400" : "border-border text-muted-foreground hover:text-foreground"
+              activeOnly ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
             Active Only
@@ -190,6 +207,7 @@ export default function Sessions() {
             <option value="messageCount:desc">Most Messages</option>
             <option value="messageCount:asc">Fewest Messages</option>
           </select>
+          <div className="flex-1" />
           <Button
             variant="outline"
             size="sm"
@@ -200,30 +218,15 @@ export default function Sessions() {
             {summarizeBatch.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
             {summarizeBatch.isPending ? "Summarizing..." : "Summarize All"}
           </Button>
-          <div className="flex items-center gap-0">
-            <div className="relative w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder={searchMode === "deep" ? "Deep search content..." : "Search sessions..."} value={search} onChange={e => setSearch(e.target.value)} className="pl-9 rounded-r-none" />
-            </div>
-            <div className="flex border border-l-0 border-border rounded-r-md overflow-hidden">
-              <button
-                onClick={() => setSearchMode("titles")}
-                className={`text-[11px] px-2.5 py-[7px] transition-colors ${
-                  searchMode === "titles" ? "bg-blue-500/10 text-blue-400 font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                }`}
-              >
-                Titles
-              </button>
-              <button
-                onClick={() => setSearchMode("deep")}
-                className={`text-[11px] px-2.5 py-[7px] transition-colors ${
-                  searchMode === "deep" ? "bg-purple-500/10 text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                }`}
-              >
-                <Zap className="h-3 w-3 inline mr-0.5" />Deep
-              </button>
-            </div>
-          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setDeleteConfirm({ type: "all" })}
+            disabled={sessions.length === 0}
+            className="gap-1.5"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Delete All
+          </Button>
         </div>
       </div>
 
