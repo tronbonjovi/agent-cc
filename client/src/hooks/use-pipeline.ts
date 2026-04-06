@@ -43,6 +43,7 @@ export function useUpdatePipelineConfig() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to update pipeline config");
@@ -74,6 +75,7 @@ export function useStartMilestone() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to start milestone");
@@ -92,6 +94,7 @@ export function usePauseMilestone() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to pause milestone");
@@ -110,6 +113,7 @@ export function useResumeMilestone() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to resume milestone");
@@ -131,6 +135,7 @@ export function useApproveMilestone() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to approve milestone");
@@ -149,6 +154,7 @@ export function useDescopeTask() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
     },
     onError: (err: Error) => {
       toast.error(err.message ?? "Failed to descope task");
@@ -195,6 +201,7 @@ export function usePipelineEvents() {
         if (eventType.startsWith("task-") || eventType.startsWith("milestone-")) {
           queryClient.invalidateQueries({ queryKey: ["pipeline", "status"] });
           queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
         }
       });
     }
@@ -205,6 +212,7 @@ export function usePipelineEvents() {
       // Full refetch on disconnect
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
     };
 
     return () => {
