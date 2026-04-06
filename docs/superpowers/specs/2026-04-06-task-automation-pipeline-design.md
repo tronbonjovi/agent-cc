@@ -59,12 +59,16 @@ A pipeline system for agent-cc that automates task execution through Claude Code
 
 12. All tasks in the milestone reach Human Review or Blocked
 13. Pipeline pauses, milestone summary appears
-14. You review:
+14. **Blocked task gate:** Before approval is available, all blocked tasks must be resolved:
+    - **Descope** — explicitly remove a blocked task (and any tasks that depend on it) from the milestone. They return to backlog for future work.
+    - **Re-queue** — send the task back through the pipeline with guidance.
+    - **Resolve manually** — provide the fix yourself, mark as done.
+    - Approval is disabled until zero blocked tasks remain in the milestone.
+15. You review:
     - Check the running app for visual/functional/UX correctness
     - Review task summaries on the cards
-    - Handle any blocked tasks (provide guidance, descope, or re-queue)
-15. Approve milestone → cleanup runs (tidy project, archive completed tasks)
-16. "Work on next milestone" → next milestone's tasks flow into Queued, cycle repeats
+16. Approve milestone → cleanup runs (tidy project, archive completed tasks)
+17. "Work on next milestone" → next milestone's tasks flow into Queued, cycle repeats
 
 ## Worker Architecture
 
@@ -83,8 +87,9 @@ When tasks complete and need to merge back:
 - Each task's worktree is branched from the milestone's base branch
 - Before moving to AI Review, the worker rebases the task branch onto the current base (catches drift from earlier completed tasks)
 - If rebase fails (conflict), the worker attempts auto-resolution; if it can't, the task is flagged as Blocked with conflict details
-- For parallel tasks: even if planning marked them parallel-safe, the pipeline validates no overlapping file edits before promoting to Human Review
+- For parallel tasks: even if planning marked them parallel-safe, the pipeline validates no overlapping file edits as an early warning
 - At milestone completion, all task branches are merged sequentially in dependency order into the milestone branch
+- **Milestone integration gate:** After all task branches are merged into the milestone branch, the pipeline runs the full test suite on the combined result. File-overlap checks catch obvious conflicts early, but the integration gate catches subtle breakages (shared contracts, API changes, migrations) that only surface when branches are combined. If integration tests fail, the milestone is flagged for investigation before reaching human review.
 - The milestone branch is what you review and ultimately merge to main
 
 ### Retry Isolation

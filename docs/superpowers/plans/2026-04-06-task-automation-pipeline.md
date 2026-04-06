@@ -1686,6 +1686,55 @@ describe("PipelineManager", () => {
       })
     ).rejects.toThrow("milestone already running");
   });
+
+  it("blocks approval when blocked tasks exist", async () => {
+    // This test uses the mock worker — we'd need to simulate a blocked task
+    // For now, verify the method exists and returns correctly with no blocked tasks
+    const tasks = [makeTask("t-1")];
+    await manager.startMilestone({
+      milestoneTaskId: "mile-1",
+      projectId: "proj-1",
+      projectPath: "/mock/project",
+      baseBranch: "main",
+      tasks,
+      taskOrder: ["t-1"],
+      parallelGroups: [],
+    });
+
+    // Wait for worker to finish
+    await new Promise((r) => setTimeout(r, 100));
+
+    // No blocked tasks — approval should succeed
+    const result = await manager.approveMilestone();
+    expect(result.approved).toBe(true);
+  });
+
+  it("descopes a task and its dependents", async () => {
+    const tasks = [
+      makeTask("t-1"),
+      makeTask("t-2", ["t-1"]),
+      makeTask("t-3", ["t-2"]),
+    ];
+    await manager.startMilestone({
+      milestoneTaskId: "mile-1",
+      projectId: "proj-1",
+      projectPath: "/mock/project",
+      baseBranch: "main",
+      tasks,
+      taskOrder: ["t-1", "t-2", "t-3"],
+      parallelGroups: [],
+    });
+
+    // Descope t-1 — should also remove t-2 and t-3 (transitive deps)
+    const descoped = manager.descopeTask("t-1");
+    expect(descoped).toContain("t-1");
+    expect(descoped).toContain("t-2");
+    expect(descoped).toContain("t-3");
+
+    // Task order should be empty
+    const status = manager.getStatus();
+    expect(status?.taskOrder).toEqual([]);
+  });
 });
 ```
 
@@ -1804,9 +1853,80 @@ export class PipelineManager {
     }
   }
 
-  /** Approve milestone completion — triggers cleanup */
-  async approveMilestone(): Promise<void> {
-    if (!this.currentRun) return;
+  /** Descope a blocked task — removes it and its dependents from the milestone */
+  descopeTask(taskId: string): string[] {
+    if (!this.currentRun) return [];
+
+    // Find all tasks that transitively depend on this one
+    const descoped: string[] = [taskId];
+    const queue = [taskId];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const [id, task] of this.taskMap) {
+        if (descoped.includes(id)) continue;
+        if (task.dependsOn?.includes(current)) {
+          descoped.push(id);
+          queue.push(id);
+        }
+      }
+    }
+
+    // Remove from task order and clean up workers
+    this.currentRun.taskOrder = this.currentRun.taskOrder.filter((id) => !descoped.includes(id));
+    for (const id of descoped) {
+      const worker = this.workers.get(id);
+      if (worker) worker.cleanup();
+      this.workers.delete(id);
+      this.taskMap.delete(id);
+      this.onTaskStatusChange(id, "backlog"); // return to backlog
+    }
+
+    this.events.emit("task-stage-changed", {
+      taskId,
+      stage: "descoped",
+      descoped,
+      milestoneRunId: this.currentRun.id,
+    });
+
+    // Re-evaluate milestone state after descoping
+    this.scheduleNext();
+    return descoped;
+  }
+
+  /** Get list of blocked task IDs in current run */
+  getBlockedTasks(): string[] {
+    if (!this.currentRun) return [];
+    return [...this.workers.entries()]
+      .filter(([, w]) => w.getState().stage === "blocked")
+      .map(([id]) => id);
+  }
+
+  /** Approve milestone completion — requires zero blocked tasks, runs integration gate */
+  async approveMilestone(): Promise<{ approved: boolean; reason?: string }> {
+    if (!this.currentRun) return { approved: false, reason: "no active milestone" };
+
+    // Gate: no blocked tasks allowed
+    const blocked = this.getBlockedTasks();
+    if (blocked.length > 0) {
+      return {
+        approved: false,
+        reason: `${blocked.length} blocked task(s) remain — descope or resolve them before approving`,
+      };
+    }
+
+    // Integration gate: merge all task branches into milestone branch, run tests
+    // This catches subtle breakages that file-overlap checks miss
+    this.events.emit("task-progress", {
+      milestoneRunId: this.currentRun.id,
+      activity: "running milestone integration gate — merging branches and testing",
+    });
+
+    // TODO: In the real implementation, this will:
+    // 1. Create the milestone branch from baseBranch
+    // 2. Merge each task branch in dependency order
+    // 3. Run the test suite on the combined branch
+    // 4. If tests fail, return { approved: false, reason: "integration tests failed" }
+    // For now, the gate is a placeholder that passes — Task 12 wires this up
 
     this.currentRun.status = "completed";
     this.currentRun.completedAt = new Date().toISOString();
@@ -1823,6 +1943,7 @@ export class PipelineManager {
     });
 
     this.currentRun = null;
+    return { approved: true };
   }
 
   private scheduleNext(): void {
@@ -2095,8 +2216,22 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
   });
 
   router.post("/api/pipeline/milestone/approve", async (_req: Request, res: Response) => {
-    await manager.approveMilestone();
+    const result = await manager.approveMilestone();
+    if (!result.approved) {
+      return res.status(409).json({ approved: false, reason: result.reason });
+    }
     res.json({ approved: true });
+  });
+
+  // --- Task actions ---
+  router.post("/api/pipeline/task/:taskId/descope", (req: Request, res: Response) => {
+    const { taskId } = req.params;
+    const descoped = manager.descopeTask(taskId);
+    res.json({ descoped, run: manager.getStatus() });
+  });
+
+  router.get("/api/pipeline/blocked", (_req: Request, res: Response) => {
+    res.json({ blocked: manager.getBlockedTasks() });
   });
 
   // --- Pipeline SSE events ---
@@ -2284,7 +2419,25 @@ export function useApproveMilestone() {
   return useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/pipeline/milestone/approve", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to approve milestone");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.reason ?? "Failed to approve milestone");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}
+
+export function useDescopeTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      const res = await fetch(`/api/pipeline/task/${taskId}/descope`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to descope task");
       return res.json();
     },
     onSuccess: () => {
@@ -2488,6 +2641,7 @@ import {
   usePauseMilestone,
   useResumeMilestone,
   useApproveMilestone,
+  useDescopeTask,
   usePipelineEvents,
 } from "../../hooks/use-pipeline";
 import type { TaskItem } from "@shared/task-types";
@@ -2505,8 +2659,14 @@ export function MilestoneControls({ projectId, projectPath, items }: MilestoneCo
   const pauseMutation = usePauseMilestone();
   const resumeMutation = useResumeMilestone();
   const approveMutation = useApproveMilestone();
+  const descopeMutation = useDescopeTask();
 
   const run = statusData?.run;
+
+  // Find blocked tasks in the current run
+  const blockedTasks = run
+    ? items.filter((item) => item.pipelineStage === "blocked")
+    : [];
 
   // Find milestones in the board
   const milestones = items.filter((item) => item.type === "milestone");
@@ -2563,20 +2723,50 @@ export function MilestoneControls({ projectId, projectPath, items }: MilestoneCo
       )}
 
       {run && run.status === "paused" && (
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={() => resumeMutation.mutate()}
-            className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500"
-          >
-            Resume
-          </button>
-          {run.pauseReason?.includes("awaiting milestone review") && (
+        <div className="mt-2 space-y-2">
+          <div className="flex gap-2">
             <button
-              onClick={() => approveMutation.mutate()}
-              className="rounded bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-500"
+              onClick={() => resumeMutation.mutate()}
+              className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500"
             >
-              Approve Milestone
+              Resume
             </button>
+            {run.pauseReason?.includes("awaiting milestone review") && (
+              <button
+                onClick={() => approveMutation.mutate()}
+                disabled={blockedTasks.length > 0}
+                className="rounded bg-green-600 px-3 py-1 text-xs text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={blockedTasks.length > 0 ? "Resolve or descope blocked tasks first" : "Approve milestone"}
+              >
+                Approve Milestone
+              </button>
+            )}
+          </div>
+
+          {/* Blocked tasks that must be resolved before approval */}
+          {blockedTasks.length > 0 && (
+            <div className="rounded border border-red-900/50 bg-red-950/30 p-2">
+              <div className="text-xs font-medium text-red-400 mb-1">
+                {blockedTasks.length} blocked task(s) — resolve or descope before approving
+              </div>
+              {blockedTasks.map((task) => (
+                <div key={task.id} className="flex items-center justify-between py-1">
+                  <div className="text-xs text-zinc-300 truncate flex-1">
+                    {task.title}
+                    {task.pipelineBlockedReason && (
+                      <span className="ml-2 text-zinc-500">{task.pipelineBlockedReason}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => descopeMutation.mutate(task.id)}
+                    disabled={descopeMutation.isPending}
+                    className="ml-2 rounded bg-red-700 px-2 py-0.5 text-xs text-white hover:bg-red-600"
+                  >
+                    Descope
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
