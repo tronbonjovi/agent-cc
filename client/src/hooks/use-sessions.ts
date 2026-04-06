@@ -318,6 +318,28 @@ export function useTogglePin() {
   });
 }
 
+export function useSessionNames() {
+  return useQuery<Record<string, string>>({
+    queryKey: ["/api/sessions/names"],
+    staleTime: Infinity,
+  });
+}
+
+export function useRenameSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const res = await apiRequest("PATCH", `/api/sessions/${id}/name`, { name });
+      return res.json() as Promise<{ sessionId: string; name: string | null }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/sessions/names"] });
+      toast.success("Session renamed");
+    },
+    onError: (err: Error) => { toast.error(`Failed to rename session: ${err.message}`); },
+  });
+}
+
 export function useSessionNote(id: string | undefined) {
   return useQuery<SessionNote>({
     queryKey: [`/api/sessions/${id}/note`],
