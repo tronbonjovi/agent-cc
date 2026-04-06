@@ -51,7 +51,6 @@ export function useStartMilestone() {
     mutationFn: async (opts: {
       milestoneTaskId: string;
       projectId: string;
-      projectPath: string;
       baseBranch?: string;
       tasks: unknown[];
       taskOrder: string[];

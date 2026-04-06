@@ -139,7 +139,6 @@ export default function TasksPage() {
         {selectedProjectId && board && hasBoard && (
           <MilestoneControls
             projectId={selectedProjectId}
-            projectPath={board.projectPath}
             items={board.items}
           />
         )}

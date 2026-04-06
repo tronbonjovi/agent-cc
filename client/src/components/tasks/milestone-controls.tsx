@@ -12,11 +12,10 @@ import type { TaskItem } from "@shared/task-types";
 
 interface MilestoneControlsProps {
   projectId: string;
-  projectPath: string;
   items: TaskItem[];
 }
 
-export function MilestoneControls({ projectId, projectPath, items }: MilestoneControlsProps) {
+export function MilestoneControls({ projectId, items }: MilestoneControlsProps) {
   const { data: statusData } = usePipelineStatus();
   const { connected } = usePipelineEvents();
   const startMutation = useStartMilestone();
@@ -47,7 +46,6 @@ export function MilestoneControls({ projectId, projectPath, items }: MilestoneCo
     startMutation.mutate({
       milestoneTaskId: milestone.id,
       projectId,
-      projectPath,
       tasks,
       taskOrder: tasks.map((t) => t.id),
       parallelGroups: [],

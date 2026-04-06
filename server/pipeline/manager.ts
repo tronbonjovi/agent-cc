@@ -153,9 +153,17 @@ export class PipelineManager {
       .map(([id]) => id);
   }
 
-  /** Approve milestone completion — requires zero blocked tasks, runs integration gate */
+  /** Approve milestone completion — requires paused state, all tasks terminal, zero blocked */
   async approveMilestone(): Promise<{ approved: boolean; reason?: string; milestoneBranch?: string }> {
     if (!this.currentRun) return { approved: false, reason: "no active milestone" };
+
+    // Gate: must be paused (awaiting review), not running or stalled
+    if (this.currentRun.status !== "paused") {
+      return {
+        approved: false,
+        reason: `milestone is ${this.currentRun.status} — must be paused (awaiting review) before approval`,
+      };
+    }
 
     // Gate: no blocked tasks allowed
     const blocked = this.getBlockedTasks();
@@ -163,6 +171,20 @@ export class PipelineManager {
       return {
         approved: false,
         reason: `${blocked.length} blocked task(s) remain — descope or resolve them before approving`,
+      };
+    }
+
+    // Gate: all tasks must be in a terminal state (human-review or done)
+    const nonTerminal = Array.from(this.workers.entries())
+      .filter(([, w]) => {
+        const stage = w.getState().stage;
+        return stage !== "human-review" && stage !== "done";
+      })
+      .map(([id]) => id);
+    if (nonTerminal.length > 0) {
+      return {
+        approved: false,
+        reason: `${nonTerminal.length} task(s) still in progress — wait for all tasks to complete before approving`,
       };
     }
 

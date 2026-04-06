@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { parseTaskFile, parseConfigFile } from "../task-io";
+import { parseTaskFile, parseConfigFile, taskFileIndex } from "../task-io";
 import { DEFAULT_TASK_CONFIG } from "@shared/task-types";
 import type { TaskBoardState } from "@shared/task-types";
 
@@ -42,6 +42,7 @@ export function scanProjectTasks(projectPath: string, projectId: string, project
     const task = parseTaskFile(filePath);
     if (task) {
       result.items.push(task);
+      taskFileIndex.set(task.id, filePath);
     } else {
       result.malformedCount++;
     }

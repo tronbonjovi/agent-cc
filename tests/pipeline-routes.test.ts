@@ -24,6 +24,17 @@ vi.mock("../server/db", () => {
   };
 });
 
+vi.mock("../server/storage", () => ({
+  storage: {
+    getEntities: vi.fn().mockReturnValue([]),
+  },
+}));
+
+vi.mock("../server/task-io", () => ({
+  updateTaskField: vi.fn(),
+  taskFileIndex: new Map(),
+}));
+
 let app: express.Express;
 
 beforeEach(() => {
@@ -57,5 +68,18 @@ describe("POST /api/pipeline/milestone/start", () => {
       .post("/api/pipeline/milestone/start")
       .send({});
     expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for unknown project ID", async () => {
+    const res = await request(app)
+      .post("/api/pipeline/milestone/start")
+      .send({
+        milestoneTaskId: "m-1",
+        projectId: "unknown-project",
+        tasks: [{ id: "t-1", title: "test" }],
+        taskOrder: ["t-1"],
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("Unknown project");
   });
 });

@@ -55,6 +55,13 @@ export function parseTaskFile(filePath: string): TaskItem | null {
       updated: normalizeDate(d.updated),
       body: parsed.content,
       filePath: filePath.replace(/\\/g, "/"),
+      // Pipeline metadata
+      pipelineStage: d.pipelineStage ? String(d.pipelineStage) : undefined,
+      pipelineBranch: d.pipelineBranch ? String(d.pipelineBranch) : undefined,
+      pipelineCost: d.pipelineCost != null ? Number(d.pipelineCost) : undefined,
+      pipelineActivity: d.pipelineActivity ? String(d.pipelineActivity) : undefined,
+      pipelineBlockedReason: d.pipelineBlockedReason ? String(d.pipelineBlockedReason) : undefined,
+      dependsOn: Array.isArray(d.dependsOn) ? d.dependsOn.map(String) : undefined,
     };
   } catch {
     return null;
@@ -79,10 +86,37 @@ export function writeTaskFile(filePath: string, task: TaskItem): void {
   if (task.parent) frontmatter.parent = task.parent;
   if (task.priority) frontmatter.priority = task.priority;
   if (task.labels && task.labels.length > 0) frontmatter.labels = task.labels;
+  // Pipeline metadata
+  if (task.pipelineStage) frontmatter.pipelineStage = task.pipelineStage;
+  if (task.pipelineBranch) frontmatter.pipelineBranch = task.pipelineBranch;
+  if (task.pipelineCost != null) frontmatter.pipelineCost = task.pipelineCost;
+  if (task.pipelineActivity) frontmatter.pipelineActivity = task.pipelineActivity;
+  if (task.pipelineBlockedReason) frontmatter.pipelineBlockedReason = task.pipelineBlockedReason;
+  if (task.dependsOn && task.dependsOn.length > 0) frontmatter.dependsOn = task.dependsOn;
 
   const content = matter.stringify(task.body || "", frontmatter);
   writeAtomic(filePath, content);
 }
+
+/**
+ * Update a single field on a task file by ID.
+ * Scans known task directories to find the file. Best-effort — does nothing if task not found.
+ */
+export function updateTaskField(taskId: string, field: keyof TaskItem, value: unknown): void {
+  // This is a convenience wrapper — the caller doesn't know the file path.
+  // We scan the task file registry maintained by the scanner.
+  // For now, we store a simple in-memory map that routes populate.
+  const filePath = taskFileIndex.get(taskId);
+  if (!filePath) return;
+  const task = parseTaskFile(filePath);
+  if (!task) return;
+  (task as any)[field] = value;
+  task.updated = new Date().toISOString().split("T")[0];
+  writeTaskFile(filePath, task);
+}
+
+/** In-memory index of taskId → filePath, populated by task scanner */
+export const taskFileIndex = new Map<string, string>();
 
 export function parseConfigFile(filePath: string): TaskConfig | null {
   try {
