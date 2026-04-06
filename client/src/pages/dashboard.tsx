@@ -4,19 +4,22 @@ import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { EntityIcon } from "@/components/entity-badge";
 import { EmptyState } from "@/components/empty-state";
 import { useScanStatus, useRescan, useEntities } from "@/hooks/use-entities";
 import { useRuntimeConfig } from "@/hooks/use-config";
 import { useProjects } from "@/hooks/use-projects";
 import { useLiveData } from "@/hooks/use-agents";
-import { useTogglePin } from "@/hooks/use-sessions";
+import { useTogglePin, useSessionNames, useRenameSession } from "@/hooks/use-sessions";
+import { useAppSettings } from "@/hooks/use-settings";
+import { getSessionDisplayName } from "@/lib/session-display-name";
 import {
   RefreshCw, Clock, HardDrive, Cpu, Activity, Database,
   Server, FileText, GitBranch, Search,
   BarChart3, Zap, Loader2,
   Terminal, Keyboard, Download, Bot, Monitor, Check, Pin,
-  ChevronDown,
+  ChevronDown, Pencil,
 } from "lucide-react";
 
 import type { EntityType, ActiveSession, AgentExecution } from "@shared/types";
@@ -52,6 +55,23 @@ function shortSummary(msg: string | undefined, maxWords = 5): string {
   let result = words.join(" ");
   if (msg.trim().split(/\s+/).length > maxWords) result += "...";
   return result;
+}
+
+function thresholdColor(
+  value: number,
+  thresholds?: { yellow: number; red: number }
+): string {
+  if (!thresholds) return "";
+  if (value >= thresholds.red) return "text-red-400/80";
+  if (value >= thresholds.yellow) return "text-amber-400/80";
+  return "text-emerald-400/80";
+}
+
+function readableProjectKey(key: string): string {
+  const lastSegment = key.split("--").pop() || key;
+  return lastSegment
+    .replace(/^-/, "~/")
+    .replace(/-/g, "/");
 }
 
 function useTick(ms: number): number {
@@ -103,6 +123,9 @@ export default function Dashboard() {
   const rescan = useRescan();
   const { data: liveData } = useLiveData();
   const togglePin = useTogglePin();
+  const { data: sessionNames } = useSessionNames();
+  const renameSession = useRenameSession();
+  const { data: settings } = useAppSettings();
   const tick = useTick(1000);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showAgents, setShowAgents] = useState(false);
@@ -324,6 +347,9 @@ export default function Dashboard() {
                   copiedId={copiedId}
                   onCopyResume={handleCopyResume}
                   onTogglePin={(id) => togglePin.mutate(id)}
+                  onRename={(id, name) => renameSession.mutate({ id, name })}
+                  sessionNames={sessionNames}
+                  healthThresholds={settings?.healthThresholds}
                 />
               ))}
             </div>
@@ -591,6 +617,9 @@ function ActiveSessionCard({
   copiedId,
   onCopyResume,
   onTogglePin,
+  onRename,
+  sessionNames,
+  healthThresholds,
 }: {
   session: ActiveSession;
   index: number;
@@ -599,8 +628,33 @@ function ActiveSessionCard({
   copiedId: string | null;
   onCopyResume: (id: string) => void;
   onTogglePin: (id: string) => void;
+  onRename: (id: string, name: string) => void;
+  sessionNames?: Record<string, string>;
+  healthThresholds?: { context: { yellow: number; red: number }; cost: { yellow: number; red: number }; messages: { yellow: number; red: number } };
 }) {
-  const title = session.slug || shortSummary(session.firstMessage, 5) || session.sessionId.slice(0, 12) + "...";
+  const title = getSessionDisplayName(session.sessionId, {
+    customNames: sessionNames,
+    slug: session.slug,
+    firstMessage: session.firstMessage,
+  });
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const handleStartRename = () => {
+    setRenameValue(sessionNames?.[session.sessionId] || "");
+    setIsRenaming(true);
+    setTimeout(() => renameInputRef.current?.focus(), 50);
+  };
+
+  const handleConfirmRename = () => {
+    onRename(session.sessionId, renameValue);
+    setIsRenaming(false);
+  };
+
+  const handleCancelRename = () => {
+    setIsRenaming(false);
+  };
   const lastMsg = session.lastMessage ? shortSummary(session.lastMessage, 12) : null;
   const firstMsg = session.firstMessage ? shortSummary(session.firstMessage, 8) : null;
   const isCopied = copiedId === session.sessionId;
@@ -619,7 +673,22 @@ function ActiveSessionCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium truncate">{title}</span>
+              {isRenaming ? (
+                <Input
+                  ref={renameInputRef}
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleConfirmRename();
+                    if (e.key === "Escape") handleCancelRename();
+                  }}
+                  onBlur={handleConfirmRename}
+                  className="h-6 text-sm px-1.5 py-0 w-48"
+                  placeholder="Session name..."
+                />
+              ) : (
+                <span className="text-sm font-medium truncate" title={session.slug || session.sessionId}>{title}</span>
+              )}
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0">PID {session.pid}</Badge>
               {session.permissionMode === "bypass" && (
                 <Badge className="text-[10px] px-1.5 py-0 flex-shrink-0 bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/20">BYPASS</Badge>
@@ -649,6 +718,15 @@ function ActiveSessionCard({
                   ) : (
                     <Terminal className="h-3.5 w-3.5 text-muted-foreground" />
                   )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0"
+                  onClick={handleStartRename}
+                  title="Rename session"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                 </Button>
               </div>
             </div>
@@ -684,7 +762,7 @@ function ActiveSessionCard({
               {(session.messageCount ?? 0) > 0 && (
                 <>
                   <span className="text-muted-foreground/30">|</span>
-                  <span className="tabular-nums">{session.messageCount} msgs</span>
+                  <span className={`tabular-nums ${thresholdColor(session.messageCount ?? 0, healthThresholds?.messages)}`}>{session.messageCount} msgs</span>
                 </>
               )}
               {(session.sizeBytes ?? 0) > 0 && (
@@ -696,13 +774,13 @@ function ActiveSessionCard({
               {(session.costEstimate ?? 0) > 0 && (
                 <>
                   <span className="text-muted-foreground/30">|</span>
-                  <span className="tabular-nums text-amber-400/70">${session.costEstimate! < 0.01 ? "<0.01" : session.costEstimate!.toFixed(2)}</span>
+                  <span className={`tabular-nums ${thresholdColor(session.costEstimate ?? 0, healthThresholds?.cost) || "text-amber-400/70"}`}>${session.costEstimate! < 0.01 ? "<0.01" : session.costEstimate!.toFixed(2)}</span>
                 </>
               )}
               {session.projectKey && (
                 <>
                   <span className="text-muted-foreground/30">|</span>
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{session.projectKey.split("--").pop()}</Badge>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{readableProjectKey(session.projectKey)}</Badge>
                 </>
               )}
               {session.gitBranch && (
