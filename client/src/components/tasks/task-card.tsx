@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { GripVertical } from "lucide-react";
 import type { TaskItem } from "@shared/task-types";
+import { PipelineCardOverlay } from "./pipeline-card-overlay";
 
 const priorityColors: Record<string, string> = {
   high: "border-l-red-400/70",
@@ -82,6 +83,8 @@ export function TaskCard({ task, onClick, parentTitle }: TaskCardProps) {
           <span className="text-[10px] text-muted-foreground/30 ml-auto">{task.created}</span>
         )}
       </div>
+
+      {task.pipelineStage && <PipelineCardOverlay task={task} />}
     </div>
   );
 }
