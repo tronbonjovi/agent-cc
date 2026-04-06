@@ -300,7 +300,7 @@ export default function Dashboard() {
               <EmptyState icon={Monitor} title="No active Claude sessions" description="Sessions will appear here when Claude Code is running" />
             </div>
           ) : (
-            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[264px] overflow-y-auto pr-1">
               {activeSessions.map((session, i) => (
                 <ActiveSessionCard
                   key={session.sessionId}
@@ -327,7 +327,7 @@ export default function Dashboard() {
               <EmptyState icon={Activity} title="No agents in the past hour" />
             </div>
           ) : (
-            <div className="space-y-2 max-h-[600px] overflow-auto">
+            <div className="space-y-2 max-h-[264px] overflow-y-auto pr-1">
               {recentActivity.map((exec, i) => (
                 <RecentActivityItem key={exec.agentId} exec={exec} index={i} />
               ))}
