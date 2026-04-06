@@ -160,7 +160,28 @@ describe("PipelineManager", () => {
     expect(result.approved).toBe(true);
   });
 
-  it("descopes a task and its dependents", async () => {
+  it("refuses to descope a non-blocked task", async () => {
+    const tasks = [makeTask("t-1")];
+    await manager.startMilestone({
+      milestoneTaskId: "mile-1",
+      projectId: "proj-1",
+      projectPath: "/mock/project",
+      baseBranch: "main",
+      tasks,
+      taskOrder: ["t-1"],
+      parallelGroups: [],
+    });
+
+    // t-1 is in-progress (not blocked) — descope should be rejected
+    const descoped = manager.descopeTask("t-1");
+    expect(descoped).toEqual([]);
+
+    // Task order should be unchanged
+    const status = manager.getStatus();
+    expect(status?.taskOrder).toEqual(["t-1"]);
+  });
+
+  it("descopes a task not yet started (no worker) and its dependents", async () => {
     const tasks = [
       makeTask("t-1"),
       makeTask("t-2", ["t-1"]),
@@ -176,14 +197,10 @@ describe("PipelineManager", () => {
       parallelGroups: [],
     });
 
-    // Descope t-1 — should also remove t-2 and t-3 (transitive deps)
-    const descoped = manager.descopeTask("t-1");
-    expect(descoped).toContain("t-1");
+    // t-2 and t-3 have no workers yet (waiting on deps) — descope should work
+    const descoped = manager.descopeTask("t-2");
     expect(descoped).toContain("t-2");
     expect(descoped).toContain("t-3");
-
-    // Task order should be empty
-    const status = manager.getStatus();
-    expect(status?.taskOrder).toEqual([]);
+    expect(descoped).not.toContain("t-1");
   });
 });

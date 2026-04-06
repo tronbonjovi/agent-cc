@@ -46,6 +46,12 @@ export class PipelineManager {
       throw new Error(`milestone already exists (status: ${this.currentRun.status}) — approve or cancel it first`);
     }
 
+    // Safety: concurrent workers require parallelGroups enforcement (not yet implemented).
+    // Hard-block concurrency > 1 until that's in place to prevent overlapping edits.
+    if (this.config.maxConcurrentWorkers > 1 && opts.parallelGroups.length === 0) {
+      throw new Error("maxConcurrentWorkers > 1 requires parallelGroups to be specified — parallel safety is not yet enforced without them");
+    }
+
     const run: MilestoneRun = {
       id: `run-${Date.now()}`,
       milestoneTaskId: opts.milestoneTaskId,
@@ -100,22 +106,39 @@ export class PipelineManager {
     }
   }
 
-  /** Resume a paused milestone — resumes workers and continues scheduling */
+  /** Resume a paused milestone — relaunches paused workers and continues scheduling */
   resume(): void {
     if (this.currentRun && this.currentRun.status === "paused") {
       this.currentRun.status = "running";
       this.currentRun.pauseReason = undefined;
-      // Resume paused workers
-      for (const worker of Array.from(this.workers.values())) {
+      // Relaunch workers that were paused mid-execution (their run() returned on PausedError)
+      for (const [taskId, worker] of Array.from(this.workers)) {
         worker.resume();
+        const state = worker.getState();
+        // If worker was paused mid-build (activity says "paused"), relaunch it
+        if (state.currentActivity === "paused" && state.stage !== "human-review" && state.stage !== "done" && state.stage !== "blocked") {
+          const task = this.taskMap.get(taskId);
+          if (task) {
+            // Remove the stale worker and relaunch
+            this.workers.delete(taskId);
+            this.launchWorker(task);
+          }
+        }
       }
       this.scheduleNext();
     }
   }
 
-  /** Descope a blocked task — removes it and its dependents from the milestone */
+  /** Descope a blocked task — removes it and its dependents from the milestone.
+   *  Only blocked tasks can be descoped. Active/queued tasks must be paused or cancelled first. */
   descopeTask(taskId: string): string[] {
     if (!this.currentRun) return [];
+
+    // Only allow descoping blocked tasks to prevent tearing down live workers
+    const worker = this.workers.get(taskId);
+    if (worker && worker.getState().stage !== "blocked") {
+      return []; // Refuse — task is not blocked
+    }
 
     // Find all tasks that transitively depend on this one
     const descoped: string[] = [taskId];
