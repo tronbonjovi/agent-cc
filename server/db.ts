@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision, TerminalPanelState, CostRecord, CostIndexState } from "@shared/types";
-import type { PipelineConfig } from "./pipeline/types";
+import type { PipelineConfig, MilestoneRun } from "./pipeline/types";
 import { DEFAULT_PIPELINE_CONFIG } from "./pipeline/types";
 
 const dataDir = process.env.AGENT_CC_DATA
@@ -38,6 +38,7 @@ export interface DBData {
   costRecords: Record<string, CostRecord>;
   costIndexState: CostIndexState;
   pipelineConfig: PipelineConfig;
+  pipelineRun: MilestoneRun | null;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -90,6 +91,7 @@ function defaultData(): DBData {
     costRecords: {},
     costIndexState: { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 },
     pipelineConfig: DEFAULT_PIPELINE_CONFIG,
+    pipelineRun: null,
   };
 }
 
@@ -121,6 +123,7 @@ try {
     if (!data.costRecords) data.costRecords = {};
     if (!data.costIndexState) data.costIndexState = { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 };
     if (!data.pipelineConfig) data.pipelineConfig = DEFAULT_PIPELINE_CONFIG;
+    if (data.pipelineRun === undefined) data.pipelineRun = null;
     if (data.appSettings.onboarded === undefined) data.appSettings.onboarded = false;
     if (!data.appSettings.billingMode) data.appSettings.billingMode = "auto";
   } else {

@@ -10,7 +10,11 @@ import { execFileSync } from "child_process";
 interface ManagerOpts {
   config: PipelineConfig;
   events: PipelineEventBus;
-  onTaskStatusChange: (taskId: string, newStatus: string) => void;
+  onTaskStatusChange: (taskId: string, newStatus: string, projectId?: string) => void;
+  /** Callback to persist the run state durably (e.g. to DB) */
+  onRunStateChange?: (run: MilestoneRun | null) => void;
+  /** Previously persisted run to restore on startup */
+  restoredRun?: MilestoneRun | null;
 }
 
 interface StartMilestoneOpts {
@@ -26,7 +30,8 @@ interface StartMilestoneOpts {
 export class PipelineManager {
   private config: PipelineConfig;
   private events: PipelineEventBus;
-  private onTaskStatusChange: (taskId: string, newStatus: string) => void;
+  private onTaskStatusChange: (taskId: string, newStatus: string, projectId?: string) => void;
+  private onRunStateChange: (run: MilestoneRun | null) => void;
   private currentRun: MilestoneRun | null = null;
   private budget: BudgetTracker;
   private workers = new Map<string, PipelineWorker>();
@@ -37,7 +42,23 @@ export class PipelineManager {
     this.config = opts.config;
     this.events = opts.events;
     this.onTaskStatusChange = opts.onTaskStatusChange;
+    this.onRunStateChange = opts.onRunStateChange ?? (() => {});
     this.budget = new BudgetTracker(this.config);
+
+    // Restore a previously persisted run — mark it stalled since workers are gone
+    if (opts.restoredRun && opts.restoredRun.status !== "completed") {
+      this.currentRun = {
+        ...opts.restoredRun,
+        status: "stalled",
+        pauseReason: "server restarted — workers lost, manual recovery required",
+      };
+      this.persistRun();
+    }
+  }
+
+  /** Persist the current run state to durable storage */
+  private persistRun(): void {
+    this.onRunStateChange(this.currentRun);
   }
 
   /** Start executing a milestone's tasks */
@@ -68,6 +89,7 @@ export class PipelineManager {
     };
 
     this.currentRun = run;
+    this.persistRun();
     this.taskMap.clear();
     for (const task of opts.tasks) {
       this.taskMap.set(task.id, task);
@@ -95,6 +117,7 @@ export class PipelineManager {
     if (this.currentRun) {
       this.currentRun.status = "paused";
       this.currentRun.pauseReason = reason;
+      this.persistRun();
       // Signal all active workers to stop
       for (const worker of Array.from(this.workers.values())) {
         worker.pause();
@@ -111,6 +134,7 @@ export class PipelineManager {
     if (this.currentRun && this.currentRun.status === "paused") {
       this.currentRun.status = "running";
       this.currentRun.pauseReason = undefined;
+      this.persistRun();
       // Relaunch workers that were paused mid-execution (their run() returned on PausedError)
       for (const [taskId, worker] of Array.from(this.workers)) {
         worker.resume();
@@ -161,7 +185,7 @@ export class PipelineManager {
       if (worker) worker.cleanup();
       this.workers.delete(id);
       this.taskMap.delete(id);
-      this.onTaskStatusChange(id, "backlog"); // return to backlog
+      this.onTaskStatusChange(id, "backlog", this.currentRun?.projectId); // return to backlog
     }
 
     this.events.emit("task-stage-changed", {
@@ -257,6 +281,7 @@ export class PipelineManager {
 
     const completedRun = this.currentRun;
     this.currentRun = null;
+    this.persistRun();
     return { approved: true, milestoneBranch: completedRun.milestoneBranch };
   }
 
@@ -270,6 +295,7 @@ export class PipelineManager {
     this.workers.clear();
     this.taskMap.clear();
     this.currentRun = null;
+    this.persistRun();
   }
 
   /** Update the manager's config (called when config is changed via API) */
@@ -374,6 +400,7 @@ export class PipelineManager {
     if (notStarted.length === 0 && inProgressTasks.size === 0) {
       if (blockedTasks.size > 0 && completedTasks.size < allTaskIds.size) {
         this.currentRun.status = "stalled";
+        this.persistRun();
         this.events.emit("milestone-stalled", {
           milestoneRunId: this.currentRun.id,
           blockedCount: blockedTasks.size,
@@ -412,7 +439,7 @@ export class PipelineManager {
       budget: this.budget,
       events: this.events,
       onStageChange: (taskId: string, stage: PipelineStage) => {
-        this.onTaskStatusChange(taskId, stage);
+        this.onTaskStatusChange(taskId, stage, this.currentRun?.projectId);
         if (this.currentRun) {
           this.currentRun.workers[taskId] = worker.getState();
           this.currentRun.totalCostUsd = Array.from(this.workers.values())
@@ -428,7 +455,7 @@ export class PipelineManager {
 
     worker.run().catch((err) => {
       console.error(`[pipeline] Worker for task ${task.id} crashed:`, err);
-      this.onTaskStatusChange(task.id, "blocked");
+      this.onTaskStatusChange(task.id, "blocked", this.currentRun?.projectId);
       this.scheduleNext();
     });
   }

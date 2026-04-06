@@ -131,6 +131,27 @@ export async function rebaseOnto(worktreePath: string, baseBranch: string): Prom
 }
 
 /**
+ * Check if the worktree has uncommitted changes (staged or unstaged).
+ */
+export function hasUncommittedChanges(worktreePath: string): boolean {
+  const status = git(["status", "--porcelain"], worktreePath);
+  return status.length > 0;
+}
+
+/**
+ * Stage and commit all uncommitted changes so they're preserved before a reset.
+ * Returns true if a commit was created, false if the tree was already clean.
+ */
+export function commitUncommittedChanges(worktreePath: string, taskId: string, attemptNumber: number): boolean {
+  validateRefName(taskId, "taskId");
+  const status = git(["status", "--porcelain"], worktreePath);
+  if (!status) return false;
+  git(["add", "-A"], worktreePath);
+  git(["commit", "-m", `pipeline: preserve uncommitted work from ${taskId} attempt ${attemptNumber}`], worktreePath);
+  return true;
+}
+
+/**
  * Check if two sets of changed files overlap.
  */
 export function hasOverlappingFiles(filesA: string[], filesB: string[]): string[] {

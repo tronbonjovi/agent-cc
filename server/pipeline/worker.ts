@@ -12,6 +12,8 @@ import {
   preserveAttempt,
   getChangedFiles,
   rebaseOnto,
+  hasUncommittedChanges,
+  commitUncommittedChanges,
 } from "./git-ops";
 
 class PausedError extends Error {
@@ -151,8 +153,13 @@ export class PipelineWorker {
 
       const attemptNum = this.state.attempts.length + 1;
 
-      // Reset to clean snapshot before each retry (skip first attempt — it's already clean)
+      // Before resetting for a retry, preserve any uncommitted work the agent left behind.
+      // Without this, reset --hard would destroy edits that weren't committed.
       if (attemptNum > 1) {
+        if (hasUncommittedChanges(worktreePath)) {
+          this.setActivity(`preserving uncommitted changes from attempt ${attemptNum - 1}`);
+          commitUncommittedChanges(worktreePath, this.task.id, attemptNum - 1);
+        }
         this.setActivity(`resetting to clean snapshot for attempt ${attemptNum}`);
         await resetToSnapshot(worktreePath, snapshotRef);
       }
@@ -198,7 +205,12 @@ export class PipelineWorker {
         this.budget.recordTaskSpend(this.task.id, this.milestoneRunId, attempt.costUsd, 1);
         this.budget.recordAttempt(this.task.id, escalation);
 
-        // Check if any files actually changed
+        // Commit any uncommitted work before checking results — prevents loss on retry
+        if (hasUncommittedChanges(worktreePath)) {
+          commitUncommittedChanges(worktreePath, this.task.id, attemptNum);
+        }
+
+        // Check if any files actually changed (committed)
         const changedFiles = await getChangedFiles(worktreePath, this.baseBranch);
         if (this.budget.isSpinningWheels(this.task.id, changedFiles)) {
           attempt.error = "no meaningful file changes produced";

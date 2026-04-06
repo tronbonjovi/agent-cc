@@ -5,7 +5,7 @@ import path from "path";
 import { PipelineManager } from "../pipeline/manager";
 import { PipelineEventBus } from "../pipeline/events";
 import { DEFAULT_PIPELINE_CONFIG } from "../pipeline/types";
-import type { PipelineConfig } from "../pipeline/types";
+import type { PipelineConfig, MilestoneRun } from "../pipeline/types";
 import { getDB, save } from "../db";
 import { storage } from "../storage";
 import { updateTaskField } from "../task-io";
@@ -42,15 +42,26 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     save();
   }
 
+  // Restore previously persisted run on startup
+  const db = getDB();
+  const restoredRun = db.pipelineRun ?? null;
+
   const manager = new PipelineManager({
     config: getConfig(),
     events,
-    onTaskStatusChange: (taskId, newStatus) => {
+    restoredRun,
+    onRunStateChange: (run: MilestoneRun | null) => {
+      const db = getDB();
+      db.pipelineRun = run;
+      save();
+    },
+    onTaskStatusChange: (taskId, newStatus, projectId) => {
       events.emit("task-stage-changed", { taskId, stage: newStatus });
 
-      // Persist pipeline stage to the task file so board state survives refreshes
+      // Persist pipeline stage to the task file so board state survives refreshes.
+      // Pass projectId to scope the lookup and prevent cross-project collisions.
       try {
-        updateTaskField(taskId, "pipelineStage", newStatus);
+        updateTaskField(taskId, "pipelineStage", newStatus, projectId);
       } catch {
         // Non-fatal — SSE update is the primary communication channel
       }

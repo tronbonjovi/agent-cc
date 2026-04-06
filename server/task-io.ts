@@ -100,13 +100,14 @@ export function writeTaskFile(filePath: string, task: TaskItem): void {
 
 /**
  * Update a single field on a task file by ID.
- * Scans known task directories to find the file. Best-effort — does nothing if task not found.
+ * Looks up the file path from the scanner's index, scoped by projectId to
+ * prevent cross-project collisions when different projects reuse task IDs.
+ * Best-effort — does nothing if task not found.
  */
-export function updateTaskField(taskId: string, field: keyof TaskItem, value: unknown): void {
-  // This is a convenience wrapper — the caller doesn't know the file path.
-  // We scan the task file registry maintained by the scanner.
-  // For now, we store a simple in-memory map that routes populate.
-  const filePath = taskFileIndex.get(taskId);
+export function updateTaskField(taskId: string, field: keyof TaskItem, value: unknown, projectId?: string): void {
+  // Try project-scoped lookup first (safe), fall back to legacy unscoped for backward compat
+  const key = projectId ? taskFileKey(projectId, taskId) : taskId;
+  const filePath = taskFileIndex.get(key);
   if (!filePath) return;
   const task = parseTaskFile(filePath);
   if (!task) return;
@@ -115,8 +116,17 @@ export function updateTaskField(taskId: string, field: keyof TaskItem, value: un
   writeTaskFile(filePath, task);
 }
 
-/** In-memory index of taskId → filePath, populated by task scanner */
+/**
+ * In-memory index of (projectId:taskId) → filePath, populated by task scanner.
+ * Keyed by compound key to prevent cross-project collisions when multiple
+ * projects contain tasks with the same ID.
+ */
 export const taskFileIndex = new Map<string, string>();
+
+/** Build compound key for taskFileIndex */
+export function taskFileKey(projectId: string, taskId: string): string {
+  return `${projectId}:${taskId}`;
+}
 
 export function parseConfigFile(filePath: string): TaskConfig | null {
   try {

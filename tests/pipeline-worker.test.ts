@@ -17,6 +17,8 @@ vi.mock("../server/pipeline/git-ops", () => ({
   preserveAttempt: vi.fn().mockResolvedValue("refs/pipeline-attempt/task-1/attempt-1"),
   getChangedFiles: vi.fn().mockResolvedValue(["file.ts"]),
   rebaseOnto: vi.fn().mockResolvedValue(true),
+  hasUncommittedChanges: vi.fn().mockReturnValue(false),
+  commitUncommittedChanges: vi.fn().mockReturnValue(false),
 }));
 
 vi.mock("../server/scanner/claude-runner", () => ({
