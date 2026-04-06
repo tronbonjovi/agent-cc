@@ -61,6 +61,9 @@ export function parseTaskFile(filePath: string): TaskItem | null {
       pipelineCost: d.pipelineCost != null ? Number(d.pipelineCost) : undefined,
       pipelineActivity: d.pipelineActivity ? String(d.pipelineActivity) : undefined,
       pipelineBlockedReason: d.pipelineBlockedReason ? String(d.pipelineBlockedReason) : undefined,
+      blockedFromStage: d.blockedFromStage ? String(d.blockedFromStage) : undefined,
+      removedFromStage: d.removedFromStage ? String(d.removedFromStage) : undefined,
+      removedAt: d.removedAt ? String(d.removedAt) : undefined,
       dependsOn: Array.isArray(d.dependsOn) ? d.dependsOn.map(String) : undefined,
     };
   } catch {
@@ -92,6 +95,9 @@ export function writeTaskFile(filePath: string, task: TaskItem): void {
   if (task.pipelineCost != null) frontmatter.pipelineCost = task.pipelineCost;
   if (task.pipelineActivity) frontmatter.pipelineActivity = task.pipelineActivity;
   if (task.pipelineBlockedReason) frontmatter.pipelineBlockedReason = task.pipelineBlockedReason;
+  if (task.blockedFromStage) frontmatter.blockedFromStage = task.blockedFromStage;
+  if (task.removedFromStage) frontmatter.removedFromStage = task.removedFromStage;
+  if (task.removedAt) frontmatter.removedAt = task.removedAt;
   if (task.dependsOn && task.dependsOn.length > 0) frontmatter.dependsOn = task.dependsOn;
 
   const content = matter.stringify(task.body || "", frontmatter);

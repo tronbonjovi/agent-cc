@@ -11,6 +11,7 @@ import { storage } from "../storage";
 import { updateTaskField } from "../task-io";
 import { scanProjectTasks } from "../scanner/task-scanner";
 import { getDefaultBranch, branchExists } from "../pipeline/git-ops";
+import { setPipelineManager } from "./tasks";
 
 /** Resolve a project path from a trusted project ID. Returns null if invalid. */
 function resolveProjectPath(projectId: string): string | null {
@@ -74,6 +75,11 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
           updateTaskField(taskId, "pipelineActivity", workerState.currentActivity, projectId);
           if (newStatus === "blocked") {
             updateTaskField(taskId, "pipelineBlockedReason", workerState.currentActivity, projectId);
+            // Persist the stage the task was in before it got blocked
+            const previousStage = workerState.stage === "blocked"
+              ? workerState.attempts.length > 0 ? "build" : "queued"
+              : workerState.stage;
+            updateTaskField(taskId, "blockedFromStage", previousStage, projectId);
           }
         }
       } catch {
@@ -81,6 +87,9 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
       }
     },
   });
+
+  // Wire up edit-freeze guard in tasks router
+  setPipelineManager(manager);
 
   // --- Status ---
   router.get("/api/pipeline/status", (_req: Request, res: Response) => {

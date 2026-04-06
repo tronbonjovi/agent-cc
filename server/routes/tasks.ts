@@ -6,8 +6,15 @@ import { scanProjectTasks } from "../scanner/task-scanner";
 import { parseTaskFile, writeTaskFile, parseConfigFile, writeConfigFile, generateTaskId, taskFilename } from "../task-io";
 import { DEFAULT_TASK_CONFIG } from "@shared/task-types";
 import type { TaskItem, CreateTaskInput, UpdateTaskInput, ReorderInput } from "@shared/task-types";
+import type { PipelineManager } from "../pipeline/manager";
 
 const router = Router();
+
+let pipelineManager: PipelineManager | null = null;
+
+export function setPipelineManager(pm: PipelineManager) {
+  pipelineManager = pm;
+}
 
 function sanitizeTaskForResponse(task: TaskItem): Omit<TaskItem, 'filePath'> & { filePath?: never } {
   const { filePath, ...safe } = task;
@@ -166,6 +173,21 @@ router.put("/api/tasks/:taskId", (req, res) => {
   const input: UpdateTaskInput = req.body;
   if (input.expectedUpdated && existing.updated !== input.expectedUpdated) {
     return res.status(409).json({ error: "Conflict — task was modified", current: existing });
+  }
+  // Edit-freeze: reject metadata mutations for tasks in active milestone runs
+  if (existing.parent) {
+    const pipelineStatus = pipelineManager?.getStatus();
+    if (pipelineStatus) {
+      const NON_TERMINAL = new Set(["running", "pausing", "paused", "awaiting_approval", "cancelling"]);
+      if (
+        NON_TERMINAL.has(pipelineStatus.status) &&
+        existing.parent === pipelineStatus.milestoneTaskId
+      ) {
+        return res.status(409).json({
+          error: "Editing disabled — this task belongs to an active pipeline run. Wait for the run to complete or cancel it first.",
+        });
+      }
+    }
   }
   const oldStatus = existing.status;
   const now = new Date().toISOString().split("T")[0];

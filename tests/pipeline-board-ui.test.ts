@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stageToColumn, PIPELINE_COLUMNS, isKnownStage } from "../client/src/lib/pipeline-stages";
+import { stageToColumn, PIPELINE_COLUMNS, isKnownStage, NON_TERMINAL_STATES } from "../client/src/lib/pipeline-stages";
 import * as fs from "fs";
 
 describe("pipeline stage mapping", () => {
@@ -48,5 +48,18 @@ describe("pipeline hooks contract", () => {
     const content = fs.readFileSync("client/src/hooks/use-pipeline.ts", "utf-8");
     const onSettledCount = (content.match(/onSettled/g) || []).length;
     expect(onSettledCount).toBeGreaterThanOrEqual(6); // 6 mutation hooks
+  });
+});
+
+describe("edit-freeze guard", () => {
+  it("should identify non-terminal milestone states", () => {
+    expect(NON_TERMINAL_STATES.has("running")).toBe(true);
+    expect(NON_TERMINAL_STATES.has("pausing")).toBe(true);
+    expect(NON_TERMINAL_STATES.has("paused")).toBe(true);
+    expect(NON_TERMINAL_STATES.has("awaiting_approval")).toBe(true);
+    expect(NON_TERMINAL_STATES.has("cancelling")).toBe(true);
+    expect(NON_TERMINAL_STATES.has("completed")).toBe(false);
+    expect(NON_TERMINAL_STATES.has("cancelled")).toBe(false);
+    expect(NON_TERMINAL_STATES.has("not_started")).toBe(false);
   });
 });
