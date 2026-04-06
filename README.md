@@ -39,6 +39,7 @@ For production, Agent CC runs bare metal via systemd. See [SETUP.md](SETUP.md) f
 - **Graph visualization** — interactive ecosystem map with AI-assisted suggestions
 - **Markdown editor** — edit `CLAUDE.md` and memory files with version history
 - **Embedded terminal** — VS Code-style bottom panel with xterm.js, multiple tabs, split view
+- **Task automation pipeline** — trigger milestones for automated execution. Workers run `claude -p` in isolated git worktrees, streaming progress to the kanban board. Budget guardrails, retry escalation, dependency-ordered scheduling, and integration gate (auto-detected test command) with human review at milestone boundaries
 
 ## Pages
 

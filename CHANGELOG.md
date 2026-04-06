@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Task automation pipeline** — server-side pipeline manager orchestrates Claude CLI workers in isolated git worktrees. Milestones execute tasks in dependency order with budget/circuit-breaker guardrails, retry escalation (self-fix → codex-rescue → blocked), and SSE streaming to the kanban board. Includes:
+  - Pipeline types, git ops (worktrees, snapshots, rebase), budget tracker, event bus
+  - Worker lifecycle: build → AI review → human review, with cooperative pause
+  - Manager: milestone scheduling, dependency resolution, integration gate
+  - REST API: start/pause/resume/approve/cancel/descope + SSE events
+  - Client hooks and UI overlays (pipeline card overlay, milestone controls)
+  - Auto-detect base branch (main/master/develop/etc) and test command (npm/pnpm/yarn/cargo/go/pytest/make)
+  - Configurable `testCommand` per pipeline config with fail-closed integration gate
+  - Project-scoped API guards preventing cross-project pipeline manipulation
+  - Durable run state persistence — survives server restarts (restored as stalled)
+  - Cross-project task file scoping (compound `projectId:taskId` index keys)
+  - 9 rounds of Codex adversarial review, all findings addressed
 - **Workflow system design** — spec for markdown-based project workflow system (ROADMAP.md → milestones → tasks) with YAML frontmatter, tags, status lifecycle, and kanban integration. Skill-based approach keeps CLAUDE.md lean.
 - **Session rename** — click the pencil icon on any active session to give it a meaningful name. Custom names appear everywhere: Dashboard, Sessions page, and health panel. Names persist across restarts
 - **Data size health threshold** — session file size now color-coded (green < 500KB, yellow 500KB–2MB, red > 2MB), configurable in Settings alongside existing thresholds

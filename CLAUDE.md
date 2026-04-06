@@ -69,6 +69,7 @@ chore: description — vX.Y.Z
 server/
   routes/          # Express API routes
   scanner/         # JSONL parsers, analytics, AI features
+  pipeline/        # Task automation pipeline (types, git-ops, budget, events, worker, manager)
   db.ts            # JSON database with atomic writes
   storage.ts       # Storage abstraction layer
 shared/
