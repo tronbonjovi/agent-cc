@@ -29,9 +29,13 @@ export function relativeTime(dateStr: string): string {
 
 export function shortModel(model: string | null): string {
   if (!model) return "?";
-  if (model.includes("opus")) return "Opus";
-  if (model.includes("sonnet")) return "Sonnet";
-  if (model.includes("haiku")) return "Haiku";
+  // Match pattern: claude-{family}-{major}-{minor}[-suffix]
+  const match = model.match(/claude-(\w+)-(\d+)-(\d+)/);
+  if (match) {
+    const family = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+    return `${family} ${match[2]}.${match[3]}`;
+  }
+  // Fallback for unrecognized formats
   return model.slice(0, 12);
 }
 
