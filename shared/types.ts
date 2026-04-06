@@ -722,6 +722,7 @@ export interface SessionHealthThresholds {
   context: { yellow: number; red: number };
   cost: { yellow: number; red: number };
   messages: { yellow: number; red: number };
+  dataSize: { yellow: number; red: number };
 }
 
 export interface AppSettings {

@@ -425,7 +425,7 @@ router.post("/api/sessions/pin/:id", (req: Request, res: Response) => {
 });
 
 /** PATCH /api/sessions/:id/name — Set or clear custom session name */
-router.patch("/api/sessions:id/name", (req: Request, res: Response) => {
+router.patch("/api/sessions/:id/name", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(String(req.params.id));
   if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
   const name = (req.body as { name?: string })?.name;

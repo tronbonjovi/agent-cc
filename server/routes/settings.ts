@@ -14,6 +14,7 @@ const HealthThresholdsSchema = z.object({
   context: ThresholdPairSchema,
   cost: ThresholdPairSchema,
   messages: ThresholdPairSchema,
+  dataSize: ThresholdPairSchema,
 }).optional();
 
 const ScanPathsSchema = z.object({

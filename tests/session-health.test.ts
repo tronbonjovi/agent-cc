@@ -27,6 +27,7 @@ describe("Session Health Thresholds", () => {
       context: { yellow: 20, red: 50 },
       cost: { yellow: 3, red: 5 },
       messages: { yellow: 30, red: 60 },
+      dataSize: { yellow: 500, red: 2000 },
     });
   });
 
@@ -35,6 +36,7 @@ describe("Session Health Thresholds", () => {
       context: { yellow: 20, red: 50 },
       cost: { yellow: 3, red: 5 },
       messages: { yellow: 30, red: 60 },
+      dataSize: { yellow: 500, red: 2000 },
     });
   });
 
@@ -44,12 +46,14 @@ describe("Session Health Thresholds", () => {
         context: { yellow: 25, red: 60 },
         cost: { yellow: 5, red: 10 },
         messages: { yellow: 40, red: 80 },
+        dataSize: { yellow: 500, red: 2000 },
       },
     });
     expect(updated.healthThresholds).toEqual({
       context: { yellow: 25, red: 60 },
       cost: { yellow: 5, red: 10 },
       messages: { yellow: 40, red: 80 },
+      dataSize: { yellow: 500, red: 2000 },
     });
   });
 
@@ -59,6 +63,7 @@ describe("Session Health Thresholds", () => {
         context: { yellow: 25, red: 60 },
         cost: { yellow: 3, red: 5 },
         messages: { yellow: 30, red: 60 },
+        dataSize: { yellow: 500, red: 2000 },
       },
     });
     const settings = storage.getAppSettings();
@@ -73,6 +78,7 @@ describe("Session Health Thresholds", () => {
         context: { yellow: 10, red: 40 },
         cost: { yellow: 2, red: 8 },
         messages: { yellow: 20, red: 50 },
+        dataSize: { yellow: 500, red: 2000 },
       },
     });
     const settings = storage.getAppSettings();
@@ -94,12 +100,14 @@ describe("Session Health API Validation", () => {
       context: ThresholdPairSchema,
       cost: ThresholdPairSchema,
       messages: ThresholdPairSchema,
+      dataSize: ThresholdPairSchema,
     });
 
     const valid = HealthThresholdsSchema.safeParse({
       context: { yellow: 20, red: 50 },
       cost: { yellow: 3, red: 5 },
       messages: { yellow: 30, red: 60 },
+      dataSize: { yellow: 500, red: 2000 },
     });
     expect(valid.success).toBe(true);
   });

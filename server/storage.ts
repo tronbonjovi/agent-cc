@@ -129,7 +129,20 @@ export class Storage {
 
   // App Settings
   getAppSettings(): AppSettings {
-    return getDB().appSettings;
+    const settings = getDB().appSettings;
+    // Ensure defaults for fields added after initial DB creation
+    if (!settings.healthThresholds) {
+      settings.healthThresholds = {
+        context: { yellow: 20, red: 50 },
+        cost: { yellow: 3, red: 5 },
+        messages: { yellow: 30, red: 60 },
+        dataSize: { yellow: 500, red: 2000 },
+      };
+    }
+    if (!settings.healthThresholds.dataSize) {
+      settings.healthThresholds.dataSize = { yellow: 500, red: 2000 };
+    }
+    return settings;
   }
 
   updateAppSettings(patch: Partial<AppSettings>): AppSettings {

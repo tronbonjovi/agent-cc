@@ -45,6 +45,7 @@ export const defaultAppSettings: AppSettings = {
     context: { yellow: 20, red: 50 },
     cost: { yellow: 3, red: 5 },
     messages: { yellow: 30, red: 60 },
+    dataSize: { yellow: 500, red: 2000 },
   },
   scanPaths: {
     homeDir: null,

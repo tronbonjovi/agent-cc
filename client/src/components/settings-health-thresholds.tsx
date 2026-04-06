@@ -7,6 +7,7 @@ const defaultThresholds: SessionHealthThresholds = {
   context: { yellow: 20, red: 50 },
   cost: { yellow: 3, red: 5 },
   messages: { yellow: 30, red: 60 },
+  dataSize: { yellow: 500, red: 2000 },
 };
 
 function ThresholdRow({
@@ -74,7 +75,7 @@ export function HealthThresholdsSettings() {
   }
 
   function save() {
-    for (const key of ["context", "cost", "messages"] as const) {
+    for (const key of ["context", "cost", "messages", "dataSize"] as const) {
       if (thresholds[key].yellow >= thresholds[key].red) {
         return;
       }
@@ -130,6 +131,14 @@ export function HealthThresholdsSettings() {
             red={thresholds.messages.red}
             onYellowChange={(v) => update("messages", "yellow", v)}
             onRedChange={(v) => update("messages", "red", v)}
+          />
+          <ThresholdRow
+            label="Data Size"
+            unit="KB"
+            yellow={thresholds.dataSize.yellow}
+            red={thresholds.dataSize.red}
+            onYellowChange={(v) => update("dataSize", "yellow", v)}
+            onRedChange={(v) => update("dataSize", "red", v)}
           />
         </div>
         {dirty && (

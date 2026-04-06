@@ -380,7 +380,7 @@ function ActiveSessionCard({
   onTogglePin: (id: string) => void;
   onRename: (id: string, name: string) => void;
   sessionNames?: Record<string, string>;
-  healthThresholds?: { context: { yellow: number; red: number }; cost: { yellow: number; red: number }; messages: { yellow: number; red: number } };
+  healthThresholds?: { context: { yellow: number; red: number }; cost: { yellow: number; red: number }; messages: { yellow: number; red: number }; dataSize: { yellow: number; red: number } };
 }) {
   const title = getSessionDisplayName(session.sessionId, {
     customNames: sessionNames,
@@ -518,7 +518,7 @@ function ActiveSessionCard({
               {(session.sizeBytes ?? 0) > 0 && (
                 <>
                   <span className="text-muted-foreground/30">|</span>
-                  <span className="tabular-nums">{session.sizeBytes! > 1048576 ? `${(session.sizeBytes! / 1048576).toFixed(1)} MB` : `${Math.round(session.sizeBytes! / 1024)} KB`}</span>
+                  <span className={`tabular-nums ${thresholdColor(Math.round((session.sizeBytes ?? 0) / 1024), healthThresholds?.dataSize)}`}>{session.sizeBytes! > 1048576 ? `${(session.sizeBytes! / 1048576).toFixed(1)} MB` : `${Math.round(session.sizeBytes! / 1024)} KB`}</span>
                 </>
               )}
               {(session.costEstimate ?? 0) > 0 && (
