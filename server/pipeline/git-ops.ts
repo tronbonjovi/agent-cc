@@ -1,10 +1,18 @@
 // server/pipeline/git-ops.ts
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import path from "path";
 import os from "os";
 
-function git(cmd: string, cwd: string): string {
-  return execSync(`git ${cmd}`, { cwd, encoding: "utf-8", timeout: 30000 }).trim();
+/** Validate a string is safe for use as a git ref component (branch name, task ID, etc.) */
+function validateRefName(value: string, label: string): void {
+  // Reject empty, whitespace, shell metacharacters, path traversal, and git-forbidden patterns
+  if (!value || /[\s~^:?*\[\\{}()$`!|;&<>'"#]/.test(value) || value.includes("..") || value.startsWith("-")) {
+    throw new Error(`Invalid ${label}: "${value}" contains unsafe characters`);
+  }
+}
+
+function git(args: string[], cwd: string): string {
+  return execFileSync("git", args, { cwd, encoding: "utf-8", timeout: 30000 }).trim();
 }
 
 interface WorktreeResult {
@@ -21,24 +29,27 @@ export async function createTaskWorktree(
   taskId: string,
   baseBranch: string
 ): Promise<WorktreeResult> {
+  validateRefName(taskId, "taskId");
+  validateRefName(baseBranch, "baseBranch");
+
   const branchName = `pipeline/${taskId}`;
   const worktreePath = path.join(os.tmpdir(), `agent-cc-pipeline`, taskId);
 
   // Clean up any stale worktree at this path
   try {
-    git(`worktree remove "${worktreePath}" --force`, repoPath);
+    git(["worktree", "remove", worktreePath, "--force"], repoPath);
   } catch {
     // Not an error — worktree may not exist
   }
 
   // Delete branch if it exists from a previous run
   try {
-    git(`branch -D ${branchName}`, repoPath);
+    git(["branch", "-D", branchName], repoPath);
   } catch {
     // Branch may not exist
   }
 
-  git(`worktree add -b ${branchName} "${worktreePath}" ${baseBranch}`, repoPath);
+  git(["worktree", "add", "-b", branchName, worktreePath, baseBranch], repoPath);
 
   return { worktreePath, branchName };
 }
@@ -48,7 +59,7 @@ export async function createTaskWorktree(
  */
 export function removeWorktree(repoPath: string, worktreePath: string): void {
   try {
-    git(`worktree remove "${worktreePath}" --force`, repoPath);
+    git(["worktree", "remove", worktreePath, "--force"], repoPath);
   } catch {
     // Best effort cleanup
   }
@@ -59,9 +70,10 @@ export function removeWorktree(repoPath: string, worktreePath: string): void {
  * Returns the ref name.
  */
 export async function createCleanSnapshot(worktreePath: string, taskId: string): Promise<string> {
+  validateRefName(taskId, "taskId");
   const refName = `refs/pipeline-snapshot/${taskId}`;
-  const head = git("rev-parse HEAD", worktreePath);
-  git(`update-ref ${refName} ${head}`, worktreePath);
+  const head = git(["rev-parse", "HEAD"], worktreePath);
+  git(["update-ref", refName, head], worktreePath);
   return refName;
 }
 
@@ -69,8 +81,8 @@ export async function createCleanSnapshot(worktreePath: string, taskId: string):
  * Reset the worktree to a clean snapshot. Used before retries.
  */
 export async function resetToSnapshot(worktreePath: string, snapshotRef: string): Promise<void> {
-  git(`reset --hard ${snapshotRef}`, worktreePath);
-  git("clean -fd", worktreePath);
+  git(["reset", "--hard", snapshotRef], worktreePath);
+  git(["clean", "-fd"], worktreePath);
 }
 
 /**
@@ -81,9 +93,10 @@ export async function preserveAttempt(
   taskId: string,
   attemptNumber: number
 ): Promise<string> {
+  validateRefName(taskId, "taskId");
   const refName = `refs/pipeline-attempt/${taskId}/attempt-${attemptNumber}`;
-  const head = git("rev-parse HEAD", worktreePath);
-  git(`update-ref ${refName} ${head}`, worktreePath);
+  const head = git(["rev-parse", "HEAD"], worktreePath);
+  git(["update-ref", refName, head], worktreePath);
   return refName;
 }
 
@@ -91,7 +104,8 @@ export async function preserveAttempt(
  * Get list of files changed on this branch relative to a base.
  */
 export async function getChangedFiles(worktreePath: string, baseBranch: string): Promise<string[]> {
-  const output = git(`diff --name-only ${baseBranch}...HEAD`, worktreePath);
+  validateRefName(baseBranch, "baseBranch");
+  const output = git(["diff", "--name-only", `${baseBranch}...HEAD`], worktreePath);
   if (!output) return [];
   return output.split("\n").filter(Boolean);
 }
@@ -101,13 +115,14 @@ export async function getChangedFiles(worktreePath: string, baseBranch: string):
  * Returns true on success, false on conflict.
  */
 export async function rebaseOnto(worktreePath: string, baseBranch: string): Promise<boolean> {
+  validateRefName(baseBranch, "baseBranch");
   try {
-    git(`rebase ${baseBranch}`, worktreePath);
+    git(["rebase", baseBranch], worktreePath);
     return true;
   } catch {
     // Abort the failed rebase to leave the worktree clean
     try {
-      git("rebase --abort", worktreePath);
+      git(["rebase", "--abort"], worktreePath);
     } catch {
       // Already clean
     }

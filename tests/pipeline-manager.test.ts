@@ -4,6 +4,19 @@ import { PipelineEventBus } from "../server/pipeline/events";
 import { DEFAULT_PIPELINE_CONFIG } from "../server/pipeline/types";
 import type { TaskItem } from "../shared/task-types";
 
+// Mock git-ops and child_process to avoid real git operations in the integration gate
+vi.mock("../server/pipeline/git-ops", () => ({
+  createTaskWorktree: vi.fn().mockResolvedValue({
+    worktreePath: "/tmp/mock-milestone-worktree",
+    branchName: "pipeline/mock-milestone",
+  }),
+  removeWorktree: vi.fn(),
+}));
+
+vi.mock("child_process", () => ({
+  execFileSync: vi.fn().mockReturnValue(""),
+}));
+
 // Mock the worker to avoid real git/claude operations.
 // Must use a function (not arrow) so it can be called with `new`.
 vi.mock("../server/pipeline/worker", () => {
@@ -17,6 +30,8 @@ vi.mock("../server/pipeline/worker", () => {
       stage,
       totalCostUsd,
       totalClaudeCalls,
+      branchName: `pipeline/${opts.task.id}`,
+      worktreePath: `/tmp/mock-worktree/${opts.task.id}`,
     }));
     this.run = vi.fn().mockImplementation(async () => {
       // Yield to the event loop so startMilestone returns before the worker finishes
@@ -120,7 +135,7 @@ describe("PipelineManager", () => {
         taskOrder: ["t-2"],
         parallelGroups: [],
       })
-    ).rejects.toThrow("milestone already running");
+    ).rejects.toThrow("milestone already exists");
   });
 
   it("blocks approval when blocked tasks exist", async () => {

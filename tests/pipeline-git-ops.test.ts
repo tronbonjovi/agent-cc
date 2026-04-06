@@ -142,3 +142,27 @@ describe("rebaseOnto", () => {
     expect(success).toBe(false);
   });
 });
+
+describe("input validation", () => {
+  it("rejects task IDs with shell metacharacters", async () => {
+    await expect(createTaskWorktree(repoDir, "task; rm -rf /", "main")).rejects.toThrow("Invalid taskId");
+  });
+
+  it("rejects task IDs with backticks", async () => {
+    await expect(createTaskWorktree(repoDir, "task`whoami`", "main")).rejects.toThrow("Invalid taskId");
+  });
+
+  it("rejects base branches with shell metacharacters", async () => {
+    await expect(createTaskWorktree(repoDir, "safe-task", "main; echo pwned")).rejects.toThrow("Invalid baseBranch");
+  });
+
+  it("rejects task IDs starting with dash", async () => {
+    await expect(createTaskWorktree(repoDir, "--delete", "main")).rejects.toThrow("Invalid taskId");
+  });
+
+  it("allows valid task IDs with alphanumeric and hyphens", async () => {
+    const result = await createTaskWorktree(repoDir, "task-123-abc", "main");
+    worktreeDir = result.worktreePath;
+    expect(result.branchName).toBe("pipeline/task-123-abc");
+  });
+});

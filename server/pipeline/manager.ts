@@ -4,6 +4,8 @@ import type { PipelineConfig, MilestoneRun, PipelineStage } from "./types";
 import type { PipelineEventBus } from "./events";
 import { BudgetTracker } from "./budget";
 import { PipelineWorker } from "./worker";
+import { createTaskWorktree, removeWorktree } from "./git-ops";
+import { execFileSync } from "child_process";
 
 interface ManagerOpts {
   config: PipelineConfig;
@@ -40,8 +42,8 @@ export class PipelineManager {
 
   /** Start executing a milestone's tasks */
   async startMilestone(opts: StartMilestoneOpts): Promise<MilestoneRun> {
-    if (this.currentRun && this.currentRun.status === "running") {
-      throw new Error("milestone already running — finish or cancel the current one first");
+    if (this.currentRun) {
+      throw new Error(`milestone already exists (status: ${this.currentRun.status}) — approve or cancel it first`);
     }
 
     const run: MilestoneRun = {
@@ -152,7 +154,7 @@ export class PipelineManager {
   }
 
   /** Approve milestone completion — requires zero blocked tasks, runs integration gate */
-  async approveMilestone(): Promise<{ approved: boolean; reason?: string }> {
+  async approveMilestone(): Promise<{ approved: boolean; reason?: string; milestoneBranch?: string }> {
     if (!this.currentRun) return { approved: false, reason: "no active milestone" };
 
     // Gate: no blocked tasks allowed
@@ -164,11 +166,19 @@ export class PipelineManager {
       };
     }
 
-    // Integration gate placeholder (Task 12 wires this up)
+    // Integration gate: merge task branches into milestone branch and run tests
     this.events.emit("task-progress", {
       milestoneRunId: this.currentRun.id,
       activity: "running milestone integration gate — merging branches and testing",
     });
+
+    const integrationResult = await this.runIntegrationGate();
+    if (!integrationResult.passed) {
+      return {
+        approved: false,
+        reason: `integration gate failed: ${integrationResult.reason}`,
+      };
+    }
 
     this.currentRun.status = "completed";
     this.currentRun.completedAt = new Date().toISOString();
@@ -184,8 +194,92 @@ export class PipelineManager {
       totalCostUsd: this.currentRun.totalCostUsd,
     });
 
+    const completedRun = this.currentRun;
     this.currentRun = null;
-    return { approved: true };
+    return { approved: true, milestoneBranch: completedRun.milestoneBranch };
+  }
+
+  /** Cancel the current milestone run — cleans up workers and releases the run slot */
+  async cancelMilestone(): Promise<void> {
+    if (!this.currentRun) return;
+
+    for (const worker of Array.from(this.workers.values())) {
+      await worker.cleanup();
+    }
+    this.workers.clear();
+    this.taskMap.clear();
+    this.currentRun = null;
+  }
+
+  /** Update the manager's config (called when config is changed via API) */
+  updateConfig(config: PipelineConfig): void {
+    this.config = config;
+    this.budget = new BudgetTracker(config);
+  }
+
+  /**
+   * Integration gate: create a milestone branch, merge each task branch in order, run tests.
+   * Returns { passed: true } or { passed: false, reason: string }.
+   */
+  private async runIntegrationGate(): Promise<{ passed: boolean; reason?: string }> {
+    if (!this.currentRun) return { passed: false, reason: "no active run" };
+
+    const { projectPath, baseBranch, milestoneBranch } = this.currentRun;
+
+    try {
+      // Create a worktree for the milestone integration branch
+      const milestoneWorktree = await createTaskWorktree(projectPath, `milestone-integration-${Date.now()}`, baseBranch);
+
+      try {
+        // Merge each completed task branch in dependency order
+        for (const taskId of this.currentRun.taskOrder) {
+          const worker = this.workers.get(taskId);
+          if (!worker) continue;
+          const state = worker.getState();
+          if (state.stage === "blocked") continue; // descoped or blocked tasks are skipped
+
+          try {
+            execFileSync("git", ["merge", "--no-ff", state.branchName, "-m", `Merge ${taskId}`], {
+              cwd: milestoneWorktree.worktreePath,
+              encoding: "utf-8",
+              timeout: 30000,
+            });
+          } catch {
+            removeWorktree(projectPath, milestoneWorktree.worktreePath);
+            return { passed: false, reason: `merge conflict when integrating task ${taskId} (branch: ${state.branchName})` };
+          }
+        }
+
+        // Run the project's test suite on the merged branch
+        try {
+          execFileSync("npm", ["test"], {
+            cwd: milestoneWorktree.worktreePath,
+            encoding: "utf-8",
+            timeout: 300000, // 5 min for tests
+            stdio: "pipe",
+          });
+        } catch {
+          removeWorktree(projectPath, milestoneWorktree.worktreePath);
+          return { passed: false, reason: "integration tests failed on the merged milestone branch" };
+        }
+
+        // Tests passed — push the milestone branch ref so it persists after worktree cleanup
+        execFileSync("git", ["branch", milestoneBranch, "HEAD"], {
+          cwd: milestoneWorktree.worktreePath,
+          encoding: "utf-8",
+          timeout: 10000,
+        });
+
+        removeWorktree(projectPath, milestoneWorktree.worktreePath);
+        return { passed: true };
+      } catch (err) {
+        removeWorktree(projectPath, milestoneWorktree.worktreePath);
+        throw err;
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { passed: false, reason: msg };
+    }
   }
 
   private scheduleNext(): void {

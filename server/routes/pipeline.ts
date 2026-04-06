@@ -43,6 +43,7 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     const current = getConfig();
     const updated = { ...current, ...req.body };
     saveConfig(updated);
+    manager.updateConfig(updated);
     res.json(updated);
   });
 
@@ -86,7 +87,12 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     if (!result.approved) {
       return res.status(409).json({ approved: false, reason: result.reason });
     }
-    res.json({ approved: true });
+    res.json({ approved: true, milestoneBranch: result.milestoneBranch });
+  });
+
+  router.post("/api/pipeline/milestone/cancel", async (_req: Request, res: Response) => {
+    await manager.cancelMilestone();
+    res.json({ cancelled: true });
   });
 
   // --- Task actions ---

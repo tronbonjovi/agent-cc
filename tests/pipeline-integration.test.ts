@@ -4,6 +4,19 @@ import { PipelineEventBus } from "../server/pipeline/events";
 import { DEFAULT_PIPELINE_CONFIG } from "../server/pipeline/types";
 import type { TaskItem } from "../shared/task-types";
 
+// Mock git-ops and child_process for integration gate
+vi.mock("../server/pipeline/git-ops", () => ({
+  createTaskWorktree: vi.fn().mockResolvedValue({
+    worktreePath: "/tmp/mock-milestone-worktree",
+    branchName: "pipeline/mock-milestone",
+  }),
+  removeWorktree: vi.fn(),
+}));
+
+vi.mock("child_process", () => ({
+  execFileSync: vi.fn().mockReturnValue(""),
+}));
+
 // Mock worker to simulate fast task completion.
 // Must use a named function (not arrow) so it can be called with `new`.
 vi.mock("../server/pipeline/worker", () => {
