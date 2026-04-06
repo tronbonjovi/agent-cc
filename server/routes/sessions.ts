@@ -197,6 +197,11 @@ router.get("/api/sessions", (req: Request, res: Response) => {
   });
 });
 
+/** GET /api/sessions/names — Get all custom session names */
+router.get("/api/sessions/names", (_req: Request, res: Response) => {
+  res.json(storage.getSessionNames());
+});
+
 /** GET /api/sessions/search — Deep search across all session content */
 router.get("/api/sessions/search", async (req: Request, res: Response) => {
   const params = validate(DeepSearchSchema, {
@@ -417,6 +422,21 @@ router.post("/api/sessions/pin/:id", (req: Request, res: Response) => {
   if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
   const isPinned = storage.togglePin(idResult.data);
   res.json({ sessionId: idResult.data, isPinned });
+});
+
+/** PATCH /api/sessions/:id/name — Set or clear custom session name */
+router.patch("/api/sessions:id/name", (req: Request, res: Response) => {
+  const idResult = SessionIdSchema.safeParse(String(req.params.id));
+  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  const name = (req.body as { name?: string })?.name;
+  if (typeof name !== "string") return res.status(400).json({ message: "name is required (string)" });
+  const trimmed = name.trim();
+  if (trimmed === "") {
+    storage.deleteSessionName(idResult.data);
+  } else {
+    storage.setSessionName(idResult.data, trimmed);
+  }
+  res.json({ sessionId: idResult.data, name: trimmed || null });
 });
 
 /** GET /api/sessions/file-timeline — Timeline of changes to a file across sessions */

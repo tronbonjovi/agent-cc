@@ -29,6 +29,7 @@ export interface DBData {
   workflowConfig: WorkflowConfig;
   sessionNotes: Record<string, SessionNote>;
   pinnedSessions: string[];
+  sessionNames: Record<string, string>;
   decisions: Decision[];
   markdownMeta: Record<string, { locked?: boolean; pinned?: boolean }>;
   terminalPanel: TerminalPanelState;
@@ -72,6 +73,7 @@ function defaultData(): DBData {
     workflowConfig: { autoSummarize: false, autoArchiveStale: false, costAlertThreshold: null, autoTagByPath: false },
     sessionNotes: {},
     pinnedSessions: [],
+    sessionNames: {},
     decisions: [],
     markdownMeta: {},
     terminalPanel: {
@@ -107,6 +109,7 @@ try {
     if (!data.workflowConfig) data.workflowConfig = { autoSummarize: false, autoArchiveStale: false, costAlertThreshold: null, autoTagByPath: false };
     if (!data.sessionNotes) data.sessionNotes = {};
     if (!data.pinnedSessions) data.pinnedSessions = [];
+    if (!data.sessionNames) data.sessionNames = {};
     if (!data.decisions) data.decisions = [];
     if (!data.markdownMeta) data.markdownMeta = {};
     if (!data.terminalPanel) data.terminalPanel = defaultData().terminalPanel;

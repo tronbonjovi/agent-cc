@@ -343,6 +343,7 @@ export class Storage {
     const db = getDB();
     delete db.sessionSummaries[sessionId];
     delete db.sessionNotes[sessionId];
+    delete db.sessionNames[sessionId];
     db.decisions = db.decisions.filter(d => d.sessionId !== sessionId);
     const pinIdx = db.pinnedSessions.indexOf(sessionId);
     if (pinIdx >= 0) db.pinnedSessions.splice(pinIdx, 1);
@@ -381,6 +382,27 @@ export class Storage {
       save();
       return true;
     }
+  }
+
+  // Session Names
+  getSessionNames(): Record<string, string> {
+    return getDB().sessionNames;
+  }
+
+  getSessionName(sessionId: string): string | null {
+    return getDB().sessionNames[sessionId] || null;
+  }
+
+  setSessionName(sessionId: string, name: string): void {
+    const db = getDB();
+    db.sessionNames[sessionId] = name;
+    save();
+  }
+
+  deleteSessionName(sessionId: string): void {
+    const db = getDB();
+    delete db.sessionNames[sessionId];
+    save();
   }
 
   // Terminal Panel
