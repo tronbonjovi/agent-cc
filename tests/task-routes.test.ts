@@ -52,7 +52,7 @@ describe("task routes", () => {
       const { scanProjectTasks } = await import("../server/scanner/task-scanner");
       const board = scanProjectTasks(projectPath, projectId, "Test Project");
       expect(board.items).toEqual([]);
-      expect(board.config.statuses).toHaveLength(5);
+      expect(board.config.statuses).toHaveLength(8);
     });
 
     it("returns tasks when they exist", async () => {
@@ -112,7 +112,7 @@ describe("task routes", () => {
       const { DEFAULT_TASK_CONFIG } = await import("../server/task-io").then(() => import("@shared/task-types"));
       const result = parseConfigFile(path.join(projectPath, ".claude", "tasks", "_config.md"));
       expect(result).toBeNull();
-      expect(DEFAULT_TASK_CONFIG.statuses).toHaveLength(5);
+      expect(DEFAULT_TASK_CONFIG.statuses).toHaveLength(8);
     });
 
     it("writes and reads back a config file", async () => {
