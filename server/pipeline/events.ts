@@ -28,7 +28,7 @@ export class PipelineEventBus {
   /** Emit an event to all connected clients. */
   emit(event: PipelineEventType, data: Record<string, unknown>): void {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-    for (const send of this.clients) {
+    for (const send of Array.from(this.clients)) {
       try {
         send(payload);
       } catch {

@@ -112,7 +112,7 @@ export class PipelineManager {
     const queue = [taskId];
     while (queue.length > 0) {
       const current = queue.shift()!;
-      for (const [id, task] of this.taskMap) {
+      for (const [id, task] of Array.from(this.taskMap)) {
         if (descoped.includes(id)) continue;
         if (task.dependsOn?.includes(current)) {
           descoped.push(id);
@@ -146,7 +146,7 @@ export class PipelineManager {
   /** Get list of blocked task IDs in current run */
   getBlockedTasks(): string[] {
     if (!this.currentRun) return [];
-    return [...this.workers.entries()]
+    return Array.from(this.workers.entries())
       .filter(([, w]) => w.getState().stage === "blocked")
       .map(([id]) => id);
   }
@@ -174,7 +174,7 @@ export class PipelineManager {
     this.currentRun.completedAt = new Date().toISOString();
 
     // Cleanup all worktrees
-    for (const worker of this.workers.values()) {
+    for (const worker of Array.from(this.workers.values())) {
       await worker.cleanup();
     }
     this.workers.clear();
@@ -196,7 +196,7 @@ export class PipelineManager {
     const blockedTasks = new Set<string>();
     const inProgressTasks = new Set<string>();
 
-    for (const [taskId, worker] of this.workers) {
+    for (const [taskId, worker] of Array.from(this.workers)) {
       const state = worker.getState();
       if (state.stage === "human-review" || state.stage === "done") {
         completedTasks.add(taskId);
@@ -211,8 +211,8 @@ export class PipelineManager {
 
     // Check if milestone is complete or stalled
     const allTaskIds = new Set(this.currentRun.taskOrder);
-    const finishedOrBlocked = new Set([...completedTasks, ...blockedTasks]);
-    const notStarted = [...allTaskIds].filter(
+    const finishedOrBlocked = new Set(Array.from(completedTasks).concat(Array.from(blockedTasks)));
+    const notStarted = Array.from(allTaskIds).filter(
       (id) => !finishedOrBlocked.has(id) && !inProgressTasks.has(id)
     );
 
@@ -260,7 +260,7 @@ export class PipelineManager {
         this.onTaskStatusChange(taskId, stage);
         if (this.currentRun) {
           this.currentRun.workers[taskId] = worker.getState();
-          this.currentRun.totalCostUsd = [...this.workers.values()]
+          this.currentRun.totalCostUsd = Array.from(this.workers.values())
             .reduce((sum, w) => sum + w.getState().totalCostUsd, 0);
         }
         if (stage === "human-review" || stage === "blocked" || stage === "done") {
