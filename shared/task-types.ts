@@ -20,6 +20,9 @@ export interface TaskItem {
   pipelineActivity?: string;
   pipelineSummary?: string;        // JSON-encoded TaskCompletionSummary
   pipelineBlockedReason?: string;
+  blockedFromStage?: string;
+  removedFromStage?: string;
+  removedAt?: string;
   dependsOn?: string[];            // task IDs this task depends on
   parallelGroup?: string;          // group ID for parallel-safe tasks
 }
