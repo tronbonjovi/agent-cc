@@ -76,6 +76,27 @@ Each task gets its own worker process on the server:
 4. **Metadata tracking** — every `claude -p` call is logged: session ID, model, tokens, cost, duration
 5. **Completion** — worktree has a branch with all changes, task moves to AI Review
 
+### Branch Integration
+
+When tasks complete and need to merge back:
+
+- Each task's worktree is branched from the milestone's base branch
+- Before moving to AI Review, the worker rebases the task branch onto the current base (catches drift from earlier completed tasks)
+- If rebase fails (conflict), the worker attempts auto-resolution; if it can't, the task is flagged as Blocked with conflict details
+- For parallel tasks: even if planning marked them parallel-safe, the pipeline validates no overlapping file edits before promoting to Human Review
+- At milestone completion, all task branches are merged sequentially in dependency order into the milestone branch
+- The milestone branch is what you review and ultimately merge to main
+
+### Retry Isolation
+
+Each build retry starts from a clean state:
+
+- Before the first attempt, the worktree state is tagged as the "clean snapshot"
+- On retry, the worktree resets to the clean snapshot before the next attempt begins
+- Each attempt's changes are preserved as a separate patch/ref for debugging (viewable on the task card)
+- Codex rescue also starts from the clean snapshot, not from a failed attempt's leftovers
+- This ensures the final result in AI Review is from one clean, reproducible run — not accumulated partial attempts
+
 ### Scheduling
 
 - Pipeline manager reads the milestone's task list and dependency graph (set during plan-to-roadmap)
@@ -172,3 +193,4 @@ Specific skills will be identified through usage patterns rather than designed u
 - GitHub PR creation per task — add later if needed for collaboration
 - Kanban board visual overhaul — separate initiative, pipeline needs functional board not pretty board
 - Plan-to-roadmap adversarial review enhancement — noted as needed, separate skill improvement
+- Task card access control — currently single-operator on devbox, no auth needed. If multi-user access is added later, gate sensitive fields (worktree paths, session IDs) by role
