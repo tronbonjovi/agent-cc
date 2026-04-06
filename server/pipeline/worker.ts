@@ -110,6 +110,8 @@ export class PipelineWorker {
       const buildSuccess = await this.buildWithRetries(worktreePath, snapshotRef);
 
       if (buildSuccess) {
+        this.checkPaused();
+
         // Rebase onto latest base before moving to review
         this.setActivity("rebasing onto base branch");
         const rebaseOk = await rebaseOnto(worktreePath, this.baseBranch);
@@ -118,6 +120,8 @@ export class PipelineWorker {
           this.state.currentActivity = "rebase conflict — needs manual resolution";
           return;
         }
+
+        this.checkPaused();
 
         this.setStage("ai-review");
         this.setActivity("running AI review");
@@ -194,6 +198,8 @@ export class PipelineWorker {
             });
           },
         });
+
+        this.checkPaused();
 
         attempt.claudeCalls = 1;
         // Cost estimation — rough heuristic, real cost comes from session data

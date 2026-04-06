@@ -350,8 +350,9 @@ export class PipelineManager {
           return { passed: false, reason: "integration tests failed on the merged milestone branch" };
         }
 
-        // Tests passed — push the milestone branch ref so it persists after worktree cleanup
-        execFileSync("git", ["branch", milestoneBranch, "HEAD"], {
+        // Tests passed — publish the milestone branch ref so it persists after worktree cleanup.
+        // Use -f so reruns of the same milestone overwrite the prior branch cleanly.
+        execFileSync("git", ["branch", "-f", milestoneBranch, "HEAD"], {
           cwd: milestoneWorktree.worktreePath,
           encoding: "utf-8",
           timeout: 10000,
@@ -444,6 +445,7 @@ export class PipelineManager {
           this.currentRun.workers[taskId] = worker.getState();
           this.currentRun.totalCostUsd = Array.from(this.workers.values())
             .reduce((sum, w) => sum + w.getState().totalCostUsd, 0);
+          this.persistRun();
         }
         if (stage === "human-review" || stage === "blocked" || stage === "done") {
           this.scheduleNext();

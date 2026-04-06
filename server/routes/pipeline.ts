@@ -58,10 +58,23 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     onTaskStatusChange: (taskId, newStatus, projectId) => {
       events.emit("task-stage-changed", { taskId, stage: newStatus });
 
-      // Persist pipeline stage to the task file so board state survives refreshes.
+      // Persist pipeline metadata to the task file so board state and recovery
+      // context survive refreshes, SSE disconnects, and restarts.
       // Pass projectId to scope the lookup and prevent cross-project collisions.
       try {
         updateTaskField(taskId, "pipelineStage", newStatus, projectId);
+
+        // Pull additional worker metadata for recovery context
+        const run = manager.getStatus();
+        const workerState = run?.workers[taskId];
+        if (workerState) {
+          updateTaskField(taskId, "pipelineBranch", workerState.branchName, projectId);
+          updateTaskField(taskId, "pipelineCost", workerState.totalCostUsd, projectId);
+          updateTaskField(taskId, "pipelineActivity", workerState.currentActivity, projectId);
+          if (newStatus === "blocked") {
+            updateTaskField(taskId, "pipelineBlockedReason", workerState.currentActivity, projectId);
+          }
+        }
       } catch {
         // Non-fatal — SSE update is the primary communication channel
       }
@@ -81,6 +94,44 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
   router.put("/api/pipeline/config", (req: Request, res: Response) => {
     const current = getConfig();
     const updated = { ...current, ...req.body };
+
+    // Validate config values — reject impossible settings that would deadlock or disable safeguards
+    const errors: string[] = [];
+    if (typeof updated.maxConcurrentWorkers !== "number" || updated.maxConcurrentWorkers < 1 || updated.maxConcurrentWorkers > 10) {
+      errors.push("maxConcurrentWorkers must be 1–10");
+    }
+    if (typeof updated.maxClaudeCallsPerTask !== "number" || updated.maxClaudeCallsPerTask < 1) {
+      errors.push("maxClaudeCallsPerTask must be >= 1");
+    }
+    if (typeof updated.maxSelfFixAttempts !== "number" || updated.maxSelfFixAttempts < 0) {
+      errors.push("maxSelfFixAttempts must be >= 0");
+    }
+    if (typeof updated.maxCodexRescueAttempts !== "number" || updated.maxCodexRescueAttempts < 0) {
+      errors.push("maxCodexRescueAttempts must be >= 0");
+    }
+    if (typeof updated.costCeilingPerTaskUsd !== "number" || updated.costCeilingPerTaskUsd <= 0) {
+      errors.push("costCeilingPerTaskUsd must be > 0");
+    }
+    if (typeof updated.costCeilingPerMilestoneUsd !== "number" || updated.costCeilingPerMilestoneUsd <= 0) {
+      errors.push("costCeilingPerMilestoneUsd must be > 0");
+    }
+    if (typeof updated.dailySpendCapUsd !== "number" || updated.dailySpendCapUsd <= 0) {
+      errors.push("dailySpendCapUsd must be > 0");
+    }
+    if (typeof updated.taskTimeoutMs !== "number" || updated.taskTimeoutMs < 10000) {
+      errors.push("taskTimeoutMs must be >= 10000 (10s)");
+    }
+    if (typeof updated.maxTurns !== "number" || updated.maxTurns < 1) {
+      errors.push("maxTurns must be >= 1");
+    }
+    if (typeof updated.model !== "string" || !updated.model.trim()) {
+      errors.push("model must be a non-empty string");
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({ error: `Invalid config: ${errors.join("; ")}` });
+    }
+
     saveConfig(updated);
     manager.updateConfig(updated);
     res.json(updated);
@@ -121,6 +172,29 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
       return res.status(400).json({
         error: `Task IDs not scoped to milestone ${milestoneTaskId}: ${scopeErrors.join(", ")}. Tasks must be children of the milestone with type "task".`,
       });
+    }
+
+    // Validate taskOrder is a valid topological sort: every dependency must appear
+    // before the task that depends on it. The server enforces this because the
+    // integration gate merges branches in taskOrder sequence — wrong order causes
+    // avoidable merge conflicts or false test failures.
+    const orderIndex = new Map((taskOrder as string[]).map((id: string, i: number) => [id, i]));
+    for (const id of taskOrder as string[]) {
+      const task = taskMap.get(id)!;
+      for (const dep of task.dependsOn ?? []) {
+        const depIdx = orderIndex.get(dep);
+        if (depIdx === undefined) continue; // dep outside this milestone — validated elsewhere
+        if (depIdx >= orderIndex.get(id)!) {
+          return res.status(400).json({
+            error: `Invalid task order: "${id}" depends on "${dep}" but "${dep}" appears later in the order. Re-order tasks so dependencies come first.`,
+          });
+        }
+      }
+    }
+
+    // Reject duplicates in taskOrder
+    if (new Set(taskOrder as string[]).size !== (taskOrder as string[]).length) {
+      return res.status(400).json({ error: "taskOrder contains duplicate task IDs" });
     }
 
     const tasks = (taskOrder as string[]).map((id: string) => taskMap.get(id)!);
