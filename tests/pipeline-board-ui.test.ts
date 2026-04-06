@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { stageToColumn, PIPELINE_COLUMNS, isKnownStage, NON_TERMINAL_STATES } from "../client/src/lib/pipeline-stages";
+import { stageToColumn, PIPELINE_COLUMNS, isKnownStage, NON_TERMINAL_STATES, topoSortTasks } from "../client/src/lib/pipeline-stages";
 import type { TaskItem } from "../shared/task-types";
 import * as fs from "fs";
 
@@ -41,6 +41,59 @@ describe("pipeline stage mapping", () => {
     expect(PIPELINE_COLUMNS.map((c) => c.id)).toEqual([
       "backlog", "queued", "build", "ai-review", "human-review", "done",
     ]);
+  });
+});
+
+describe("topoSortTasks", () => {
+  it("sorts tasks respecting dependsOn", () => {
+    const tasks = [
+      { id: "c", dependsOn: ["b"] },
+      { id: "a" },
+      { id: "b", dependsOn: ["a"] },
+    ];
+    const order = topoSortTasks(tasks);
+    expect(order.indexOf("a")).toBeLessThan(order.indexOf("b"));
+    expect(order.indexOf("b")).toBeLessThan(order.indexOf("c"));
+  });
+
+  it("handles tasks with no dependencies", () => {
+    const tasks = [{ id: "x" }, { id: "y" }, { id: "z" }];
+    const order = topoSortTasks(tasks);
+    expect(order).toHaveLength(3);
+    expect(new Set(order)).toEqual(new Set(["x", "y", "z"]));
+  });
+
+  it("ignores dependencies outside the input set", () => {
+    const tasks = [
+      { id: "a", dependsOn: ["external-dep"] },
+      { id: "b", dependsOn: ["a"] },
+    ];
+    const order = topoSortTasks(tasks);
+    expect(order).toEqual(["a", "b"]);
+  });
+
+  it("handles diamond dependencies", () => {
+    // a -> b, a -> c, b -> d, c -> d
+    const tasks = [
+      { id: "d", dependsOn: ["b", "c"] },
+      { id: "b", dependsOn: ["a"] },
+      { id: "c", dependsOn: ["a"] },
+      { id: "a" },
+    ];
+    const order = topoSortTasks(tasks);
+    expect(order.indexOf("a")).toBeLessThan(order.indexOf("b"));
+    expect(order.indexOf("a")).toBeLessThan(order.indexOf("c"));
+    expect(order.indexOf("b")).toBeLessThan(order.indexOf("d"));
+    expect(order.indexOf("c")).toBeLessThan(order.indexOf("d"));
+  });
+
+  it("includes all tasks even with cycles (graceful fallback)", () => {
+    const tasks = [
+      { id: "a", dependsOn: ["b"] },
+      { id: "b", dependsOn: ["a"] },
+    ];
+    const order = topoSortTasks(tasks);
+    expect(order).toHaveLength(2);
   });
 });
 

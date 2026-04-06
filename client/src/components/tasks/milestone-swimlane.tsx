@@ -7,6 +7,7 @@ import {
   NON_TERMINAL_STATES,
   stageToColumn,
   isKnownStage,
+  topoSortTasks,
 } from "@/lib/pipeline-stages";
 import {
   useStartMilestone,
@@ -98,7 +99,7 @@ export function MilestoneSwimlane({
     startMutation.mutate({
       milestoneTaskId: milestone.id,
       projectId,
-      taskOrder: activeTasks.map((t) => t.id),
+      taskOrder: topoSortTasks(activeTasks),
       parallelGroups: [],
     });
   }

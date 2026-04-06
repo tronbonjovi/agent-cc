@@ -55,3 +55,41 @@ export const MILESTONE_BADGES: Record<string, { label: string; color: string; pu
 export const NON_TERMINAL_STATES = new Set([
   "running", "pausing", "paused", "awaiting_approval", "cancelling",
 ]);
+
+/**
+ * Topological sort of tasks respecting dependsOn edges.
+ * Dependencies outside the input set are ignored.
+ * Falls back gracefully on cycles (appends remaining tasks).
+ */
+export function topoSortTasks(tasks: { id: string; dependsOn?: string[] }[]): string[] {
+  const ids = new Set(tasks.map((t) => t.id));
+  const adj = new Map<string, string[]>();
+  const inDeg = new Map<string, number>();
+  for (const t of tasks) {
+    adj.set(t.id, []);
+    inDeg.set(t.id, 0);
+  }
+  for (const t of tasks) {
+    for (const dep of t.dependsOn ?? []) {
+      if (!ids.has(dep)) continue;
+      adj.get(dep)!.push(t.id);
+      inDeg.set(t.id, (inDeg.get(t.id) ?? 0) + 1);
+    }
+  }
+  const queue = tasks.filter((t) => inDeg.get(t.id) === 0).map((t) => t.id);
+  const result: string[] = [];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    result.push(id);
+    for (const next of adj.get(id) ?? []) {
+      const deg = inDeg.get(next)! - 1;
+      inDeg.set(next, deg);
+      if (deg === 0) queue.push(next);
+    }
+  }
+  // Cycle fallback: append any remaining
+  for (const t of tasks) {
+    if (!result.includes(t.id)) result.push(t.id);
+  }
+  return result;
+}
