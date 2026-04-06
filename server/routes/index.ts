@@ -20,6 +20,8 @@ import costAnalyticsRouter from "./cost-analytics";
 import apisRouter from "./apis";
 import tasksRouter from "./tasks";
 import terminalRouter from "./terminal";
+import { createPipelineRouter } from "./pipeline";
+import { pipelineEvents } from "../pipeline/events";
 import { spawn } from "child_process";
 import { platform } from "os";
 import path from "path";
@@ -79,6 +81,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.use(apisRouter);
   app.use(tasksRouter);
   app.use(terminalRouter);
+  app.use(createPipelineRouter(pipelineEvents));
 
   // Actions — open-folder and open-file share identical logic
   const handleOpen = (req: import("express").Request, res: import("express").Response) => {
