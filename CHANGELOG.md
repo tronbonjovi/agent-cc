@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Session rename** — click the pencil icon on any active session to give it a meaningful name. Custom names appear everywhere: Dashboard, Sessions page, and health panel. Names persist across restarts
+- **Data size health threshold** — session file size now color-coded (green < 500KB, yellow 500KB–2MB, red > 2MB), configurable in Settings alongside existing thresholds
+- **Analytics tabs** — Sessions page Analytics panel converted from 12 vertically-stacked sections to 10 individual tabs with URL persistence (`?atab=` param)
+
+### Changed
+- **Model tags** — now show versioned names (Opus 4.6, Sonnet 4.6, Haiku 4.5) instead of just family name
+- **Dashboard layout** — active sessions and recent activity have fixed height with scroll; removed stat cards, quick actions, session stats, system card, and recent changes sections
+- **Project paths** — encoded project keys now display as readable paths (`~/dev/projects/agent-cc` instead of dashes)
+- **Health threshold colors** — message count and cost on active session cards colored green/yellow/red based on configured thresholds
+
+### Removed
+- **Ask a Question** — NL query section removed from analytics (AI integration not a current focus)
+- **Smart Context Loader** — context generation section removed from analytics
+- **Continuation Panel** — "Pick up where you left off" section removed from analytics
+
+### Fixed
+- **Health thresholds migration** — existing databases created before the health feature now get default thresholds backfilled automatically
 - **Session health indicators** — active session health panel on Sessions page showing context usage progress bar, cost, and message count with color-coded thresholds (green/yellow/red)
 - **Configurable health thresholds** — Settings page section to customize when indicators change color, with validation (yellow < red) and reset to defaults
 - **Smart polling** — live data polling adjusts automatically: 5s when sessions are active, 30s when idle (was fixed 3s)
