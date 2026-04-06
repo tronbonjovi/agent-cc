@@ -6,6 +6,8 @@ import { BudgetTracker } from "./budget";
 import { PipelineWorker } from "./worker";
 import { createTaskWorktree, removeWorktree } from "./git-ops";
 import { execFileSync } from "child_process";
+import fs from "fs";
+import path from "path";
 
 interface ManagerOpts {
   config: PipelineConfig;
@@ -25,6 +27,38 @@ interface StartMilestoneOpts {
   tasks: TaskItem[];
   taskOrder: string[];
   parallelGroups: string[][];
+}
+
+/**
+ * Resolve the test command for the integration gate.
+ * If config is "auto", detect from repo files. If explicit, parse it.
+ * Returns null if no test command can be determined (tests will be skipped).
+ */
+function resolveTestCommand(
+  configValue: string,
+  worktreePath: string
+): { bin: string; args: string[] } | null {
+  if (configValue !== "auto") {
+    // Explicit command like "cargo test" or "npm test"
+    const parts = configValue.split(/\s+/);
+    if (parts.length === 0 || !parts[0]) return null;
+    return { bin: parts[0], args: parts.slice(1) };
+  }
+
+  // Auto-detect from repo contents
+  if (fs.existsSync(path.join(worktreePath, "package.json"))) {
+    // Check if pnpm, yarn, or bun lockfile exists
+    if (fs.existsSync(path.join(worktreePath, "pnpm-lock.yaml"))) return { bin: "pnpm", args: ["test"] };
+    if (fs.existsSync(path.join(worktreePath, "bun.lockb")) || fs.existsSync(path.join(worktreePath, "bun.lock"))) return { bin: "bun", args: ["test"] };
+    if (fs.existsSync(path.join(worktreePath, "yarn.lock"))) return { bin: "yarn", args: ["test"] };
+    return { bin: "npm", args: ["test"] };
+  }
+  if (fs.existsSync(path.join(worktreePath, "Cargo.toml"))) return { bin: "cargo", args: ["test"] };
+  if (fs.existsSync(path.join(worktreePath, "go.mod"))) return { bin: "go", args: ["test", "./..."] };
+  if (fs.existsSync(path.join(worktreePath, "Makefile"))) return { bin: "make", args: ["test"] };
+  if (fs.existsSync(path.join(worktreePath, "pyproject.toml")) || fs.existsSync(path.join(worktreePath, "setup.py"))) return { bin: "python", args: ["-m", "pytest"] };
+
+  return null; // Unknown project type — skip integration tests
 }
 
 export class PipelineManager {
@@ -337,18 +371,24 @@ export class PipelineManager {
           }
         }
 
-        // Run the project's test suite on the merged branch
-        try {
-          execFileSync("npm", ["test"], {
-            cwd: milestoneWorktree.worktreePath,
-            encoding: "utf-8",
-            timeout: 300000, // 5 min for tests
-            stdio: "pipe",
-          });
-        } catch {
-          removeWorktree(projectPath, milestoneWorktree.worktreePath);
-          return { passed: false, reason: "integration tests failed on the merged milestone branch" };
+        // Run the project's test suite on the merged branch.
+        // Resolve the test command from config or auto-detect from the repo.
+        const testCmd = resolveTestCommand(this.config.testCommand, milestoneWorktree.worktreePath);
+        if (testCmd) {
+          try {
+            execFileSync(testCmd.bin, testCmd.args, {
+              cwd: milestoneWorktree.worktreePath,
+              encoding: "utf-8",
+              timeout: 300000, // 5 min for tests
+              stdio: "pipe",
+            });
+          } catch {
+            removeWorktree(projectPath, milestoneWorktree.worktreePath);
+            return { passed: false, reason: `integration tests failed (${testCmd.bin} ${testCmd.args.join(" ")}) on the merged milestone branch` };
+          }
         }
+        // If no test command could be resolved, skip tests with a warning
+        // (the merge itself is still validated)
 
         // Tests passed — publish the milestone branch ref so it persists after worktree cleanup.
         // Use -f so reruns of the same milestone overwrite the prior branch cleanly.

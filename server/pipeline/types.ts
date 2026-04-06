@@ -70,6 +70,7 @@ export interface PipelineConfig {
   taskTimeoutMs: number;            // default: 600000 (10 min)
   model: string;                    // default: "sonnet"
   maxTurns: number;                 // default: 10
+  testCommand: string;              // default: "auto" — auto-detect from repo, or explicit command
 }
 
 export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
@@ -83,6 +84,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
   taskTimeoutMs: 600000,
   model: "sonnet",
   maxTurns: 10,
+  testCommand: "auto",
 };
 
 /** Summary written when a task finishes (stored in task body/metadata) */

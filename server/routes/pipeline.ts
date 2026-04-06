@@ -10,6 +10,7 @@ import { getDB, save } from "../db";
 import { storage } from "../storage";
 import { updateTaskField } from "../task-io";
 import { scanProjectTasks } from "../scanner/task-scanner";
+import { getDefaultBranch, branchExists } from "../pipeline/git-ops";
 
 /** Resolve a project path from a trusted project ID. Returns null if invalid. */
 function resolveProjectPath(projectId: string): string | null {
@@ -127,6 +128,9 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
     if (typeof updated.model !== "string" || !updated.model.trim()) {
       errors.push("model must be a non-empty string");
     }
+    if (typeof updated.testCommand !== "string" || !updated.testCommand.trim()) {
+      errors.push("testCommand must be a non-empty string (use \"auto\" for auto-detection)");
+    }
 
     if (errors.length > 0) {
       return res.status(400).json({ error: `Invalid config: ${errors.join("; ")}` });
@@ -197,6 +201,14 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
       return res.status(400).json({ error: "taskOrder contains duplicate task IDs" });
     }
 
+    // Resolve base branch: use client-supplied value, or detect from the repo
+    const resolvedBaseBranch: string = baseBranch ?? getDefaultBranch(projectPath);
+    if (!branchExists(projectPath, resolvedBaseBranch)) {
+      return res.status(400).json({
+        error: `Base branch "${resolvedBaseBranch}" does not exist in the repository. Specify a valid baseBranch.`,
+      });
+    }
+
     const tasks = (taskOrder as string[]).map((id: string) => taskMap.get(id)!);
 
     try {
@@ -204,7 +216,7 @@ export function createPipelineRouter(events: PipelineEventBus): Router {
         milestoneTaskId,
         projectId,
         projectPath,
-        baseBranch: baseBranch ?? "main",
+        baseBranch: resolvedBaseBranch,
         tasks,
         taskOrder,
         parallelGroups: parallelGroups ?? [],

@@ -15,6 +15,45 @@ function git(args: string[], cwd: string): string {
   return execFileSync("git", args, { cwd, encoding: "utf-8", timeout: 30000 }).trim();
 }
 
+/**
+ * Resolve the repo's default branch (what HEAD points to on the remote, or locally).
+ * Falls back to "main" only if detection fails entirely.
+ */
+export function getDefaultBranch(repoPath: string): string {
+  // Try remote HEAD first (most reliable for repos with a remote)
+  try {
+    const ref = git(["symbolic-ref", "refs/remotes/origin/HEAD"], repoPath);
+    // Returns something like "refs/remotes/origin/main"
+    const branch = ref.replace("refs/remotes/origin/", "");
+    if (branch) return branch;
+  } catch {
+    // No remote or no symbolic ref set
+  }
+  // Fall back to local HEAD
+  try {
+    const ref = git(["symbolic-ref", "HEAD"], repoPath);
+    // Returns something like "refs/heads/main"
+    const branch = ref.replace("refs/heads/", "");
+    if (branch) return branch;
+  } catch {
+    // Detached HEAD or bare repo
+  }
+  return "main";
+}
+
+/**
+ * Check that a branch name exists in the repo. Returns true if it does.
+ */
+export function branchExists(repoPath: string, branchName: string): boolean {
+  validateRefName(branchName, "branchName");
+  try {
+    git(["rev-parse", "--verify", `refs/heads/${branchName}`], repoPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 interface WorktreeResult {
   worktreePath: string;
   branchName: string;
