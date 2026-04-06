@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useDecisions, useExtractDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useDelegate } from "@/hooks/use-sessions";
+import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useDecisions, useExtractDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useDelegate, useSessionNames } from "@/hooks/use-sessions";
+import { getSessionDisplayName } from "@/lib/session-display-name";
 import { useDebouncedValue } from "@/hooks/use-debounce";
 import { useAppSettings } from "@/hooks/use-settings";
 import { apiRequest } from "@/lib/queryClient";
@@ -82,6 +83,8 @@ export default function Sessions() {
   const summarizeBatch = useSummarizeBatch();
   const togglePin = useTogglePin();
   const saveNote = useSaveNote();
+
+  const { data: sessionNames } = useSessionNames();
 
   const sessions = data?.sessions || [];
   const stats = data?.stats;
@@ -402,7 +405,7 @@ export default function Sessions() {
                   onDelete={(id, e) => { e.stopPropagation(); setDeleteConfirm({ type: "single", id }); }}
                   onSummarize={(id) => summarizeSession.mutate(id)} isSummarizing={summarizeSession.isPending}
                   onTogglePin={(id) => togglePin.mutate(id)} onSaveNote={(id, text) => saveNote.mutate({ id, text })}
-                  searchQuery={search}
+                  searchQuery={search} sessionNames={sessionNames}
                 />
               ))}
               <div className="border-b border-border/30" />
@@ -418,7 +421,7 @@ export default function Sessions() {
               onDelete={(id, e) => { e.stopPropagation(); setDeleteConfirm({ type: "single", id }); }}
               onSummarize={(id) => summarizeSession.mutate(id)} isSummarizing={summarizeSession.isPending}
               onTogglePin={(id) => togglePin.mutate(id)} onSaveNote={(id, text) => saveNote.mutate({ id, text })}
-              searchQuery={search}
+              searchQuery={search} sessionNames={sessionNames}
             />
           ))}
         </div>
@@ -1233,6 +1236,7 @@ function SessionCard({
   onTogglePin,
   onSaveNote,
   searchQuery,
+  sessionNames,
 }: {
   session: SessionData;
   index: number;
@@ -1251,6 +1255,7 @@ function SessionCard({
   onTogglePin?: (id: string) => void;
   onSaveNote?: (id: string, text: string) => void;
   searchQuery?: string;
+  sessionNames?: Record<string, string>;
 }) {
   const resumeCopied = copiedId === "resume:" + s.id;
   const [noteText, setNoteText] = useState(s.note || "");
@@ -1283,11 +1288,16 @@ function SessionCard({
             #{i + 1}
           </span>
 
-          {/* Main content — first message is primary, slug is secondary */}
+          {/* Main content — display name is primary, slug is secondary */}
           <div className="flex-1 min-w-0">
-            {/* First message as title */}
-            {s.firstMessage ? (
-              <p className="text-sm font-medium line-clamp-1"><HighlightText text={s.firstMessage} query={searchQuery || ""} /></p>
+            {/* Session title: custom name > slug > first message > empty label */}
+            {sessionNames?.[s.id] || s.firstMessage || s.slug ? (
+              <p className="text-sm font-medium line-clamp-1">
+                <HighlightText
+                  text={getSessionDisplayName(s.id, { customNames: sessionNames, slug: s.slug, firstMessage: s.firstMessage })}
+                  query={searchQuery || ""}
+                />
+              </p>
             ) : (
               <p className="text-sm text-muted-foreground/50 italic">(empty session)</p>
             )}

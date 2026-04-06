@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import { useLiveData } from "@/hooks/use-agents";
 import { useAppSettings } from "@/hooks/use-settings";
+import { getSessionDisplayName } from "@/lib/session-display-name";
+import { useSessionNames } from "@/hooks/use-sessions";
 import type { ActiveSession, SessionHealthThresholds } from "@shared/types";
 
 type ThresholdLevel = "green" | "yellow" | "red";
@@ -51,10 +53,12 @@ function SessionRow({
   session,
   thresholds,
   prevLevelsRef,
+  sessionNames,
 }: {
   session: ActiveSession;
   thresholds: SessionHealthThresholds;
   prevLevelsRef: React.MutableRefObject<Record<string, PrevLevels>>;
+  sessionNames?: Record<string, string>;
 }) {
   const contextPct = session.contextUsage?.percentage ?? 0;
   const cost = session.costEstimate ?? 0;
@@ -79,7 +83,11 @@ function SessionRow({
   };
 
   const pulseClass = "animate-pulse";
-  const sessionName = session.firstMessage || session.slug || "Untitled session";
+  const sessionName = getSessionDisplayName(session.sessionId, {
+    customNames: sessionNames,
+    slug: session.slug,
+    firstMessage: session.firstMessage,
+  });
 
   return (
     <div className="bg-muted/20 rounded-md px-3 py-2.5">
@@ -117,6 +125,7 @@ function SessionRow({
 export function SessionHealthPanel() {
   const { data: settings } = useAppSettings();
   const { data: liveData } = useLiveData();
+  const { data: sessionNames } = useSessionNames();
   const prevLevelsRef = useRef<Record<string, PrevLevels>>({});
 
   const activeSessions = liveData?.activeSessions ?? [];
@@ -145,6 +154,7 @@ export function SessionHealthPanel() {
             session={session}
             thresholds={thresholds}
             prevLevelsRef={prevLevelsRef}
+            sessionNames={sessionNames}
           />
         ))}
       </div>
