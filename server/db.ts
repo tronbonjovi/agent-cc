@@ -2,6 +2,8 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision, TerminalPanelState, CostRecord, CostIndexState } from "@shared/types";
+import type { PipelineConfig } from "./pipeline/types";
+import { DEFAULT_PIPELINE_CONFIG } from "./pipeline/types";
 
 const dataDir = process.env.AGENT_CC_DATA
   ? path.resolve(process.env.AGENT_CC_DATA)
@@ -35,6 +37,7 @@ export interface DBData {
   terminalPanel: TerminalPanelState;
   costRecords: Record<string, CostRecord>;
   costIndexState: CostIndexState;
+  pipelineConfig: PipelineConfig;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -86,6 +89,7 @@ function defaultData(): DBData {
     },
     costRecords: {},
     costIndexState: { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 },
+    pipelineConfig: DEFAULT_PIPELINE_CONFIG,
   };
 }
 
@@ -116,6 +120,7 @@ try {
     if (!data.terminalPanel) data.terminalPanel = defaultData().terminalPanel;
     if (!data.costRecords) data.costRecords = {};
     if (!data.costIndexState) data.costIndexState = { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 };
+    if (!data.pipelineConfig) data.pipelineConfig = DEFAULT_PIPELINE_CONFIG;
     if (data.appSettings.onboarded === undefined) data.appSettings.onboarded = false;
     if (!data.appSettings.billingMode) data.appSettings.billingMode = "auto";
   } else {
