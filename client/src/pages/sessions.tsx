@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useContextLoader, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useNLQuery, useContinuations, useDecisions, useExtractDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useDelegate } from "@/hooks/use-sessions";
+import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useDecisions, useExtractDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useDelegate } from "@/hooks/use-sessions";
 import { useDebouncedValue } from "@/hooks/use-debounce";
 import { useAppSettings } from "@/hooks/use-settings";
 import { apiRequest } from "@/lib/queryClient";
@@ -15,9 +15,9 @@ import {
   Search, Terminal, Trash2, Copy, Check, ChevronDown, ChevronRight,
   HardDrive, MessageSquare, Clock, Hash, X, AlertTriangle, Undo2, FolderOpen,
   Sparkles, Loader2, Zap, DollarSign, FileText, Activity, Archive,
-  GitCommit, Clipboard, BarChart3, FolderKanban, Calendar, Settings,
-  Plus, Play, BookOpen, Pin, StickyNote, MessageCircleQuestion,
-  Server, Brain, TerminalSquare, Phone, Send, ArrowRight, Lightbulb,
+  GitCommit, BarChart3, FolderKanban, Calendar, Settings,
+  Plus, Play, BookOpen, Pin, StickyNote,
+  Server, TerminalSquare, Phone, Send, Lightbulb,
 } from "lucide-react";
 import type { SessionData, DeepSearchMatch } from "@shared/types";
 import { formatBytes, relativeTime as _relativeTime } from "@/lib/utils";
@@ -467,64 +467,66 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+const ANALYTICS_TABS = [
+  { id: "nerve-center", label: "Nerve Center" },
+  { id: "usage", label: "Usage Analytics" },
+  { id: "files", label: "File Heatmap" },
+  { id: "health", label: "Session Health" },
+  { id: "projects", label: "Projects" },
+  { id: "digest", label: "Weekly Digest" },
+  { id: "prompts", label: "Prompts" },
+  { id: "workflows", label: "Workflows" },
+  { id: "bash", label: "Bash KB" },
+  { id: "decisions", label: "Decisions" },
+] as const;
+
+type AnalyticsTabId = typeof ANALYTICS_TABS[number]["id"];
+
 function AnalyticsPanel() {
   const { data: costs } = useCostAnalytics();
   const { data: files } = useFileHeatmap();
   const { data: health } = useHealthAnalytics();
   const { data: stale } = useStaleAnalytics();
   const { data: settings } = useAppSettings();
-  const contextLoader = useContextLoader();
-  const nlQuery = useNLQuery();
-  const [contextProject, setContextProject] = useState("");
   const billingMode = settings?.billingMode || "auto";
   const isSub = billingMode === "subscription" || billingMode === "auto"; // default to subscription view
-  const [contextPrompt, setContextPrompt] = useState("");
-  const [nlQuestion, setNlQuestion] = useState("");
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
+  const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTabId>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return (params.get("atab") as AnalyticsTabId) || "nerve-center";
+  });
+
+  const handleTabChange = (tab: AnalyticsTabId) => {
+    setAnalyticsTab(tab);
+    const params = new URLSearchParams(window.location.search);
+    params.set("atab", tab);
+    window.history.replaceState({}, "", `?${params.toString()}`);
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Nerve Center */}
-      <NerveCenterPanel />
-
-      {/* Continuation Intelligence */}
-      <ContinuationPanel />
-
-      {/* NL Query */}
-      <div className="space-y-2">
-        <h2 className="text-sm font-medium flex items-center gap-2">
-          <MessageCircleQuestion className="h-4 w-4 text-blue-400" /> Ask a Question
-        </h2>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <MessageCircleQuestion className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="e.g., Which project costs the most? How many sessions this week?"
-              value={nlQuestion}
-              onChange={e => setNlQuestion(e.target.value)}
-              className="pl-9"
-              onKeyDown={e => { if (e.key === "Enter" && nlQuestion.length >= 3) nlQuery.mutate(nlQuestion); }}
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => nlQuery.mutate(nlQuestion)}
-            disabled={nlQuestion.length < 3 || nlQuery.isPending}
+    <div className="space-y-4">
+      {/* Analytics Tab Bar */}
+      <div className="flex gap-1 overflow-x-auto pb-2 border-b border-border/50 scrollbar-thin">
+        {ANALYTICS_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${
+              analyticsTab === tab.id
+                ? "bg-primary/20 text-primary border border-primary/30"
+                : "text-muted-foreground hover:bg-accent/30 hover:text-foreground"
+            }`}
           >
-            {nlQuery.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Ask"}
-          </Button>
-        </div>
-        {nlQuery.data && (
-          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3">
-            <p className="text-sm text-foreground whitespace-pre-wrap">{nlQuery.data.answer}</p>
-            <p className="text-[11px] text-muted-foreground/50 mt-1">{nlQuery.data.context} | {nlQuery.data.durationMs}ms</p>
-          </div>
-        )}
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* Cost Overview */}
-      {costs && (
+      {/* Tab content */}
+      {analyticsTab === "nerve-center" && <NerveCenterPanel />}
+
+      {analyticsTab === "usage" && costs && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-green-400" /> {isSub ? "Usage Analytics" : "Cost Analytics"}
@@ -626,157 +628,121 @@ function AnalyticsPanel() {
         </div>
       )}
 
-      {/* File Heatmap */}
-      {files && files.files.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium flex items-center gap-2">
-            <FileText className="h-4 w-4 text-orange-400" /> File Heatmap
-            <span className="text-[11px] text-muted-foreground font-normal">({files.totalFiles} files, {files.totalOperations} operations)</span>
-          </h2>
-          <div className="rounded-xl border bg-card p-4">
-            <div className="space-y-1">
-              {files.files.slice(0, 25).map((f, i) => {
-                const maxTouch = files.files[0]?.touchCount || 1;
-                const pct = (f.touchCount / maxTouch) * 100;
-                return (
-                  <div key={f.filePath} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1 py-0.5" onClick={() => setSelectedFile(selectedFile === f.filePath ? null : f.filePath)}>
-                    <span className="text-muted-foreground/50 w-5 text-right">#{i + 1}</span>
-                    <span className="font-mono text-orange-400/80 hover:text-orange-300 truncate flex-1" title={f.filePath}>{f.fileName}</span>
-                    <div className="w-32 h-3 bg-muted/30 rounded overflow-hidden flex-shrink-0">
-                      <div className="h-full bg-orange-500/40 rounded" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-muted-foreground/60 w-8 text-right">{f.touchCount}</span>
-                    <div className="flex gap-1 w-24 flex-shrink-0">
-                      {f.operations.read > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-500/20 text-blue-400">R:{f.operations.read}</Badge>}
-                      {f.operations.edit > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/20 text-amber-400">E:{f.operations.edit}</Badge>}
-                      {f.operations.write > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-green-500/20 text-green-400">W:{f.operations.write}</Badge>}
-                    </div>
-                    <span className="text-muted-foreground/40 text-[10px] w-12 text-right">{f.sessionCount}s</span>
-                  </div>
-                );
-              })}
+      {analyticsTab === "files" && (
+        <div className="space-y-6">
+          {files && files.files.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-medium flex items-center gap-2">
+                <FileText className="h-4 w-4 text-orange-400" /> File Heatmap
+                <span className="text-[11px] text-muted-foreground font-normal">({files.totalFiles} files, {files.totalOperations} operations)</span>
+              </h2>
+              <div className="rounded-xl border bg-card p-4">
+                <div className="space-y-1">
+                  {files.files.slice(0, 25).map((f, i) => {
+                    const maxTouch = files.files[0]?.touchCount || 1;
+                    const pct = (f.touchCount / maxTouch) * 100;
+                    return (
+                      <div key={f.filePath} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1 py-0.5" onClick={() => setSelectedFile(selectedFile === f.filePath ? null : f.filePath)}>
+                        <span className="text-muted-foreground/50 w-5 text-right">#{i + 1}</span>
+                        <span className="font-mono text-orange-400/80 hover:text-orange-300 truncate flex-1" title={f.filePath}>{f.fileName}</span>
+                        <div className="w-32 h-3 bg-muted/30 rounded overflow-hidden flex-shrink-0">
+                          <div className="h-full bg-orange-500/40 rounded" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-muted-foreground/60 w-8 text-right">{f.touchCount}</span>
+                        <div className="flex gap-1 w-24 flex-shrink-0">
+                          {f.operations.read > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-500/20 text-blue-400">R:{f.operations.read}</Badge>}
+                          {f.operations.edit > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/20 text-amber-400">E:{f.operations.edit}</Badge>}
+                          {f.operations.write > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-green-500/20 text-green-400">W:{f.operations.write}</Badge>}
+                        </div>
+                        <span className="text-muted-foreground/40 text-[10px] w-12 text-right">{f.sessionCount}s</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+          {selectedFile && <FileTimelinePanel filePath={selectedFile} onClose={() => setSelectedFile(null)} />}
         </div>
       )}
 
-      {/* File Timeline */}
-      {selectedFile && <FileTimelinePanel filePath={selectedFile} onClose={() => setSelectedFile(null)} />}
-
-      {/* Health Overview */}
-      {health && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium flex items-center gap-2">
-            <Activity className="h-4 w-4 text-red-400" /> Session Health
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Good</p>
-              <p className="text-2xl font-bold font-mono mt-1 text-green-400">{health.goodCount}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Fair</p>
-              <p className="text-2xl font-bold font-mono mt-1 text-amber-400">{health.fairCount}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Poor</p>
-              <p className="text-2xl font-bold font-mono mt-1 text-red-400">{health.poorCount}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Errors</p>
-              <p className="text-2xl font-bold font-mono mt-1">{health.avgToolErrors}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Retries</p>
-              <p className="text-2xl font-bold font-mono mt-1">{health.avgRetries}</p>
-            </div>
-          </div>
-          {health.sessions.length > 0 && (
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Problematic Sessions</p>
-              <div className="space-y-1">
-                {health.sessions.slice(0, 10).map(h => (
-                  <div key={h.sessionId} className="flex items-center gap-2 text-xs">
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${h.healthScore === "poor" ? "border-red-500/30 text-red-400" : "border-amber-500/30 text-amber-400"}`}>
-                      {h.healthScore}
-                    </Badge>
-                    <span className="font-mono text-muted-foreground/60 truncate flex-1">{h.sessionId.slice(0, 8)}...</span>
-                    <span className="text-red-400">{h.toolErrors} errors</span>
-                    <span className="text-amber-400">{h.retries} retries</span>
-                    <span className="text-muted-foreground/50">{h.totalToolCalls} tool calls</span>
+      {analyticsTab === "health" && (
+        <div className="space-y-6">
+          {health && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-medium flex items-center gap-2">
+                <Activity className="h-4 w-4 text-red-400" /> Session Health
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="rounded-xl border bg-card p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Good</p>
+                  <p className="text-2xl font-bold font-mono mt-1 text-green-400">{health.goodCount}</p>
+                </div>
+                <div className="rounded-xl border bg-card p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Fair</p>
+                  <p className="text-2xl font-bold font-mono mt-1 text-amber-400">{health.fairCount}</p>
+                </div>
+                <div className="rounded-xl border bg-card p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Poor</p>
+                  <p className="text-2xl font-bold font-mono mt-1 text-red-400">{health.poorCount}</p>
+                </div>
+                <div className="rounded-xl border bg-card p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Errors</p>
+                  <p className="text-2xl font-bold font-mono mt-1">{health.avgToolErrors}</p>
+                </div>
+                <div className="rounded-xl border bg-card p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Retries</p>
+                  <p className="text-2xl font-bold font-mono mt-1">{health.avgRetries}</p>
+                </div>
+              </div>
+              {health.sessions.length > 0 && (
+                <div className="rounded-xl border bg-card p-4">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Problematic Sessions</p>
+                  <div className="space-y-1">
+                    {health.sessions.slice(0, 10).map(h => (
+                      <div key={h.sessionId} className="flex items-center gap-2 text-xs">
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${h.healthScore === "poor" ? "border-red-500/30 text-red-400" : "border-amber-500/30 text-amber-400"}`}>
+                          {h.healthScore}
+                        </Badge>
+                        <span className="font-mono text-muted-foreground/60 truncate flex-1">{h.sessionId.slice(0, 8)}...</span>
+                        <span className="text-red-400">{h.toolErrors} errors</span>
+                        <span className="text-amber-400">{h.retries} retries</span>
+                        <span className="text-muted-foreground/50">{h.totalToolCalls} tool calls</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+            </div>
+          )}
+          {stale && (stale.totalStale > 0 || stale.totalEmpty > 0) && (
+            <div className="space-y-3">
+              <h2 className="text-sm font-medium flex items-center gap-2">
+                <Archive className="h-4 w-4 text-amber-400" /> Stale Sessions
+              </h2>
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+                <div className="flex items-center gap-4 text-sm">
+                  <span><strong className="text-amber-400">{stale.totalEmpty}</strong> empty sessions</span>
+                  <span><strong className="text-amber-400">{stale.totalStale}</strong> stale sessions (30+ days, &lt;5 msgs)</span>
+                  <span className="text-muted-foreground">Reclaimable: <strong>{formatBytes(stale.reclaimableBytes)}</strong></span>
+                </div>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Stale Sessions */}
-      {stale && (stale.totalStale > 0 || stale.totalEmpty > 0) && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium flex items-center gap-2">
-            <Archive className="h-4 w-4 text-amber-400" /> Stale Sessions
-          </h2>
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-            <div className="flex items-center gap-4 text-sm">
-              <span><strong className="text-amber-400">{stale.totalEmpty}</strong> empty sessions</span>
-              <span><strong className="text-amber-400">{stale.totalStale}</strong> stale sessions (30+ days, &lt;5 msgs)</span>
-              <span className="text-muted-foreground">Reclaimable: <strong>{formatBytes(stale.reclaimableBytes)}</strong></span>
-            </div>
-          </div>
-        </div>
-      )}
+      {analyticsTab === "projects" && <ProjectDashboardPanel />}
 
-      {/* Context Loader */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-medium flex items-center gap-2">
-          <Clipboard className="h-4 w-4 text-cyan-400" /> Smart Context Loader
-          <span className="text-[11px] text-muted-foreground font-normal">Generate a context prompt from recent sessions for a project</span>
-        </h2>
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Project name (e.g. my-app, backend)"
-            value={contextProject}
-            onChange={e => setContextProject(e.target.value)}
-            className="max-w-sm"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (contextProject) {
-                contextLoader.mutate(contextProject, {
-                  onSuccess: (data) => {
-                    setContextPrompt(data.prompt);
-                    navigator.clipboard.writeText(data.prompt);
-                  },
-                });
-              }
-            }}
-            disabled={!contextProject || contextLoader.isPending}
-            className="gap-1.5"
-          >
-            {contextLoader.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clipboard className="h-3.5 w-3.5" />}
-            Generate & Copy
-          </Button>
-          {contextLoader.data && (
-            <span className="text-xs text-muted-foreground">
-              {contextLoader.data.sessionsUsed} sessions, ~{formatTokens(contextLoader.data.tokensEstimate)} tokens — copied to clipboard
-            </span>
-          )}
-        </div>
-        {contextPrompt && (
-          <pre className="text-xs font-mono bg-muted/30 rounded-lg p-4 max-h-60 overflow-auto whitespace-pre-wrap text-muted-foreground">{contextPrompt}</pre>
-        )}
-      </div>
+      {analyticsTab === "digest" && <WeeklyDigestPanel />}
 
-      <ProjectDashboardPanel />
-      <WeeklyDigestPanel />
-      <PromptLibraryPanel />
-      <WorkflowConfigPanel />
-      <BashKnowledgePanel />
-      <DecisionLogPanel />
+      {analyticsTab === "prompts" && <PromptLibraryPanel />}
+
+      {analyticsTab === "workflows" && <WorkflowConfigPanel />}
+
+      {analyticsTab === "bash" && <BashKnowledgePanel />}
+
+      {analyticsTab === "decisions" && <DecisionLogPanel />}
     </div>
   );
 }
@@ -842,49 +808,7 @@ function NerveCenterPanel() {
   );
 }
 
-function ContinuationPanel() {
-  const { data } = useContinuations();
-  const delegate = useDelegate();
-  if (!data || data.items.length === 0) return null;
 
-  return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-medium flex items-center gap-2">
-        <ArrowRight className="h-4 w-4 text-amber-400" /> Pick Up Where You Left Off
-      </h2>
-      <div className="space-y-2">
-        {data.items.map(item => (
-          <div key={item.sessionId} className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium line-clamp-1">{item.firstMessage || "(no message)"}</p>
-                <div className="flex gap-2 mt-0.5 text-[11px] text-muted-foreground flex-wrap">
-                  <span>{relativeTime(item.lastTs)}</span>
-                  <Badge variant="outline" className={`text-[9px] px-1 py-0 ${
-                    item.outcome === "error" ? "border-red-500/30 text-red-400" :
-                    item.outcome === "abandoned" ? "border-amber-500/30 text-amber-400" :
-                    "border-blue-500/30 text-blue-400"
-                  }`}>{item.outcome}</Badge>
-                  {item.gitBranch && <span className="font-mono">{item.gitBranch}</span>}
-                  {(item.uncommittedFiles || 0) > 0 && <span className="text-amber-400">{item.uncommittedFiles} uncommitted</span>}
-                </div>
-                {item.summary && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.summary}</p>}
-              </div>
-              <div className="flex gap-1 ml-2 flex-shrink-0">
-                <button onClick={() => delegate.mutate({ sessionId: item.sessionId, target: "terminal" })} className="p-1.5 rounded hover:bg-green-500/10" title="Resume in terminal">
-                  <TerminalSquare className="h-3.5 w-3.5 text-green-400" />
-                </button>
-                <button onClick={() => delegate.mutate({ sessionId: item.sessionId, target: "telegram", task: "Continue" })} className="p-1.5 rounded hover:bg-blue-500/10" title="Send to Telegram">
-                  <Send className="h-3.5 w-3.5 text-blue-400" />
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function BashKnowledgePanel() {
   const { data } = useBashKnowledge();
