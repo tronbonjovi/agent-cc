@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Durable run state persistence — survives server restarts (restored as stalled)
   - Cross-project task file scoping (compound `projectId:taskId` index keys)
   - 9 rounds of Codex adversarial review, all findings addressed
+- **Pipeline-first kanban board design** — spec and 13-task implementation plan for rebuilding the kanban board as a pipeline-native UI. Columns are fixed pipeline stages (Backlog → Queued → Build → AI Review → Human Review → Done), milestones render as collapsible horizontal swimlanes, cards move via automation only (no drag-and-drop). 12 rounds of Codex adversarial review on the spec.
 - **Workflow system design** — spec for markdown-based project workflow system (ROADMAP.md → milestones → tasks) with YAML frontmatter, tags, status lifecycle, and kanban integration. Skill-based approach keeps CLAUDE.md lean.
 - **Session rename** — click the pencil icon on any active session to give it a meaningful name. Custom names appear everywhere: Dashboard, Sessions page, and health panel. Names persist across restarts
 - **Data size health threshold** — session file size now color-coded (green < 500KB, yellow 500KB–2MB, red > 2MB), configurable in Settings alongside existing thresholds
