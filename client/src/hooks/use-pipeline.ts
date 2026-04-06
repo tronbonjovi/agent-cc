@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 // --- API hooks ---
 
-export function usePipelineStatus() {
+export function usePipelineStatus(sseConnected?: boolean) {
   return useQuery({
     queryKey: ["pipeline", "status"],
     queryFn: async () => {
@@ -13,7 +13,7 @@ export function usePipelineStatus() {
       if (!res.ok) throw new Error("Failed to fetch pipeline status");
       return res.json();
     },
-    refetchInterval: 5000, // poll as backup to SSE
+    refetchInterval: sseConnected === false ? 5000 : 10000, // faster when SSE is down
   });
 }
 
@@ -174,7 +174,6 @@ export function usePipelineEvents() {
 
   useEffect(() => {
     const es = new EventSource("/api/pipeline/events");
-    let retryTimer: ReturnType<typeof setTimeout>;
 
     es.addEventListener("connected", (e) => {
       setConnected(true);
@@ -203,14 +202,13 @@ export function usePipelineEvents() {
     es.onerror = () => {
       setConnected(false);
       es.close();
-      retryTimer = setTimeout(() => {
-        // Will reconnect on next render cycle
-      }, 5000);
+      // Full refetch on disconnect
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     };
 
     return () => {
       es.close();
-      clearTimeout(retryTimer);
     };
   }, [queryClient]);
 

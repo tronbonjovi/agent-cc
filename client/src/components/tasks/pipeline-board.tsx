@@ -12,8 +12,8 @@ interface PipelineBoardProps {
 }
 
 export function PipelineBoard({ items, removedItems, projectId, onClickTask }: PipelineBoardProps) {
-  const { data: statusData } = usePipelineStatus();
   const { connected } = usePipelineEvents();
+  const { data: statusData } = usePipelineStatus(connected);
 
   const run = statusData?.run ?? null;
   const anyMilestoneActive = run ? NON_TERMINAL_STATES.has(run.status) : false;
