@@ -5,6 +5,7 @@ import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { BoardSetup } from "@/components/tasks/board-setup";
 import { ProjectPicker } from "@/components/tasks/project-picker";
+import { MilestoneControls } from "../components/tasks/milestone-controls";
 import { ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -133,6 +134,14 @@ export default function TasksPage() {
 
         {selectedProjectId && !loadingBoard && needsSetup && (
           <BoardSetup projectName={selectedProject?.name || ""} onAcceptDefaults={handleSetupBoard} />
+        )}
+
+        {selectedProjectId && board && hasBoard && (
+          <MilestoneControls
+            projectId={selectedProjectId}
+            projectPath={board.projectPath}
+            items={board.items}
+          />
         )}
 
         {selectedProjectId && board && hasBoard && (
