@@ -15,6 +15,10 @@ export class Storage {
     return getDB().entities[id] || null;
   }
 
+  getAllEntities(): Entity[] {
+    return Object.values(getDB().entities);
+  }
+
   getEntities(type?: EntityType, query?: string): Entity[] {
     const db = getDB();
     let results = Object.values(db.entities);

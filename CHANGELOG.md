@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Centralized kanban board** — cross-project board at `/board` aggregates tasks from all projects into 5 columns (Backlog → Ready → In Progress → Review → Done). Includes:
+  - Board types, column definitions, cross-project aggregator with per-project colors
+  - Dependency validation with flagging (advise, not block) and auto-unflag
+  - Board API routes: GET state/stats, POST move with validation, POST roadmap ingest, SSE events
+  - Roadmap ingest parser (markdown → milestones + tasks with dependency resolution)
+  - React Query hooks with 10s polling fallback and SSE auto-reconnect with backoff
+  - Rich task cards (project colors, priority badges, tags, activity, cost, assignee)
+  - Side panel with task details, move controls, flag dismissal
+  - Filter bar (project, priority, flagged) with milestone progress indicators
+  - Pipeline freeze guard on board moves (respects active pipeline runs)
+  - 7 new test files, 47 tests covering types, aggregator, validator, events, routes, filters, integration
+  - 7 rounds of Codex adversarial review, 16 bugs caught and fixed
 - **Task automation pipeline** — server-side pipeline manager orchestrates Claude CLI workers in isolated git worktrees. Milestones execute tasks in dependency order with budget/circuit-breaker guardrails, retry escalation (self-fix → codex-rescue → blocked), and SSE streaming to the kanban board. Includes:
   - Pipeline types, git ops (worktrees, snapshots, rebase), budget tracker, event bus
   - Worker lifecycle: build → AI review → human review, with cooperative pause

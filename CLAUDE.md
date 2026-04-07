@@ -70,6 +70,7 @@ server/
   routes/          # Express API routes
   scanner/         # JSONL parsers, analytics, AI features
   pipeline/        # Task automation pipeline (types, git-ops, budget, events, worker, manager)
+  board/           # Kanban board (aggregator, validator, events, ingest)
   db.ts            # JSON database with atomic writes
   storage.ts       # Storage abstraction layer
 shared/
@@ -123,7 +124,7 @@ When adding integrations with external services:
 
 ## Tests
 
-- **2111+ unit tests** covering parsers, routes, storage, validation, scanners, cost indexer, task I/O, path safety, API integration, terminal
+- **2400+ unit tests** covering parsers, routes, storage, validation, scanners, cost indexer, task I/O, path safety, API integration, terminal, board aggregation/validation/events/routes
 - **`new-user-safety.test.ts`** — automated guardrail that scans all source files for:
   - Hardcoded user paths (both decoded `C:/Users/...` and encoded `C--Users-...`)
   - Phone numbers / PII

@@ -1,10 +1,11 @@
 // client/src/hooks/use-pipeline.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 // --- API hooks ---
 
-export function usePipelineStatus() {
+export function usePipelineStatus(sseConnected?: boolean) {
   return useQuery({
     queryKey: ["pipeline", "status"],
     queryFn: async () => {
@@ -12,7 +13,7 @@ export function usePipelineStatus() {
       if (!res.ok) throw new Error("Failed to fetch pipeline status");
       return res.json();
     },
-    refetchInterval: 5000, // poll as backup to SSE
+    refetchInterval: sseConnected === false ? 5000 : 10000, // faster when SSE is down
   });
 }
 
@@ -39,8 +40,13 @@ export function useUpdatePipelineConfig() {
       if (!res.ok) throw new Error("Failed to update pipeline config");
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pipeline", "config"] });
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to update pipeline config");
     },
   });
 }
@@ -66,9 +72,13 @@ export function useStartMilestone() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to start milestone");
     },
   });
 }
@@ -81,8 +91,13 @@ export function usePauseMilestone() {
       if (!res.ok) throw new Error("Failed to pause milestone");
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to pause milestone");
     },
   });
 }
@@ -95,8 +110,13 @@ export function useResumeMilestone() {
       if (!res.ok) throw new Error("Failed to resume milestone");
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to resume milestone");
     },
   });
 }
@@ -112,9 +132,13 @@ export function useApproveMilestone() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to approve milestone");
     },
   });
 }
@@ -127,9 +151,13 @@ export function useDescopeTask() {
       if (!res.ok) throw new Error("Failed to descope task");
       return res.json();
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message ?? "Failed to descope task");
     },
   });
 }
@@ -152,7 +180,6 @@ export function usePipelineEvents() {
 
   useEffect(() => {
     const es = new EventSource("/api/pipeline/events");
-    let retryTimer: ReturnType<typeof setTimeout>;
 
     es.addEventListener("connected", (e) => {
       setConnected(true);
@@ -174,6 +201,7 @@ export function usePipelineEvents() {
         if (eventType.startsWith("task-") || eventType.startsWith("milestone-")) {
           queryClient.invalidateQueries({ queryKey: ["pipeline", "status"] });
           queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
         }
       });
     }
@@ -181,14 +209,14 @@ export function usePipelineEvents() {
     es.onerror = () => {
       setConnected(false);
       es.close();
-      retryTimer = setTimeout(() => {
-        // Will reconnect on next render cycle
-      }, 5000);
+      // Full refetch on disconnect
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/tasks/") });
     };
 
     return () => {
       es.close();
-      clearTimeout(retryTimer);
     };
   }, [queryClient]);
 

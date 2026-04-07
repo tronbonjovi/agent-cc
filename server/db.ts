@@ -39,6 +39,7 @@ export interface DBData {
   costIndexState: CostIndexState;
   pipelineConfig: PipelineConfig;
   pipelineRun: MilestoneRun | null;
+  boardConfig: { projectColors: Record<string, string> };
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -92,6 +93,7 @@ function defaultData(): DBData {
     costIndexState: { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 },
     pipelineConfig: DEFAULT_PIPELINE_CONFIG,
     pipelineRun: null,
+    boardConfig: { projectColors: {} },
   };
 }
 
@@ -124,6 +126,7 @@ try {
     if (!data.costIndexState) data.costIndexState = { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 };
     if (!data.pipelineConfig) data.pipelineConfig = DEFAULT_PIPELINE_CONFIG;
     if (data.pipelineRun === undefined) data.pipelineRun = null;
+    if (!data.boardConfig) data.boardConfig = { projectColors: {} };
     if (data.appSettings.onboarded === undefined) data.appSettings.onboarded = false;
     if (!data.appSettings.billingMode) data.appSettings.billingMode = "auto";
   } else {

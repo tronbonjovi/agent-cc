@@ -27,6 +27,7 @@ import {
   Bot,
   BarChart3,
   CheckSquare,
+  Kanban,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import React from "react";
@@ -49,6 +50,7 @@ const navSections: NavSection[] = [
     label: "Overview",
     items: [
       { path: "/", label: "Dashboard", icon: LayoutDashboard, countKey: null },
+      { path: "/board", label: "Board", icon: Kanban, countKey: null },
     ],
   },
   {

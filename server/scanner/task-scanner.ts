@@ -4,7 +4,12 @@ import { parseTaskFile, parseConfigFile, taskFileIndex, taskFileKey } from "../t
 import { DEFAULT_TASK_CONFIG } from "@shared/task-types";
 import type { TaskBoardState } from "@shared/task-types";
 
-export function scanProjectTasks(projectPath: string, projectId: string, projectName: string): TaskBoardState {
+export function scanProjectTasks(
+  projectPath: string,
+  projectId: string,
+  projectName: string,
+  opts?: { includeRemoved?: boolean }
+): TaskBoardState {
   const tasksDir = path.join(projectPath, ".claude", "tasks").replace(/\\/g, "/");
 
   const result: TaskBoardState = {
@@ -47,6 +52,13 @@ export function scanProjectTasks(projectPath: string, projectId: string, project
     } else {
       result.malformedCount++;
     }
+  }
+
+  // Filter removed tasks unless explicitly requested
+  if (!opts?.includeRemoved) {
+    result.items = result.items.filter(
+      (item) => item.pipelineStage !== "descoped" && item.pipelineStage !== "cancelled"
+    );
   }
 
   return result;
