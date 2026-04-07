@@ -85,9 +85,8 @@ function defaultData(): DBData {
     terminalPanel: {
       height: 300,
       collapsed: false,
-      tabs: [],
-      activeTabId: null,
-      splitTabId: null,
+      groups: [],
+      activeGroupId: null,
     },
     costRecords: {},
     costIndexState: { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 },
@@ -122,6 +121,65 @@ try {
     if (!data.decisions) data.decisions = [];
     if (!data.markdownMeta) data.markdownMeta = {};
     if (!data.terminalPanel) data.terminalPanel = defaultData().terminalPanel;
+    // Migrate old flat-tab format to groups
+    if ((data.terminalPanel as any).tabs && !(data.terminalPanel as any).groups) {
+      const oldTabs = (data.terminalPanel as any).tabs as Array<{ id: string; name: string }>;
+      const oldActiveTabId = (data.terminalPanel as any).activeTabId as string | null;
+      const oldSplitTabId = (data.terminalPanel as any).splitTabId as string | null;
+      if (oldTabs.length > 0) {
+        // Build groups — if there was an active split, group those two together
+        const splitPairIds = new Set<string>();
+        if (oldActiveTabId && oldSplitTabId && oldActiveTabId !== oldSplitTabId) {
+          splitPairIds.add(oldActiveTabId);
+          splitPairIds.add(oldSplitTabId);
+        }
+
+        const groups: Array<{ id: string; instances: Array<{ id: string; name: string }> }> = [];
+        const handled = new Set<string>();
+
+        // First: create the split group if applicable
+        if (splitPairIds.size === 2) {
+          const activeTab = oldTabs.find((t) => t.id === oldActiveTabId);
+          const splitTab = oldTabs.find((t) => t.id === oldSplitTabId);
+          if (activeTab && splitTab) {
+            groups.push({
+              id: activeTab.id,
+              instances: [
+                { id: activeTab.id, name: activeTab.name },
+                { id: splitTab.id, name: splitTab.name },
+              ],
+            });
+            handled.add(activeTab.id);
+            handled.add(splitTab.id);
+          }
+        }
+
+        // Then: each remaining tab becomes its own group
+        for (const tab of oldTabs) {
+          if (!handled.has(tab.id)) {
+            groups.push({ id: tab.id, instances: [{ id: tab.id, name: tab.name }] });
+          }
+        }
+
+        data.terminalPanel = {
+          height: data.terminalPanel.height,
+          collapsed: data.terminalPanel.collapsed,
+          groups,
+          // Validate activeGroupId exists in migrated groups
+          activeGroupId: groups.some((g) => g.id === oldActiveTabId)
+            ? oldActiveTabId
+            : groups[0].id,
+        };
+      } else {
+        // Empty old tabs — preserve height/collapsed preferences
+        const defaults = defaultData().terminalPanel;
+        data.terminalPanel = {
+          ...defaults,
+          height: data.terminalPanel.height ?? defaults.height,
+          collapsed: data.terminalPanel.collapsed ?? defaults.collapsed,
+        };
+      }
+    }
     if (!data.costRecords) data.costRecords = {};
     if (!data.costIndexState) data.costIndexState = { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 };
     if (!data.pipelineConfig) data.pipelineConfig = DEFAULT_PIPELINE_CONFIG;

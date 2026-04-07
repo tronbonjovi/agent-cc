@@ -1,6 +1,11 @@
-export interface TerminalTab {
+export interface TerminalInstanceData {
   id: string;
   name: string;
+}
+
+export interface TerminalGroupData {
+  id: string;
+  instances: TerminalInstanceData[];
 }
 
 export type TerminalConnectionState =
@@ -15,9 +20,8 @@ export type TerminalConnectionState =
 export interface TerminalPanelState {
   height: number;
   collapsed: boolean;
-  tabs: TerminalTab[];
-  activeTabId: string | null;
-  splitTabId: string | null;
+  groups: TerminalGroupData[];
+  activeGroupId: string | null;
 }
 
 export type EntityType = "project" | "mcp" | "plugin" | "skill" | "markdown" | "config";

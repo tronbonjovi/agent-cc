@@ -4,17 +4,21 @@ import { storage } from "../storage";
 import { getTerminalManager } from "../terminal";
 import { validate } from "./validation";
 
-const TerminalTabSchema = z.object({
+const TerminalInstanceDataSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(100),
+});
+
+const TerminalGroupDataSchema = z.object({
+  id: z.string().min(1),
+  instances: z.array(TerminalInstanceDataSchema).min(1),
 });
 
 const PanelPatchSchema = z.object({
   height: z.number().min(100).max(2000).optional(),
   collapsed: z.boolean().optional(),
-  tabs: z.array(TerminalTabSchema).optional(),
-  activeTabId: z.string().nullable().optional(),
-  splitTabId: z.string().nullable().optional(),
+  groups: z.array(TerminalGroupDataSchema).optional(),
+  activeGroupId: z.string().nullable().optional(),
 });
 
 const router = Router();

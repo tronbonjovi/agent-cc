@@ -1,299 +1,172 @@
-import { useReducer, useRef, useCallback, useEffect, useState } from "react";
-import { TerminalInstance, type TerminalInstanceHandle } from "./terminal-instance";
-import { useTerminalPanel, useUpdateTerminalPanel } from "@/hooks/use-terminal";
-import type { TerminalTab, TerminalConnectionState } from "@shared/types";
-import { Plus, X, Columns2, ChevronDown, ChevronUp, Terminal } from "lucide-react";
-
-const MAX_TAB_NAME_LENGTH = 100;
-
-function generateId(): string {
-  return crypto.randomUUID();
-}
-
-// --- Reducer for atomic state transitions (fixes stale closure issues) ---
-
-interface PanelState {
-  tabs: TerminalTab[];
-  activeTabId: string | null;
-  splitTabId: string | null;
-  collapsed: boolean;
-  height: number;
-}
-
-type PanelAction =
-  | { type: "INIT_FROM_SERVER"; state: PanelState }
-  | { type: "CREATE_INITIAL_TAB"; tab: TerminalTab }
-  | { type: "ADD_TAB"; tab: TerminalTab }
-  | { type: "CLOSE_TAB"; tabId: string }
-  | { type: "SET_ACTIVE"; tabId: string }
-  | { type: "TOGGLE_SPLIT" }
-  | { type: "TOGGLE_COLLAPSE" }
-  | { type: "SET_HEIGHT"; height: number }
-  | { type: "RENAME_TAB"; tabId: string; name: string };
-
-/** Clear splitTabId whenever the split state is invalid */
-function normalizeSplit(s: PanelState): PanelState {
-  if (!s.splitTabId) return s;
-  const valid =
-    s.tabs.length >= 2 &&
-    s.activeTabId !== s.splitTabId &&
-    s.tabs.some((t) => t.id === s.splitTabId);
-  return valid ? s : { ...s, splitTabId: null };
-}
-
-function panelReducer(state: PanelState, action: PanelAction): PanelState {
-  return normalizeSplit(panelReducerRaw(state, action));
-}
-
-function panelReducerRaw(state: PanelState, action: PanelAction): PanelState {
-  switch (action.type) {
-    case "INIT_FROM_SERVER":
-      return action.state;
-
-    case "CREATE_INITIAL_TAB":
-      return {
-        ...state,
-        tabs: [action.tab],
-        activeTabId: action.tab.id,
-      };
-
-    case "ADD_TAB":
-      return {
-        ...state,
-        tabs: [...state.tabs, action.tab],
-        activeTabId: action.tab.id,
-      };
-
-    case "CLOSE_TAB": {
-      const newTabs = state.tabs.filter((t) => t.id !== action.tabId);
-      let newActiveId = state.activeTabId;
-      let newSplitId = state.splitTabId;
-
-      if (state.splitTabId === action.tabId) newSplitId = null;
-      if (state.activeTabId === action.tabId) {
-        newActiveId = newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null;
-      }
-
-      return { ...state, tabs: newTabs, activeTabId: newActiveId, splitTabId: newSplitId };
-    }
-
-    case "SET_ACTIVE":
-      // If clicking the tab that's in the split pane, swap them
-      if (state.splitTabId && action.tabId === state.splitTabId) {
-        return { ...state, activeTabId: action.tabId, splitTabId: state.activeTabId };
-      }
-      return { ...state, activeTabId: action.tabId };
-
-    case "TOGGLE_SPLIT": {
-      if (state.splitTabId) {
-        return { ...state, splitTabId: null };
-      }
-      if (state.tabs.length >= 2) {
-        const other = state.tabs.find((t) => t.id !== state.activeTabId);
-        if (other) return { ...state, splitTabId: other.id };
-      }
-      return state;
-    }
-
-    case "TOGGLE_COLLAPSE":
-      return { ...state, collapsed: !state.collapsed };
-
-    case "SET_HEIGHT":
-      return { ...state, height: action.height };
-
-    case "RENAME_TAB":
-      return {
-        ...state,
-        tabs: state.tabs.map((t) =>
-          t.id === action.tabId ? { ...t, name: action.name } : t
-        ),
-      };
-
-    default:
-      return state;
-  }
-}
-
-const initialState: PanelState = {
-  tabs: [],
-  activeTabId: null,
-  splitTabId: null,
-  collapsed: false,
-  height: 300,
-};
+import { useRef, useCallback, useEffect } from "react";
+import { ChevronUp, Terminal } from "lucide-react";
+import { useTerminalGroupStore } from "@/stores/terminal-group-store";
+import { getTerminalInstanceManager } from "@/lib/terminal-instance-manager";
+import { useTheme } from "@/hooks/use-theme";
+import { TerminalToolbar } from "./terminal-toolbar";
+import { TerminalGroupView } from "./terminal-group-view";
+import { TerminalExplorer } from "./terminal-explorer";
+import { apiRequest } from "@/lib/queryClient";
+import type { TerminalPanelState } from "@shared/types";
 
 export function TerminalPanel() {
-  const { data: panelState } = useTerminalPanel();
-  const updatePanel = useUpdateTerminalPanel();
-  const [state, dispatch] = useReducer(panelReducer, initialState);
-  const [connectionStates, setConnectionStates] = useState<Record<string, TerminalConnectionState>>({});
-  const [unreadTabIds, setUnreadTabIds] = useState<Set<string>>(new Set());
-  const userRenamedTabIdsRef = useRef<Set<string>>(new Set());
-  const terminalRefs = useRef<Map<string, TerminalInstanceHandle>>(new Map());
-  const initializedRef = useRef(false);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const collapsed = useTerminalGroupStore((s) => s.collapsed);
+  const height = useTerminalGroupStore((s) => s.height);
+  const groups = useTerminalGroupStore((s) => s.groups);
+  const activeGroupId = useTerminalGroupStore((s) => s.activeGroupId);
+  const setHeight = useTerminalGroupStore((s) => s.setHeight);
+  const setCollapsed = useTerminalGroupStore((s) => s.setCollapsed);
+  const loadFromServer = useTerminalGroupStore((s) => s.loadFromServer);
+  const createGroup = useTerminalGroupStore((s) => s.createGroup);
+  const toSerializable = useTerminalGroupStore((s) => s.toSerializable);
+  const markUnread = useTerminalGroupStore((s) => s.markUnread);
+
   const isResizingRef = useRef(false);
-  const stateRef = useRef(state);
+  const initializedRef = useRef(false);
+  const serverLoadedRef = useRef(false);
+  const { resolvedTheme } = useTheme();
 
-  // Keep ref in sync for use in event handlers
-  stateRef.current = state;
-
-  // Sync from server state ONLY on initial load
+  // Load state from server on mount
   useEffect(() => {
-    if (panelState && !initializedRef.current) {
-      initializedRef.current = true;
-      if (panelState.tabs.length > 0) {
-        dispatch({
-          type: "INIT_FROM_SERVER",
-          state: {
-            tabs: panelState.tabs,
-            activeTabId: panelState.activeTabId,
-            splitTabId: panelState.splitTabId,
-            collapsed: panelState.collapsed,
-            height: panelState.height,
-          },
-        });
-      } else {
-        // No saved tabs — create initial terminal
-        dispatch({
-          type: "INIT_FROM_SERVER",
-          state: {
-            tabs: [],
-            activeTabId: null,
-            splitTabId: null,
-            collapsed: panelState.collapsed,
-            height: panelState.height,
-          },
-        });
-        const initial: TerminalTab = { id: generateId(), name: "Terminal 1" };
-        dispatch({ type: "CREATE_INITIAL_TAB", tab: initial });
-      }
-    }
-  }, [panelState]);
+    if (initializedRef.current) return;
+    initializedRef.current = true;
 
-  // Persist state to server whenever it changes (after initialization)
+    fetch("/api/terminal/panel")
+      .then((r) => r.json())
+      .then((data: TerminalPanelState) => {
+        serverLoadedRef.current = true;
+        if (data.groups && data.groups.length > 0) {
+          loadFromServer(data);
+          // Create manager instances only for those not already live
+          const manager = getTerminalInstanceManager();
+          for (const group of data.groups) {
+            for (const inst of group.instances) {
+              if (!manager.has(inst.id)) {
+                manager.create(inst.id);
+              }
+            }
+          }
+        } else {
+          // No saved state — create initial terminal
+          const groupId = crypto.randomUUID();
+          const instanceId = crypto.randomUUID();
+          const manager = getTerminalInstanceManager();
+          manager.create(instanceId);
+          createGroup(groupId, instanceId, "bash");
+        }
+      })
+      .catch(() => {
+        // Server unavailable — create a local-only terminal for usability,
+        // but do NOT mark serverLoadedRef true. This suppresses persistence
+        // so this fallback can never overwrite valid persisted data.
+        const manager = getTerminalInstanceManager();
+        if (!manager.hasAny()) {
+          const groupId = crypto.randomUUID();
+          const instanceId = crypto.randomUUID();
+          manager.create(instanceId);
+          createGroup(groupId, instanceId, "bash");
+        }
+      });
+  }, [loadFromServer, createGroup]);
+
+  // Persist state to server on changes — debounced to prevent stale overwrites
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!initializedRef.current || state.tabs.length === 0) return;
-    updatePanel.mutate({
-      tabs: state.tabs,
-      activeTabId: state.activeTabId,
-      splitTabId: state.splitTabId,
-      height: state.height,
-      collapsed: state.collapsed,
-    });
-  }, [state.tabs, state.activeTabId, state.splitTabId, state.height, state.collapsed]);
-
-  const addTab = useCallback(() => {
-    const current = stateRef.current;
-    const maxNum = current.tabs.reduce((max, t) => {
-      const match = t.name.match(/^Terminal (\d+)$/);
-      return match ? Math.max(max, parseInt(match[1], 10)) : max;
-    }, 0);
-    const newTab: TerminalTab = {
-      id: generateId(),
-      name: `Terminal ${maxNum + 1}`,
-    };
-    dispatch({ type: "ADD_TAB", tab: newTab });
-  }, []);
-
-  const closeTab = useCallback((tabId: string) => {
-    // Kill the server-side PTY immediately (don't let it linger in grace period)
-    const handle = terminalRefs.current.get(tabId);
-    if (handle) handle.killSession();
-    terminalRefs.current.delete(tabId);
-    userRenamedTabIdsRef.current.delete(tabId);
-    dispatch({ type: "CLOSE_TAB", tabId });
-  }, []);
-
-  const toggleSplit = useCallback(() => {
-    dispatch({ type: "TOGGLE_SPLIT" });
-  }, []);
-
-  const toggleCollapse = useCallback(() => {
-    dispatch({ type: "TOGGLE_COLLAPSE" });
-  }, []);
-
-  // Drag-to-resize — uses refs to avoid stale closures
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingRef.current = true;
-    const startY = e.clientY;
-    const startHeight = stateRef.current.height;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      const delta = startY - moveEvent.clientY;
-      const newHeight = Math.max(100, Math.min(startHeight + delta, window.innerHeight - 200));
-      dispatch({ type: "SET_HEIGHT", height: newHeight });
-    };
-
-    const handleMouseUp = () => {
-      isResizingRef.current = false;
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  }, []);
-
-  const handleConnectionStateChange = useCallback((terminalId: string, connState: TerminalConnectionState) => {
-    setConnectionStates(prev => ({ ...prev, [terminalId]: connState }));
-  }, []);
-
-  const handleRenameTab = useCallback((tabId: string, newName: string) => {
-    const trimmed = newName.trim().slice(0, MAX_TAB_NAME_LENGTH);
-    if (trimmed) {
-      userRenamedTabIdsRef.current.add(tabId);
-      dispatch({ type: "RENAME_TAB", tabId, name: trimmed });
-    }
-  }, []);
-
-  const handleTitleChange = useCallback((tabId: string, title: string) => {
-    // Don't overwrite user-assigned tab names with shell titles
-    if (userRenamedTabIdsRef.current.has(tabId)) return;
-    // Strip control characters, then trim and truncate
-    const sanitized = title.replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, MAX_TAB_NAME_LENGTH);
-    if (sanitized) {
-      dispatch({ type: "RENAME_TAB", tabId, name: sanitized });
-    }
-  }, []);
-
-  const handleActivity = useCallback((tabId: string) => {
-    const current = stateRef.current;
-    // Don't mark as unread if tab is visible in either pane
-    if (tabId === current.activeTabId || tabId === current.splitTabId) return;
-    setUnreadTabIds(prev => {
-      if (prev.has(tabId)) return prev;
-      const next = new Set(prev);
-      next.add(tabId);
-      return next;
-    });
-  }, []);
-
-  const setActiveTab = useCallback((tabId: string) => {
-    dispatch({ type: "SET_ACTIVE", tabId });
-    setUnreadTabIds(prev => {
-      if (!prev.has(tabId)) return prev;
-      const next = new Set(prev);
-      next.delete(tabId);
-      return next;
-    });
-  }, []);
-
-  // Clean up document listeners on unmount
-  useEffect(() => {
+    if (!serverLoadedRef.current) return;
+    // Cancel any pending save — only the latest state wins
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      const data = toSerializable();
+      apiRequest("PATCH", "/api/terminal/panel", data).catch(() => {});
+    }, 300);
     return () => {
-      // Safety: remove any lingering drag listeners
-      isResizingRef.current = false;
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     };
+  }, [groups, activeGroupId, height, collapsed, toSerializable]);
+
+  // Subscribe manager to update shell types when server reports them.
+  // Only update display name if the user hasn't renamed it.
+  useEffect(() => {
+    const manager = getTerminalInstanceManager();
+    const unsub = manager.onShellType((id, shellType) => {
+      const state = useTerminalGroupStore.getState();
+      for (const group of state.groups) {
+        const inst = group.instances.find((i) => i.id === id);
+        if (inst) {
+          // Always store the actual shell type
+          state.updateShellType(id, shellType);
+          // Only update display name if not user-renamed
+          if (!inst.userRenamed) {
+            // Use updateShellName to avoid setting userRenamed=true
+            state.setInstanceName(id, shellType);
+          }
+          break;
+        }
+      }
+    });
+    return unsub;
   }, []);
 
-  if (state.collapsed) {
+  // Subscribe to activity events for unread tracking
+  useEffect(() => {
+    const manager = getTerminalInstanceManager();
+    const unsub = manager.onActivity((id) => {
+      const state = useTerminalGroupStore.getState();
+      // Only mark unread if the instance is NOT in the active group
+      const activeGroup = state.groups.find((g) => g.id === state.activeGroupId);
+      const isInActiveGroup = activeGroup?.instances.some((i) => i.id === id);
+      if (!isInActiveGroup) {
+        markUnread(id);
+      }
+    });
+    return unsub;
+  }, [markUnread]);
+
+  // Sync theme to manager
+  useEffect(() => {
+    const manager = getTerminalInstanceManager();
+    manager.updateTheme(resolvedTheme.variant as "dark" | "light", {
+      background: resolvedTheme.colors.background,
+      foreground: resolvedTheme.colors.foreground,
+      accent: resolvedTheme.colors.accent,
+    });
+  }, [resolvedTheme]);
+
+  // Drag-to-resize
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      isResizingRef.current = true;
+      const startY = e.clientY;
+      const startHeight = height;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const delta = startY - moveEvent.clientY;
+        const newHeight = Math.max(
+          100,
+          Math.min(startHeight + delta, window.innerHeight - 200)
+        );
+        setHeight(newHeight);
+      };
+
+      const handleMouseUp = () => {
+        isResizingRef.current = false;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [height, setHeight]
+  );
+
+  if (collapsed) {
     return (
       <div className="border-t border-border bg-background">
         <div className="flex items-center h-8 px-2">
           <button
-            onClick={toggleCollapse}
+            onClick={() => setCollapsed(false)}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-accent/50"
           >
             <ChevronUp className="h-3 w-3" />
@@ -306,7 +179,7 @@ export function TerminalPanel() {
   }
 
   return (
-    <div ref={panelRef} style={{ height: state.height }} className="flex flex-col border-t bg-background">
+    <div style={{ height }} className="flex flex-col border-t bg-background">
       {/* Drag handle */}
       <div
         onMouseDown={handleMouseDown}
@@ -315,124 +188,11 @@ export function TerminalPanel() {
         <div className="w-10 h-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
       </div>
 
-      {/* Tab bar */}
-      <div className="flex items-center h-8 px-1 border-b bg-muted/30 text-xs">
-        {state.tabs.map((tab) => (
-          <div
-            key={tab.id}
-            className={`flex items-center gap-1 px-2 h-full cursor-pointer border-r border-border ${
-              tab.id === state.activeTabId
-                ? "bg-background text-foreground"
-                : tab.id === state.splitTabId
-                  ? "bg-background/60 text-foreground"
-                  : unreadTabIds.has(tab.id)
-                    ? "text-foreground bg-accent/30 animate-terminal-tab-flash"
-                    : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span
-              className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
-                (() => {
-                  const s = connectionStates[tab.id];
-                  if (s === "connected") return "bg-green-500";
-                  if (s === "disconnected" || s === "reconnecting") return "bg-yellow-500";
-                  if (s === "expired") return "bg-red-500";
-                  return "bg-zinc-500";
-                })()
-              }`}
-            />
-            <span
-              onClick={() => setActiveTab(tab.id)}
-              onDoubleClick={() => {
-                const newName = prompt("Rename terminal:", tab.name);
-                if (newName) handleRenameTab(tab.id, newName);
-              }}
-            >
-              {tab.name}
-            </span>
-            {state.tabs.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeTab(tab.id);
-                }}
-                className="ml-1 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-        ))}
+      <TerminalToolbar />
 
-        <div className="flex items-center ml-auto gap-0.5 px-1">
-          {state.tabs.length >= 2 && (
-            <button
-              onClick={toggleSplit}
-              className={`p-1 rounded hover:bg-accent/50 transition-colors ${
-                state.splitTabId ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-              title={state.splitTabId ? "Unsplit" : "Split view"}
-            >
-              <Columns2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <button
-            onClick={addTab}
-            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-            title="New terminal"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={toggleCollapse}
-            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-            title="Collapse panel"
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Terminal area — each tab rendered exactly once, in the correct pane */}
       <div className="flex-1 flex min-h-0">
-        <div className={state.splitTabId ? "flex-1 border-r border-border" : "flex-1"}>
-          {state.tabs
-            .filter((tab) => tab.id !== state.splitTabId)
-            .map((tab) => (
-              <TerminalInstance
-                key={tab.id}
-                ref={(handle) => {
-                  if (handle) terminalRefs.current.set(tab.id, handle);
-                  else terminalRefs.current.delete(tab.id);
-                }}
-                id={tab.id}
-                isVisible={tab.id === state.activeTabId}
-                onConnectionStateChange={handleConnectionStateChange}
-                onTitleChange={handleTitleChange}
-                onActivity={handleActivity}
-              />
-            ))}
-        </div>
-        {state.splitTabId && (
-          <div className="flex-1">
-            {state.tabs
-              .filter((tab) => tab.id === state.splitTabId)
-              .map((tab) => (
-                <TerminalInstance
-                  key={tab.id}
-                  ref={(handle) => {
-                    if (handle) terminalRefs.current.set(tab.id, handle);
-                    else terminalRefs.current.delete(tab.id);
-                  }}
-                  id={tab.id}
-                  isVisible={true}
-                  onConnectionStateChange={handleConnectionStateChange}
-                  onTitleChange={handleTitleChange}
-                  onActivity={handleActivity}
-                />
-              ))}
-          </div>
-        )}
+        <TerminalGroupView />
+        <TerminalExplorer />
       </div>
     </div>
   );
