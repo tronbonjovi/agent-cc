@@ -165,9 +165,13 @@ export function TerminalPanel() {
 
   const addTab = useCallback(() => {
     const current = stateRef.current;
+    const maxNum = current.tabs.reduce((max, t) => {
+      const match = t.name.match(/^Terminal (\d+)$/);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
     const newTab: TerminalTab = {
       id: generateId(),
-      name: `Terminal ${current.tabs.length + 1}`,
+      name: `Terminal ${maxNum + 1}`,
     };
     dispatch({ type: "ADD_TAB", tab: newTab });
   }, []);
