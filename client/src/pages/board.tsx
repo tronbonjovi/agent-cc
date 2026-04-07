@@ -1,6 +1,7 @@
 // client/src/pages/board.tsx
 
 import { BoardHeader } from "@/components/board/board-header";
+import { BoardTaskCard } from "@/components/board/board-task-card";
 import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useState, useMemo } from "react";
@@ -62,22 +63,11 @@ export default function BoardPage() {
               {/* Cards placeholder — replaced in Task 10 */}
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {tasksByColumn[col.id]?.map(task => (
-                  <div
+                  <BoardTaskCard
                     key={task.id}
-                    onClick={() => setSelectedTask(task)}
-                    className="bg-card border rounded-md p-3 text-sm cursor-pointer hover:border-foreground/20 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-2 h-full rounded-full flex-shrink-0"
-                        style={{ backgroundColor: task.projectColor }}
-                      />
-                      <span className="font-medium truncate">{task.title}</span>
-                    </div>
-                    {task.flagged && (
-                      <div className="text-[10px] text-amber-500 mt-1">Flagged: {task.flagReason}</div>
-                    )}
-                  </div>
+                    task={task}
+                    onClick={setSelectedTask}
+                  />
                 ))}
                 {(!tasksByColumn[col.id] || tasksByColumn[col.id].length === 0) && (
                   <div className="text-xs text-muted-foreground/50 text-center py-8">
