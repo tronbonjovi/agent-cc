@@ -32,6 +32,7 @@ const MessageHistory = lazy(() => import("@/pages/message-history"));
 const APIs = lazy(() => import("@/pages/apis"));
 const Prompts = lazy(() => import("@/pages/prompts"));
 const Tasks = lazy(() => import("@/pages/tasks"));
+const BoardPage = lazy(() => import("@/pages/board"));
 import NotFound from "@/pages/not-found";
 
 function PageLoader() {
@@ -73,6 +74,9 @@ function Router() {
             </Route>
             <Route path="/tasks/:projectId">
               <ErrorBoundary pageName="Tasks"><Tasks /></ErrorBoundary>
+            </Route>
+            <Route path="/board">
+              <ErrorBoundary pageName="Board"><BoardPage /></ErrorBoundary>
             </Route>
             <Route path="/mcps">
               <ErrorBoundary pageName="MCPs"><MCPs /></ErrorBoundary>
