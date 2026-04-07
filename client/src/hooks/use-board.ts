@@ -56,6 +56,19 @@ export function useMoveTask() {
   });
 }
 
+/** Unflag a task without moving it or touching pipeline state. */
+export function useUnflagTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) =>
+      apiFetch(`/api/board/tasks/${taskId}/unflag`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BOARD_KEY });
+      qc.invalidateQueries({ queryKey: STATS_KEY });
+    },
+  });
+}
+
 /** Ingest a roadmap into a project. */
 export function useIngestRoadmap() {
   const qc = useQueryClient();

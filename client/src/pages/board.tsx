@@ -6,11 +6,11 @@ import { BoardTaskCard } from "@/components/board/board-task-card";
 import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useState, useMemo } from "react";
-import type { BoardFilter, BoardTask } from "@shared/board-types";
+import type { BoardFilter } from "@shared/board-types";
 
 export default function BoardPage() {
   const [filter, setFilter] = useState<BoardFilter>({});
-  const [selectedTask, setSelectedTask] = useState<BoardTask | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const { data: board, isLoading } = useBoardState();
   const { data: stats } = useBoardStats();
   const { connected } = useBoardEvents();
@@ -27,6 +27,11 @@ export default function BoardPage() {
     }
     return map;
   }, [filteredTasks]);
+
+  // Derive selected task from fresh query data so panel always shows current state
+  const selectedTask = selectedTaskId
+    ? board?.tasks.find(t => t.id === selectedTaskId) ?? null
+    : null;
 
   if (isLoading) {
     return (
@@ -61,13 +66,13 @@ export default function BoardPage() {
                 </span>
               </div>
 
-              {/* Cards placeholder — replaced in Task 10 */}
+              {/* Cards */}
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {tasksByColumn[col.id]?.map(task => (
                   <BoardTaskCard
                     key={task.id}
                     task={task}
-                    onClick={setSelectedTask}
+                    onClick={(t) => setSelectedTaskId(t.id)}
                   />
                 ))}
                 {(!tasksByColumn[col.id] || tasksByColumn[col.id].length === 0) && (
@@ -83,7 +88,7 @@ export default function BoardPage() {
       <BoardSidePanel
         task={selectedTask}
         open={selectedTask !== null}
-        onClose={() => setSelectedTask(null)}
+        onClose={() => setSelectedTaskId(null)}
       />
     </div>
   );

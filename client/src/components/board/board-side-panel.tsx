@@ -7,7 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { AlertTriangle, Bot, ExternalLink, DollarSign } from "lucide-react";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
-import { useMoveTask } from "@/hooks/use-board";
+import { useMoveTask, useUnflagTask } from "@/hooks/use-board";
 import type { BoardTask, BoardColumn } from "@shared/board-types";
 
 interface BoardSidePanelProps {
@@ -18,6 +18,7 @@ interface BoardSidePanelProps {
 
 export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
   const moveTask = useMoveTask();
+  const unflagTask = useUnflagTask();
 
   if (!task) return null;
 
@@ -25,8 +26,8 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
     moveTask.mutate({ taskId: task!.id, column });
   }
 
-  function handleForceUnflag() {
-    moveTask.mutate({ taskId: task!.id, column: task!.column, force: true });
+  function handleDismissFlag() {
+    unflagTask.mutate(task!.id);
   }
 
   return (
@@ -62,7 +63,7 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
                     variant="ghost"
                     size="sm"
                     className="mt-2 h-7 text-xs text-amber-500"
-                    onClick={handleForceUnflag}
+                    onClick={handleDismissFlag}
                   >
                     Dismiss flag
                   </Button>

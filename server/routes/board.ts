@@ -120,6 +120,24 @@ export function createBoardRouter(events: BoardEventBus): Router {
     });
   });
 
+  // POST /api/board/tasks/:id/unflag — clear flag without moving or touching pipeline state
+  router.post("/api/board/tasks/:id/unflag", (req, res) => {
+    const { id } = req.params;
+    const state = aggregateBoardState();
+    const task = state.tasks.find(t => t.id === id);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+
+    try {
+      updateTaskField(id, "flagged", false, task.project);
+      updateTaskField(id, "flagReason", undefined, task.project);
+    } catch {
+      return res.status(500).json({ error: "Failed to unflag task" });
+    }
+
+    events.emit("task-unflagged", { taskId: id });
+    return res.json({ id, flagged: false });
+  });
+
   // GET /api/board/events — SSE stream
   router.get("/api/board/events", (req, res) => {
     res.writeHead(200, {
