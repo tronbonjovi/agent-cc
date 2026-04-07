@@ -31,7 +31,21 @@ type PanelAction =
   | { type: "SET_HEIGHT"; height: number }
   | { type: "RENAME_TAB"; tabId: string; name: string };
 
+/** Clear splitTabId whenever the split state is invalid */
+function normalizeSplit(s: PanelState): PanelState {
+  if (!s.splitTabId) return s;
+  const valid =
+    s.tabs.length >= 2 &&
+    s.activeTabId !== s.splitTabId &&
+    s.tabs.some((t) => t.id === s.splitTabId);
+  return valid ? s : { ...s, splitTabId: null };
+}
+
 function panelReducer(state: PanelState, action: PanelAction): PanelState {
+  return normalizeSplit(panelReducerRaw(state, action));
+}
+
+function panelReducerRaw(state: PanelState, action: PanelAction): PanelState {
   switch (action.type) {
     case "INIT_FROM_SERVER":
       return action.state;
