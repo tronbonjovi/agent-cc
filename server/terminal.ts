@@ -113,7 +113,11 @@ export class TerminalManager {
     });
 
     ws.on("close", () => {
-      this.detach(id);
+      // Only detach if this WS is still the active one (prevents stale
+      // close handlers from tearing down a replacement connection)
+      if (terminal.ws === ws) {
+        this.detach(id);
+      }
     });
   }
 
@@ -206,6 +210,12 @@ export class TerminalManager {
     if (terminal.graceTimer) {
       clearTimeout(terminal.graceTimer);
       terminal.graceTimer = null;
+    }
+
+    // Close old WS if still open (its close handler won't detach
+    // because the guard checks terminal.ws === ws)
+    if (terminal.ws && terminal.ws.readyState === terminal.ws.OPEN) {
+      terminal.ws.close();
     }
 
     terminal.ws = ws;
