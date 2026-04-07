@@ -75,9 +75,7 @@ export function createBoardRouter(events: BoardEventBus): Router {
       // Update the task status
       updateTaskField(id, "status", column, task.project);
       // Clear pipelineStage so the aggregator uses the new status as source of truth
-      if (task.sessionId) {
-        updateTaskField(id, "pipelineStage", undefined, task.project);
-      }
+      updateTaskField(id, "pipelineStage", undefined, task.project);
 
       // Update flag state
       if (validation.flag) {
@@ -157,21 +155,26 @@ export function createBoardRouter(events: BoardEventBus): Router {
       fs.mkdirSync(tasksDir, { recursive: true, mode: 0o775 });
     }
 
-    // Build set of existing task titles in this project for dedup
-    let existingTitles = new Set<string>();
+    // Build title→ID index from existing items for dedup and dependency resolution
+    const existingByTitle = new Map<string, string>();
     try {
       const existing = scanProjectTasks(entity.path, entity.id, entity.name);
-      existingTitles = new Set(existing.items.map(t => t.title));
+      for (const item of existing.items) {
+        existingByTitle.set(item.title, item.id);
+      }
     } catch {
       // If scan fails, proceed without dedup — safe because we only skip, never overwrite
     }
 
-    // Create milestone tasks (skip duplicates by title)
+    // Create milestone tasks (skip duplicates by title, resolve existing IDs)
     let milestonesCreated = 0;
     let milestonesSkipped = 0;
     const milestoneIdMap = new Map<string, string>();
     for (const ms of parsed.milestones) {
-      if (existingTitles.has(ms.title)) {
+      const existingId = existingByTitle.get(ms.title);
+      if (existingId) {
+        // Map the roadmap ID to the existing task's real ID so children resolve correctly
+        milestoneIdMap.set(ms.id, existingId);
         milestonesSkipped++;
         continue;
       }
@@ -192,22 +195,26 @@ export function createBoardRouter(events: BoardEventBus): Router {
       milestonesCreated++;
     }
 
-    // Create task items (skip duplicates by title)
+    // Create task items (skip duplicates by title, resolve existing IDs for deps)
     let tasksCreated = 0;
     let tasksSkipped = 0;
     const taskIdMap = new Map<string, string>();
-    // First pass: generate IDs for non-duplicate tasks
+    // First pass: generate IDs for new tasks, resolve existing for duplicates
     for (const t of parsed.tasks) {
-      if (existingTitles.has(t.title)) {
+      const existingId = existingByTitle.get(t.title);
+      if (existingId) {
+        // Map the roadmap ID to the existing task's real ID so deps resolve correctly
+        taskIdMap.set(t.id, existingId);
         tasksSkipped++;
         continue;
       }
       taskIdMap.set(t.id, generateTaskId());
     }
-    // Second pass: create with resolved dependencies
+    // Second pass: create only new tasks, with fully resolved dependencies
     for (const t of parsed.tasks) {
-      const id = taskIdMap.get(t.id);
-      if (!id) continue; // skipped as duplicate
+      // Skip tasks that already exist (they're in the map but were marked as skipped)
+      if (existingByTitle.has(t.title)) continue;
+      const id = taskIdMap.get(t.id)!;
       const deps = t.dependsOn
         .map((d: string) => taskIdMap.get(d))
         .filter((d: string | undefined): d is string => !!d);
