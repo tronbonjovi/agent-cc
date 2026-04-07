@@ -46,6 +46,7 @@ For production, Agent CC runs bare metal via systemd. See [SETUP.md](SETUP.md) f
 | Page | What it shows |
 |------|---------------|
 | Dashboard | Live session monitoring, entity counts, system health, recent activity |
+| Board | Cross-project kanban board — aggregated tasks, dependency flags, move controls, filters |
 | Projects | Discovered projects with sessions, tech stack, cost, task boards |
 | MCP Servers | Every MCP server from `.mcp.json` files |
 | Skills | User-invocable and system skills |
