@@ -9,7 +9,7 @@ import { updateTaskField, generateTaskId, taskFilename, writeTaskFile } from "..
 import { parseRoadmapMarkdown } from "../board/ingest";
 import { storage } from "../storage";
 import { scanProjectTasks } from "../scanner/task-scanner";
-import { getPipelineManager } from "./tasks";
+import { getPipelineManager } from "../pipeline/singleton";
 import type { BoardEventBus } from "../board/events";
 import type { MoveTaskInput, BoardColumn } from "@shared/board-types";
 import type { TaskItem } from "@shared/task-types";

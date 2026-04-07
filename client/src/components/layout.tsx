@@ -26,7 +26,7 @@ import {
   MessageSquareText,
   Bot,
   BarChart3,
-  CheckSquare,
+
   Kanban,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -56,11 +56,7 @@ const navSections: NavSection[] = [
   {
     label: "Entities",
     items: [
-      { path: "/projects", label: "Projects", icon: FolderOpen, countKey: "project" as const,
-        children: [
-          { path: "/tasks", label: "Tasks", icon: CheckSquare, countKey: null },
-        ],
-      },
+      { path: "/projects", label: "Projects", icon: FolderOpen, countKey: "project" as const },
       { path: "/mcps", label: "MCP Servers", icon: Server, countKey: "mcp" as const },
       { path: "/skills", label: "Skills", icon: Wand2, countKey: "skill" as const },
       { path: "/plugins", label: "Plugins", icon: Puzzle, countKey: "plugin" as const },

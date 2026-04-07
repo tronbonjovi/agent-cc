@@ -31,7 +31,7 @@ const Stats = lazy(() => import("@/pages/stats"));
 const MessageHistory = lazy(() => import("@/pages/message-history"));
 const APIs = lazy(() => import("@/pages/apis"));
 const Prompts = lazy(() => import("@/pages/prompts"));
-const Tasks = lazy(() => import("@/pages/tasks"));
+
 const BoardPage = lazy(() => import("@/pages/board"));
 import NotFound from "@/pages/not-found";
 
@@ -69,12 +69,7 @@ function Router() {
             <Route path="/projects/:id">
               <ErrorBoundary pageName="Project Detail"><ProjectDetail /></ErrorBoundary>
             </Route>
-            <Route path="/tasks">
-              <ErrorBoundary pageName="Tasks"><Tasks /></ErrorBoundary>
-            </Route>
-            <Route path="/tasks/:projectId">
-              <ErrorBoundary pageName="Tasks"><Tasks /></ErrorBoundary>
-            </Route>
+
             <Route path="/board">
               <ErrorBoundary pageName="Board"><BoardPage /></ErrorBoundary>
             </Route>

@@ -18,7 +18,7 @@ import statsRouter from "./stats";
 import exportRouter from "./export";
 import costAnalyticsRouter from "./cost-analytics";
 import apisRouter from "./apis";
-import tasksRouter from "./tasks";
+
 import terminalRouter from "./terminal";
 import { createPipelineRouter } from "./pipeline";
 import { pipelineEvents } from "../pipeline/events";
@@ -81,7 +81,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.use(exportRouter);
   app.use(costAnalyticsRouter);
   app.use(apisRouter);
-  app.use(tasksRouter);
+
   app.use(terminalRouter);
   app.use(createPipelineRouter(pipelineEvents));
   app.use(createBoardRouter(boardEvents));

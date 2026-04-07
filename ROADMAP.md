@@ -20,6 +20,12 @@ Updated: 2026-04-07
 - Anthropic Dark theme, terminal color theming
 - Embedded terminal panel (xterm.js + node-pty + WebSocket)
 
+### Unreleased — Terminal Reliability & Groups
+- Terminal survives refreshes and disconnects (5min grace period, ring buffer, auto-reconnect)
+- VS Code-style terminal groups with split panes, explorer sidebar, instance manager
+- Zustand store for group state, allotment for resizable panes
+- 4 + 2 rounds of Codex adversarial review
+
 ### Unreleased — Task Automation Pipeline
 - Pipeline manager orchestrating Claude CLI workers in git worktrees
 - Milestone scheduling, dependency resolution, budget/circuit-breaker guardrails
@@ -33,42 +39,18 @@ Updated: 2026-04-07
 - Roadmap ingest parser (markdown → milestones + tasks)
 - Rich task cards, side panel, filter bar
 - Pipeline freeze guard on board moves
+- Legacy `/tasks` page removed (superseded by `/board`)
 - 10 rounds of Codex adversarial review
 
 ---
 
-## Next Up
-
-### Terminal Reliability (NEXT)
-Make the terminal survive real usage — refreshes, navigation, reconnection. This unblocks working directly out of Agent CC, which informs every UX decision after it.
-
-**Critical:**
-- Decouple PTY lifecycle from WebSocket (PTY survives disconnect with grace period)
-- Server-side ring buffer per terminal (replay scrollback on reconnect)
-- Client reconnection to existing terminals (attach instead of always create)
-
-**Medium:**
-- State machine for terminal lifecycle (creating → ready → connected → disconnected → reconnecting → dead)
-- Fix visibility/fit race condition on tab switch
-- Fix stale closure in resize handling
-
-**Nice-to-have:**
-- Claude CLI awareness (detect sessions running inside terminals)
-
-Reference: `~/dev/projects/aperant/REVIEW-REPORT.md` Section 3
-
----
-
-## Future (not prioritized yet)
+## Next Up (not prioritized yet)
 
 ### Board ↔ Session Integration
 Connect board cards to real Claude session data — live activity, cost rollup, session linking. The plumbing exists on both sides (`sessionId` on BoardTask, session scanner) but isn't wired together.
 
-### Tasks Page Cleanup
-Remove `/tasks` page (superseded by `/board`). Clear test data scripts.
-
 ### UI/UX Rework
-Nav restructure (workspace/config/tools), session health indicators in Sessions & Agents, visual consistency pass. See memory: `project_ui_rework_vision.md`.
+Nav restructure (workspace/config/tools), session health indicators in Sessions & Agents, visual consistency pass (~30 files still have hardcoded green accents).
 
 ### Workflow System
 Markdown-based ROADMAP.md → milestones → tasks with YAML frontmatter, tags, status lifecycle. Spec complete, not yet implemented.

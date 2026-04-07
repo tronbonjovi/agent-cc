@@ -11,7 +11,7 @@ import { storage } from "../storage";
 import { updateTaskField } from "../task-io";
 import { scanProjectTasks } from "../scanner/task-scanner";
 import { getDefaultBranch, branchExists } from "../pipeline/git-ops";
-import { setPipelineManager } from "./tasks";
+import { setPipelineManager } from "../pipeline/singleton";
 
 /** Resolve a project path from a trusted project ID. Returns null if invalid. */
 function resolveProjectPath(projectId: string): string | null {

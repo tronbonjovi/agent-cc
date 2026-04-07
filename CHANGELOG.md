@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Pipeline manager singleton** — `getPipelineManager`/`setPipelineManager` moved from deleted tasks route to `server/pipeline/singleton.ts`, keeping board and pipeline routes decoupled from the removed tasks API
+
+### Removed
+- **Legacy `/tasks` page** — page component, 6 UI components (`pipeline-board`, `milestone-swimlane`, `pipeline-task-card`, `project-picker`, `task-detail-panel`, `task-sidebar`), `use-tasks` hook, and server-side `/api/tasks/` routes all removed. Superseded by `/board`. Underlying `task-io` and `task-scanner` modules retained (still used by board and pipeline)
+- **Tasks nav entry** — removed from sidebar; Projects no longer has a Tasks child item
+- **Stale feature branches** — deleted 5 merged local branches (`feat/pipeline-kanban-ui`, `feat/task-management`, `feat/terminal-group-redesign`, `feat/terminal-reliability`, `feat/theme-aesthetic-profiles`)
+
 ### Added
 - **Terminal group redesign** — VS Code-style terminal groups replace flat tabs. Groups contain 1+ terminal instances shown side by side with resizable split panes (allotment). Explorer sidebar on the right shows all groups with tree connectors, status dots, close buttons, inline rename, and right-click context menu (Rename/Split/Kill). Unread activity indicators for background groups. 4 rounds of Codex adversarial review, 11 findings fixed.
 - **TerminalInstanceManager** — singleton class owns all xterm.js Terminal + WebSocket lifecycles independent of React. Terminals survive group switches without reconnect — instant attach/detach with preserved scroll position and output buffer.
