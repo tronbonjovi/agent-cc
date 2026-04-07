@@ -1,6 +1,6 @@
 import { useParams, useLocation } from "wouter";
 import { useEntities } from "@/hooks/use-entities";
-import { useTaskBoard } from "@/hooks/use-tasks";
+import { useTaskBoard, useUpdateTask, useDeleteTask } from "@/hooks/use-tasks";
 import { PipelineBoard } from "@/components/tasks/pipeline-board";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { ProjectPicker } from "@/components/tasks/project-picker";
@@ -30,6 +30,8 @@ export default function TasksPage() {
 
   // Main board query (excludes removed tasks)
   const { data: board, isLoading: loadingBoard } = useTaskBoard(selectedProjectId || undefined);
+  const updateTask = useUpdateTask(selectedProjectId || "");
+  const deleteTask = useDeleteTask(selectedProjectId || "");
 
   // TODO: Add a second query with includeRemoved=true for the audit row
   // For now, removedItems will be empty until we add the query param support
@@ -80,8 +82,8 @@ export default function TasksPage() {
           config={board.config}
           open={selectedTask !== null}
           onClose={() => setSelectedTask(null)}
-          onUpdate={() => {}}
-          onDelete={() => {}}
+          onUpdate={(taskId, updates) => updateTask.mutate({ taskId, ...updates })}
+          onDelete={(taskId) => deleteTask.mutate(taskId)}
           allItems={board.items}
         />
       )}

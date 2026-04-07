@@ -16,6 +16,10 @@ export function setPipelineManager(pm: PipelineManager) {
   pipelineManager = pm;
 }
 
+export function getPipelineManager(): PipelineManager | null {
+  return pipelineManager;
+}
+
 function sanitizeTaskForResponse(task: TaskItem): Omit<TaskItem, 'filePath'> & { filePath?: never } {
   const { filePath, ...safe } = task;
   return safe;

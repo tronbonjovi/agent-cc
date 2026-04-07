@@ -70,34 +70,57 @@ export function useIngestRoadmap() {
   });
 }
 
-/** Subscribe to board SSE events. Invalidates queries on events. */
+/** Subscribe to board SSE events with auto-reconnect. Invalidates queries on events. */
 export function useBoardEvents() {
   const qc = useQueryClient();
   const [connected, setConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<string | null>(null);
 
   useEffect(() => {
-    const es = new EventSource("/api/board/events");
-
-    es.addEventListener("connected", () => setConnected(true));
+    let es: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryDelay = 1000;
+    let disposed = false;
 
     const eventTypes = [
       "task-moved", "task-created", "task-updated", "task-deleted",
       "task-flagged", "task-unflagged", "board-refresh",
     ];
 
-    for (const type of eventTypes) {
-      es.addEventListener(type, () => {
-        setLastEvent(type);
-        qc.invalidateQueries({ queryKey: BOARD_KEY });
-        qc.invalidateQueries({ queryKey: STATS_KEY });
+    function connect() {
+      if (disposed) return;
+      es = new EventSource("/api/board/events");
+
+      es.addEventListener("connected", () => {
+        setConnected(true);
+        retryDelay = 1000; // reset backoff on success
       });
+
+      for (const type of eventTypes) {
+        es.addEventListener(type, () => {
+          setLastEvent(type);
+          qc.invalidateQueries({ queryKey: BOARD_KEY });
+          qc.invalidateQueries({ queryKey: STATS_KEY });
+        });
+      }
+
+      es.onerror = () => {
+        setConnected(false);
+        es?.close();
+        // Reconnect with exponential backoff (max 30s)
+        if (!disposed) {
+          reconnectTimer = setTimeout(connect, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 30000);
+        }
+      };
     }
 
-    es.onerror = () => setConnected(false);
+    connect();
 
     return () => {
-      es.close();
+      disposed = true;
+      es?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       setConnected(false);
     };
   }, [qc]);
