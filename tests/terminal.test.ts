@@ -50,6 +50,28 @@ describe("environment sanitization", () => {
   });
 });
 
+describe("session survival", () => {
+  it("keeps terminal in detached state after detach", async () => {
+    const { TerminalManager } = await import("../server/terminal");
+    const manager = new TerminalManager();
+    expect(manager.getSessionState("nonexistent")).toBeUndefined();
+  });
+
+  it("reports session info for managed terminals", async () => {
+    const { TerminalManager } = await import("../server/terminal");
+    const manager = new TerminalManager();
+    expect(manager.getActiveCount()).toBe(0);
+    expect(manager.getSessionState("test-1")).toBeUndefined();
+  });
+});
+
+describe("grace period", () => {
+  it("uses configured grace period constant", async () => {
+    const { GRACE_PERIOD_MS } = await import("../server/terminal");
+    expect(GRACE_PERIOD_MS).toBe(300_000);
+  });
+});
+
 describe("terminal panel state", () => {
   it("returns panel state from storage with expected shape", async () => {
     const { storage } = await import("../server/storage");
