@@ -3,6 +3,15 @@ export interface TerminalTab {
   name: string;
 }
 
+export type TerminalConnectionState =
+  | "initializing"
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "reconnecting"
+  | "expired"
+  | "idle";
+
 export interface TerminalPanelState {
   height: number;
   collapsed: boolean;

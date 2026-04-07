@@ -1,8 +1,9 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
 import { Terminal } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { useTheme } from "@/hooks/use-theme";
+import type { TerminalConnectionState } from "@shared/types";
 import "xterm/css/xterm.css";
 
 /** Convert HSL string "220 14% 10%" to hex "#xxxxxx" */
@@ -54,18 +55,50 @@ const LIGHT_ANSI = {
   white: "#fafafa",
 };
 
+const RECONNECT_INITIAL_MS = 1000;
+const RECONNECT_MAX_MS = 30000;
+const RECONNECT_TIMEOUT_MS = 300000; // 5 minutes — match server grace period
+
+export interface TerminalInstanceHandle {
+  /** Send explicit kill to server — use when user intentionally closes a tab */
+  killSession(): void;
+}
+
 interface TerminalInstanceProps {
   id: string;
   isVisible: boolean;
+  onConnectionStateChange?: (id: string, state: TerminalConnectionState) => void;
 }
 
-export function TerminalInstance({ id, isVisible }: TerminalInstanceProps) {
+export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInstanceProps>(function TerminalInstance({ id, isVisible, onConnectionStateChange }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const isVisibleRef = useRef(isVisible);
+  const connectionStateRef = useRef<TerminalConnectionState>("initializing");
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gaveUpRef = useRef(false);
+  const firstConnectRef = useRef(true);
   const { resolvedTheme } = useTheme();
+
+  function setConnectionState(state: TerminalConnectionState) {
+    connectionStateRef.current = state;
+    onConnectionStateChange?.(id, state);
+  }
+
+  useImperativeHandle(ref, () => ({
+    killSession() {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "kill" }));
+      } else {
+        // WS is down — use HTTP fallback to kill server-side session
+        fetch(`/api/terminal/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
+      }
+    },
+  }));
 
   // Keep ref in sync so ResizeObserver closure always has current value
   isVisibleRef.current = isVisible;
@@ -103,41 +136,135 @@ export function TerminalInstance({ id, isVisible }: TerminalInstanceProps) {
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Connect WebSocket
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws/terminal?id=${id}&cols=${terminal.cols}&rows=${terminal.rows}`;
-    const ws = new WebSocket(wsUrl);
+    // Reset state for new terminal id
+    connectionStateRef.current = "initializing";
+    reconnectAttemptRef.current = 0;
+    gaveUpRef.current = false;
+    firstConnectRef.current = true;
+    let disposed = false;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === "output") {
-          terminal.write(msg.data);
-        } else if (msg.type === "exit") {
-          terminal.write("\r\n\x1b[90m[Process exited]\x1b[0m\r\n");
+    let disconnectStartTime: number | null = null;
+
+    function connect() {
+      if (disposed) return;
+      setConnectionState("connecting");
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws/terminal?id=${id}&cols=${terminal.cols}&rows=${terminal.rows}&mode=attach`;
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        reconnectAttemptRef.current = 0;
+        disconnectStartTime = null; // Reset timeout window on successful connection
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          switch (msg.type) {
+            case "created":
+              setConnectionState("connected");
+              firstConnectRef.current = false;
+              break;
+            case "attached":
+              // Clear terminal before replay to avoid duplicating history
+              terminal.clear();
+              terminal.reset();
+              setConnectionState("connected");
+              if (!firstConnectRef.current) {
+                terminal.write("\x1b[32m[Reconnected]\x1b[0m\r\n");
+              }
+              firstConnectRef.current = false;
+              break;
+            case "buffer-replay":
+              terminal.write(msg.data);
+              break;
+            case "buffer-replay-done":
+              // no-op — live output follows naturally
+              break;
+            case "expired":
+              setConnectionState("expired");
+              terminal.write("\r\n\x1b[90m[Session expired \u2014 press any key to start new terminal]\x1b[0m\r\n");
+              break;
+            case "output":
+              terminal.write(msg.data);
+              break;
+            case "exit":
+              terminal.write("\r\n\x1b[90m[Process exited]\x1b[0m\r\n");
+              break;
+          }
+        } catch {
+          // ignore malformed messages
         }
-      } catch {
-        // ignore malformed messages
-      }
-    };
+      };
 
-    ws.onclose = () => {
-      terminal.write("\r\n\x1b[90m[Disconnected]\x1b[0m\r\n");
-    };
+      ws.onclose = () => {
+        if (disposed) return; // Component unmounted — don't reconnect
+        if (gaveUpRef.current) return;
+
+        // Don't reconnect from expired state
+        if (connectionStateRef.current === "expired") return;
+
+        setConnectionState("disconnected");
+        terminal.write("\r\n\x1b[33m[Disconnected \u2014 reconnecting...]\x1b[0m\r\n");
+
+        // Track when disconnection started for total timeout
+        if (disconnectStartTime === null) {
+          disconnectStartTime = Date.now();
+        }
+
+        // Check if we've exceeded the total reconnect timeout
+        if (Date.now() - disconnectStartTime >= RECONNECT_TIMEOUT_MS) {
+          gaveUpRef.current = true;
+          setConnectionState("expired");
+          terminal.write("\r\n\x1b[90m[Session expired \u2014 press any key to start new terminal]\x1b[0m\r\n");
+          return;
+        }
+
+        const backoff = Math.min(
+          RECONNECT_INITIAL_MS * Math.pow(2, reconnectAttemptRef.current),
+          RECONNECT_MAX_MS
+        );
+        reconnectAttemptRef.current += 1;
+
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectTimerRef.current = null;
+          connect();
+        }, backoff);
+      };
+
+      ws.onerror = () => {
+        // Let the close handler deal with it
+      };
+
+      wsRef.current = ws;
+    }
 
     terminal.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (connectionStateRef.current === "expired") {
+        gaveUpRef.current = false;
+        reconnectAttemptRef.current = 0;
+        firstConnectRef.current = true;
+        connect();
+        return;
+      }
+
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "input", data }));
       }
     });
-
-    wsRef.current = ws;
 
     // Handle resize — uses ref so closure always reads current visibility
     const resizeObserver = new ResizeObserver(() => {
       if (isVisibleRef.current) {
         fitAddon.fit();
-        if (ws.readyState === WebSocket.OPEN) {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(
             JSON.stringify({
               type: "resize",
@@ -150,13 +277,23 @@ export function TerminalInstance({ id, isVisible }: TerminalInstanceProps) {
     });
     resizeObserver.observe(containerRef.current);
 
+    // Start initial connection
+    connect();
+
     return () => {
+      disposed = true; // Prevent post-unmount reconnect attempts
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       resizeObserver.disconnect();
-      ws.close();
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
-      wsRef.current = null;
     };
   }, [id]);
 
@@ -181,4 +318,4 @@ export function TerminalInstance({ id, isVisible }: TerminalInstanceProps) {
       style={{ display: isVisible ? "block" : "none" }}
     />
   );
-}
+});

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
+import { getTerminalManager } from "../terminal";
 import { validate } from "./validation";
 
 const TerminalTabSchema = z.object({
@@ -27,6 +28,17 @@ router.patch("/api/terminal/panel", (req, res) => {
   if (!parsed) return;
   const updated = storage.updateTerminalPanel(parsed);
   res.json(updated);
+});
+
+// Kill a terminal session by ID — used when closing a tab while disconnected
+router.delete("/api/terminal/sessions/:id", (req, res) => {
+  const manager = getTerminalManager();
+  if (!manager) {
+    res.status(503).json({ error: "Terminal manager not initialized" });
+    return;
+  }
+  manager.kill(req.params.id);
+  res.json({ ok: true });
 });
 
 export default router;

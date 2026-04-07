@@ -1,7 +1,7 @@
-import { useReducer, useRef, useCallback, useEffect } from "react";
-import { TerminalInstance } from "./terminal-instance";
+import { useReducer, useRef, useCallback, useEffect, useState } from "react";
+import { TerminalInstance, type TerminalInstanceHandle } from "./terminal-instance";
 import { useTerminalPanel, useUpdateTerminalPanel } from "@/hooks/use-terminal";
-import type { TerminalTab } from "@shared/types";
+import type { TerminalTab, TerminalConnectionState } from "@shared/types";
 import { Plus, X, Columns2, ChevronDown, ChevronUp, Terminal } from "lucide-react";
 
 const MAX_TAB_NAME_LENGTH = 100;
@@ -108,6 +108,8 @@ export function TerminalPanel() {
   const { data: panelState } = useTerminalPanel();
   const updatePanel = useUpdateTerminalPanel();
   const [state, dispatch] = useReducer(panelReducer, initialState);
+  const [connectionStates, setConnectionStates] = useState<Record<string, TerminalConnectionState>>({});
+  const terminalRefs = useRef<Map<string, TerminalInstanceHandle>>(new Map());
   const initializedRef = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
@@ -171,6 +173,14 @@ export function TerminalPanel() {
   }, []);
 
   const closeTab = useCallback((tabId: string) => {
+    // Kill the server-side PTY immediately (don't let it linger in grace period)
+    const handle = terminalRefs.current.get(tabId);
+    if (handle) handle.killSession();
+    // Also kill split instance if it exists
+    const splitHandle = terminalRefs.current.get(`split-${tabId}`);
+    if (splitHandle) splitHandle.killSession();
+    terminalRefs.current.delete(tabId);
+    terminalRefs.current.delete(`split-${tabId}`);
     dispatch({ type: "CLOSE_TAB", tabId });
   }, []);
 
@@ -203,6 +213,10 @@ export function TerminalPanel() {
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
+  }, []);
+
+  const handleConnectionStateChange = useCallback((terminalId: string, connState: TerminalConnectionState) => {
+    setConnectionStates(prev => ({ ...prev, [terminalId]: connState }));
   }, []);
 
   const handleRenameTab = useCallback((tabId: string, newName: string) => {
@@ -258,6 +272,17 @@ export function TerminalPanel() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
+            <span
+              className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
+                (() => {
+                  const s = connectionStates[tab.id];
+                  if (s === "connected") return "bg-green-500";
+                  if (s === "disconnected" || s === "reconnecting") return "bg-yellow-500";
+                  if (s === "expired") return "bg-red-500";
+                  return "bg-zinc-500";
+                })()
+              }`}
+            />
             <span
               onClick={() => dispatch({ type: "SET_ACTIVE", tabId: tab.id })}
               onDoubleClick={() => {
@@ -316,8 +341,13 @@ export function TerminalPanel() {
           {state.tabs.map((tab) => (
             <TerminalInstance
               key={tab.id}
+              ref={(handle) => {
+                if (handle) terminalRefs.current.set(tab.id, handle);
+                else terminalRefs.current.delete(tab.id);
+              }}
               id={tab.id}
               isVisible={tab.id === state.activeTabId}
+              onConnectionStateChange={handleConnectionStateChange}
             />
           ))}
         </div>
@@ -326,8 +356,14 @@ export function TerminalPanel() {
             {state.tabs.map((tab) => (
               <TerminalInstance
                 key={`split-${tab.id}`}
+                ref={(handle) => {
+                  const splitId = `split-${tab.id}`;
+                  if (handle) terminalRefs.current.set(splitId, handle);
+                  else terminalRefs.current.delete(splitId);
+                }}
                 id={`split-${tab.id}`}
                 isVisible={tab.id === state.splitTabId}
+                onConnectionStateChange={handleConnectionStateChange}
               />
             ))}
           </div>
