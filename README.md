@@ -1,6 +1,6 @@
 # Agent CC
 
-**Agent Control Center** — a local dashboard for visualizing and managing your agentic coding ecosystem. Auto-discovers projects, MCP servers, skills, plugins, sessions, agents, and their relationships — zero configuration.
+**Agent Control Center** — a local dashboard for visualizing and managing your agentic coding ecosystem. Auto-discovers projects, MCP servers, skills, plugins, sessions, agents, and their relationships.
 
 Currently built around [Claude Code](https://docs.anthropic.com/en/docs/claude-code), with plans to support additional agentic systems in the future.
 
