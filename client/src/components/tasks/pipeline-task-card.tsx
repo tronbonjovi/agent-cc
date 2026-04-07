@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { resolveTaskStage } from "@/lib/pipeline-stages";
 import type { TaskItem } from "@shared/task-types";
 
 interface PipelineTaskCardProps {
@@ -17,7 +18,7 @@ const stageStyles: Record<string, { border: string; textMuted?: boolean; pulse?:
 };
 
 export function PipelineTaskCard({ task, onClick }: PipelineTaskCardProps) {
-  const stage = task.pipelineStage || task.status || "backlog";
+  const stage = resolveTaskStage(task.pipelineStage, task.status);
   const isBlocked = stage === "blocked";
   const isDone = stage === "done";
   const isActive = stage === "build" || stage === "ai-review";

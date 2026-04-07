@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { PIPELINE_COLUMNS, NON_TERMINAL_STATES } from "@/lib/pipeline-stages";
+import { PIPELINE_COLUMNS, NON_TERMINAL_STATES, stageToColumn, resolveTaskStage } from "@/lib/pipeline-stages";
 import { usePipelineStatus, usePipelineEvents } from "@/hooks/use-pipeline";
 import { MilestoneSwimlane } from "./milestone-swimlane";
 import type { TaskItem } from "@shared/task-types";
@@ -84,7 +84,9 @@ export function PipelineBoard({ items, removedItems, projectId, onClickTask }: P
             <div className="flex min-h-[60px]">
               {PIPELINE_COLUMNS.map((col) => (
                 <div key={col.id} className="flex-1 min-w-0 p-2 border-r border-zinc-800/50 last:border-r-0">
-                  {col.id === "backlog" && orphanTasks.map((task) => (
+                  {orphanTasks
+                    .filter((task) => (stageToColumn(resolveTaskStage(task.pipelineStage, task.status)) || "backlog") === col.id)
+                    .map((task) => (
                     <div key={task.id} onClick={() => onClickTask(task)} className="rounded-lg border bg-card p-3 cursor-pointer text-sm mb-2">
                       {task.title}
                     </div>

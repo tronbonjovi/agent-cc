@@ -36,6 +36,18 @@ const STAGE_TO_COLUMN: Record<string, string> = {
   review: "human-review",
 };
 
+/**
+ * Resolve a task's effective stage from pipelineStage and status fields.
+ * pipelineStage is authoritative when present (set by pipeline worker);
+ * status is the fallback (used when board clears pipelineStage on manual moves).
+ */
+export function resolveTaskStage(pipelineStage: string | undefined, status: string | undefined): string {
+  // pipelineStage is set by the pipeline worker and cleared by board moves,
+  // so it's authoritative when present
+  if (pipelineStage) return pipelineStage;
+  return status || "backlog";
+}
+
 export function stageToColumn(stage: string | undefined): string | null {
   if (!stage) return "backlog";
   if (stage === "blocked") return null;

@@ -25,6 +25,20 @@ function sanitizeTaskForResponse(task: TaskItem): Omit<TaskItem, 'filePath'> & {
   return safe;
 }
 
+/** Returns an error message if the task belongs to (or is) an active pipeline run, null otherwise. */
+function checkActiveRunFreeze(task: TaskItem): string | null {
+  if (!pipelineManager) return null;
+  const status = pipelineManager.getStatus();
+  if (!status) return null;
+  const NON_TERMINAL = new Set(["running", "pausing", "paused", "awaiting_approval", "cancelling"]);
+  if (!NON_TERMINAL.has(status.status)) return null;
+  // Protect the milestone task itself and any child tasks in the run
+  if (task.id === status.milestoneTaskId || task.parent === status.milestoneTaskId) {
+    return "Editing disabled — this task belongs to an active pipeline run. Wait for the run to complete or cancel it first.";
+  }
+  return null;
+}
+
 function getProjectPath(projectId: string): string | null {
   const entity = storage.getEntity(projectId);
   if (!entity || entity.type !== "project") return null;
@@ -179,19 +193,9 @@ router.put("/api/tasks/:taskId", (req, res) => {
     return res.status(409).json({ error: "Conflict — task was modified", current: existing });
   }
   // Edit-freeze: reject metadata mutations for tasks in active milestone runs
-  if (existing.parent) {
-    const pipelineStatus = pipelineManager?.getStatus();
-    if (pipelineStatus) {
-      const NON_TERMINAL = new Set(["running", "pausing", "paused", "awaiting_approval", "cancelling"]);
-      if (
-        NON_TERMINAL.has(pipelineStatus.status) &&
-        existing.parent === pipelineStatus.milestoneTaskId
-      ) {
-        return res.status(409).json({
-          error: "Editing disabled — this task belongs to an active pipeline run. Wait for the run to complete or cancel it first.",
-        });
-      }
-    }
+  const freezeError = checkActiveRunFreeze(existing);
+  if (freezeError) {
+    return res.status(409).json({ error: freezeError });
   }
   const oldStatus = existing.status;
   const now = new Date().toISOString().split("T")[0];
@@ -234,6 +238,10 @@ router.delete("/api/tasks/:taskId", (req, res) => {
   const tasksDir = getTasksDir(projectPath);
   const task = findTaskFile(tasksDir, req.params.taskId);
   if (!task) return res.status(404).json({ error: "Task not found" });
+  const freezeErr = checkActiveRunFreeze(task);
+  if (freezeErr) {
+    return res.status(409).json({ error: freezeErr });
+  }
   try {
     fs.unlinkSync(task.filePath);
   } catch (err) {

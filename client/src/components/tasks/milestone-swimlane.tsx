@@ -8,6 +8,7 @@ import {
   stageToColumn,
   isKnownStage,
   topoSortTasks,
+  resolveTaskStage,
 } from "@/lib/pipeline-stages";
 import {
   useStartMilestone,
@@ -67,7 +68,7 @@ export function MilestoneSwimlane({
   }
 
   for (const task of tasks) {
-    const stage = task.pipelineStage || task.status;
+    const stage = resolveTaskStage(task.pipelineStage, task.status);
     if (stage === "blocked") {
       const fromStage = task.blockedFromStage;
       const col = fromStage ? stageToColumn(fromStage) : null;
@@ -92,6 +93,7 @@ export function MilestoneSwimlane({
   );
   const doneTasks = activeTasks.filter((t) => t.pipelineStage === "done");
   const hasUnknown = unknownTasks.some((t) => !isKnownStage(t.pipelineStage || ""));
+  const hasBlocked = activeTasks.some((t) => resolveTaskStage(t.pipelineStage, t.status) === "blocked");
   const totalCost = isThisRun ? run!.totalCostUsd : 0;
 
   function handleStart() {
@@ -115,7 +117,7 @@ export function MilestoneSwimlane({
   }
 
   const canStart = !anyMilestoneActive && activeTasks.length > 0;
-  const canApprove = effectiveStatus === "awaiting_approval" && !hasUnknown;
+  const canApprove = effectiveStatus === "awaiting_approval" && !hasUnknown && !hasBlocked;
 
   // suppress unused variable warning — descopeMutation is available for child components
   void descopeMutation;
@@ -140,6 +142,11 @@ export function MilestoneSwimlane({
           {hasUnknown && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
               {unknownTasks.filter((t) => !isKnownStage(t.pipelineStage || "")).length} unmapped
+            </span>
+          )}
+          {hasBlocked && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">
+              {activeTasks.filter((t) => resolveTaskStage(t.pipelineStage, t.status) === "blocked").length} blocked
             </span>
           )}
           {removedTasks.length > 0 && (
@@ -193,7 +200,7 @@ export function MilestoneSwimlane({
                 onClick={() => approveMutation.mutate()}
                 disabled={!canApprove || approveMutation.isPending}
                 className="rounded bg-green-600 px-2.5 py-1 text-xs text-white hover:bg-green-500 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={hasUnknown ? `Cannot approve — ${unknownTasks.length} task(s) in unknown state` : undefined}
+                title={hasUnknown ? `Cannot approve — ${unknownTasks.length} task(s) in unknown state` : hasBlocked ? `Cannot approve — blocked tasks remain` : undefined}
               >
                 Approve
               </button>
