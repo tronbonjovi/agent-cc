@@ -190,7 +190,8 @@ export class TerminalManager {
     this.wireWs(id, terminal, ws);
     this.terminals.set(id, terminal);
 
-    ws.send(JSON.stringify({ type: "created" }));
+    const shellType = path.basename(shell).replace(/\.exe$/i, "");
+    ws.send(JSON.stringify({ type: "created", shellType }));
   }
 
   detach(id: string): void {

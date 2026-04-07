@@ -85,9 +85,8 @@ function defaultData(): DBData {
     terminalPanel: {
       height: 300,
       collapsed: false,
-      tabs: [],
-      activeTabId: null,
-      splitTabId: null,
+      groups: [],
+      activeGroupId: null,
     },
     costRecords: {},
     costIndexState: { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 },
@@ -122,6 +121,10 @@ try {
     if (!data.decisions) data.decisions = [];
     if (!data.markdownMeta) data.markdownMeta = {};
     if (!data.terminalPanel) data.terminalPanel = defaultData().terminalPanel;
+    // Migrate old flat-tab format to groups
+    if ((data.terminalPanel as any).tabs && !(data.terminalPanel as any).groups) {
+      data.terminalPanel = defaultData().terminalPanel;
+    }
     if (!data.costRecords) data.costRecords = {};
     if (!data.costIndexState) data.costIndexState = { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 };
     if (!data.pipelineConfig) data.pipelineConfig = DEFAULT_PIPELINE_CONFIG;
