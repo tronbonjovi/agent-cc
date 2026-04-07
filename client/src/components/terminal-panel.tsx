@@ -23,6 +23,7 @@ export function TerminalPanel() {
 
   const isResizingRef = useRef(false);
   const initializedRef = useRef(false);
+  const serverLoadedRef = useRef(false);
   const { resolvedTheme } = useTheme();
 
   // Load state from server on mount
@@ -33,13 +34,16 @@ export function TerminalPanel() {
     fetch("/api/terminal/panel")
       .then((r) => r.json())
       .then((data: TerminalPanelState) => {
+        serverLoadedRef.current = true;
         if (data.groups && data.groups.length > 0) {
           loadFromServer(data);
-          // Recreate manager instances for all persisted terminals
+          // Create manager instances only for those not already live
           const manager = getTerminalInstanceManager();
           for (const group of data.groups) {
             for (const inst of group.instances) {
-              manager.create(inst.id);
+              if (!manager.has(inst.id)) {
+                manager.create(inst.id);
+              }
             }
           }
         } else {
@@ -52,18 +56,24 @@ export function TerminalPanel() {
         }
       })
       .catch(() => {
-        // Server unavailable — create initial terminal
-        const groupId = crypto.randomUUID();
-        const instanceId = crypto.randomUUID();
+        // Server unavailable — don't create fallback state that could
+        // overwrite valid persisted data. Only create a default terminal
+        // if the manager has nothing live (true cold start).
         const manager = getTerminalInstanceManager();
-        manager.create(instanceId);
-        createGroup(groupId, instanceId, "bash");
+        if (!manager.hasAny()) {
+          serverLoadedRef.current = true;
+          const groupId = crypto.randomUUID();
+          const instanceId = crypto.randomUUID();
+          manager.create(instanceId);
+          createGroup(groupId, instanceId, "bash");
+        }
+        // Otherwise: keep panel empty, suppress persistence until server responds
       });
   }, [loadFromServer, createGroup]);
 
-  // Persist state to server on changes
+  // Persist state to server on changes — only after successful server load
   useEffect(() => {
-    if (!initializedRef.current || groups.length === 0) return;
+    if (!serverLoadedRef.current) return;
     const data = toSerializable();
     apiRequest("PATCH", "/api/terminal/panel", data).catch(() => {});
   }, [groups, activeGroupId, height, collapsed, toSerializable]);

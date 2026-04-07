@@ -123,7 +123,22 @@ try {
     if (!data.terminalPanel) data.terminalPanel = defaultData().terminalPanel;
     // Migrate old flat-tab format to groups
     if ((data.terminalPanel as any).tabs && !(data.terminalPanel as any).groups) {
-      data.terminalPanel = defaultData().terminalPanel;
+      const oldTabs = (data.terminalPanel as any).tabs as Array<{ id: string; name: string }>;
+      const oldActiveTabId = (data.terminalPanel as any).activeTabId as string | null;
+      if (oldTabs.length > 0) {
+        // Convert each old tab into its own single-instance group
+        data.terminalPanel = {
+          height: data.terminalPanel.height,
+          collapsed: data.terminalPanel.collapsed,
+          groups: oldTabs.map((tab) => ({
+            id: tab.id,
+            instances: [{ id: tab.id, name: tab.name }],
+          })),
+          activeGroupId: oldActiveTabId ?? oldTabs[0].id,
+        };
+      } else {
+        data.terminalPanel = defaultData().terminalPanel;
+      }
     }
     if (!data.costRecords) data.costRecords = {};
     if (!data.costIndexState) data.costIndexState = { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 };

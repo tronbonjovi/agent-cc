@@ -74,6 +74,10 @@ export class TerminalInstanceManager {
     return this.instances.has(id);
   }
 
+  hasAny(): boolean {
+    return this.instances.size > 0;
+  }
+
   getConnectionState(id: string): TerminalConnectionState | undefined {
     return this.instances.get(id)?.connectionState;
   }
