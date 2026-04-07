@@ -11,9 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Terminal reliability** — terminals survive page refreshes and brief disconnects. Sessions stay alive on the server for 5 minutes, client auto-reconnects with exponential backoff, output history is replayed on reconnect. Tab indicators show connection state (green/yellow/red). Explicit kill on tab close with HTTP fallback when disconnected. 2 rounds of Codex adversarial review, 7 findings fixed.
 - **Ring buffer** — server-side circular buffer (50K chunks) captures terminal output for replay on reconnect
 - **Terminal tab naming** — new tabs increment from the highest existing tab number instead of using tab count
+- **Dynamic tab titles** — tabs auto-update from shell escape sequences (e.g. current dir, running command). User renames via double-click are preserved. Shell titles sanitized to strip control characters.
+- **Background activity flash** — non-active tabs pulse when they receive output, unread state clears on focus
+- **Terminal group redesign spec** — VS Code-style terminal architecture designed: group-based model, explorer sidebar, singleton TerminalInstanceManager, zustand store. Implementation plan written (13 tasks).
 
 ### Fixed
 - Terminal tab numbering no longer creates duplicate names after closing and reopening tabs
+- Split terminal no longer creates phantom PTY sessions — each tab renders exactly once in the correct pane
+- Split state normalized on every reducer action — prevents stuck layouts from stale persisted state
+- Split-pane mirrors no longer generate false unread activity for visible tabs
 
 ### Previously Added
 - **Centralized kanban board** — cross-project board at `/board` aggregates tasks from all projects into 5 columns (Backlog → Ready → In Progress → Review → Done). Includes:
