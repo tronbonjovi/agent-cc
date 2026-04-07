@@ -1,7 +1,7 @@
-import { useReducer, useRef, useCallback, useEffect } from "react";
+import { useReducer, useRef, useCallback, useEffect, useState } from "react";
 import { TerminalInstance } from "./terminal-instance";
 import { useTerminalPanel, useUpdateTerminalPanel } from "@/hooks/use-terminal";
-import type { TerminalTab } from "@shared/types";
+import type { TerminalTab, TerminalConnectionState } from "@shared/types";
 import { Plus, X, Columns2, ChevronDown, ChevronUp, Terminal } from "lucide-react";
 
 const MAX_TAB_NAME_LENGTH = 100;
@@ -108,6 +108,7 @@ export function TerminalPanel() {
   const { data: panelState } = useTerminalPanel();
   const updatePanel = useUpdateTerminalPanel();
   const [state, dispatch] = useReducer(panelReducer, initialState);
+  const [connectionStates, setConnectionStates] = useState<Record<string, TerminalConnectionState>>({});
   const initializedRef = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
@@ -205,6 +206,10 @@ export function TerminalPanel() {
     document.addEventListener("mouseup", handleMouseUp);
   }, []);
 
+  const handleConnectionStateChange = useCallback((terminalId: string, connState: TerminalConnectionState) => {
+    setConnectionStates(prev => ({ ...prev, [terminalId]: connState }));
+  }, []);
+
   const handleRenameTab = useCallback((tabId: string, newName: string) => {
     const trimmed = newName.trim().slice(0, MAX_TAB_NAME_LENGTH);
     if (trimmed) {
@@ -258,6 +263,17 @@ export function TerminalPanel() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
+            <span
+              className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
+                (() => {
+                  const s = connectionStates[tab.id];
+                  if (s === "connected") return "bg-green-500";
+                  if (s === "disconnected" || s === "reconnecting") return "bg-yellow-500";
+                  if (s === "expired") return "bg-red-500";
+                  return "bg-zinc-500";
+                })()
+              }`}
+            />
             <span
               onClick={() => dispatch({ type: "SET_ACTIVE", tabId: tab.id })}
               onDoubleClick={() => {
@@ -318,6 +334,7 @@ export function TerminalPanel() {
               key={tab.id}
               id={tab.id}
               isVisible={tab.id === state.activeTabId}
+              onConnectionStateChange={handleConnectionStateChange}
             />
           ))}
         </div>
@@ -328,6 +345,7 @@ export function TerminalPanel() {
                 key={`split-${tab.id}`}
                 id={`split-${tab.id}`}
                 isVisible={tab.id === state.splitTabId}
+                onConnectionStateChange={handleConnectionStateChange}
               />
             ))}
           </div>
