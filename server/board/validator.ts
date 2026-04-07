@@ -8,7 +8,7 @@ interface MoveValidation {
 }
 
 // Columns that trigger dependency validation
-const WORK_COLUMNS: Set<BoardColumn> = new Set(["in-progress", "review", "done"]);
+const WORK_COLUMNS = new Set<BoardColumn>(["in-progress", "review", "done"]);
 
 /** Validate a task move. Returns allowed + optional flag info. */
 export function validateMove(
