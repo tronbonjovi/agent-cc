@@ -18,16 +18,24 @@ vi.mock("../server/task-io", () => ({
   writeTaskFile: vi.fn(),
   taskFileIndex: new Map(),
   updateTaskField: vi.fn(),
+  generateTaskId: vi.fn(() => "itm-test1234"),
+  taskFilename: vi.fn((type: string, title: string, id: string) => `${type}-${id}.md`),
 }));
 vi.mock("../server/db", () => ({
   getDB: vi.fn(() => ({ boardConfig: { projectColors: {} } })),
   save: vi.fn(),
 }));
 
+vi.mock("fs", async () => {
+  const actual = await vi.importActual<typeof import("fs")>("fs");
+  return { ...actual, default: { ...actual, existsSync: vi.fn(() => true), mkdirSync: vi.fn() }, existsSync: vi.fn(() => true), mkdirSync: vi.fn() };
+});
+
 import express from "express";
 import request from "supertest";
 import { createBoardRouter } from "../server/routes/board";
 import { BoardEventBus } from "../server/board/events";
+import { storage } from "../server/storage";
 
 describe("board routes", () => {
   let app: express.Express;
@@ -100,5 +108,54 @@ describe("board routes", () => {
         clientReq.end();
       });
     });
+  });
+});
+
+describe("ingest endpoint", () => {
+  let app: express.Express;
+  let events: BoardEventBus;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    events = new BoardEventBus();
+    app = express();
+    app.use(express.json());
+    app.use(createBoardRouter(events));
+  });
+
+  it("POST /api/board/ingest parses roadmap and returns created items", async () => {
+    vi.mocked(storage.getEntity).mockReturnValue({
+      id: "p1", name: "Test", type: "project", path: "/tmp/test",
+    } as any);
+
+    const roadmapContent = `---
+project: test
+---
+- TASK-001: Build API [priority: high]
+- TASK-002: Add tests [priority: medium, depends: TASK-001]
+`;
+
+    const res = await request(app)
+      .post("/api/board/ingest")
+      .send({ projectId: "p1", content: roadmapContent });
+
+    expect(res.status).toBe(201);
+    expect(res.body.tasksCreated).toBe(2);
+    expect(res.body.milestonesCreated).toBe(0);
+  });
+
+  it("POST /api/board/ingest returns 400 without projectId", async () => {
+    const res = await request(app)
+      .post("/api/board/ingest")
+      .send({ content: "some roadmap" });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/board/ingest returns 404 for unknown project", async () => {
+    vi.mocked(storage.getEntity).mockReturnValue(undefined as any);
+    const res = await request(app)
+      .post("/api/board/ingest")
+      .send({ projectId: "p-bad", content: "roadmap" });
+    expect(res.status).toBe(404);
   });
 });

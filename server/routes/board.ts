@@ -1,11 +1,16 @@
 // server/routes/board.ts
 
 import { Router } from "express";
+import path from "path";
+import fs from "fs";
 import { aggregateBoardState, computeBoardStats } from "../board/aggregator";
 import { validateMove, checkAutoUnflag } from "../board/validator";
-import { updateTaskField } from "../task-io";
+import { updateTaskField, generateTaskId, taskFilename, writeTaskFile } from "../task-io";
+import { parseRoadmapMarkdown } from "../board/ingest";
+import { storage } from "../storage";
 import type { BoardEventBus } from "../board/events";
 import type { MoveTaskInput, BoardColumn } from "@shared/board-types";
+import type { TaskItem } from "@shared/task-types";
 
 const VALID_COLUMNS = ["backlog", "ready", "in-progress", "review", "done"];
 
@@ -109,6 +114,86 @@ export function createBoardRouter(events: BoardEventBus): Router {
     });
 
     req.on("close", cleanup);
+  });
+
+  // POST /api/board/ingest — bulk import from roadmap
+  router.post("/api/board/ingest", (req, res) => {
+    const { projectId, content } = req.body;
+    if (!projectId) return res.status(400).json({ error: "projectId is required" });
+    if (!content) return res.status(400).json({ error: "content is required" });
+
+    const entity = storage.getEntity(projectId);
+    if (!entity || entity.type !== "project") {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const parsed = parseRoadmapMarkdown(content);
+
+    const tasksDir = path.join(entity.path, ".claude", "tasks").replace(/\\/g, "/");
+    if (!fs.existsSync(tasksDir)) {
+      fs.mkdirSync(tasksDir, { recursive: true, mode: 0o775 });
+    }
+
+    // Create milestone tasks
+    let milestonesCreated = 0;
+    const milestoneIdMap = new Map<string, string>();
+    for (const ms of parsed.milestones) {
+      const id = generateTaskId();
+      milestoneIdMap.set(ms.id, id);
+      const task: TaskItem = {
+        id,
+        title: ms.title,
+        type: "milestone",
+        status: "backlog",
+        priority: ms.priority,
+        created: new Date().toISOString().split("T")[0],
+        updated: new Date().toISOString().split("T")[0],
+        body: "",
+        filePath: path.join(tasksDir, taskFilename("milestone", ms.title, id)).replace(/\\/g, "/"),
+      };
+      writeTaskFile(task.filePath, task);
+      milestonesCreated++;
+    }
+
+    // Create task items
+    let tasksCreated = 0;
+    const taskIdMap = new Map<string, string>();
+    // First pass: generate all IDs
+    for (const t of parsed.tasks) {
+      taskIdMap.set(t.id, generateTaskId());
+    }
+    // Second pass: create with resolved dependencies
+    for (const t of parsed.tasks) {
+      const id = taskIdMap.get(t.id)!;
+      const deps = t.dependsOn
+        .map((d: string) => taskIdMap.get(d))
+        .filter((d: string | undefined): d is string => !!d);
+
+      const task: TaskItem = {
+        id,
+        title: t.title,
+        type: "task",
+        status: "backlog",
+        priority: t.priority,
+        parent: t.milestone ? milestoneIdMap.get(t.milestone) : undefined,
+        dependsOn: deps.length > 0 ? deps : undefined,
+        created: new Date().toISOString().split("T")[0],
+        updated: new Date().toISOString().split("T")[0],
+        body: "",
+        filePath: path.join(tasksDir, taskFilename("task", t.title, id)).replace(/\\/g, "/"),
+      };
+      writeTaskFile(task.filePath, task);
+      tasksCreated++;
+    }
+
+    events.emit("board-refresh", { projectId });
+
+    return res.status(201).json({
+      tasksCreated,
+      milestonesCreated,
+      taskIdMap: Object.fromEntries(taskIdMap),
+      milestoneIdMap: Object.fromEntries(milestoneIdMap),
+    });
   });
 
   return router;
