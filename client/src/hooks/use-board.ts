@@ -19,7 +19,7 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   return res.json();
 }
 
-/** Fetch full board state. */
+/** Fetch full board state. Polls every 10s to catch non-board mutations (pipeline, task edits). */
 export function useBoardState(filterProjects?: string[]) {
   const params = filterProjects?.length
     ? `?projects=${filterProjects.join(",")}`
@@ -27,14 +27,16 @@ export function useBoardState(filterProjects?: string[]) {
   return useQuery<BoardState>({
     queryKey: [...BOARD_KEY, filterProjects],
     queryFn: () => apiFetch(`/api/board${params}`),
+    refetchInterval: 10_000,
   });
 }
 
-/** Fetch board stats. */
+/** Fetch board stats. Polls every 10s as fallback for non-board mutations. */
 export function useBoardStats() {
   return useQuery<BoardStats>({
     queryKey: STATS_KEY,
     queryFn: () => apiFetch("/api/board/stats"),
+    refetchInterval: 10_000,
   });
 }
 

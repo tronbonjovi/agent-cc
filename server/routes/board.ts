@@ -160,7 +160,7 @@ export function createBoardRouter(events: BoardEventBus): Router {
     // Key: "type:parent:title" to avoid merging unrelated tasks with same title
     const existingByKey = new Map<string, string>();
     try {
-      const existing = scanProjectTasks(entity.path, entity.id, entity.name);
+      const existing = scanProjectTasks(entity.path, entity.id, entity.name, { includeRemoved: true });
       for (const item of existing.items) {
         const key = `${item.type}:${item.parent || ""}:${item.title}`;
         existingByKey.set(key, item.id);
