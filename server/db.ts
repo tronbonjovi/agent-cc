@@ -125,15 +125,46 @@ try {
     if ((data.terminalPanel as any).tabs && !(data.terminalPanel as any).groups) {
       const oldTabs = (data.terminalPanel as any).tabs as Array<{ id: string; name: string }>;
       const oldActiveTabId = (data.terminalPanel as any).activeTabId as string | null;
+      const oldSplitTabId = (data.terminalPanel as any).splitTabId as string | null;
       if (oldTabs.length > 0) {
-        // Convert each old tab into its own single-instance group
+        // Build groups — if there was an active split, group those two together
+        const splitPairIds = new Set<string>();
+        if (oldActiveTabId && oldSplitTabId && oldActiveTabId !== oldSplitTabId) {
+          splitPairIds.add(oldActiveTabId);
+          splitPairIds.add(oldSplitTabId);
+        }
+
+        const groups: Array<{ id: string; instances: Array<{ id: string; name: string }> }> = [];
+        const handled = new Set<string>();
+
+        // First: create the split group if applicable
+        if (splitPairIds.size === 2) {
+          const activeTab = oldTabs.find((t) => t.id === oldActiveTabId);
+          const splitTab = oldTabs.find((t) => t.id === oldSplitTabId);
+          if (activeTab && splitTab) {
+            groups.push({
+              id: activeTab.id,
+              instances: [
+                { id: activeTab.id, name: activeTab.name },
+                { id: splitTab.id, name: splitTab.name },
+              ],
+            });
+            handled.add(activeTab.id);
+            handled.add(splitTab.id);
+          }
+        }
+
+        // Then: each remaining tab becomes its own group
+        for (const tab of oldTabs) {
+          if (!handled.has(tab.id)) {
+            groups.push({ id: tab.id, instances: [{ id: tab.id, name: tab.name }] });
+          }
+        }
+
         data.terminalPanel = {
           height: data.terminalPanel.height,
           collapsed: data.terminalPanel.collapsed,
-          groups: oldTabs.map((tab) => ({
-            id: tab.id,
-            instances: [{ id: tab.id, name: tab.name }],
-          })),
+          groups,
           activeGroupId: oldActiveTabId ?? oldTabs[0].id,
         };
       } else {

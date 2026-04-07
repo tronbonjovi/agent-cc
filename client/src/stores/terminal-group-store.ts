@@ -3,6 +3,7 @@ import type { TerminalPanelState, TerminalGroupData, TerminalInstanceData } from
 
 interface TerminalInstanceInfo extends TerminalInstanceData {
   shellType: string;
+  userRenamed: boolean;
 }
 
 interface TerminalGroup {
@@ -27,6 +28,7 @@ interface TerminalGroupState {
   renameInstance: (instanceId: string, name: string) => void;
   setHeight: (height: number) => void;
   setCollapsed: (collapsed: boolean) => void;
+  setInstanceName: (instanceId: string, name: string) => void;
   updateShellType: (instanceId: string, shellType: string) => void;
   markUnread: (instanceId: string) => void;
   clearUnread: (instanceId: string) => void;
@@ -47,6 +49,7 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
       id: instanceId,
       name: shellName,
       shellType: shellName,
+      userRenamed: false,
     };
     set((s) => ({
       groups: [...s.groups, { id: groupId, instances: [instance] }],
@@ -60,6 +63,7 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
       id: instanceId,
       name: shellName,
       shellType: shellName,
+      userRenamed: false,
     };
     set((s) => ({
       groups: s.groups.map((g) =>
@@ -145,7 +149,7 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
       groups: s.groups.map((g) => ({
         ...g,
         instances: g.instances.map((i) =>
-          i.id === instanceId ? { ...i, name } : i
+          i.id === instanceId ? { ...i, name, userRenamed: true } : i
         ),
       })),
     }));
@@ -153,6 +157,18 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
 
   setHeight: (height) => set({ height }),
   setCollapsed: (collapsed) => set({ collapsed }),
+
+  // Set name without marking as user-renamed (for shell-type auto-naming)
+  setInstanceName: (instanceId, name) => {
+    set((s) => ({
+      groups: s.groups.map((g) => ({
+        ...g,
+        instances: g.instances.map((i) =>
+          i.id === instanceId ? { ...i, name } : i
+        ),
+      })),
+    }));
+  },
 
   updateShellType: (instanceId, shellType) => {
     set((s) => ({
@@ -188,7 +204,8 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
         id: g.id,
         instances: g.instances.map((i) => ({
           ...i,
-          shellType: i.name, // Best guess — server doesn't persist shellType separately
+          shellType: "", // Unknown until server reports it
+          userRenamed: true, // Treat persisted names as user-chosen — don't overwrite
         })),
       })),
       activeGroupId: data.activeGroupId,

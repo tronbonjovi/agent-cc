@@ -69,15 +69,23 @@ export function TerminalPanel() {
       });
   }, [loadFromServer, createGroup]);
 
-  // Persist state to server on changes — only after successful server load
+  // Persist state to server on changes — debounced to prevent stale overwrites
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!serverLoadedRef.current) return;
-    const data = toSerializable();
-    apiRequest("PATCH", "/api/terminal/panel", data).catch(() => {});
+    // Cancel any pending save — only the latest state wins
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      const data = toSerializable();
+      apiRequest("PATCH", "/api/terminal/panel", data).catch(() => {});
+    }, 300);
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    };
   }, [groups, activeGroupId, height, collapsed, toSerializable]);
 
   // Subscribe manager to update shell types when server reports them.
-  // Only rename if the instance still has a default name — preserve user renames.
+  // Only update display name if the user hasn't renamed it.
   useEffect(() => {
     const manager = getTerminalInstanceManager();
     const unsub = manager.onShellType((id, shellType) => {
@@ -85,12 +93,13 @@ export function TerminalPanel() {
       for (const group of state.groups) {
         const inst = group.instances.find((i) => i.id === id);
         if (inst) {
-          // Only update name if it still matches the original shellType (not user-renamed)
-          if (inst.name === inst.shellType) {
-            state.renameInstance(id, shellType);
-          }
-          // Always update the stored shellType for future comparisons
+          // Always store the actual shell type
           state.updateShellType(id, shellType);
+          // Only update display name if not user-renamed
+          if (!inst.userRenamed) {
+            // Use updateShellName to avoid setting userRenamed=true
+            state.setInstanceName(id, shellType);
+          }
           break;
         }
       }
