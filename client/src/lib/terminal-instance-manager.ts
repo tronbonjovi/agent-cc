@@ -260,6 +260,34 @@ export class TerminalInstanceManager {
     });
   }
 
+  /**
+   * Force reconnection for all disconnected/expired terminals.
+   * Called when the browser tab becomes visible again after sleeping.
+   */
+  reconnectAll(): void {
+    Array.from(this.instances.values()).forEach((managed) => {
+      if (managed.disposed) return;
+      const needsReconnect =
+        managed.connectionState === "disconnected" ||
+        managed.connectionState === "reconnecting" ||
+        managed.connectionState === "expired";
+      if (!needsReconnect) return;
+
+      // Cancel any pending reconnect timer
+      if (managed.reconnectTimer) {
+        clearTimeout(managed.reconnectTimer);
+        managed.reconnectTimer = null;
+      }
+
+      // Reset giveup state so expired terminals can recover
+      managed.gaveUp = false;
+      managed.reconnectAttempt = 0;
+      managed.disconnectStartTime = null;
+      managed.firstConnect = managed.connectionState === "expired";
+      this.connect(managed);
+    });
+  }
+
   // --- Private ---
 
   private setConnectionState(managed: ManagedTerminal, state: TerminalConnectionState): void {
@@ -301,6 +329,12 @@ export class TerminalInstanceManager {
         const msg = JSON.parse(event.data);
         switch (msg.type) {
           case "created":
+            // If this is a reconnection (old session expired on server),
+            // clear the terminal so stale disconnect messages don't pile up
+            if (!managed.firstConnect) {
+              managed.terminal.clear();
+              managed.terminal.reset();
+            }
             this.setConnectionState(managed, "connected");
             managed.firstConnect = false;
             if (msg.shellType) {

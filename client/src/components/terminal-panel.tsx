@@ -122,6 +122,18 @@ export function TerminalPanel() {
     return unsub;
   }, [markUnread]);
 
+  // Reconnect all terminals when browser tab becomes visible again
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const manager = getTerminalInstanceManager();
+        manager.reconnectAll();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
   // Sync theme to manager
   useEffect(() => {
     const manager = getTerminalInstanceManager();

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { getTerminalInstanceManager } from "@/lib/terminal-instance-manager";
+import "xterm/css/xterm.css";
 
 interface TerminalInstanceProps {
   instanceId: string;

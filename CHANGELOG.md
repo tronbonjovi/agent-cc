@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Old `use-terminal.ts` hook deleted, replaced by zustand store
 
 ### Fixed
+- Terminal styling restored — xterm.css import was dropped during redesign, causing garbled escape sequences (visible title characters) over terminal panes
+- Terminal reconnection after tab sleep — added `visibilitychange` listener that force-reconnects all disconnected/expired terminals when the browser tab becomes visible again
+- Terminal clear on new session — when server-side PTY expired and reconnect creates a fresh session, old disconnect messages are cleared instead of piling up
+- Split terminal width redistribution — removing a split pane now redistributes space equally among remaining panes (previously only the adjacent pane absorbed the freed space)
 - Tab-to-group migration preserves existing terminal layouts, split views, and panel preferences on upgrade
 - Panel remount no longer kills live PTY sessions (guards with `manager.has()`)
 - Persistence suppressed until server state loads — transient fetch failures can't overwrite valid data

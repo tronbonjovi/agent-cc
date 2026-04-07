@@ -28,7 +28,7 @@ export function TerminalGroupView() {
 
   return (
     <div className="flex-1">
-      <Allotment>
+      <Allotment key={group.instances.length}>
         {group.instances.map((instance) => (
           <Allotment.Pane key={instance.id}>
             <div
