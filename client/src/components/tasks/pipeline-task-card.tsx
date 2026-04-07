@@ -17,7 +17,7 @@ const stageStyles: Record<string, { border: string; textMuted?: boolean; pulse?:
 };
 
 export function PipelineTaskCard({ task, onClick }: PipelineTaskCardProps) {
-  const stage = task.pipelineStage || "backlog";
+  const stage = task.pipelineStage || task.status || "backlog";
   const isBlocked = stage === "blocked";
   const isDone = stage === "done";
   const isActive = stage === "build" || stage === "ai-review";

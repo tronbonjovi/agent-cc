@@ -155,23 +155,26 @@ export function createBoardRouter(events: BoardEventBus): Router {
       fs.mkdirSync(tasksDir, { recursive: true, mode: 0o775 });
     }
 
-    // Build title→ID index from existing items for dedup and dependency resolution
-    const existingByTitle = new Map<string, string>();
+    // Build composite-key→ID index from existing items for dedup and dependency resolution
+    // Key: "type:parent:title" to avoid merging unrelated tasks with same title
+    const existingByKey = new Map<string, string>();
     try {
       const existing = scanProjectTasks(entity.path, entity.id, entity.name);
       for (const item of existing.items) {
-        existingByTitle.set(item.title, item.id);
+        const key = `${item.type}:${item.parent || ""}:${item.title}`;
+        existingByKey.set(key, item.id);
       }
     } catch {
       // If scan fails, proceed without dedup — safe because we only skip, never overwrite
     }
 
-    // Create milestone tasks (skip duplicates by title, resolve existing IDs)
+    // Create milestone tasks (skip duplicates by composite key, resolve existing IDs)
     let milestonesCreated = 0;
     let milestonesSkipped = 0;
     const milestoneIdMap = new Map<string, string>();
     for (const ms of parsed.milestones) {
-      const existingId = existingByTitle.get(ms.title);
+      const key = `milestone::${ms.title}`;
+      const existingId = existingByKey.get(key);
       if (existingId) {
         // Map the roadmap ID to the existing task's real ID so children resolve correctly
         milestoneIdMap.set(ms.id, existingId);
@@ -195,16 +198,20 @@ export function createBoardRouter(events: BoardEventBus): Router {
       milestonesCreated++;
     }
 
-    // Create task items (skip duplicates by title, resolve existing IDs for deps)
+    // Create task items (skip duplicates by composite key, resolve existing IDs for deps)
     let tasksCreated = 0;
     let tasksSkipped = 0;
     const taskIdMap = new Map<string, string>();
+    const skippedTaskIds = new Set<string>();
     // First pass: generate IDs for new tasks, resolve existing for duplicates
     for (const t of parsed.tasks) {
-      const existingId = existingByTitle.get(t.title);
+      const parentId = t.milestone ? milestoneIdMap.get(t.milestone) : undefined;
+      const key = `task:${parentId || ""}:${t.title}`;
+      const existingId = existingByKey.get(key);
       if (existingId) {
         // Map the roadmap ID to the existing task's real ID so deps resolve correctly
         taskIdMap.set(t.id, existingId);
+        skippedTaskIds.add(t.id);
         tasksSkipped++;
         continue;
       }
@@ -212,8 +219,7 @@ export function createBoardRouter(events: BoardEventBus): Router {
     }
     // Second pass: create only new tasks, with fully resolved dependencies
     for (const t of parsed.tasks) {
-      // Skip tasks that already exist (they're in the map but were marked as skipped)
-      if (existingByTitle.has(t.title)) continue;
+      if (skippedTaskIds.has(t.id)) continue;
       const id = taskIdMap.get(t.id)!;
       const deps = t.dependsOn
         .map((d: string) => taskIdMap.get(d))

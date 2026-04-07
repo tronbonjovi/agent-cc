@@ -67,7 +67,7 @@ export function MilestoneSwimlane({
   }
 
   for (const task of tasks) {
-    const stage = task.pipelineStage;
+    const stage = task.pipelineStage || task.status;
     if (stage === "blocked") {
       const fromStage = task.blockedFromStage;
       const col = fromStage ? stageToColumn(fromStage) : null;

@@ -50,6 +50,6 @@ export function checkAutoUnflag(task: BoardTask, allTasks: BoardTask[]): boolean
 
   return task.dependsOn.every(depId => {
     const dep = allTasks.find(t => t.id === depId);
-    return dep?.column === "done";
+    return dep?.column === "done" && !dep.flagged;
   });
 }
