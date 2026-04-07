@@ -78,8 +78,8 @@ describe("terminal panel state", () => {
     const state = storage.getTerminalPanel();
     expect(state).toHaveProperty("height");
     expect(state).toHaveProperty("collapsed");
-    expect(state).toHaveProperty("tabs");
-    expect(Array.isArray(state.tabs)).toBe(true);
+    expect(state).toHaveProperty("groups");
+    expect(Array.isArray(state.groups)).toBe(true);
   });
 
   it("updates panel state", async () => {

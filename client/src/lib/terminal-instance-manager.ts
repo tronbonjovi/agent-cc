@@ -234,37 +234,37 @@ export class TerminalInstanceManager {
     const ansi = variant === "dark" ? DARK_ANSI : LIGHT_ANSI;
     const theme = { background: bg, foreground: fg, cursor: fg, selectionBackground: sel, ...ansi };
 
-    for (const managed of this.instances.values()) {
+    Array.from(this.instances.values()).forEach((managed) => {
       managed.terminal.options.theme = theme;
-    }
+    });
   }
 
   /** Dispose all instances (app shutdown). */
   disposeAll(): void {
-    for (const id of [...this.instances.keys()]) {
+    Array.from(this.instances.keys()).forEach((id) => {
       this.dispose(id);
-    }
+    });
   }
 
   // --- Private ---
 
   private setConnectionState(managed: ManagedTerminal, state: TerminalConnectionState): void {
     managed.connectionState = state;
-    for (const cb of this.connectionStateCallbacks) {
+    Array.from(this.connectionStateCallbacks).forEach((cb) => {
       cb(managed.id, state);
-    }
+    });
   }
 
   private fireActivity(id: string): void {
-    for (const cb of this.activityCallbacks) {
+    Array.from(this.activityCallbacks).forEach((cb) => {
       cb(id);
-    }
+    });
   }
 
   private fireShellType(id: string, shellType: string): void {
-    for (const cb of this.shellTypeCallbacks) {
+    Array.from(this.shellTypeCallbacks).forEach((cb) => {
       cb(id, shellType);
-    }
+    });
   }
 
   private connect(managed: ManagedTerminal): void {
