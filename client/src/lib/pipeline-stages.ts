@@ -17,6 +17,8 @@ export const PIPELINE_COLUMNS: PipelineColumn[] = [
 const KNOWN_STAGES = new Set([
   "queued", "build", "ai-review", "human-review", "done",
   "blocked", "descoped", "cancelled",
+  // Board column names (written by /api/board/tasks/:id/move into status)
+  "backlog", "ready", "in-progress", "review",
 ]);
 
 const HIDDEN_STAGES = new Set(["descoped", "cancelled"]);
@@ -27,6 +29,11 @@ const STAGE_TO_COLUMN: Record<string, string> = {
   "ai-review": "ai-review",
   "human-review": "human-review",
   done: "done",
+  // Board column names → nearest pipeline column
+  backlog: "backlog",
+  ready: "queued",
+  "in-progress": "build",
+  review: "human-review",
 };
 
 export function stageToColumn(stage: string | undefined): string | null {
