@@ -1,5 +1,5 @@
 import { useReducer, useRef, useCallback, useEffect, useState } from "react";
-import { TerminalInstance } from "./terminal-instance";
+import { TerminalInstance, type TerminalInstanceHandle } from "./terminal-instance";
 import { useTerminalPanel, useUpdateTerminalPanel } from "@/hooks/use-terminal";
 import type { TerminalTab, TerminalConnectionState } from "@shared/types";
 import { Plus, X, Columns2, ChevronDown, ChevronUp, Terminal } from "lucide-react";
@@ -109,6 +109,7 @@ export function TerminalPanel() {
   const updatePanel = useUpdateTerminalPanel();
   const [state, dispatch] = useReducer(panelReducer, initialState);
   const [connectionStates, setConnectionStates] = useState<Record<string, TerminalConnectionState>>({});
+  const terminalRefs = useRef<Map<string, TerminalInstanceHandle>>(new Map());
   const initializedRef = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
@@ -172,6 +173,14 @@ export function TerminalPanel() {
   }, []);
 
   const closeTab = useCallback((tabId: string) => {
+    // Kill the server-side PTY immediately (don't let it linger in grace period)
+    const handle = terminalRefs.current.get(tabId);
+    if (handle) handle.killSession();
+    // Also kill split instance if it exists
+    const splitHandle = terminalRefs.current.get(`split-${tabId}`);
+    if (splitHandle) splitHandle.killSession();
+    terminalRefs.current.delete(tabId);
+    terminalRefs.current.delete(`split-${tabId}`);
     dispatch({ type: "CLOSE_TAB", tabId });
   }, []);
 
@@ -332,6 +341,10 @@ export function TerminalPanel() {
           {state.tabs.map((tab) => (
             <TerminalInstance
               key={tab.id}
+              ref={(handle) => {
+                if (handle) terminalRefs.current.set(tab.id, handle);
+                else terminalRefs.current.delete(tab.id);
+              }}
               id={tab.id}
               isVisible={tab.id === state.activeTabId}
               onConnectionStateChange={handleConnectionStateChange}
@@ -343,6 +356,11 @@ export function TerminalPanel() {
             {state.tabs.map((tab) => (
               <TerminalInstance
                 key={`split-${tab.id}`}
+                ref={(handle) => {
+                  const splitId = `split-${tab.id}`;
+                  if (handle) terminalRefs.current.set(splitId, handle);
+                  else terminalRefs.current.delete(splitId);
+                }}
                 id={`split-${tab.id}`}
                 isVisible={tab.id === state.splitTabId}
                 onConnectionStateChange={handleConnectionStateChange}

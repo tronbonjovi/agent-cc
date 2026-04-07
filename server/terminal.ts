@@ -74,6 +74,9 @@ interface ManagedTerminal {
   cols: number;
   rows: number;
   cwd: string;
+  /** When true, live PTY output is queued instead of sent — used during buffer replay */
+  replaying: boolean;
+  replayQueue: string[];
 }
 
 export class TerminalManager {
@@ -157,11 +160,16 @@ export class TerminalManager {
       cols: safeCols,
       rows: safeRows,
       cwd: safeCwd,
+      replaying: false,
+      replayQueue: [],
     };
 
     pty.onData((data) => {
       buffer.push(data);
-      if (terminal.ws && terminal.ws.readyState === terminal.ws.OPEN) {
+      if (terminal.replaying) {
+        // Queue live output during replay to prevent duplication/reordering
+        terminal.replayQueue.push(data);
+      } else if (terminal.ws && terminal.ws.readyState === terminal.ws.OPEN) {
         terminal.ws.send(JSON.stringify({ type: "output", data }));
       }
     });
@@ -218,18 +226,32 @@ export class TerminalManager {
       terminal.ws.close();
     }
 
+    // Freeze live output during replay to prevent duplication/reordering.
+    // The onData handler queues output while this flag is set.
+    terminal.replaying = true;
+    terminal.replayQueue = [];
+    const replayChunks = terminal.buffer.getAll();
+
     terminal.ws = ws;
     terminal.state = "connected";
 
     // Wire up new WS handlers
     this.wireWs(id, terminal, ws);
 
-    // Replay buffer
-    const chunks = terminal.buffer.getAll();
-    for (const chunk of chunks) {
+    // Replay buffered output
+    for (const chunk of replayChunks) {
       ws.send(JSON.stringify({ type: "buffer-replay", data: chunk }));
     }
     ws.send(JSON.stringify({ type: "buffer-replay-done" }));
+
+    // Resume live output and flush anything that arrived during replay
+    terminal.replaying = false;
+    for (const data of terminal.replayQueue) {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(JSON.stringify({ type: "output", data }));
+      }
+    }
+    terminal.replayQueue = [];
 
     return { success: true, cols: terminal.cols, rows: terminal.rows };
   }

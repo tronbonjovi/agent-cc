@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
 import { Terminal } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -59,13 +59,18 @@ const RECONNECT_INITIAL_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
 const RECONNECT_TIMEOUT_MS = 300000; // 5 minutes — match server grace period
 
+export interface TerminalInstanceHandle {
+  /** Send explicit kill to server — use when user intentionally closes a tab */
+  killSession(): void;
+}
+
 interface TerminalInstanceProps {
   id: string;
   isVisible: boolean;
   onConnectionStateChange?: (id: string, state: TerminalConnectionState) => void;
 }
 
-export function TerminalInstance({ id, isVisible, onConnectionStateChange }: TerminalInstanceProps) {
+export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInstanceProps>(function TerminalInstance({ id, isVisible, onConnectionStateChange }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -82,6 +87,15 @@ export function TerminalInstance({ id, isVisible, onConnectionStateChange }: Ter
     connectionStateRef.current = state;
     onConnectionStateChange?.(id, state);
   }
+
+  useImperativeHandle(ref, () => ({
+    killSession() {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "kill" }));
+      }
+    },
+  }));
 
   // Keep ref in sync so ResizeObserver closure always has current value
   isVisibleRef.current = isVisible;
@@ -140,6 +154,7 @@ export function TerminalInstance({ id, isVisible, onConnectionStateChange }: Ter
 
       ws.onopen = () => {
         reconnectAttemptRef.current = 0;
+        disconnectStartTime = null; // Reset timeout window on successful connection
       };
 
       ws.onmessage = (event) => {
@@ -151,9 +166,12 @@ export function TerminalInstance({ id, isVisible, onConnectionStateChange }: Ter
               firstConnectRef.current = false;
               break;
             case "attached":
+              // Clear terminal before replay to avoid duplicating history
+              terminal.clear();
+              terminal.reset();
               setConnectionState("connected");
               if (!firstConnectRef.current) {
-                terminal.write("\r\n\x1b[32m[Reconnected]\x1b[0m\r\n");
+                terminal.write("\x1b[32m[Reconnected]\x1b[0m\r\n");
               }
               firstConnectRef.current = false;
               break;
@@ -293,4 +311,4 @@ export function TerminalInstance({ id, isVisible, onConnectionStateChange }: Ter
       style={{ display: isVisible ? "block" : "none" }}
     />
   );
-}
+});
