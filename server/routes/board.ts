@@ -89,7 +89,8 @@ export function createBoardRouter(events: BoardEventBus): Router {
 
       // Check if any other flagged tasks should auto-unflag
       if (column === "done") {
-        const updatedTask = { ...task, column: column as BoardColumn };
+        // Use post-write state: column is done, flag reflects what we just wrote
+        const updatedTask = { ...task, column: column as BoardColumn, flagged: !!validation.flag };
         const otherTasks = state.tasks.filter(t => t.id !== id);
         const allTasksUpdated = [...otherTasks, updatedTask];
 

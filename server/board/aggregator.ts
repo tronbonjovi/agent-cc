@@ -49,6 +49,7 @@ function statusToColumn(status: string, pipelineStage?: string): BoardColumn {
     case "ai-review":
     case "brainstorm":
     case "plan":
+    case "blocked":
       return "in-progress";
     case "review":
     case "human-review":
@@ -90,8 +91,8 @@ export function mapTaskToBoard(
     tags: task.labels || [],
     assignee: task.assignee,
     sessionId: task.pipelineSessionIds?.[0],
-    flagged: task.flagged || false,
-    flagReason: task.flagReason,
+    flagged: task.flagged || (task.pipelineStage === "blocked") || false,
+    flagReason: task.flagReason || task.pipelineBlockedReason,
     activity: task.pipelineActivity,
     cost: task.pipelineCost,
     createdAt: task.created,
