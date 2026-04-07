@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Terminal reliability** — terminals survive page refreshes and brief disconnects. Sessions stay alive on the server for 5 minutes, client auto-reconnects with exponential backoff, output history is replayed on reconnect. Tab indicators show connection state (green/yellow/red). Explicit kill on tab close with HTTP fallback when disconnected. 2 rounds of Codex adversarial review, 7 findings fixed.
+- **Ring buffer** — server-side circular buffer (50K chunks) captures terminal output for replay on reconnect
+- **Terminal tab naming** — new tabs increment from the highest existing tab number instead of using tab count
+
+### Fixed
+- Terminal tab numbering no longer creates duplicate names after closing and reopening tabs
+
+### Previously Added
 - **Centralized kanban board** — cross-project board at `/board` aggregates tasks from all projects into 5 columns (Backlog → Ready → In Progress → Review → Done). Includes:
   - Board types, column definitions, cross-project aggregator with per-project colors
   - Dependency validation with flagging (advise, not block) and auto-unflag
