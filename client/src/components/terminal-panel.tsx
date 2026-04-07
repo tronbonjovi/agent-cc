@@ -64,6 +64,10 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     }
 
     case "SET_ACTIVE":
+      // If clicking the tab that's in the split pane, swap them
+      if (state.splitTabId && action.tabId === state.splitTabId) {
+        return { ...state, activeTabId: action.tabId, splitTabId: state.activeTabId };
+      }
       return { ...state, activeTabId: action.tabId };
 
     case "TOGGLE_SPLIT": {
@@ -182,11 +186,7 @@ export function TerminalPanel() {
     // Kill the server-side PTY immediately (don't let it linger in grace period)
     const handle = terminalRefs.current.get(tabId);
     if (handle) handle.killSession();
-    // Also kill split instance if it exists
-    const splitHandle = terminalRefs.current.get(`split-${tabId}`);
-    if (splitHandle) splitHandle.killSession();
     terminalRefs.current.delete(tabId);
-    terminalRefs.current.delete(`split-${tabId}`);
     userRenamedTabIdsRef.current.delete(tabId);
     dispatch({ type: "CLOSE_TAB", tabId });
   }, []);
@@ -235,25 +235,23 @@ export function TerminalPanel() {
   }, []);
 
   const handleTitleChange = useCallback((tabId: string, title: string) => {
-    const realId = tabId.startsWith("split-") ? tabId.slice(6) : tabId;
     // Don't overwrite user-assigned tab names with shell titles
-    if (userRenamedTabIdsRef.current.has(realId)) return;
+    if (userRenamedTabIdsRef.current.has(tabId)) return;
     // Strip control characters, then trim and truncate
     const sanitized = title.replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, MAX_TAB_NAME_LENGTH);
     if (sanitized) {
-      dispatch({ type: "RENAME_TAB", tabId: realId, name: sanitized });
+      dispatch({ type: "RENAME_TAB", tabId, name: sanitized });
     }
   }, []);
 
   const handleActivity = useCallback((tabId: string) => {
-    const realId = tabId.startsWith("split-") ? tabId.slice(6) : tabId;
     const current = stateRef.current;
     // Don't mark as unread if tab is visible in either pane
-    if (realId === current.activeTabId || realId === current.splitTabId) return;
+    if (tabId === current.activeTabId || tabId === current.splitTabId) return;
     setUnreadTabIds(prev => {
-      if (prev.has(realId)) return prev;
+      if (prev.has(tabId)) return prev;
       const next = new Set(prev);
-      next.add(realId);
+      next.add(tabId);
       return next;
     });
   }, []);
@@ -311,9 +309,11 @@ export function TerminalPanel() {
             className={`flex items-center gap-1 px-2 h-full cursor-pointer border-r border-border ${
               tab.id === state.activeTabId
                 ? "bg-background text-foreground"
-                : unreadTabIds.has(tab.id)
-                  ? "text-foreground bg-accent/30 animate-terminal-tab-flash"
-                  : "text-muted-foreground hover:text-foreground"
+                : tab.id === state.splitTabId
+                  ? "bg-background/60 text-foreground"
+                  : unreadTabIds.has(tab.id)
+                    ? "text-foreground bg-accent/30 animate-terminal-tab-flash"
+                    : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <span
@@ -379,41 +379,44 @@ export function TerminalPanel() {
         </div>
       </div>
 
-      {/* Terminal area — split shows two different tabs side by side, each with its own PTY */}
+      {/* Terminal area — each tab rendered exactly once, in the correct pane */}
       <div className="flex-1 flex min-h-0">
         <div className={state.splitTabId ? "flex-1 border-r border-border" : "flex-1"}>
-          {state.tabs.map((tab) => (
-            <TerminalInstance
-              key={tab.id}
-              ref={(handle) => {
-                if (handle) terminalRefs.current.set(tab.id, handle);
-                else terminalRefs.current.delete(tab.id);
-              }}
-              id={tab.id}
-              isVisible={tab.id === state.activeTabId}
-              onConnectionStateChange={handleConnectionStateChange}
-              onTitleChange={handleTitleChange}
-              onActivity={handleActivity}
-            />
-          ))}
-        </div>
-        {state.splitTabId && (
-          <div className="flex-1">
-            {state.tabs.map((tab) => (
+          {state.tabs
+            .filter((tab) => tab.id !== state.splitTabId)
+            .map((tab) => (
               <TerminalInstance
-                key={`split-${tab.id}`}
+                key={tab.id}
                 ref={(handle) => {
-                  const splitId = `split-${tab.id}`;
-                  if (handle) terminalRefs.current.set(splitId, handle);
-                  else terminalRefs.current.delete(splitId);
+                  if (handle) terminalRefs.current.set(tab.id, handle);
+                  else terminalRefs.current.delete(tab.id);
                 }}
-                id={`split-${tab.id}`}
-                isVisible={tab.id === state.splitTabId}
+                id={tab.id}
+                isVisible={tab.id === state.activeTabId}
                 onConnectionStateChange={handleConnectionStateChange}
                 onTitleChange={handleTitleChange}
                 onActivity={handleActivity}
               />
             ))}
+        </div>
+        {state.splitTabId && (
+          <div className="flex-1">
+            {state.tabs
+              .filter((tab) => tab.id === state.splitTabId)
+              .map((tab) => (
+                <TerminalInstance
+                  key={tab.id}
+                  ref={(handle) => {
+                    if (handle) terminalRefs.current.set(tab.id, handle);
+                    else terminalRefs.current.delete(tab.id);
+                  }}
+                  id={tab.id}
+                  isVisible={true}
+                  onConnectionStateChange={handleConnectionStateChange}
+                  onTitleChange={handleTitleChange}
+                  onActivity={handleActivity}
+                />
+              ))}
           </div>
         )}
       </div>
