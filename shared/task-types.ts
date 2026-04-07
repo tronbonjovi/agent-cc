@@ -25,6 +25,9 @@ export interface TaskItem {
   removedAt?: string;
   dependsOn?: string[];            // task IDs this task depends on
   parallelGroup?: string;          // group ID for parallel-safe tasks
+  flagged?: boolean;
+  flagReason?: string;
+  assignee?: string;             // human name or "ai"
 }
 
 export interface TaskConfig {
