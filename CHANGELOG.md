@@ -8,18 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Terminal group redesign** — VS Code-style terminal groups replace flat tabs. Groups contain 1+ terminal instances shown side by side with resizable split panes (allotment). Explorer sidebar on the right shows all groups with tree connectors, status dots, close buttons, inline rename, and right-click context menu (Rename/Split/Kill). Unread activity indicators for background groups. 4 rounds of Codex adversarial review, 11 findings fixed.
+- **TerminalInstanceManager** — singleton class owns all xterm.js Terminal + WebSocket lifecycles independent of React. Terminals survive group switches without reconnect — instant attach/detach with preserved scroll position and output buffer.
+- **Zustand terminal store** — replaces React hook with app-scoped state for group CRUD, persistence, unread tracking, and server sync with 300ms debounce.
 - **Terminal reliability** — terminals survive page refreshes and brief disconnects. Sessions stay alive on the server for 5 minutes, client auto-reconnects with exponential backoff, output history is replayed on reconnect. Tab indicators show connection state (green/yellow/red). Explicit kill on tab close with HTTP fallback when disconnected. 2 rounds of Codex adversarial review, 7 findings fixed.
 - **Ring buffer** — server-side circular buffer (50K chunks) captures terminal output for replay on reconnect
-- **Terminal tab naming** — new tabs increment from the highest existing tab number instead of using tab count
-- **Dynamic tab titles** — tabs auto-update from shell escape sequences (e.g. current dir, running command). User renames via double-click are preserved. Shell titles sanitized to strip control characters.
-- **Background activity flash** — non-active tabs pulse when they receive output, unread state clears on focus
-- **Terminal group redesign spec** — VS Code-style terminal architecture designed: group-based model, explorer sidebar, singleton TerminalInstanceManager, zustand store. Implementation plan written (13 tasks).
+- **Shell type detection** — server reports shell type (bash/zsh/powershell) on PTY creation, used as default terminal name
+
+### Changed
+- Terminal panel rewritten from flat tab model to group-based architecture
+- TerminalInstance component reduced from 320 lines to 25-line mount point
+- Old `use-terminal.ts` hook deleted, replaced by zustand store
 
 ### Fixed
-- Terminal tab numbering no longer creates duplicate names after closing and reopening tabs
+- Tab-to-group migration preserves existing terminal layouts, split views, and panel preferences on upgrade
+- Panel remount no longer kills live PTY sessions (guards with `manager.has()`)
+- Persistence suppressed until server state loads — transient fetch failures can't overwrite valid data
+- Empty group state persisted so deleting last terminal group is durable across refresh
+- PTY geometry synced immediately on attach — no stale 80x24 after restore
+- User-renamed terminals preserved across reconnect and restore (userRenamed flag)
+- Rename input capped at 100 chars to match server validation schema
+- Migration validates activeGroupId — stale references fall back to first group
 - Split terminal no longer creates phantom PTY sessions — each tab renders exactly once in the correct pane
 - Split state normalized on every reducer action — prevents stuck layouts from stale persisted state
-- Split-pane mirrors no longer generate false unread activity for visible tabs
 
 ### Previously Added
 - **Centralized kanban board** — cross-project board at `/board` aggregates tasks from all projects into 5 columns (Backlog → Ready → In Progress → Review → Done). Includes:
