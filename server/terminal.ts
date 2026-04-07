@@ -238,6 +238,9 @@ export class TerminalManager {
     // Wire up new WS handlers
     this.wireWs(id, terminal, ws);
 
+    // Send attached message BEFORE replay so client can clear terminal first
+    ws.send(JSON.stringify({ type: "attached", cols: terminal.cols, rows: terminal.rows }));
+
     // Replay buffered output
     for (const chunk of replayChunks) {
       ws.send(JSON.stringify({ type: "buffer-replay", data: chunk }));
@@ -278,11 +281,18 @@ export class TerminalManager {
   }
 }
 
+/** Singleton manager — accessible by terminal routes for HTTP kill endpoint */
+let _manager: TerminalManager | null = null;
+export function getTerminalManager(): TerminalManager | null {
+  return _manager;
+}
+
 export function attachTerminalWebSocket(
   server: Server,
   allowedOrigins: Set<string>,
 ): TerminalManager {
   const manager = new TerminalManager();
+  _manager = manager;
 
   const wss = new WebSocketServer({
     server,
@@ -319,11 +329,10 @@ export function attachTerminalWebSocket(
       const state = manager.getSessionState(id);
       if (state === "connected" || state === "detached") {
         const result = manager.attach(id, ws);
-        if (result.success) {
-          ws.send(JSON.stringify({ type: "attached", cols: result.cols, rows: result.rows }));
-        } else {
+        if (!result.success) {
           ws.send(JSON.stringify({ type: "expired" }));
         }
+        // On success, attach() already sent "attached" + replay
       } else {
         // Session doesn't exist or is dead — create a new one
         manager.create(id, ws, cols, rows, cwd);

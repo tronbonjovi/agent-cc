@@ -93,6 +93,9 @@ export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInsta
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "kill" }));
+      } else {
+        // WS is down — use HTTP fallback to kill server-side session
+        fetch(`/api/terminal/sessions/${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
       }
     },
   }));
@@ -138,6 +141,7 @@ export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInsta
     reconnectAttemptRef.current = 0;
     gaveUpRef.current = false;
     firstConnectRef.current = true;
+    let disposed = false;
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
@@ -146,6 +150,7 @@ export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInsta
     let disconnectStartTime: number | null = null;
 
     function connect() {
+      if (disposed) return;
       setConnectionState("connecting");
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -198,6 +203,7 @@ export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInsta
       };
 
       ws.onclose = () => {
+        if (disposed) return; // Component unmounted — don't reconnect
         if (gaveUpRef.current) return;
 
         // Don't reconnect from expired state
@@ -275,6 +281,7 @@ export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInsta
     connect();
 
     return () => {
+      disposed = true; // Prevent post-unmount reconnect attempts
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
