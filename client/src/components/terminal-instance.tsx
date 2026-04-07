@@ -68,9 +68,11 @@ interface TerminalInstanceProps {
   id: string;
   isVisible: boolean;
   onConnectionStateChange?: (id: string, state: TerminalConnectionState) => void;
+  onTitleChange?: (id: string, title: string) => void;
+  onActivity?: (id: string) => void;
 }
 
-export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInstanceProps>(function TerminalInstance({ id, isVisible, onConnectionStateChange }, ref) {
+export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInstanceProps>(function TerminalInstance({ id, isVisible, onConnectionStateChange, onTitleChange, onActivity }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -82,6 +84,11 @@ export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInsta
   const gaveUpRef = useRef(false);
   const firstConnectRef = useRef(true);
   const { resolvedTheme } = useTheme();
+
+  const onTitleChangeRef = useRef(onTitleChange);
+  onTitleChangeRef.current = onTitleChange;
+  const onActivityRef = useRef(onActivity);
+  onActivityRef.current = onActivity;
 
   function setConnectionState(state: TerminalConnectionState) {
     connectionStateRef.current = state;
@@ -192,6 +199,9 @@ export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInsta
               break;
             case "output":
               terminal.write(msg.data);
+              if (!isVisibleRef.current) {
+                onActivityRef.current?.(id);
+              }
               break;
             case "exit":
               terminal.write("\r\n\x1b[90m[Process exited]\x1b[0m\r\n");
@@ -276,6 +286,11 @@ export const TerminalInstance = forwardRef<TerminalInstanceHandle, TerminalInsta
       }
     });
     resizeObserver.observe(containerRef.current);
+
+    // Update tab name when shell sets terminal title (e.g. current dir, running command)
+    terminal.onTitleChange((title) => {
+      onTitleChangeRef.current?.(id, title);
+    });
 
     // Start initial connection
     connect();

@@ -122,6 +122,10 @@ export default {
           "50%": { backgroundPosition: "100% 50%" },
           "100%": { backgroundPosition: "0% 50%" },
         },
+        "terminal-tab-flash": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.6" },
+        },
         float: {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-4px)" },
@@ -137,6 +141,7 @@ export default {
         "glow-pulse": "glow-pulse 2s ease-in-out infinite",
         "gradient-shift": "gradient-shift 3s ease infinite",
         float: "float 3s ease-in-out infinite",
+        "terminal-tab-flash": "terminal-tab-flash 1.5s ease-in-out infinite",
       },
       boxShadow: {
         glow: "0 0 12px var(--glow-blue)",

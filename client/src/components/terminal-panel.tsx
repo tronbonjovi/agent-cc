@@ -109,6 +109,8 @@ export function TerminalPanel() {
   const updatePanel = useUpdateTerminalPanel();
   const [state, dispatch] = useReducer(panelReducer, initialState);
   const [connectionStates, setConnectionStates] = useState<Record<string, TerminalConnectionState>>({});
+  const [unreadTabIds, setUnreadTabIds] = useState<Set<string>>(new Set());
+  const userRenamedTabIdsRef = useRef<Set<string>>(new Set());
   const terminalRefs = useRef<Map<string, TerminalInstanceHandle>>(new Map());
   const initializedRef = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -185,6 +187,7 @@ export function TerminalPanel() {
     if (splitHandle) splitHandle.killSession();
     terminalRefs.current.delete(tabId);
     terminalRefs.current.delete(`split-${tabId}`);
+    userRenamedTabIdsRef.current.delete(tabId);
     dispatch({ type: "CLOSE_TAB", tabId });
   }, []);
 
@@ -226,8 +229,43 @@ export function TerminalPanel() {
   const handleRenameTab = useCallback((tabId: string, newName: string) => {
     const trimmed = newName.trim().slice(0, MAX_TAB_NAME_LENGTH);
     if (trimmed) {
+      userRenamedTabIdsRef.current.add(tabId);
       dispatch({ type: "RENAME_TAB", tabId, name: trimmed });
     }
+  }, []);
+
+  const handleTitleChange = useCallback((tabId: string, title: string) => {
+    const realId = tabId.startsWith("split-") ? tabId.slice(6) : tabId;
+    // Don't overwrite user-assigned tab names with shell titles
+    if (userRenamedTabIdsRef.current.has(realId)) return;
+    // Strip control characters, then trim and truncate
+    const sanitized = title.replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, MAX_TAB_NAME_LENGTH);
+    if (sanitized) {
+      dispatch({ type: "RENAME_TAB", tabId: realId, name: sanitized });
+    }
+  }, []);
+
+  const handleActivity = useCallback((tabId: string) => {
+    const realId = tabId.startsWith("split-") ? tabId.slice(6) : tabId;
+    const current = stateRef.current;
+    // Don't mark as unread if tab is visible in either pane
+    if (realId === current.activeTabId || realId === current.splitTabId) return;
+    setUnreadTabIds(prev => {
+      if (prev.has(realId)) return prev;
+      const next = new Set(prev);
+      next.add(realId);
+      return next;
+    });
+  }, []);
+
+  const setActiveTab = useCallback((tabId: string) => {
+    dispatch({ type: "SET_ACTIVE", tabId });
+    setUnreadTabIds(prev => {
+      if (!prev.has(tabId)) return prev;
+      const next = new Set(prev);
+      next.delete(tabId);
+      return next;
+    });
   }, []);
 
   // Clean up document listeners on unmount
@@ -273,7 +311,9 @@ export function TerminalPanel() {
             className={`flex items-center gap-1 px-2 h-full cursor-pointer border-r border-border ${
               tab.id === state.activeTabId
                 ? "bg-background text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : unreadTabIds.has(tab.id)
+                  ? "text-foreground bg-accent/30 animate-terminal-tab-flash"
+                  : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <span
@@ -288,7 +328,7 @@ export function TerminalPanel() {
               }`}
             />
             <span
-              onClick={() => dispatch({ type: "SET_ACTIVE", tabId: tab.id })}
+              onClick={() => setActiveTab(tab.id)}
               onDoubleClick={() => {
                 const newName = prompt("Rename terminal:", tab.name);
                 if (newName) handleRenameTab(tab.id, newName);
@@ -352,6 +392,8 @@ export function TerminalPanel() {
               id={tab.id}
               isVisible={tab.id === state.activeTabId}
               onConnectionStateChange={handleConnectionStateChange}
+              onTitleChange={handleTitleChange}
+              onActivity={handleActivity}
             />
           ))}
         </div>
@@ -368,6 +410,8 @@ export function TerminalPanel() {
                 id={`split-${tab.id}`}
                 isVisible={tab.id === state.splitTabId}
                 onConnectionStateChange={handleConnectionStateChange}
+                onTitleChange={handleTitleChange}
+                onActivity={handleActivity}
               />
             ))}
           </div>
