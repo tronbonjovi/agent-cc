@@ -1,6 +1,7 @@
 // client/src/pages/board.tsx
 
 import { BoardHeader } from "@/components/board/board-header";
+import { BoardSidePanel } from "@/components/board/board-side-panel";
 import { BoardTaskCard } from "@/components/board/board-task-card";
 import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
@@ -79,6 +80,11 @@ export default function BoardPage() {
           ))}
         </div>
       </div>
+      <BoardSidePanel
+        task={selectedTask}
+        open={selectedTask !== null}
+        onClose={() => setSelectedTask(null)}
+      />
     </div>
   );
 }
