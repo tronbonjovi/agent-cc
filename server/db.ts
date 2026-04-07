@@ -137,7 +137,13 @@ try {
           activeGroupId: oldActiveTabId ?? oldTabs[0].id,
         };
       } else {
-        data.terminalPanel = defaultData().terminalPanel;
+        // Empty old tabs — preserve height/collapsed preferences
+        const defaults = defaultData().terminalPanel;
+        data.terminalPanel = {
+          ...defaults,
+          height: data.terminalPanel.height ?? defaults.height,
+          collapsed: data.terminalPanel.collapsed ?? defaults.collapsed,
+        };
       }
     }
     if (!data.costRecords) data.costRecords = {};

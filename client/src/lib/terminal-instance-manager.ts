@@ -152,6 +152,16 @@ export class TerminalInstanceManager {
     managed.terminal.open(container);
     managed.fitAddon.fit();
 
+    // Sync PTY size immediately after fit — connect() may have used stale 80x24
+    const ws = managed.ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: "resize",
+        cols: managed.terminal.cols,
+        rows: managed.terminal.rows,
+      }));
+    }
+
     managed.resizeObserver = new ResizeObserver(() => {
       if (managed.container) {
         managed.fitAddon.fit();

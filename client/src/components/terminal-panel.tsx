@@ -56,18 +56,16 @@ export function TerminalPanel() {
         }
       })
       .catch(() => {
-        // Server unavailable — don't create fallback state that could
-        // overwrite valid persisted data. Only create a default terminal
-        // if the manager has nothing live (true cold start).
+        // Server unavailable — create a local-only terminal for usability,
+        // but do NOT mark serverLoadedRef true. This suppresses persistence
+        // so this fallback can never overwrite valid persisted data.
         const manager = getTerminalInstanceManager();
         if (!manager.hasAny()) {
-          serverLoadedRef.current = true;
           const groupId = crypto.randomUUID();
           const instanceId = crypto.randomUUID();
           manager.create(instanceId);
           createGroup(groupId, instanceId, "bash");
         }
-        // Otherwise: keep panel empty, suppress persistence until server responds
       });
   }, [loadFromServer, createGroup]);
 
@@ -78,11 +76,24 @@ export function TerminalPanel() {
     apiRequest("PATCH", "/api/terminal/panel", data).catch(() => {});
   }, [groups, activeGroupId, height, collapsed, toSerializable]);
 
-  // Subscribe manager to update shell types when server reports them
+  // Subscribe manager to update shell types when server reports them.
+  // Only rename if the instance still has a default name — preserve user renames.
   useEffect(() => {
     const manager = getTerminalInstanceManager();
     const unsub = manager.onShellType((id, shellType) => {
-      useTerminalGroupStore.getState().renameInstance(id, shellType);
+      const state = useTerminalGroupStore.getState();
+      for (const group of state.groups) {
+        const inst = group.instances.find((i) => i.id === id);
+        if (inst) {
+          // Only update name if it still matches the original shellType (not user-renamed)
+          if (inst.name === inst.shellType) {
+            state.renameInstance(id, shellType);
+          }
+          // Always update the stored shellType for future comparisons
+          state.updateShellType(id, shellType);
+          break;
+        }
+      }
     });
     return unsub;
   }, []);

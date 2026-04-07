@@ -27,6 +27,7 @@ interface TerminalGroupState {
   renameInstance: (instanceId: string, name: string) => void;
   setHeight: (height: number) => void;
   setCollapsed: (collapsed: boolean) => void;
+  updateShellType: (instanceId: string, shellType: string) => void;
   markUnread: (instanceId: string) => void;
   clearUnread: (instanceId: string) => void;
   loadFromServer: (data: TerminalPanelState) => void;
@@ -152,6 +153,17 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
 
   setHeight: (height) => set({ height }),
   setCollapsed: (collapsed) => set({ collapsed }),
+
+  updateShellType: (instanceId, shellType) => {
+    set((s) => ({
+      groups: s.groups.map((g) => ({
+        ...g,
+        instances: g.instances.map((i) =>
+          i.id === instanceId ? { ...i, shellType } : i
+        ),
+      })),
+    }));
+  },
 
   markUnread: (instanceId) => {
     set((s) => {
