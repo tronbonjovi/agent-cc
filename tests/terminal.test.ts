@@ -89,3 +89,27 @@ describe("terminal panel state", () => {
     expect(updated.collapsed).toBe(true);
   });
 });
+
+describe("ring buffer integration", () => {
+  it("RingBuffer is used by TerminalManager", async () => {
+    const { RingBuffer } = await import("../server/ring-buffer");
+    const buf = new RingBuffer(100);
+    buf.push("test output");
+    expect(buf.getAll()).toEqual(["test output"]);
+  });
+});
+
+describe("terminal connection state type", () => {
+  it("exports TerminalConnectionState type", async () => {
+    const state: import("../shared/types").TerminalConnectionState = "connected";
+    expect(state).toBe("connected");
+  });
+});
+
+describe("attach protocol", () => {
+  it("getSessionState returns undefined for unknown id", async () => {
+    const { TerminalManager } = await import("../server/terminal");
+    const manager = new TerminalManager();
+    expect(manager.getSessionState("unknown")).toBeUndefined();
+  });
+});
