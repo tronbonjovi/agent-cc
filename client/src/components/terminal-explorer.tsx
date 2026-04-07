@@ -56,14 +56,15 @@ function InlineRename({ currentName, onConfirm, onCancel }: InlineRenameProps) {
       ref={inputRef}
       className="bg-background border border-border rounded px-1 text-xs w-full outline-none"
       defaultValue={currentName}
+      maxLength={100}
       onBlur={(e) => {
-        const v = e.target.value.trim();
+        const v = e.target.value.trim().slice(0, 100);
         if (v) onConfirm(v);
         else onCancel();
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
-          const v = (e.target as HTMLInputElement).value.trim();
+          const v = (e.target as HTMLInputElement).value.trim().slice(0, 100);
           if (v) onConfirm(v);
           else onCancel();
         }

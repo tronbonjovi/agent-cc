@@ -165,7 +165,10 @@ try {
           height: data.terminalPanel.height,
           collapsed: data.terminalPanel.collapsed,
           groups,
-          activeGroupId: oldActiveTabId ?? oldTabs[0].id,
+          // Validate activeGroupId exists in migrated groups
+          activeGroupId: groups.some((g) => g.id === oldActiveTabId)
+            ? oldActiveTabId
+            : groups[0].id,
         };
       } else {
         // Empty old tabs — preserve height/collapsed preferences
