@@ -1,5 +1,4 @@
 import { useRef, useCallback, useEffect } from "react";
-import { ChevronUp, Terminal } from "lucide-react";
 import { useTerminalGroupStore } from "@/stores/terminal-group-store";
 import { getTerminalInstanceManager } from "@/lib/terminal-instance-manager";
 import { useTheme } from "@/hooks/use-theme";
@@ -15,7 +14,6 @@ export function TerminalPanel() {
   const groups = useTerminalGroupStore((s) => s.groups);
   const activeGroupId = useTerminalGroupStore((s) => s.activeGroupId);
   const setHeight = useTerminalGroupStore((s) => s.setHeight);
-  const setCollapsed = useTerminalGroupStore((s) => s.setCollapsed);
   const loadFromServer = useTerminalGroupStore((s) => s.loadFromServer);
   const createGroup = useTerminalGroupStore((s) => s.createGroup);
   const toSerializable = useTerminalGroupStore((s) => s.toSerializable);
@@ -176,16 +174,7 @@ export function TerminalPanel() {
   if (collapsed) {
     return (
       <div className="border-t border-border bg-background">
-        <div className="flex items-center h-8 px-2">
-          <button
-            onClick={() => setCollapsed(false)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-accent/50"
-          >
-            <ChevronUp className="h-3 w-3" />
-            <Terminal className="h-3 w-3" />
-            <span>Terminal</span>
-          </button>
-        </div>
+        <TerminalToolbar />
       </div>
     );
   }
