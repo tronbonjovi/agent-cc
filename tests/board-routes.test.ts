@@ -26,6 +26,52 @@ vi.mock("../server/db", () => ({
   save: vi.fn(),
 }));
 
+vi.mock("../server/board/aggregator", () => ({
+  aggregateBoardState: vi.fn(() => ({
+    tasks: [
+      {
+        id: "itm-test",
+        title: "Test Task",
+        description: "A test task",
+        column: "ready" as const,
+        project: "p1",
+        projectName: "Test Project",
+        projectColor: "#3b82f6",
+        priority: "medium" as const,
+        dependsOn: [],
+        tags: [],
+        flagged: false,
+        session: {
+          sessionId: "sess-123",
+          isActive: true,
+          model: "claude-3-5-sonnet-20241022",
+          lastActivity: "query",
+          lastActivityTs: "2026-04-08T10:30:00Z",
+          messageCount: 15,
+          costUsd: 0.35,
+          inputTokens: 2500,
+          outputTokens: 1200,
+          healthScore: "good" as const,
+          toolErrors: 0,
+          durationMinutes: 45,
+        },
+        createdAt: "2026-04-01T00:00:00Z",
+        updatedAt: "2026-04-08T10:30:00Z",
+      },
+    ],
+    columns: ["backlog", "ready", "in-progress", "review", "done"],
+    projects: [],
+    milestones: [],
+  })),
+  computeBoardStats: vi.fn(() => ({
+    totalTasks: 1,
+    byColumn: { backlog: 0, ready: 1, "in-progress": 0, review: 0, done: 0 },
+    activeAgents: 0,
+    totalSpend: 0.35,
+    flaggedCount: 0,
+  })),
+}));
+
 vi.mock("fs", async () => {
   const actual = await vi.importActual<typeof import("fs")>("fs");
   return { ...actual, default: { ...actual, existsSync: vi.fn(() => true), mkdirSync: vi.fn() }, existsSync: vi.fn(() => true), mkdirSync: vi.fn() };
@@ -36,6 +82,7 @@ import request from "supertest";
 import { createBoardRouter } from "../server/routes/board";
 import { BoardEventBus } from "../server/board/events";
 import { storage } from "../server/storage";
+import { aggregateBoardState } from "../server/board/aggregator";
 
 describe("board routes", () => {
   let app: express.Express;
@@ -108,6 +155,59 @@ describe("board routes", () => {
         clientReq.end();
       });
     });
+  });
+
+  it("GET /api/board/tasks/:id/session returns 404 when task not found", async () => {
+    vi.mocked(aggregateBoardState).mockReturnValueOnce({
+      tasks: [],
+      columns: ["backlog", "ready", "in-progress", "review", "done"],
+      projects: [],
+      milestones: [],
+    });
+    const res = await request(app).get("/api/board/tasks/itm-nonexistent/session");
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain("Task not found");
+  });
+
+  it("GET /api/board/tasks/:id/session returns 404 when task has no session", async () => {
+    vi.mocked(aggregateBoardState).mockReturnValueOnce({
+      tasks: [
+        {
+          id: "itm-test",
+          title: "Test Task",
+          description: "A test task",
+          column: "ready" as const,
+          project: "p1",
+          projectName: "Test Project",
+          projectColor: "#3b82f6",
+          priority: "medium" as const,
+          dependsOn: [],
+          tags: [],
+          flagged: false,
+          session: null,
+          createdAt: "2026-04-01T00:00:00Z",
+          updatedAt: "2026-04-08T10:30:00Z",
+        },
+      ],
+      columns: ["backlog", "ready", "in-progress", "review", "done"],
+      projects: [],
+      milestones: [],
+    });
+    const res = await request(app).get("/api/board/tasks/itm-test/session");
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain("No session linked to this task");
+  });
+
+  it("GET /api/board/tasks/:id/session returns session enrichment for task with session", async () => {
+    const res = await request(app).get("/api/board/tasks/itm-test/session");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("sessionId");
+    expect(res.body).toHaveProperty("isActive");
+    expect(res.body).toHaveProperty("model");
+    expect(res.body).toHaveProperty("messageCount");
+    expect(res.body).toHaveProperty("costUsd");
+    expect(res.body.sessionId).toBe("sess-123");
+    expect(res.body.messageCount).toBe(15);
   });
 });
 

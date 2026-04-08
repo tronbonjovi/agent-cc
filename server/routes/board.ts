@@ -138,6 +138,19 @@ export function createBoardRouter(events: BoardEventBus): Router {
     return res.json({ id, flagged: false });
   });
 
+  // GET /api/board/tasks/:id/session — Get session enrichment for a board task
+  router.get("/api/board/tasks/:id/session", (req, res) => {
+    try {
+      const state = aggregateBoardState();
+      const task = state.tasks.find(t => t.id === req.params.id);
+      if (!task) return res.status(404).json({ error: "Task not found" });
+      if (!task.session) return res.status(404).json({ error: "No session linked to this task" });
+      res.json(task.session);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to fetch session data" });
+    }
+  });
+
   // GET /api/board/events — SSE stream
   router.get("/api/board/events", (req, res) => {
     res.writeHead(200, {
