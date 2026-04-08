@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import type { BoardState, BoardStats, BoardFilter, BoardTask, MoveTaskInput, BoardColumn } from "@shared/board-types";
+import type { BoardState, BoardStats, BoardFilter, BoardTask, MoveTaskInput, BoardColumn, SessionEnrichment } from "@shared/board-types";
 
 const BOARD_KEY = ["/api/board"];
 const STATS_KEY = ["/api/board/stats"];
@@ -141,6 +141,16 @@ export function useBoardEvents() {
   }, [qc]);
 
   return { connected, lastEvent };
+}
+
+/** Fetch full session data for a board task. Only fetches when sessionId is present. */
+export function useTaskSession(taskId: string | null) {
+  return useQuery<SessionEnrichment>({
+    queryKey: ["/api/board/tasks", taskId, "session"],
+    queryFn: () => apiFetch(`/api/board/tasks/${taskId}/session`),
+    enabled: !!taskId,
+    refetchInterval: 5_000,
+  });
 }
 
 /** Client-side filter logic. */
