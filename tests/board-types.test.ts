@@ -48,6 +48,7 @@ describe("board-types", () => {
       dependsOn: [],
       tags: [],
       flagged: false,
+      session: null,
       createdAt: "2026-04-07",
       updatedAt: "2026-04-07",
     };
@@ -58,5 +59,60 @@ describe("board-types", () => {
   it("BoardColumn type matches column ids", () => {
     const col: import("../shared/board-types").BoardColumn = "backlog";
     expect(col).toBe("backlog");
+  });
+
+  it("SessionEnrichment can be created with complete data", () => {
+    const session: import("../shared/board-types").SessionEnrichment = {
+      sessionId: "sess-abc123",
+      isActive: true,
+      model: "claude-3-5-sonnet",
+      lastActivity: "Running analysis",
+      lastActivityTs: "2026-04-08T10:30:00Z",
+      messageCount: 42,
+      costUsd: 0.15,
+      inputTokens: 2048,
+      outputTokens: 512,
+      healthScore: "good",
+      toolErrors: 0,
+      durationMinutes: 15,
+    };
+    expect(session.sessionId).toBe("sess-abc123");
+    expect(session.isActive).toBe(true);
+    expect(session.healthScore).toBe("good");
+  });
+
+  it("BoardTask can include SessionEnrichment data", () => {
+    const enrichedTask: import("../shared/board-types").BoardTask = {
+      id: "itm-task-001",
+      title: "Data Processing",
+      description: "Process user data",
+      column: "in-progress",
+      project: "proj-2",
+      projectName: "Analytics",
+      projectColor: "#10b981",
+      priority: "high",
+      dependsOn: [],
+      tags: ["urgent"],
+      flagged: false,
+      session: {
+        sessionId: "sess-data-proc",
+        isActive: true,
+        model: "claude-3-5-sonnet",
+        lastActivity: "Processing batch",
+        lastActivityTs: "2026-04-08T11:00:00Z",
+        messageCount: 18,
+        costUsd: 0.08,
+        inputTokens: 1024,
+        outputTokens: 256,
+        healthScore: "fair",
+        toolErrors: 1,
+        durationMinutes: 5,
+      },
+      createdAt: "2026-04-08",
+      updatedAt: "2026-04-08",
+    };
+    expect(enrichedTask.session).not.toBeNull();
+    expect(enrichedTask.session?.healthScore).toBe("fair");
+    expect(enrichedTask.session?.costUsd).toBe(0.08);
   });
 });

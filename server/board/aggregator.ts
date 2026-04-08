@@ -95,6 +95,7 @@ export function mapTaskToBoard(
     flagReason: task.flagReason || task.pipelineBlockedReason,
     activity: task.pipelineActivity,
     cost: task.pipelineCost,
+    session: null,
     createdAt: task.created,
     updatedAt: task.updated,
   };

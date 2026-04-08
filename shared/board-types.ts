@@ -21,8 +21,24 @@ export interface BoardTask {
   flagReason?: string;
   activity?: string;
   cost?: number;
+  session: SessionEnrichment | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SessionEnrichment {
+  sessionId: string;
+  isActive: boolean;
+  model: string | null;
+  lastActivity: string | null;
+  lastActivityTs: string | null;
+  messageCount: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  healthScore: "good" | "fair" | "poor" | null;
+  toolErrors: number;
+  durationMinutes: number | null;
 }
 
 export interface ProjectMeta {
