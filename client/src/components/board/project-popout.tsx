@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowRight, Activity, DollarSign, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import type { ProjectCardData } from "./project-card";
+import { type ProjectCardData, healthDotColor, formatProjectCost } from "./project-card";
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 
@@ -63,35 +63,12 @@ export function computeProjectPopoutPosition(
   return { top, left };
 }
 
-export function getHealthColor(health: ProjectCardData["health"]): string {
-  switch (health) {
-    case "healthy":
-      return "bg-green-500";
-    case "warning":
-      return "bg-yellow-500";
-    case "critical":
-      return "bg-red-500";
-    case "unknown":
-      return "bg-gray-500";
-  }
-}
-
-function getHealthLabel(health: ProjectCardData["health"]): string {
-  switch (health) {
-    case "healthy":
-      return "Healthy";
-    case "warning":
-      return "Warning";
-    case "critical":
-      return "Critical";
-    case "unknown":
-      return "Unknown";
-  }
-}
-
-export function formatProjectCost(usd: number): string {
-  return `$${usd.toFixed(2)}`;
-}
+const HEALTH_LABELS: Record<ProjectCardData["health"], string> = {
+  healthy: "Healthy",
+  warning: "Warning",
+  critical: "Critical",
+  unknown: "Unknown",
+};
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -164,8 +141,8 @@ export function ProjectPopout({ project, anchorRect, onClose, onNavigate }: Prop
                 {project.name}
               </span>
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex items-center gap-1 flex-shrink-0">
-                <span className={`inline-block w-2 h-2 rounded-full ${getHealthColor(project.health)}`} />
-                {getHealthLabel(project.health)}
+                <span className={`inline-block w-2 h-2 rounded-full ${healthDotColor(project.health)}`} />
+                {HEALTH_LABELS[project.health]}
               </Badge>
             </div>
           </div>

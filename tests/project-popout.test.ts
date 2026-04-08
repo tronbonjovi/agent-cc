@@ -111,49 +111,5 @@ describe("computeProjectPopoutPosition", () => {
   });
 });
 
-describe("getHealthColor", () => {
-  let getHealthColor: typeof import("../client/src/components/board/project-popout").getHealthColor;
-
-  beforeAll(async () => {
-    const mod = await import("../client/src/components/board/project-popout");
-    getHealthColor = mod.getHealthColor;
-  });
-
-  it("returns green for healthy", () => {
-    expect(getHealthColor("healthy")).toContain("green");
-  });
-
-  it("returns yellow/amber for warning", () => {
-    const color = getHealthColor("warning");
-    expect(color).toMatch(/yellow|amber/);
-  });
-
-  it("returns red for critical", () => {
-    expect(getHealthColor("critical")).toContain("red");
-  });
-
-  it("returns gray for unknown", () => {
-    expect(getHealthColor("unknown")).toContain("gray");
-  });
-});
-
-describe("formatProjectCost", () => {
-  let formatProjectCost: typeof import("../client/src/components/board/project-popout").formatProjectCost;
-
-  beforeAll(async () => {
-    const mod = await import("../client/src/components/board/project-popout");
-    formatProjectCost = mod.formatProjectCost;
-  });
-
-  it("formats cost with dollar sign and two decimals", () => {
-    expect(formatProjectCost(12.5)).toBe("$12.50");
-  });
-
-  it("formats zero cost", () => {
-    expect(formatProjectCost(0)).toBe("$0.00");
-  });
-
-  it("formats large cost", () => {
-    expect(formatProjectCost(1234.56)).toBe("$1234.56");
-  });
-});
+// healthDotColor and formatProjectCost are tested in project-card.test.ts
+// (popout imports them from project-card, no local copies)
