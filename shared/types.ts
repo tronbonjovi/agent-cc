@@ -20,6 +20,7 @@ export type TerminalConnectionState =
 export interface TerminalPanelState {
   height: number;
   collapsed: boolean;
+  explorerWidth?: number;
   groups: TerminalGroupData[];
   activeGroupId: string | null;
 }

@@ -17,6 +17,7 @@ interface TerminalGroupState {
   focusedInstanceId: string | null;
   height: number;
   collapsed: boolean;
+  explorerWidth: number;
   unreadInstanceIds: Set<string>;
 
   // Actions
@@ -28,6 +29,7 @@ interface TerminalGroupState {
   renameInstance: (instanceId: string, name: string) => void;
   setHeight: (height: number) => void;
   setCollapsed: (collapsed: boolean) => void;
+  setExplorerWidth: (width: number) => void;
   setInstanceName: (instanceId: string, name: string) => void;
   updateShellType: (instanceId: string, shellType: string) => void;
   markUnread: (instanceId: string) => void;
@@ -42,6 +44,7 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
   focusedInstanceId: null,
   height: 300,
   collapsed: false,
+  explorerWidth: 140,
   unreadInstanceIds: new Set(),
 
   createGroup: (groupId, instanceId, shellName) => {
@@ -157,6 +160,7 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
 
   setHeight: (height) => set({ height }),
   setCollapsed: (collapsed) => set({ collapsed }),
+  setExplorerWidth: (width) => set({ explorerWidth: Math.max(100, Math.min(400, width)) }),
 
   // Set name without marking as user-renamed (for shell-type auto-naming)
   setInstanceName: (instanceId, name) => {
@@ -211,6 +215,7 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
       activeGroupId: data.activeGroupId,
       height: data.height,
       collapsed: data.collapsed,
+      explorerWidth: data.explorerWidth ?? 140,
     });
   },
 
@@ -219,6 +224,7 @@ export const useTerminalGroupStore = create<TerminalGroupState>((set, get) => ({
     return {
       height: s.height,
       collapsed: s.collapsed,
+      explorerWidth: s.explorerWidth,
       groups: s.groups.map((g) => ({
         id: g.id,
         instances: g.instances.map((i) => ({ id: i.id, name: i.name })),

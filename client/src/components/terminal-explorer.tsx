@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect, type MouseEvent as ReactMouseEvent } from "react";
 import { X } from "lucide-react";
 import { useTerminalGroupStore } from "@/stores/terminal-group-store";
 import { getTerminalInstanceManager } from "@/lib/terminal-instance-manager";
@@ -83,6 +83,11 @@ export function TerminalExplorer() {
   const removeInstance = useTerminalGroupStore((s) => s.removeInstance);
   const renameInstance = useTerminalGroupStore((s) => s.renameInstance);
 
+  const explorerWidth = useTerminalGroupStore((s) => s.explorerWidth);
+  const setExplorerWidth = useTerminalGroupStore((s) => s.setExplorerWidth);
+
+  const isResizingRef = useRef(false);
+
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -116,6 +121,31 @@ export function TerminalExplorer() {
     return () => window.removeEventListener("click", close);
   }, [contextMenu]);
 
+  const handleResizeMouseDown = useCallback(
+    (e: ReactMouseEvent) => {
+      e.preventDefault();
+      isResizingRef.current = true;
+      const startX = e.clientX;
+      const startWidth = explorerWidth;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        // Dragging left increases width, dragging right decreases
+        const delta = startX - moveEvent.clientX;
+        setExplorerWidth(startWidth + delta);
+      };
+
+      const handleMouseUp = () => {
+        isResizingRef.current = false;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [explorerWidth, setExplorerWidth]
+  );
+
   const handleInstanceClick = useCallback(
     (groupId: string, instanceId: string) => {
       setActiveGroup(groupId);
@@ -125,8 +155,13 @@ export function TerminalExplorer() {
   );
 
   return (
-    <div className="w-[140px] bg-muted/30 border-l flex flex-col text-xs select-none">
-      <div className="flex-1 overflow-y-auto">
+    <div style={{ width: explorerWidth }} className="bg-muted/30 flex flex-col text-xs select-none relative">
+      {/* Drag handle — left edge */}
+      <div
+        onMouseDown={handleResizeMouseDown}
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent/50 transition-colors z-10"
+      />
+      <div className="flex-1 overflow-y-auto border-l ml-1">
         {groups.map((group) => {
           const isActive = group.id === activeGroupId;
           const hasUnread = group.instances.some((i) =>

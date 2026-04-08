@@ -13,6 +13,7 @@ export function TerminalPanel() {
   const height = useTerminalGroupStore((s) => s.height);
   const groups = useTerminalGroupStore((s) => s.groups);
   const activeGroupId = useTerminalGroupStore((s) => s.activeGroupId);
+  const explorerWidth = useTerminalGroupStore((s) => s.explorerWidth);
   const setHeight = useTerminalGroupStore((s) => s.setHeight);
   const loadFromServer = useTerminalGroupStore((s) => s.loadFromServer);
   const createGroup = useTerminalGroupStore((s) => s.createGroup);
@@ -80,7 +81,7 @@ export function TerminalPanel() {
     return () => {
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
     };
-  }, [groups, activeGroupId, height, collapsed, toSerializable]);
+  }, [groups, activeGroupId, height, collapsed, explorerWidth, toSerializable]);
 
   // Subscribe manager to update shell types when server reports them.
   // Only update display name if the user hasn't renamed it.

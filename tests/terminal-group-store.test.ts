@@ -114,6 +114,7 @@ describe("terminal group store", () => {
     expect(data).toEqual({
       height: 300,
       collapsed: false,
+      explorerWidth: 140,
       groups: [
         {
           id: "g1",
