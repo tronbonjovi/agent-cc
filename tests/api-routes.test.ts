@@ -15,7 +15,6 @@ const mockSessions: SessionData[] = [
     lastTs: "2025-01-01T01:00:00Z",
     messageCount: 5,
     sizeBytes: 1024,
-    tags: ["test"],
     isEmpty: false,
     isActive: false,
     filePath: "/tmp/test.jsonl",

@@ -145,7 +145,7 @@ router.get("/api/sessions", (req: Request, res: Response) => {
   if (q) {
     const lowerQ = q.toLowerCase();
     sessions = sessions.filter(s => {
-      const haystack = [s.firstMessage, s.slug, s.tags.join(" "), s.id].join(" ").toLowerCase();
+      const haystack = [s.firstMessage, s.slug, s.id].join(" ").toLowerCase();
       return haystack.includes(lowerQ);
     });
   }

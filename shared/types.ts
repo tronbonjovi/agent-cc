@@ -418,7 +418,6 @@ export interface SessionData {
   lastTs: string | null;
   messageCount: number;
   sizeBytes: number;
-  tags: string[];
   isEmpty: boolean;
   isActive: boolean;
   filePath: string;

@@ -1223,7 +1223,7 @@ function SessionCard({
             ) : (
               <p className="text-sm text-muted-foreground/50 italic">(empty session)</p>
             )}
-            {/* Meta line: time + slug + tags */}
+            {/* Meta line: time + slug */}
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className="text-[11px] text-muted-foreground font-mono whitespace-nowrap">
                 {relativeTime(s.lastTs)}
@@ -1238,16 +1238,6 @@ function SessionCard({
                 <>
                   <span className="text-muted-foreground/30 text-[11px]">/</span>
                   <span className="text-[11px] text-muted-foreground/60 font-mono truncate max-w-[180px]"><HighlightText text={s.slug} query={searchQuery || ""} /></span>
-                </>
-              )}
-              {s.tags.length > 0 && (
-                <>
-                  <span className="text-muted-foreground/30 text-[11px]">/</span>
-                  <div className="flex gap-1">
-                    {s.tags.map(t => (
-                      <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">{t}</Badge>
-                    ))}
-                  </div>
                 </>
               )}
               {s.hasSummary && (

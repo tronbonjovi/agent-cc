@@ -11,22 +11,6 @@ export interface ProjectSessionAgg {
   lastModified: string | null;
 }
 
-// Stopwords for tag extraction
-const STOPWORDS = new Set([
-  "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be",
-  "been", "being", "have", "has", "had", "do", "does", "did", "will",
-  "would", "could", "should", "may", "might", "shall", "can", "to", "of",
-  "in", "for", "on", "with", "at", "by", "from", "as", "into", "through",
-  "during", "before", "after", "above", "below", "up", "down", "out",
-  "off", "over", "under", "again", "then", "once", "that", "this",
-  "these", "those", "it", "its", "you", "your", "we", "our", "they",
-  "their", "my", "me", "him", "her", "us", "them", "what", "which",
-  "who", "how", "when", "where", "why", "all", "just", "also", "so",
-  "not", "no", "if", "about", "want", "need", "help", "make", "use",
-  "let", "get", "go", "know", "one", "any", "some", "more", "like",
-  "please", "hi", "hello", "ok", "okay",
-]);
-
 // Module-level cache
 let cachedSessions: SessionData[] = [];
 let cachedStats: SessionStats = { totalCount: 0, totalSize: 0, activeCount: 0, emptyCount: 0 };
@@ -59,32 +43,6 @@ export function restoreCachedSession(session: SessionData): void {
     const bTs = b.lastTs || b.firstTs || "";
     return bTs.localeCompare(aTs);
   });
-}
-
-/** Extract top 4 keywords from user messages */
-function extractTags(records: any[]): string[] {
-  const textParts: string[] = [];
-  for (const r of records) {
-    if (r.type !== "user") continue;
-    const msg = r.message;
-    if (!msg || typeof msg !== "object") continue;
-    if (msg.role !== "user") continue;
-    const content = extractText(msg.content || "");
-    if (content.includes("[Request interrupted") || content.includes("<local-command") || content.includes("<command-name>")) continue;
-    textParts.push(content);
-  }
-  const fullText = textParts.join(" ").toLowerCase();
-  const words = fullText.match(/[a-z][a-z0-9_-]{2,}/g) || [];
-  const freq: Record<string, number> = {};
-  for (const w of words) {
-    if (!STOPWORDS.has(w) && w.length >= 3) {
-      freq[w] = (freq[w] || 0) + 1;
-    }
-  }
-  return Object.entries(freq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([w]) => w);
 }
 
 // History index cache — avoids re-reading the entire append-only file
@@ -238,7 +196,6 @@ function parseSession(
     }
 
     const isEmpty = !firstMessage || records.length < 3;
-    const tags = extractTags(records);
 
     return {
       id: basename,
@@ -248,7 +205,6 @@ function parseSession(
       lastTs,
       messageCount,
       sizeBytes: stat.size,
-      tags,
       isEmpty,
       isActive: activeSessions.has(basename),
       filePath: filePath.replace(/\\/g, "/"),

@@ -16,7 +16,6 @@ function makeSession(id: string, filePath: string, overrides: Partial<SessionDat
     lastTs: "2024-01-01T00:05:00Z",
     messageCount: 2,
     sizeBytes: 100,
-    tags: [],
     isEmpty: false,
     isActive: false,
     filePath,

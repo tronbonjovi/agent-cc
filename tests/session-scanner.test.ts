@@ -121,112 +121,38 @@ describe("session-scanner utilities", () => {
   });
 });
 
-describe("tag extraction logic", () => {
-  // Replicate the extractTags logic locally since it's not exported.
-  // This tests the same algorithm the session scanner uses.
-  const STOPWORDS = new Set([
-    "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be",
-    "been", "being", "have", "has", "had", "do", "does", "did", "will",
-    "would", "could", "should", "may", "might", "shall", "can", "to", "of",
-    "in", "for", "on", "with", "at", "by", "from", "as", "into", "through",
-    "during", "before", "after", "above", "below", "up", "down", "out",
-    "off", "over", "under", "again", "then", "once", "that", "this",
-    "these", "those", "it", "its", "you", "your", "we", "our", "they",
-    "their", "my", "me", "him", "her", "us", "them", "what", "which",
-    "who", "how", "when", "where", "why", "all", "just", "also", "so",
-    "not", "no", "if", "about", "want", "need", "help", "make", "use",
-    "let", "get", "go", "know", "one", "any", "some", "more", "like",
-    "please", "hi", "hello", "ok", "okay",
-  ]);
+describe("tags removed from sessions", () => {
+  // Word-frequency tags were removed because they produced meaningless output.
+  // These tests verify the tags field no longer exists on session objects.
 
-  function extractTags(records: any[]): string[] {
-    const textParts: string[] = [];
-    for (const r of records) {
-      if (r.type !== "user") continue;
-      const msg = r.message;
-      if (!msg || typeof msg !== "object") continue;
-      if (msg.role !== "user") continue;
-      const content = extractText(msg.content || "");
-      if (content.includes("[Request interrupted") || content.includes("<local-command") || content.includes("<command-name>")) continue;
-      textParts.push(content);
-    }
-    const fullText = textParts.join(" ").toLowerCase();
-    const words = fullText.match(/[a-z][a-z0-9_-]{2,}/g) || [];
-    const freq: Record<string, number> = {};
-    for (const w of words) {
-      if (!STOPWORDS.has(w) && w.length >= 3) {
-        freq[w] = (freq[w] || 0) + 1;
-      }
-    }
-    return Object.entries(freq)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 4)
-      .map(([w]) => w);
-  }
-
-  it("extracts top keywords from user messages", () => {
-    const records = [
-      { type: "user", message: { role: "user", content: "Fix the docker compose configuration" } },
-      { type: "assistant", message: { role: "assistant", content: "Sure" } },
-      { type: "user", message: { role: "user", content: "Also update the docker network settings" } },
-      { type: "user", message: { role: "user", content: "Test the docker deployment" } },
-    ];
-
-    const tags = extractTags(records);
-    expect(tags).toContain("docker");
-    expect(tags.length).toBeGreaterThan(0);
-    expect(tags.length).toBeLessThanOrEqual(4);
+  it("SessionData type should not include tags field", () => {
+    // Verify that a session-like object without tags satisfies the expected shape
+    const session = {
+      id: "test-id",
+      slug: "test",
+      firstMessage: "hello",
+      firstTs: null,
+      lastTs: null,
+      messageCount: 0,
+      sizeBytes: 0,
+      isEmpty: true,
+      isActive: false,
+      filePath: "/tmp/test",
+      projectKey: "test",
+      cwd: "/tmp",
+      version: "1.0",
+      gitBranch: "",
+    };
+    expect(session).not.toHaveProperty("tags");
   });
 
-  it("returns empty array for no user messages", () => {
-    const records = [
-      { type: "system", timestamp: "2025-01-01T00:00:00Z" },
-      { type: "assistant", message: { role: "assistant", content: "Hello" } },
-    ];
-    expect(extractTags(records)).toEqual([]);
-  });
-
-  it("skips messages with [Request interrupted", () => {
-    const records = [
-      { type: "user", message: { role: "user", content: "[Request interrupted by user]" } },
-      { type: "user", message: { role: "user", content: "typescript compiler error" } },
-    ];
-    const tags = extractTags(records);
-    // "request" and "interrupted" should NOT be in tags (that message was skipped)
-    expect(tags).not.toContain("request");
-    expect(tags).not.toContain("interrupted");
-    expect(tags).toContain("typescript");
-  });
-
-  it("skips messages with <local-command", () => {
-    const records = [
-      { type: "user", message: { role: "user", content: "<local-command>status</local-command>" } },
-      { type: "user", message: { role: "user", content: "fix the bug in server code" } },
-    ];
-    const tags = extractTags(records);
-    expect(tags).not.toContain("local-command");
-    expect(tags).toContain("server");
-  });
-
-  it("ignores stopwords and short words", () => {
-    const records = [
-      { type: "user", message: { role: "user", content: "the is a an but or and to of in for" } },
-    ];
-    const tags = extractTags(records);
-    expect(tags).toEqual([]);
-  });
-
-  it("returns at most 4 tags sorted by frequency", () => {
-    const records = [
-      { type: "user", message: { role: "user", content: "alpha alpha alpha alpha beta beta beta gamma gamma delta epsilon epsilon" } },
-    ];
-    const tags = extractTags(records);
-    expect(tags).toHaveLength(4);
-    expect(tags[0]).toBe("alpha");
-    expect(tags[1]).toBe("beta");
-    // gamma and epsilon both have frequency 2; order depends on insertion order
-    expect(tags[2]).toBe("gamma");
-    expect(tags[3]).toBe("epsilon");
+  it("extractTags function should not exist in session-scanner", async () => {
+    const scannerSource = fs.readFileSync(
+      path.join(__dirname, "..", "server", "scanner", "session-scanner.ts"),
+      "utf-8"
+    );
+    expect(scannerSource).not.toContain("function extractTags");
+    expect(scannerSource).not.toContain("STOPWORDS");
   });
 });
 

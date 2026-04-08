@@ -29,7 +29,6 @@ const makeSession = (overrides = {}) => ({
   isActive: false,
   isEmpty: false,
   sizeBytes: 1024,
-  tags: [],
   ...overrides,
 });
 
