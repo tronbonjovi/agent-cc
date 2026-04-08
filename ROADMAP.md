@@ -1,6 +1,6 @@
 # Agent CC — Roadmap
 
-Updated: 2026-04-07
+Updated: 2026-04-08
 
 ## Completed
 
@@ -42,12 +42,18 @@ Updated: 2026-04-07
 - Legacy `/tasks` page removed (superseded by `/board`)
 - 10 rounds of Codex adversarial review
 
+### Unreleased — Board ↔ Session Integration
+- Session enricher bridges task scanner to session analytics (cost, health, model, activity)
+- Board cards redesigned as info radiators: status lights, model badges, agent activity, session stats
+- Manual session linking from side panel (pick from recent sessions, unlink)
+- Session detail section in side panel (model, health, messages, duration, tokens, cost)
+- New API endpoints for session lookup and linking
+- `sessionId` field on tasks (independent of pipeline)
+- Task-io persistence fix for `pipelineSessionIds` and `pipelineSummary`
+
 ---
 
 ## Next Up (not prioritized yet)
-
-### Board ↔ Session Integration
-Connect board cards to real Claude session data — live activity, cost rollup, session linking. The plumbing exists on both sides (`sessionId` on BoardTask, session scanner) but isn't wired together.
 
 ### UI/UX Rework
 Nav restructure (workspace/config/tools), session health indicators in Sessions & Agents, visual consistency pass (~30 files still have hardcoded green accents).

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Board-session integration** — board cards are now info radiators showing live session data. When a session is linked to a task, the card shows a status light (green/amber/red pulsing dot), model badge (e.g. "Sonnet 4.6"), agent activity line, message count, duration, token count, and cost. Cards without sessions keep the existing minimal layout.
+- **Session enricher** — new `server/board/session-enricher.ts` module bridges the task scanner and session analytics, looking up cost, health, model, and activity data for linked sessions
+- **Session detail in side panel** — clicking a card with a linked session shows a detail grid: model, health score, messages, duration, tokens (in/out), cost, and a link to view the full session
+- **Manual session linking** — side panel has a "Link Session" button that shows a picker of recent sessions. Linked sessions can be unlinked. No pipeline required.
+- **`GET /api/board/tasks/:id/session`** — API endpoint returning session enrichment for a board task
+- **`POST /api/board/tasks/:id/link-session`** — API endpoint to link/unlink a session to a task
+- **`session-updated` SSE event** — board event bus emits session updates for real-time card refresh
+- **`getSessionHealth()`** — new export from session-analytics matching the existing `getSessionCost()` pattern
+- **`sessionId` field on tasks** — standalone field (not pipeline-prefixed) for manually linking sessions to task files
+
+### Fixed
+- **`pipelineSessionIds` persistence** — field was defined on `TaskItem` but never read/written by `task-io.ts`, causing session links to be lost on restart. Now persisted.
+- **`pipelineSummary` persistence** — same gap, now persisted
+- **Session enrichment performance** — sessions array fetched once per board refresh instead of per-task (avoids O(n) array copies)
+- **Duration edge case** — single-message sessions (0ms duration) now show "<1m" instead of blank
+
 ### Changed
 - **Pipeline manager singleton** — `getPipelineManager`/`setPipelineManager` moved from deleted tasks route to `server/pipeline/singleton.ts`, keeping board and pipeline routes decoupled from the removed tasks API
 
