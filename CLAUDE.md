@@ -123,7 +123,7 @@ When adding integrations with external services:
 
 ## Tests
 
-- **2400+ unit tests** covering parsers, routes, storage, validation, scanners, cost indexer, task I/O, path safety, API integration, terminal (ring buffer, session survival, attach protocol, group store, instance manager, toggle, ping keepalive, explorer resize), board aggregation/validation/events/routes/archive, session enrichment, workflow bridge (discovery, status mapping, milestone synthesis, write-back), message timeline content extraction, dashboard layout, board popout positioning
+- **9300+ unit tests** covering parsers, routes, storage, validation, scanners, cost indexer, task I/O, path safety, API integration, terminal (ring buffer, session survival, attach protocol, group store, instance manager, toggle, ping keepalive, explorer resize), board aggregation/validation/events/routes/archive/delete, session enrichment, workflow bridge (discovery, status mapping, milestone synthesis, write-back), message timeline content extraction, dashboard layout, board popout positioning, workspace layout (project cards, project popout, project zone, archive zone, three-zone integration, nav redirect)
 - **`new-user-safety.test.ts`** — automated guardrail that scans all source files for:
   - Hardcoded user paths (both decoded `C:/Users/...` and encoded `C--Users-...`)
   - Phone numbers / PII

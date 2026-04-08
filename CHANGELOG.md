@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Three-zone workspace** — board page restructured into a viewport-filling layout with project cards (35%), kanban board (35%), and archive graveyard (30%). No more unbounded vertical scrolling.
+- **Project info-radiator cards** — compact cards showing health status, milestone/task progress bar, session count, and cost. Click opens a floating detail popout; clicking the current project navigates to the detail page.
+- **Archive zone** — completed milestones displayed in a dimmed graveyard at the bottom of the workspace, yielding space to the terminal panel when open.
+- **Delete endpoint for DB-stored tasks** — `DELETE /api/board/tasks/:id` with confirmation dialog in the task popout. Only available for ingested tasks (itm- prefix), not workflow file tasks.
+- **Task source field** — `BoardTask.source` distinguishes "db" vs "workflow" tasks, used by the delete button to conditionally render.
+- **5-column kanban flow** — `/work-task` skill now moves tasks through all columns: backlog → ready → in_progress → review → completed. Sibling pending tasks move to "ready" when a milestone is dispatched.
+
+### Changed
+- **Projects page removed** — `/projects` now redirects to the workspace where project cards live. Individual `/projects/:id` detail pages still accessible.
+- **Board layout** — kanban columns are now height-constrained with internal scroll instead of growing the page.
+
+### Fixed
+- **Pipeline Test stale data** — removed 6 orphaned test cards and their milestone from the database.
+- **Health color consistency** — project popout now uses the same color palette as project cards (emerald/amber/slate, not green/yellow/gray).
+
+### Removed
+- **Standalone projects listing** — replaced by workspace project zone. Nav sidebar "Projects" item removed.
+
+### Added (prior session, continued)
 - **Workflow bridge** — kanban board natively discovers and displays claude-workflow task files from `.claude/roadmap/<milestone>/` directories. Workflow tasks appear alongside regular `.claude/tasks/` items with no configuration needed.
 - **Status bridge** — workflow statuses (`pending`, `in_progress`, `completed`, `cancelled`, `blocked`) map to board columns automatically. Board moves write back in workflow format, preserving all workflow-specific frontmatter fields (milestone, complexity, parallelSafe, phase, filesTouch).
 - **Synthetic milestones** — each workflow milestone directory produces a milestone card on the board with computed progress (done/total), title derived from directory name, and status computed from child tasks. ROADMAP.md descriptions and MILESTONE.md status overrides are respected.
