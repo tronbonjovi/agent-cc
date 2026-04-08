@@ -54,12 +54,5 @@ export function scanProjectTasks(
     }
   }
 
-  // Filter removed tasks unless explicitly requested
-  if (!opts?.includeRemoved) {
-    result.items = result.items.filter(
-      (item) => item.pipelineStage !== "descoped" && item.pipelineStage !== "cancelled"
-    );
-  }
-
   return result;
 }

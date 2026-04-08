@@ -71,21 +71,19 @@ describe("aggregator", () => {
       expect(result!.flagged).toBe(false);
     });
 
-    it("maps pipeline stages to board columns", () => {
+    it("maps blocked status to in-progress column", () => {
       const task: TaskItem = {
-        id: "itm-1", title: "T", type: "task", status: "build",
+        id: "itm-1", title: "T", type: "task", status: "blocked",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
-        pipelineStage: "build",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.column).toBe("in-progress");
     });
 
-    it("maps human-review to review column", () => {
+    it("maps review status to review column", () => {
       const task: TaskItem = {
-        id: "itm-1", title: "T", type: "task", status: "human-review",
+        id: "itm-1", title: "T", type: "task", status: "review",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
-        pipelineStage: "human-review",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.column).toBe("review");
@@ -131,7 +129,7 @@ describe("aggregator", () => {
       const task: TaskItem = {
         id: "itm-1", title: "T", type: "task", status: "in-progress",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
-        pipelineSessionIds: ["s-123"],
+        sessionId: "s-123",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.session).toEqual(mockEnrichment);
@@ -147,34 +145,6 @@ describe("aggregator", () => {
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.session).toBeNull();
-    });
-
-    it("merges pipelineActivity into session.lastActivity", () => {
-      const mockEnrichment = {
-        sessionId: "s-123",
-        isActive: true,
-        model: "claude-3-5-sonnet",
-        lastActivity: null,
-        lastActivityTs: "2026-04-07T12:00:00Z",
-        messageCount: 10,
-        costUsd: 0.50,
-        inputTokens: 1000,
-        outputTokens: 500,
-        healthScore: "good" as const,
-        toolErrors: 0,
-        durationMinutes: 15,
-      };
-      vi.mocked(enrichTaskSession).mockReturnValue(mockEnrichment);
-
-      const task: TaskItem = {
-        id: "itm-1", title: "T", type: "task", status: "in-progress",
-        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
-        pipelineSessionIds: ["s-123"],
-        pipelineActivity: "Processing task with AI",
-      };
-      const result = mapTaskToBoard(task, "p", "P", "#000", []);
-      expect(result!.session).not.toBeNull();
-      expect(result!.session!.lastActivity).toBe("Processing task with AI");
     });
   });
 

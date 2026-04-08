@@ -20,7 +20,7 @@ describe("task-scanner", () => {
   it("returns empty board state when no tasks directory exists", () => {
     const result = scanProjectTasks(tmpDir, "test-id", "test-project");
     expect(result.items).toEqual([]);
-    expect(result.config.statuses).toEqual(["backlog", "todo", "in-progress", "brainstorm", "plan", "queued", "build", "ai-review", "human-review", "review", "done"]);
+    expect(result.config.statuses).toEqual(["backlog", "todo", "in-progress", "blocked", "review", "done"]);
     expect(result.malformedCount).toBe(0);
   });
 

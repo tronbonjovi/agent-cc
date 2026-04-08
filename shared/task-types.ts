@@ -12,19 +12,7 @@ export interface TaskItem {
   updated: string;
   body: string;
   filePath: string;
-  // Pipeline metadata (set when task is being worked by pipeline)
-  pipelineStage?: string;
-  pipelineBranch?: string;
-  pipelineCost?: number;
-  pipelineSessionIds?: string[];
-  pipelineActivity?: string;
-  pipelineSummary?: string;        // JSON-encoded TaskCompletionSummary
-  pipelineBlockedReason?: string;
-  blockedFromStage?: string;
-  removedFromStage?: string;
-  removedAt?: string;
   dependsOn?: string[];            // task IDs this task depends on
-  parallelGroup?: string;          // group ID for parallel-safe tasks
   flagged?: boolean;
   flagReason?: string;
   assignee?: string;             // human name or "ai"
@@ -40,7 +28,7 @@ export interface TaskConfig {
 }
 
 export const DEFAULT_TASK_CONFIG: TaskConfig = {
-  statuses: ["backlog", "todo", "in-progress", "brainstorm", "plan", "queued", "build", "ai-review", "human-review", "review", "done"],
+  statuses: ["backlog", "todo", "in-progress", "blocked", "review", "done"],
   types: ["roadmap", "milestone", "task"],
   defaultType: "task",
   defaultPriority: "medium",

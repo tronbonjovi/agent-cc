@@ -1,5 +1,7 @@
 # Board + Session Integration — Implementation Plan
 
+> **Historical note:** The pipeline system referenced in code examples below has been removed. Session linking is now done via the `sessionId` field and the board UI's link/unlink functionality. Code examples may reference removed pipeline fields (`pipelineSessionIds`, `pipelineActivity`, `pipelineCost`, `pipelineStage`).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wire board cards to real Claude session data so cards act as info radiators — showing live session status, agent activity, model, cost, progress, and health at a glance.
@@ -24,116 +26,26 @@
 | File | Changes |
 |------|---------|
 | `shared/board-types.ts` | Add `SessionEnrichment` type, extend `BoardTask` with enrichment fields |
-| `server/task-io.ts` | Persist `pipelineSessionIds` in read/write |
+| `server/task-io.ts` | Persist `sessionId` in read/write |
 | `server/board/aggregator.ts` | Call session enricher to populate enrichment fields on `BoardTask` |
 | `server/routes/board.ts` | Add `GET /api/board/tasks/:id/session` endpoint |
 | `client/src/hooks/use-board.ts` | Add `useTaskSession()` hook for session detail fetch |
 | `client/src/components/board/board-task-card.tsx` | Redesign as info radiator with session indicators |
 | `client/src/components/board/board-side-panel.tsx` | Add session detail section (messages, cost breakdown, model breakdown) |
-| `tests/task-io.test.ts` | Add pipelineSessionIds round-trip test |
+| `tests/task-io.test.ts` | Add sessionId round-trip test |
 | `tests/board-aggregator.test.ts` | Test enrichment flow |
 
 ---
 
-### Task 1: Fix pipelineSessionIds Persistence
+### Task 1: Session ID Persistence
+
+> **Note:** The pipeline system has been removed. Session linking is now done via the `sessionId` field on tasks, managed through the board UI's link/unlink functionality.
 
 **Files:**
-- Modify: `server/task-io.ts:36-75` (parseTaskFile) and `server/task-io.ts:83-111` (writeTaskFile)
+- Modify: `server/task-io.ts` (parseTaskFile, writeTaskFile)
 - Test: `tests/task-io.test.ts`
 
-- [ ] **Step 1: Write the failing test**
-
-Add to `tests/task-io.test.ts` inside the existing `describe("parseTaskFile")` block:
-
-```typescript
-it("round-trips pipelineSessionIds", () => {
-  const filePath = path.join(tmpDir, "task-session-ids.md");
-  const task: TaskItem = {
-    id: "itm-sess0001",
-    title: "Session ID Test",
-    type: "task",
-    status: "in-progress",
-    created: "2026-04-08",
-    updated: "2026-04-08",
-    body: "",
-    filePath,
-    pipelineSessionIds: ["abc-123-def", "ghi-456-jkl"],
-  };
-  writeTaskFile(filePath, task);
-  const parsed = parseTaskFile(filePath);
-  expect(parsed).not.toBeNull();
-  expect(parsed!.pipelineSessionIds).toEqual(["abc-123-def", "ghi-456-jkl"]);
-});
-
-it("omits pipelineSessionIds when empty", () => {
-  const filePath = path.join(tmpDir, "task-no-session-ids.md");
-  const task: TaskItem = {
-    id: "itm-sess0002",
-    title: "No Session ID Test",
-    type: "task",
-    status: "backlog",
-    created: "2026-04-08",
-    updated: "2026-04-08",
-    body: "",
-    filePath,
-  };
-  writeTaskFile(filePath, task);
-  const parsed = parseTaskFile(filePath);
-  expect(parsed!.pipelineSessionIds).toBeUndefined();
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest run tests/task-io.test.ts -t "pipelineSessionIds" --reporter=verbose`
-Expected: FAIL — `pipelineSessionIds` comes back `undefined` even when written
-
-- [ ] **Step 3: Add pipelineSessionIds to parseTaskFile**
-
-In `server/task-io.ts`, inside `parseTaskFile()`, after line 62 (`pipelineActivity`), add:
-
-```typescript
-pipelineSessionIds: Array.isArray(d.pipelineSessionIds) ? d.pipelineSessionIds.map(String) : undefined,
-```
-
-- [ ] **Step 4: Add pipelineSessionIds to writeTaskFile**
-
-In `server/task-io.ts`, inside `writeTaskFile()`, after line 99 (`pipelineActivity`), add:
-
-```typescript
-if (task.pipelineSessionIds && task.pipelineSessionIds.length > 0) frontmatter.pipelineSessionIds = task.pipelineSessionIds;
-```
-
-- [ ] **Step 5: Run test to verify it passes**
-
-Run: `npx vitest run tests/task-io.test.ts -t "pipelineSessionIds" --reporter=verbose`
-Expected: PASS
-
-- [ ] **Step 6: Also add pipelineSummary to persistence (same gap)**
-
-`pipelineSummary` is also on `TaskItem` but not persisted. Add read (after pipelineSessionIds):
-
-```typescript
-pipelineSummary: d.pipelineSummary ? String(d.pipelineSummary) : undefined,
-```
-
-Add write (after pipelineSessionIds):
-
-```typescript
-if (task.pipelineSummary) frontmatter.pipelineSummary = task.pipelineSummary;
-```
-
-- [ ] **Step 7: Run full task-io tests**
-
-Run: `npx vitest run tests/task-io.test.ts --reporter=verbose`
-Expected: All pass
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add server/task-io.ts tests/task-io.test.ts
-git commit -m "fix: persist pipelineSessionIds and pipelineSummary in task files"
-```
+This task was superseded by the manual session linking feature (sessionId field on TaskItem).
 
 ---
 
@@ -226,7 +138,7 @@ session: SessionEnrichment | null;
 
 - [ ] **Step 4: Fix existing BoardTask usages**
 
-The new `session` field needs to be set in `aggregator.ts` `mapTaskToBoard()`. For now, set it to `null` — Task 3 will populate it. Add `session: null,` in the return object after `cost: task.pipelineCost,`.
+The new `session` field needs to be set in `aggregator.ts` `mapTaskToBoard()`. For now, set it to `null` — Task 3 will populate it.
 
 Also update `board-task-card.tsx` and `board-side-panel.tsx` — they don't reference `session` yet so they'll compile, but verify with type-check.
 
@@ -434,7 +346,7 @@ export function enrichTaskSession(sessionId: string | undefined): SessionEnrichm
     sessionId,
     isActive: session.isActive,
     model: primaryModel,
-    lastActivity: null,  // populated from pipeline activity, not session scanner
+    lastActivity: null,
     lastActivityTs: session.lastTs,
     messageCount: session.messageCount,
     costUsd: cost?.estimatedCostUsd ?? 0,

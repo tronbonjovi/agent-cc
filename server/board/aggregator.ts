@@ -36,26 +36,17 @@ export function getProjectColor(projectId: string, index: number): string {
 }
 
 /** Map a status string to a board column. */
-function statusToColumn(status: string, pipelineStage?: string): BoardColumn {
-  // Pipeline stage takes precedence if set
-  const effective = pipelineStage || status;
-
-  switch (effective) {
+function statusToColumn(status: string): BoardColumn {
+  switch (status) {
     case "backlog":
       return "backlog";
     case "todo":
     case "ready":
-    case "queued":
       return "ready";
     case "in-progress":
-    case "build":
-    case "ai-review":
-    case "brainstorm":
-    case "plan":
     case "blocked":
       return "in-progress";
     case "review":
-    case "human-review":
       return "review";
     case "done":
       return "done";
@@ -80,17 +71,14 @@ export function mapTaskToBoard(
     ? milestones.find(m => m.id === task.parent)
     : undefined;
 
-  const linkedSessionId = task.sessionId || task.pipelineSessionIds?.[0];
+  const linkedSessionId = task.sessionId;
   const enrichment = enrichTaskSession(linkedSessionId, sessions);
-  if (enrichment && task.pipelineActivity) {
-    enrichment.lastActivity = task.pipelineActivity;
-  }
 
   return {
     id: task.id,
     title: task.title,
     description: task.body,
-    column: statusToColumn(task.status, task.pipelineStage),
+    column: statusToColumn(task.status),
     project: projectId,
     projectName,
     projectColor,
@@ -101,10 +89,8 @@ export function mapTaskToBoard(
     tags: task.labels || [],
     assignee: task.assignee,
     sessionId: linkedSessionId,
-    flagged: task.flagged || (task.pipelineStage === "blocked") || false,
-    flagReason: task.flagReason || task.pipelineBlockedReason,
-    activity: task.pipelineActivity,
-    cost: task.pipelineCost,
+    flagged: task.flagged || false,
+    flagReason: task.flagReason,
     session: enrichment,
     createdAt: task.created,
     updatedAt: task.updated,
@@ -146,7 +132,7 @@ export function aggregateBoardState(filterProjects?: string[]): BoardState {
         title: ms.title,
         project: entity.id,
         totalTasks: children.length,
-        doneTasks: children.filter(t => statusToColumn(t.status, t.pipelineStage) === "done").length,
+        doneTasks: children.filter(t => statusToColumn(t.status) === "done").length,
       });
     }
 
@@ -171,13 +157,11 @@ export function computeBoardStats(state: BoardState): BoardStats {
     "backlog": 0, "ready": 0, "in-progress": 0, "review": 0, "done": 0,
   };
   let activeAgents = 0;
-  let totalSpend = 0;
   let flaggedCount = 0;
 
   for (const task of state.tasks) {
     byColumn[task.column]++;
     if (task.assignee === "ai" && task.column === "in-progress") activeAgents++;
-    if (task.cost) totalSpend += task.cost;
     if (task.flagged) flaggedCount++;
   }
 
@@ -185,7 +169,7 @@ export function computeBoardStats(state: BoardState): BoardStats {
     totalTasks: state.tasks.length,
     byColumn,
     activeAgents,
-    totalSpend,
+    totalSpend: 0,
     flaggedCount,
   };
 }

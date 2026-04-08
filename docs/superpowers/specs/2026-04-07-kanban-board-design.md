@@ -2,13 +2,11 @@
 
 **Date:** 2026-04-07
 **Status:** Draft
-**Supersedes:** `2026-04-06-pipeline-kanban-ui-design.md` (pipeline-first board)
+**Supersedes:** `2026-04-06-pipeline-kanban-ui-design.md` (removed)
 
 ## Problem
 
-The current pipeline board was designed around automation — milestones as swim lanes, columns mapped to pipeline stages, the manager driving everything. This created a tool that only works one way: fully automated, rigid, no room for human operation.
-
-The real need is a human-first kanban board for managing project work. Automation should enhance how a human works, not replace it. You can't automate a workflow you haven't operated yourself.
+The board needs to be a human-first kanban board for managing project work. Automation should enhance how a human works, not replace it. You can't automate a workflow you haven't operated yourself.
 
 ## Core Principles
 
@@ -163,11 +161,8 @@ Automation is an optional enhancement, not the foundation. The board works fully
 3. **Batch triggers:** AI can call the API to move multiple tasks at once ("start tasks 3-4")
 4. **Budget enforcement:** The existing budget tracker can be wired in to monitor agent spend per task
 
-### What This Means for the Existing Pipeline Code
-- `git-ops.ts` — still useful for worktree management during agent builds
-- `events.ts` — SSE event bus is reused directly for board real-time updates
-- `budget.ts` — reusable for cost tracking per task/project
-- `manager.ts` / `worker.ts` — the automation orchestration layer; becomes an optional plugin that reads board state and drives agents, rather than owning the task lifecycle
+### Infrastructure Reuse
+- SSE event bus is used directly for board real-time updates
 
 ## API Surface
 
@@ -218,14 +213,10 @@ interface BoardState {
 }
 ```
 
-## What This Replaces
+## Architecture Foundations
 
-The current pipeline board (`pipeline-board.tsx`, `pipeline-task-card.tsx`, `pipeline-stages.ts`) was designed around automation-first with milestones as swim lanes. This design replaces that with a human-first centralized board.
-
-Reusable pieces from the current implementation:
+Reusable pieces from the existing infrastructure:
 - SSE event infrastructure
-- Git operations (worktrees, snapshots, rebasing)
-- Budget tracking
 - Session scanning and JSONL parsing
 - React Query patterns for data fetching
 

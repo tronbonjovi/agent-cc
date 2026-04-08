@@ -55,17 +55,6 @@ export function parseTaskFile(filePath: string): TaskItem | null {
       updated: normalizeDate(d.updated),
       body: parsed.content,
       filePath: filePath.replace(/\\/g, "/"),
-      // Pipeline metadata
-      pipelineStage: d.pipelineStage ? String(d.pipelineStage) : undefined,
-      pipelineBranch: d.pipelineBranch ? String(d.pipelineBranch) : undefined,
-      pipelineCost: d.pipelineCost != null ? Number(d.pipelineCost) : undefined,
-      pipelineActivity: d.pipelineActivity ? String(d.pipelineActivity) : undefined,
-      pipelineSessionIds: Array.isArray(d.pipelineSessionIds) ? d.pipelineSessionIds.map(String) : undefined,
-      pipelineSummary: d.pipelineSummary ? String(d.pipelineSummary) : undefined,
-      pipelineBlockedReason: d.pipelineBlockedReason ? String(d.pipelineBlockedReason) : undefined,
-      blockedFromStage: d.blockedFromStage ? String(d.blockedFromStage) : undefined,
-      removedFromStage: d.removedFromStage ? String(d.removedFromStage) : undefined,
-      removedAt: d.removedAt ? String(d.removedAt) : undefined,
       dependsOn: Array.isArray(d.dependsOn) ? d.dependsOn.map(String) : undefined,
       flagged: d.flagged !== undefined ? Boolean(d.flagged) : undefined,
       flagReason: d.flagReason ? String(d.flagReason) : undefined,
@@ -95,17 +84,6 @@ export function writeTaskFile(filePath: string, task: TaskItem): void {
   if (task.parent) frontmatter.parent = task.parent;
   if (task.priority) frontmatter.priority = task.priority;
   if (task.labels && task.labels.length > 0) frontmatter.labels = task.labels;
-  // Pipeline metadata
-  if (task.pipelineStage) frontmatter.pipelineStage = task.pipelineStage;
-  if (task.pipelineBranch) frontmatter.pipelineBranch = task.pipelineBranch;
-  if (task.pipelineCost != null) frontmatter.pipelineCost = task.pipelineCost;
-  if (task.pipelineActivity) frontmatter.pipelineActivity = task.pipelineActivity;
-  if (task.pipelineSessionIds && task.pipelineSessionIds.length > 0) frontmatter.pipelineSessionIds = task.pipelineSessionIds;
-  if (task.pipelineSummary) frontmatter.pipelineSummary = task.pipelineSummary;
-  if (task.pipelineBlockedReason) frontmatter.pipelineBlockedReason = task.pipelineBlockedReason;
-  if (task.blockedFromStage) frontmatter.blockedFromStage = task.blockedFromStage;
-  if (task.removedFromStage) frontmatter.removedFromStage = task.removedFromStage;
-  if (task.removedAt) frontmatter.removedAt = task.removedAt;
   if (task.dependsOn && task.dependsOn.length > 0) frontmatter.dependsOn = task.dependsOn;
   if (task.flagged !== undefined) frontmatter.flagged = task.flagged;
   if (task.flagReason) frontmatter.flagReason = task.flagReason;

@@ -47,7 +47,7 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
     sessionId,
     isActive: session.isActive,
     model: primaryModel,
-    lastActivity: null,  // populated from pipeline activity, not session scanner
+    lastActivity: null,
     lastActivityTs: session.lastTs,
     messageCount: session.messageCount,
     costUsd: cost?.estimatedCostUsd ?? 0,

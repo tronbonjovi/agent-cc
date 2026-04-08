@@ -1,7 +1,7 @@
 // client/src/components/board/board-task-card.tsx
 
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Bot, User, DollarSign } from "lucide-react";
+import { AlertTriangle, Bot, User } from "lucide-react";
 import {
   StatusLight,
   ModelBadge,
@@ -71,14 +71,10 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
         ))}
       </div>
 
-      {/* Row 3: Agent activity (session) or plain activity text (no session) */}
+      {/* Row 3: Agent activity (session) */}
       {hasSession ? (
         <div className="mt-2">
           <AgentActivity session={task.session!} />
-        </div>
-      ) : task.activity ? (
-        <div className="mt-2 text-[10px] text-blue-400 truncate">
-          {task.activity}
         </div>
       ) : null}
 
@@ -100,11 +96,6 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
         {hasSession ? (
           <span className="ml-auto">
             <CostPill costUsd={task.session!.costUsd} />
-          </span>
-        ) : task.cost != null && task.cost > 0 ? (
-          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground ml-auto">
-            <DollarSign className="h-3 w-3" />
-            {task.cost.toFixed(2)}
           </span>
         ) : null}
         {task.flagged && (

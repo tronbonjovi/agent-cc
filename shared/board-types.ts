@@ -19,8 +19,6 @@ export interface BoardTask {
   sessionId?: string;
   flagged: boolean;
   flagReason?: string;
-  activity?: string;
-  cost?: number;
   session: SessionEnrichment | null;
   createdAt: string;
   updatedAt: string;

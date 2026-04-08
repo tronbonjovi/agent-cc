@@ -26,19 +26,15 @@ Updated: 2026-04-08
 - Zustand store for group state, allotment for resizable panes
 - 4 + 2 rounds of Codex adversarial review
 
-### Unreleased — Task Automation Pipeline
-- Pipeline manager orchestrating Claude CLI workers in git worktrees
-- Milestone scheduling, dependency resolution, budget/circuit-breaker guardrails
-- Retry escalation (self-fix → codex-rescue → blocked)
-- SSE streaming, cooperative pause, integration gate
-- 9 rounds of Codex adversarial review
+### Unreleased — Task Automation Pipeline (removed)
+- Built and removed — pipeline manager orchestrating Claude CLI workers in git worktrees
+- Superseded by human-first kanban board approach; automation to be revisited later
 
 ### Unreleased — Centralized Kanban Board
 - Cross-project board aggregator at `/board`
 - Dependency validation with flagging, move API, SSE events
 - Roadmap ingest parser (markdown → milestones + tasks)
 - Rich task cards, side panel, filter bar
-- Pipeline freeze guard on board moves
 - Legacy `/tasks` page removed (superseded by `/board`)
 - 10 rounds of Codex adversarial review
 
@@ -48,8 +44,7 @@ Updated: 2026-04-08
 - Manual session linking from side panel (pick from recent sessions, unlink)
 - Session detail section in side panel (model, health, messages, duration, tokens, cost)
 - New API endpoints for session lookup and linking
-- `sessionId` field on tasks (independent of pipeline)
-- Task-io persistence fix for `pipelineSessionIds` and `pipelineSummary`
+- `sessionId` field on tasks for manual session linking
 
 ---
 
@@ -58,5 +53,4 @@ Updated: 2026-04-08
 ### UI/UX Rework
 Nav restructure (workspace/config/tools), session health indicators in Sessions & Agents, visual consistency pass (~30 files still have hardcoded green accents).
 
-### Workflow System
-Markdown-based ROADMAP.md → milestones → tasks with YAML frontmatter, tags, status lifecycle. Spec complete, not yet implemented.
+

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Bot, ExternalLink, DollarSign, Link, Unlink } from "lucide-react";
+import { AlertTriangle, Bot, ExternalLink, Link, Unlink } from "lucide-react";
 import {
   StatusLight,
   formatCost,
@@ -128,14 +128,6 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
                   {task.assignee === "ai" ? <><Bot className="h-3 w-3" /> AI</> : task.assignee || "Unassigned"}
                 </div>
               </div>
-              {task.cost != null && task.cost > 0 && (
-                <div>
-                  <span className="text-muted-foreground">Cost</span>
-                  <div className="mt-0.5 font-medium flex items-center gap-1">
-                    <DollarSign className="h-3 w-3" />${task.cost.toFixed(2)}
-                  </div>
-                </div>
-              )}
               <div>
                 <span className="text-muted-foreground">Updated</span>
                 <div className="mt-0.5 font-medium">{task.updatedAt}</div>
@@ -183,17 +175,6 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
                   <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
                     {task.description}
                   </div>
-                </div>
-              </>
-            )}
-
-            {/* Activity */}
-            {task.activity && (
-              <>
-                <Separator />
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-2">Activity</div>
-                  <div className="text-xs text-blue-400">{task.activity}</div>
                 </div>
               </>
             )}

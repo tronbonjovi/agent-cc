@@ -19,7 +19,7 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   return res.json();
 }
 
-/** Fetch full board state. Polls every 10s to catch non-board mutations (pipeline, task edits). */
+/** Fetch full board state. Polls every 10s to catch non-board mutations (task edits). */
 export function useBoardState(filterProjects?: string[]) {
   const params = filterProjects?.length
     ? `?projects=${filterProjects.join(",")}`
@@ -56,7 +56,7 @@ export function useMoveTask() {
   });
 }
 
-/** Unflag a task without moving it or touching pipeline state. */
+/** Unflag a task without moving it. */
 export function useUnflagTask() {
   const qc = useQueryClient();
   return useMutation({

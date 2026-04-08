@@ -24,11 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session enrichment performance** — sessions array fetched once per board refresh instead of per-task (avoids O(n) array copies)
 - **Duration edge case** — single-message sessions (0ms duration) now show "<1m" instead of blank
 
-### Changed
-- **Pipeline manager singleton** — `getPipelineManager`/`setPipelineManager` moved from deleted tasks route to `server/pipeline/singleton.ts`, keeping board and pipeline routes decoupled from the removed tasks API
-
 ### Removed
-- **Legacy `/tasks` page** — page component, 6 UI components (`pipeline-board`, `milestone-swimlane`, `pipeline-task-card`, `project-picker`, `task-detail-panel`, `task-sidebar`), `use-tasks` hook, and server-side `/api/tasks/` routes all removed. Superseded by `/board`. Underlying `task-io` and `task-scanner` modules retained (still used by board and pipeline)
+- **Task automation pipeline** — manager, workers, budget tracking, git-ops, event bus (`server/pipeline/` directory)
+- **Pipeline API routes** — `/api/pipeline/*` endpoints (start, pause, resume, approve, cancel, descope, config, status, events)
+- **Pipeline client hooks and stage resolution** — `use-pipeline.ts`, `pipeline-stages.ts`, `client/src/types/pipeline.ts`
+- **Pipeline-specific fields from TaskItem and BoardTask types** — `pipelineStage`, `pipelineActivity`, `pipelineCost`, `pipelineSummary`, `pipelineSessionIds`
+- **Pipeline state from database schema** — `pipelineState` removed from DB
+- **Pipeline freeze guard from board move API** — board moves no longer check for active pipeline runs
+- **10 pipeline test files** — `pipeline-budget`, `pipeline-events`, `pipeline-types`, `pipeline-git-ops`, `pipeline-worker`, `pipeline-manager`, `pipeline-routes`, `pipeline-integration`, `pipeline-claude-runner`, `pipeline-board-ui`
+- **Pipeline documentation** — test guide, specs, and implementation plans
+- **Pipeline manager singleton** — `server/pipeline/singleton.ts`
+- **Legacy `/tasks` page** — page component, 6 UI components (`pipeline-board`, `milestone-swimlane`, `pipeline-task-card`, `project-picker`, `task-detail-panel`, `task-sidebar`), `use-tasks` hook, and server-side `/api/tasks/` routes all removed. Superseded by `/board`. Underlying `task-io` and `task-scanner` modules retained (still used by board)
 - **Tasks nav entry** — removed from sidebar; Projects no longer has a Tasks child item
 - **Stale feature branches** — deleted 5 merged local branches (`feat/pipeline-kanban-ui`, `feat/task-management`, `feat/terminal-group-redesign`, `feat/terminal-reliability`, `feat/theme-aesthetic-profiles`)
 
@@ -71,22 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Rich task cards (project colors, priority badges, tags, activity, cost, assignee)
   - Side panel with task details, move controls, flag dismissal
   - Filter bar (project, priority, flagged) with milestone progress indicators
-  - Pipeline freeze guard on board moves (respects active pipeline runs)
   - 7 new test files, 47 tests covering types, aggregator, validator, events, routes, filters, integration
   - 7 rounds of Codex adversarial review, 16 bugs caught and fixed
-- **Task automation pipeline** — server-side pipeline manager orchestrates Claude CLI workers in isolated git worktrees. Milestones execute tasks in dependency order with budget/circuit-breaker guardrails, retry escalation (self-fix → codex-rescue → blocked), and SSE streaming to the kanban board. Includes:
-  - Pipeline types, git ops (worktrees, snapshots, rebase), budget tracker, event bus
-  - Worker lifecycle: build → AI review → human review, with cooperative pause
-  - Manager: milestone scheduling, dependency resolution, integration gate
-  - REST API: start/pause/resume/approve/cancel/descope + SSE events
-  - Client hooks and UI overlays (pipeline card overlay, milestone controls)
-  - Auto-detect base branch (main/master/develop/etc) and test command (npm/pnpm/yarn/cargo/go/pytest/make)
-  - Configurable `testCommand` per pipeline config with fail-closed integration gate
-  - Project-scoped API guards preventing cross-project pipeline manipulation
-  - Durable run state persistence — survives server restarts (restored as stalled)
-  - Cross-project task file scoping (compound `projectId:taskId` index keys)
-  - 9 rounds of Codex adversarial review, all findings addressed
-- **Pipeline-first kanban board design** — spec and 13-task implementation plan for rebuilding the kanban board as a pipeline-native UI. Columns are fixed pipeline stages (Backlog → Queued → Build → AI Review → Human Review → Done), milestones render as collapsible horizontal swimlanes, cards move via automation only (no drag-and-drop). 12 rounds of Codex adversarial review on the spec.
+- **Task automation pipeline** (removed) — was a server-side pipeline manager orchestrating Claude CLI workers in git worktrees. Superseded by human-first kanban board approach.
 - **Workflow system design** — spec for markdown-based project workflow system (ROADMAP.md → milestones → tasks) with YAML frontmatter, tags, status lifecycle, and kanban integration. Skill-based approach keeps CLAUDE.md lean.
 - **Session rename** — click the pencil icon on any active session to give it a meaningful name. Custom names appear everywhere: Dashboard, Sessions page, and health panel. Names persist across restarts
 - **Data size health threshold** — session file size now color-coded (green < 500KB, yellow 500KB–2MB, red > 2MB), configurable in Settings alongside existing thresholds

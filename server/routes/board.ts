@@ -9,12 +9,9 @@ import { updateTaskField, generateTaskId, taskFilename, writeTaskFile } from "..
 import { parseRoadmapMarkdown } from "../board/ingest";
 import { storage } from "../storage";
 import { scanProjectTasks } from "../scanner/task-scanner";
-import { getPipelineManager } from "../pipeline/singleton";
 import type { BoardEventBus } from "../board/events";
 import type { MoveTaskInput, BoardColumn } from "@shared/board-types";
 import type { TaskItem } from "@shared/task-types";
-
-const NON_TERMINAL_PIPELINE = new Set(["running", "pausing", "paused", "awaiting_approval", "cancelling"]);
 
 const VALID_COLUMNS = ["backlog", "ready", "in-progress", "review", "done"];
 
@@ -53,29 +50,12 @@ export function createBoardRouter(events: BoardEventBus): Router {
       return res.status(404).json({ error: "Task not found" });
     }
 
-    // Pipeline freeze check: reject moves for tasks in active pipeline runs
-    const pm = getPipelineManager();
-    if (pm) {
-      const ps = pm.getStatus();
-      if (ps && NON_TERMINAL_PIPELINE.has(ps.status)) {
-        // Check if this task's parent milestone is the active run's milestone
-        const parentId = state.tasks.find(t => t.id === id)?.milestoneId;
-        if (parentId && parentId === ps.milestoneTaskId) {
-          return res.status(409).json({
-            error: "Cannot move — this task belongs to an active pipeline run. Wait for it to complete or cancel it first.",
-          });
-        }
-      }
-    }
-
     // Validate dependencies
     const validation = validateMove(task, column as BoardColumn, state.tasks, force);
 
     try {
       // Update the task status
       updateTaskField(id, "status", column, task.project);
-      // Clear pipelineStage so the aggregator uses the new status as source of truth
-      updateTaskField(id, "pipelineStage", undefined, task.project);
 
       // Update flag state
       if (validation.flag) {
@@ -120,7 +100,7 @@ export function createBoardRouter(events: BoardEventBus): Router {
     });
   });
 
-  // POST /api/board/tasks/:id/unflag — clear flag without moving or touching pipeline state
+  // POST /api/board/tasks/:id/unflag — clear flag without moving
   router.post("/api/board/tasks/:id/unflag", (req, res) => {
     const { id } = req.params;
     const state = aggregateBoardState();

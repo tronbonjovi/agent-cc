@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the pipeline-first board with a human-operated, centralized kanban board that aggregates tasks across all projects.
+**Goal:** Build a human-operated, centralized kanban board that aggregates tasks across all projects.
 
 **Architecture:** New `/api/board` routes aggregate tasks from all projects into a single board. The UI is a new board page with header (filters, stats, milestones), draggable columns (Backlog/Ready/In Progress/Review/Done), rich task cards with project colors and live activity, and a side panel for drill-in. Dependency validation flags tasks on column move. An ingest system parses roadmap files into board tasks.
 
@@ -338,11 +338,10 @@ describe("aggregator", () => {
       expect(result.flagged).toBe(false);
     });
 
-    it("maps pipeline stages to board columns", () => {
+    it("maps build status to in-progress column", () => {
       const task: TaskItem = {
         id: "itm-1", title: "T", type: "task", status: "build",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
-        pipelineStage: "build",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result.column).toBe("in-progress");
@@ -352,7 +351,6 @@ describe("aggregator", () => {
       const task: TaskItem = {
         id: "itm-1", title: "T", type: "task", status: "human-review",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
-        pipelineStage: "human-review",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result.column).toBe("review");
@@ -518,9 +516,8 @@ export function getProjectColor(projectId: string, index: number): string {
 }
 
 /** Map a status string to a board column. */
-function statusToColumn(status: string, pipelineStage?: string): BoardColumn {
-  // Pipeline stage takes precedence if set
-  const effective = pipelineStage || status;
+function statusToColumn(status: string): BoardColumn {
+  const effective = status;
 
   switch (effective) {
     case "backlog":
@@ -564,7 +561,7 @@ export function mapTaskToBoard(
     id: task.id,
     title: task.title,
     description: task.body,
-    column: statusToColumn(task.status, task.pipelineStage),
+    column: statusToColumn(task.status),
     project: projectId,
     projectName,
     projectColor,
@@ -574,11 +571,11 @@ export function mapTaskToBoard(
     dependsOn: task.dependsOn || [],
     tags: task.labels || [],
     assignee: task.assignee,
-    sessionId: task.pipelineSessionIds?.[0],
+    sessionId: task.sessionId,
     flagged: task.flagged || false,
     flagReason: task.flagReason,
-    activity: task.pipelineActivity,
-    cost: task.pipelineCost,
+    activity: task.activity,
+    cost: task.cost,
     createdAt: task.created,
     updatedAt: task.updated,
   };
@@ -618,7 +615,7 @@ export function aggregateBoardState(filterProjects?: string[]): BoardState {
         title: ms.title,
         project: entity.id,
         totalTasks: children.length,
-        doneTasks: children.filter(t => statusToColumn(t.status, t.pipelineStage) === "done").length,
+        doneTasks: children.filter(t => statusToColumn(t.status) === "done").length,
       });
     }
 

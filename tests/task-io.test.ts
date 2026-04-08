@@ -114,76 +114,39 @@ describe("task-io", () => {
       expect(fs.existsSync(filePath)).toBe(true);
     });
 
-    it("persists pipelineSessionIds array round-trip", () => {
-      const filePath = path.join(tmpDir, "task-pipeline-ids-ijkl.md");
-      const sessionIds = ["abc-123-def", "ghi-456-jkl"];
+    it("persists sessionId round-trip", () => {
+      const filePath = path.join(tmpDir, "task-session-id-ijkl.md");
       writeTaskFile(filePath, {
         id: "itm-ijkl9999",
-        title: "Pipeline Test",
+        title: "Session Test",
         type: "task",
         status: "in-progress",
         created: "2026-04-05",
         updated: "2026-04-05",
-        body: "Test pipeline session IDs",
+        body: "Test session ID",
         filePath,
-        pipelineSessionIds: sessionIds,
+        sessionId: "abc-123-def",
       });
       const parsed = parseTaskFile(filePath);
       expect(parsed).not.toBeNull();
-      expect(parsed!.pipelineSessionIds).toEqual(sessionIds);
+      expect(parsed!.sessionId).toBe("abc-123-def");
     });
 
-    it("handles missing pipelineSessionIds as undefined", () => {
-      const filePath = path.join(tmpDir, "task-no-pipeline-ids-mnop.md");
+    it("handles missing sessionId as undefined", () => {
+      const filePath = path.join(tmpDir, "task-no-session-id-mnop.md");
       writeTaskFile(filePath, {
         id: "itm-mnop8888",
-        title: "No Pipeline IDs",
+        title: "No Session ID",
         type: "task",
         status: "todo",
         created: "2026-04-05",
         updated: "2026-04-05",
-        body: "No pipeline IDs",
+        body: "No session ID",
         filePath,
       });
       const parsed = parseTaskFile(filePath);
       expect(parsed).not.toBeNull();
-      expect(parsed!.pipelineSessionIds).toBeUndefined();
-    });
-
-    it("persists pipelineSummary string round-trip", () => {
-      const filePath = path.join(tmpDir, "task-pipeline-summary-qrst.md");
-      const summary = '{"status":"completed","output":"test output"}';
-      writeTaskFile(filePath, {
-        id: "itm-qrst7777",
-        title: "Summary Test",
-        type: "task",
-        status: "done",
-        created: "2026-04-05",
-        updated: "2026-04-05",
-        body: "Test pipeline summary",
-        filePath,
-        pipelineSummary: summary,
-      });
-      const parsed = parseTaskFile(filePath);
-      expect(parsed).not.toBeNull();
-      expect(parsed!.pipelineSummary).toBe(summary);
-    });
-
-    it("handles missing pipelineSummary as undefined", () => {
-      const filePath = path.join(tmpDir, "task-no-summary-uvwx.md");
-      writeTaskFile(filePath, {
-        id: "itm-uvwx6666",
-        title: "No Summary",
-        type: "task",
-        status: "todo",
-        created: "2026-04-05",
-        updated: "2026-04-05",
-        body: "No summary",
-        filePath,
-      });
-      const parsed = parseTaskFile(filePath);
-      expect(parsed).not.toBeNull();
-      expect(parsed!.pipelineSummary).toBeUndefined();
+      expect(parsed!.sessionId).toBeUndefined();
     });
   });
 

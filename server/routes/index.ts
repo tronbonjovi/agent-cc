@@ -20,8 +20,6 @@ import costAnalyticsRouter from "./cost-analytics";
 import apisRouter from "./apis";
 
 import terminalRouter from "./terminal";
-import { createPipelineRouter } from "./pipeline";
-import { pipelineEvents } from "../pipeline/events";
 import { createBoardRouter } from "./board";
 import { boardEvents } from "../board/events";
 import { spawn } from "child_process";
@@ -83,7 +81,6 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.use(apisRouter);
 
   app.use(terminalRouter);
-  app.use(createPipelineRouter(pipelineEvents));
   app.use(createBoardRouter(boardEvents));
 
   // Actions — open-folder and open-file share identical logic
