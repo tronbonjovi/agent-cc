@@ -61,7 +61,9 @@ vi.mock("../server/board/aggregator", () => ({
     ],
     columns: ["backlog", "ready", "in-progress", "review", "done"],
     projects: [],
-    milestones: [],
+    milestones: [
+      { id: "itm-m1", title: "v1.0", project: "p1", totalTasks: 3, doneTasks: 3 },
+    ],
   })),
   computeBoardStats: vi.fn(() => ({
     totalTasks: 1,
@@ -70,6 +72,9 @@ vi.mock("../server/board/aggregator", () => ({
     totalSpend: 0.35,
     flaggedCount: 0,
   })),
+  isArchived: vi.fn(() => false),
+  setArchived: vi.fn(),
+  getArchivedMilestones: vi.fn(() => []),
 }));
 
 vi.mock("fs", async () => {
@@ -82,7 +87,7 @@ import request from "supertest";
 import { createBoardRouter } from "../server/routes/board";
 import { BoardEventBus } from "../server/board/events";
 import { storage } from "../server/storage";
-import { aggregateBoardState } from "../server/board/aggregator";
+import { aggregateBoardState, setArchived } from "../server/board/aggregator";
 
 describe("board routes", () => {
   let app: express.Express;
@@ -208,6 +213,47 @@ describe("board routes", () => {
     expect(res.body).toHaveProperty("costUsd");
     expect(res.body.sessionId).toBe("sess-123");
     expect(res.body.messageCount).toBe(15);
+  });
+});
+
+describe("archive milestone routes", () => {
+  let app: express.Express;
+  let events: BoardEventBus;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    events = new BoardEventBus();
+    app = express();
+    app.use(express.json());
+    app.use(createBoardRouter(events));
+  });
+
+  it("POST /api/board/milestones/:id/archive marks milestone as archived", async () => {
+    const res = await request(app)
+      .post("/api/board/milestones/itm-m1/archive")
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe("itm-m1");
+    expect(res.body.archived).toBe(true);
+    expect(vi.mocked(setArchived)).toHaveBeenCalledWith("itm-m1", true);
+  });
+
+  it("POST /api/board/milestones/:id/archive returns 404 for unknown milestone", async () => {
+    const res = await request(app)
+      .post("/api/board/milestones/itm-nonexistent/archive")
+      .send({});
+    expect(res.status).toBe(404);
+    expect(res.body.error).toContain("Milestone not found");
+  });
+
+  it("GET /api/board passes includeArchived query param to aggregator", async () => {
+    await request(app).get("/api/board?includeArchived=true");
+    expect(vi.mocked(aggregateBoardState)).toHaveBeenCalledWith(undefined, true);
+  });
+
+  it("GET /api/board defaults to excluding archived milestones", async () => {
+    await request(app).get("/api/board");
+    expect(vi.mocked(aggregateBoardState)).toHaveBeenCalledWith(undefined, false);
   });
 });
 

@@ -3,9 +3,10 @@
 import { BoardHeader } from "@/components/board/board-header";
 import { BoardSidePanel } from "@/components/board/board-side-panel";
 import { BoardTaskCard } from "@/components/board/board-task-card";
-import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters } from "@/hooks/use-board";
+import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useArchiveMilestone, useArchivedMilestones } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useState, useMemo, useCallback } from "react";
+import { Archive, ChevronDown, ChevronRight } from "lucide-react";
 import type { BoardFilter } from "@shared/board-types";
 
 export default function BoardPage() {
@@ -19,9 +20,13 @@ export default function BoardPage() {
     setAnchorRect({ top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height });
     setSelectedTaskId(task.id);
   }, []);
+  const [showArchived, setShowArchived] = useState(false);
+
   const { data: board, isLoading } = useBoardState();
   const { data: stats } = useBoardStats();
   const { connected } = useBoardEvents();
+  const archiveMilestone = useArchiveMilestone();
+  const { data: archivedMilestones } = useArchivedMilestones();
 
   const filteredTasks = useMemo(
     () => board ? applyBoardFilters(board.tasks, filter) : [],
@@ -35,6 +40,12 @@ export default function BoardPage() {
     }
     return map;
   }, [filteredTasks]);
+
+  // Milestones where all tasks are done — candidates for archiving
+  const archivableMilestones = useMemo(() => {
+    if (!board) return [];
+    return board.milestones.filter(m => m.totalTasks > 0 && m.doneTasks === m.totalTasks);
+  }, [board]);
 
   // Derive selected task from fresh query data so panel always shows current state
   const selectedTask = selectedTaskId
@@ -93,6 +104,52 @@ export default function BoardPage() {
           ))}
         </div>
       </div>
+      {/* Archivable milestones — shown when there are completed milestones */}
+      {archivableMilestones.length > 0 && (
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Archive className="h-3 w-3" />
+            <span>{archivableMilestones.length} completed milestone{archivableMilestones.length > 1 ? "s" : ""} ready to archive:</span>
+            {archivableMilestones.map(m => (
+              <button
+                key={m.id}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs hover:bg-muted/50 transition-colors"
+                onClick={() => archiveMilestone.mutate(m.id)}
+                disabled={archiveMilestone.isPending}
+              >
+                <Archive className="h-3 w-3" />
+                {m.title} ({m.totalTasks} tasks)
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Archived milestones section */}
+      {archivedMilestones && archivedMilestones.length > 0 && (
+        <div className="px-4 pb-3">
+          <button
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setShowArchived(!showArchived)}
+          >
+            {showArchived ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            <Archive className="h-3 w-3" />
+            {archivedMilestones.length} archived milestone{archivedMilestones.length > 1 ? "s" : ""}
+          </button>
+          {showArchived && (
+            <div className="mt-2 space-y-1">
+              {archivedMilestones.map(m => (
+                <div key={m.id} className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
+                  <span className="font-medium">{m.title}</span>
+                  <span className="text-[10px]">{m.totalTasks} tasks</span>
+                  <span className="text-[10px]">{m.project}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <BoardSidePanel
         task={selectedTask}
         open={selectedTask !== null}

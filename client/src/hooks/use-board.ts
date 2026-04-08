@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import type { BoardState, BoardStats, BoardFilter, BoardTask, MoveTaskInput, BoardColumn, SessionEnrichment } from "@shared/board-types";
+import type { BoardState, BoardStats, BoardFilter, BoardTask, MoveTaskInput, BoardColumn, SessionEnrichment, MilestoneMeta } from "@shared/board-types";
 
 const BOARD_KEY = ["/api/board"];
 const STATS_KEY = ["/api/board/stats"];
@@ -82,6 +82,29 @@ export function useIngestRoadmap() {
       qc.invalidateQueries({ queryKey: BOARD_KEY });
       qc.invalidateQueries({ queryKey: STATS_KEY });
     },
+  });
+}
+
+/** Archive a completed milestone. */
+export function useArchiveMilestone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (milestoneId: string) =>
+      apiFetch(`/api/board/milestones/${milestoneId}/archive`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BOARD_KEY });
+      qc.invalidateQueries({ queryKey: STATS_KEY });
+      qc.invalidateQueries({ queryKey: ARCHIVED_KEY });
+    },
+  });
+}
+
+/** Fetch archived milestones. */
+const ARCHIVED_KEY = ["/api/board/milestones/archived"];
+export function useArchivedMilestones() {
+  return useQuery<MilestoneMeta[]>({
+    queryKey: ARCHIVED_KEY,
+    queryFn: () => apiFetch("/api/board/milestones/archived"),
   });
 }
 

@@ -35,6 +35,30 @@ export function getProjectColor(projectId: string, index: number): string {
   return color;
 }
 
+/** Check if a milestone is archived. */
+export function isArchived(milestoneId: string): boolean {
+  const db = getDB();
+  return db.boardConfig.archivedMilestones.includes(milestoneId);
+}
+
+/** Set archive state for a milestone. */
+export function setArchived(milestoneId: string, archived: boolean): void {
+  const db = getDB();
+  const list = db.boardConfig.archivedMilestones;
+  const idx = list.indexOf(milestoneId);
+  if (archived && idx === -1) {
+    list.push(milestoneId);
+  } else if (!archived && idx !== -1) {
+    list.splice(idx, 1);
+  }
+  save();
+}
+
+/** Get all archived milestone IDs. */
+export function getArchivedMilestones(): string[] {
+  return getDB().boardConfig.archivedMilestones;
+}
+
 /** Map a status string to a board column. Handles both regular task statuses and claude-workflow statuses. */
 export function statusToColumn(status: string): BoardColumn {
   switch (status) {
@@ -107,7 +131,7 @@ export function mapTaskToBoard(
 }
 
 /** Aggregate tasks from all projects into a single BoardState. */
-export function aggregateBoardState(filterProjects?: string[]): BoardState {
+export function aggregateBoardState(filterProjects?: string[], includeArchived?: boolean): BoardState {
   const allEntities = storage.getAllEntities();
   const projectEntities = allEntities.filter(e => e.type === "project");
 
@@ -133,8 +157,12 @@ export function aggregateBoardState(filterProjects?: string[]): BoardState {
     // Extract milestones for parent resolution
     const milestoneItems = board.items.filter(t => t.type === "milestone");
 
+    // Determine which milestones are archived (for filtering)
+    const archivedSet = includeArchived ? new Set<string>() : new Set(getArchivedMilestones());
+
     // Build milestone progress metadata
     for (const ms of milestoneItems) {
+      if (archivedSet.has(ms.id)) continue;
       const children = board.items.filter(t => t.parent === ms.id && t.type === "task");
       milestoneMap.set(ms.id, {
         id: ms.id,
@@ -145,8 +173,9 @@ export function aggregateBoardState(filterProjects?: string[]): BoardState {
       });
     }
 
-    // Map tasks to board format
+    // Map tasks to board format (skip tasks belonging to archived milestones)
     for (const item of board.items) {
+      if (item.parent && archivedSet.has(item.parent)) continue;
       const boardTask = mapTaskToBoard(item, entity.id, entity.name, color, milestoneItems, sessions);
       if (boardTask) tasks.push(boardTask);
     }

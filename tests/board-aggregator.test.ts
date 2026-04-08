@@ -18,7 +18,7 @@ vi.mock("../server/scanner/session-scanner", () => ({
   getCachedSessions: vi.fn(() => []),
 }));
 
-import { aggregateBoardState, mapTaskToBoard, getProjectColor, statusToColumn } from "../server/board/aggregator";
+import { aggregateBoardState, mapTaskToBoard, getProjectColor, statusToColumn, isArchived, setArchived, getArchivedMilestones } from "../server/board/aggregator";
 import { storage } from "../server/storage";
 import { scanProjectTasks } from "../server/scanner/task-scanner";
 import { enrichTaskSession } from "../server/board/session-enricher";
@@ -207,6 +207,25 @@ describe("aggregator", () => {
     });
   });
 
+  describe("milestone archiving", () => {
+    it("isArchived returns false for non-archived milestones", () => {
+      expect(isArchived("itm-m1")).toBe(false);
+    });
+
+    it("setArchived marks a milestone as archived", () => {
+      setArchived("itm-m-archive-test", true);
+      expect(isArchived("itm-m-archive-test")).toBe(true);
+    });
+
+    it("getArchivedMilestones returns all archived IDs", () => {
+      setArchived("itm-m-list-1", true);
+      setArchived("itm-m-list-2", true);
+      const archived = getArchivedMilestones();
+      expect(archived).toContain("itm-m-list-1");
+      expect(archived).toContain("itm-m-list-2");
+    });
+  });
+
   describe("aggregateBoardState", () => {
     it("returns empty state when no projects exist", () => {
       vi.mocked(storage.getAllEntities).mockReturnValue([]);
@@ -269,6 +288,58 @@ describe("aggregator", () => {
       expect(result.milestones[0].title).toBe("v1.0 Release");
       expect(result.milestones[0].totalTasks).toBe(2);
       expect(result.milestones[0].doneTasks).toBe(1);
+    });
+
+    it("excludes archived milestones and their tasks by default", () => {
+      vi.mocked(storage.getAllEntities).mockReturnValue([
+        { id: "p1", name: "Alpha", type: "project", path: "/tmp/alpha" },
+      ] as any);
+
+      vi.mocked(scanProjectTasks).mockReturnValue({
+        projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
+        config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
+        items: [
+          { id: "itm-m-archived", title: "Old Milestone", type: "milestone", status: "done", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
+          { id: "itm-archived-child", title: "Old Task", type: "task", status: "done", parent: "itm-m-archived", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
+          { id: "itm-m-active", title: "Active Milestone", type: "milestone", status: "backlog", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m2.md" },
+          { id: "itm-active-child", title: "Active Task", type: "task", status: "backlog", parent: "itm-m-active", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t2.md" },
+          { id: "itm-orphan", title: "No Milestone Task", type: "task", status: "ready", priority: "low", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t3.md" },
+        ],
+        malformedCount: 0,
+      });
+
+      // Archive the old milestone
+      setArchived("itm-m-archived", true);
+
+      const result = aggregateBoardState();
+      // Should exclude the archived milestone and its child task
+      expect(result.milestones.find(m => m.id === "itm-m-archived")).toBeUndefined();
+      expect(result.tasks.find(t => t.id === "itm-archived-child")).toBeUndefined();
+      // Should include active milestone, its child, and orphan task
+      expect(result.milestones.find(m => m.id === "itm-m-active")).toBeDefined();
+      expect(result.tasks.find(t => t.id === "itm-active-child")).toBeDefined();
+      expect(result.tasks.find(t => t.id === "itm-orphan")).toBeDefined();
+    });
+
+    it("includes archived milestones and their tasks when includeArchived is true", () => {
+      vi.mocked(storage.getAllEntities).mockReturnValue([
+        { id: "p1", name: "Alpha", type: "project", path: "/tmp/alpha" },
+      ] as any);
+
+      vi.mocked(scanProjectTasks).mockReturnValue({
+        projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
+        config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
+        items: [
+          { id: "itm-m-archived", title: "Old Milestone", type: "milestone", status: "done", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
+          { id: "itm-archived-child", title: "Old Task", type: "task", status: "done", parent: "itm-m-archived", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
+        ],
+        malformedCount: 0,
+      });
+
+      // itm-m-archived is already archived from the previous test
+      const result = aggregateBoardState(undefined, true);
+      expect(result.milestones.find(m => m.id === "itm-m-archived")).toBeDefined();
+      expect(result.tasks.find(t => t.id === "itm-archived-child")).toBeDefined();
     });
   });
 });

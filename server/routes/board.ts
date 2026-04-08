@@ -3,7 +3,7 @@
 import { Router } from "express";
 import path from "path";
 import fs from "fs";
-import { aggregateBoardState, computeBoardStats } from "../board/aggregator";
+import { aggregateBoardState, computeBoardStats, setArchived, getArchivedMilestones } from "../board/aggregator";
 import { validateMove, checkAutoUnflag } from "../board/validator";
 import { updateTaskField, generateTaskId, taskFilename, writeTaskFile } from "../task-io";
 import { parseRoadmapMarkdown } from "../board/ingest";
@@ -23,7 +23,8 @@ export function createBoardRouter(events: BoardEventBus): Router {
     const filterProjects = req.query.projects
       ? (req.query.projects as string).split(",")
       : undefined;
-    const state = aggregateBoardState(filterProjects);
+    const includeArchived = req.query.includeArchived === "true";
+    const state = aggregateBoardState(filterProjects, includeArchived);
     return res.json(state);
   });
 
@@ -116,6 +117,31 @@ export function createBoardRouter(events: BoardEventBus): Router {
 
     events.emit("task-unflagged", { taskId: id });
     return res.json({ id, flagged: false });
+  });
+
+  // POST /api/board/milestones/:id/archive — archive a completed milestone
+  router.post("/api/board/milestones/:id/archive", (req, res) => {
+    const { id } = req.params;
+
+    // Verify milestone exists (check with archived included so we can find it)
+    const state = aggregateBoardState(undefined, true);
+    const milestone = state.milestones.find(m => m.id === id);
+    if (!milestone) {
+      return res.status(404).json({ error: "Milestone not found" });
+    }
+
+    setArchived(id, true);
+    events.emit("board-refresh", { milestoneId: id, action: "archived" });
+    return res.json({ id, archived: true });
+  });
+
+  // GET /api/board/milestones/archived — list archived milestones
+  router.get("/api/board/milestones/archived", (_req, res) => {
+    const archivedIds = getArchivedMilestones();
+    // Get full milestone metadata by fetching with archived included
+    const state = aggregateBoardState(undefined, true);
+    const archivedMilestones = state.milestones.filter(m => archivedIds.includes(m.id));
+    return res.json(archivedMilestones);
   });
 
   // GET /api/board/tasks/:id/session — Get session enrichment for a board task
