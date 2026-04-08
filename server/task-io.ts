@@ -60,6 +60,8 @@ export function parseTaskFile(filePath: string): TaskItem | null {
       pipelineBranch: d.pipelineBranch ? String(d.pipelineBranch) : undefined,
       pipelineCost: d.pipelineCost != null ? Number(d.pipelineCost) : undefined,
       pipelineActivity: d.pipelineActivity ? String(d.pipelineActivity) : undefined,
+      pipelineSessionIds: Array.isArray(d.pipelineSessionIds) ? d.pipelineSessionIds.map(String) : undefined,
+      pipelineSummary: d.pipelineSummary ? String(d.pipelineSummary) : undefined,
       pipelineBlockedReason: d.pipelineBlockedReason ? String(d.pipelineBlockedReason) : undefined,
       blockedFromStage: d.blockedFromStage ? String(d.blockedFromStage) : undefined,
       removedFromStage: d.removedFromStage ? String(d.removedFromStage) : undefined,
@@ -97,6 +99,8 @@ export function writeTaskFile(filePath: string, task: TaskItem): void {
   if (task.pipelineBranch) frontmatter.pipelineBranch = task.pipelineBranch;
   if (task.pipelineCost != null) frontmatter.pipelineCost = task.pipelineCost;
   if (task.pipelineActivity) frontmatter.pipelineActivity = task.pipelineActivity;
+  if (task.pipelineSessionIds && task.pipelineSessionIds.length > 0) frontmatter.pipelineSessionIds = task.pipelineSessionIds;
+  if (task.pipelineSummary) frontmatter.pipelineSummary = task.pipelineSummary;
   if (task.pipelineBlockedReason) frontmatter.pipelineBlockedReason = task.pipelineBlockedReason;
   if (task.blockedFromStage) frontmatter.blockedFromStage = task.blockedFromStage;
   if (task.removedFromStage) frontmatter.removedFromStage = task.removedFromStage;
