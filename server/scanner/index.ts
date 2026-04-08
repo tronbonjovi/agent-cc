@@ -2,7 +2,7 @@ import { storage } from "../storage";
 import { scanMCPs, extractDbNodesFromMcps } from "./mcp-scanner";
 import { scanSkills } from "./skill-scanner";
 import { scanPlugins } from "./plugin-scanner";
-import { scanProjects, scanEnvServices, scanGitRemotes } from "./project-scanner";
+import { scanProjects, scanEnvServices, scanGitRemotes, pruneStaleProjects } from "./project-scanner";
 import { scanMarkdown } from "./markdown-scanner";
 import { scanProjectTasks } from "./task-scanner";
 import { scanConfigs } from "./config-scanner";
@@ -98,6 +98,10 @@ export async function runFullScan(): Promise<void> {
         }
       }
     }
+
+    // Prune projects whose directories no longer exist
+    const currentProjectIds = new Set(projects.map((p) => p.id));
+    pruneStaleProjects(storage, currentProjectIds);
 
     // Atomic swap: replace entities and relationships in one operation
     const db = getDB();

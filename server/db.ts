@@ -36,6 +36,7 @@ export interface DBData {
   costRecords: Record<string, CostRecord>;
   costIndexState: CostIndexState;
   boardConfig: { projectColors: Record<string, string>; archivedMilestones: string[] };
+  staleCounts: Record<string, number>;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -87,6 +88,7 @@ function defaultData(): DBData {
     costRecords: {},
     costIndexState: { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 },
     boardConfig: { projectColors: {}, archivedMilestones: [] },
+    staleCounts: {},
   };
 }
 
@@ -178,6 +180,7 @@ try {
     if (!data.costIndexState) data.costIndexState = { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 };
     if (!data.boardConfig) data.boardConfig = { projectColors: {}, archivedMilestones: [] };
     if (!data.boardConfig.archivedMilestones) data.boardConfig.archivedMilestones = [];
+    if (!data.staleCounts) data.staleCounts = {};
     // Silently discard leftover pipeline keys from older DB files
     delete (data as any).pipelineConfig;
     delete (data as any).pipelineRun;

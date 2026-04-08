@@ -4,10 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { ArrowRight, Activity, DollarSign, X } from "lucide-react";
+import { ArrowRight, Activity, DollarSign, Trash2, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { type ProjectCardData, healthDotColor, formatProjectCost } from "./project-card";
+import { useDeleteProject } from "@/hooks/use-projects";
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ interface Props {
 
 export function ProjectPopout({ project, anchorRect, onClose, onNavigate }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const deleteProject = useDeleteProject();
 
   // Close on Escape
   useEffect(() => {
@@ -229,17 +231,32 @@ export function ProjectPopout({ project, anchorRect, onClose, onNavigate }: Prop
           </div>
         </ScrollArea>
 
-        {/* Footer: navigation link */}
-        <div className="border-t px-4 py-2">
+        {/* Footer: navigation + delete */}
+        <div className="border-t px-4 py-2 flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
-            className="text-xs w-full justify-start"
+            className="text-xs flex-1 justify-start"
             onClick={() => onNavigate(project.id)}
           >
             <ArrowRight className="h-3 w-3 mr-2" />
             View Details
           </Button>
+          {!project.isCurrent && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-destructive hover:text-destructive"
+              onClick={() => {
+                if (window.confirm("Remove this project from tracking? This does not delete files on disk.")) {
+                  deleteProject.mutate(project.id, { onSuccess: onClose });
+                }
+              }}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              Remove
+            </Button>
+          )}
         </div>
       </div>
     </>

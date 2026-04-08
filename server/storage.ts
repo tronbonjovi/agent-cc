@@ -35,6 +35,20 @@ export class Storage {
     return results;
   }
 
+  /** Delete a single entity and cascade: remove relationships referencing it and board color */
+  deleteEntity(id: string): boolean {
+    const db = getDB();
+    if (!db.entities[id]) return false;
+    delete db.entities[id];
+    db.relationships = db.relationships.filter(
+      (r) => r.sourceId !== id && r.targetId !== id
+    );
+    delete db.boardConfig.projectColors[id];
+    delete db.staleCounts[id];
+    save();
+    return true;
+  }
+
   /** Atomic replace: delete all entities of a type and insert new ones in one operation */
   replaceEntitiesByType(type: EntityType, entities: Entity[]): void {
     const db = getDB();

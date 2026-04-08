@@ -155,6 +155,27 @@ router.get("/api/projects/rules", (_req: Request, res: Response) => {
   res.json(result);
 });
 
+router.delete("/api/projects/:id", (req: Request, res: Response) => {
+  try {
+    const entity = storage.getEntity(req.params.id as string);
+    if (!entity || entity.type !== "project") {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    // Prevent deleting the current project (the one this server runs in)
+    const currentProjectId = entityId(`project:${path.basename(process.cwd())}`);
+    if (entity.id === currentProjectId) {
+      return res.status(400).json({ message: "Cannot delete the current project" });
+    }
+
+    storage.deleteEntity(entity.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[projects] DELETE error:", err);
+    res.status(500).json({ message: "Failed to delete project" });
+  }
+});
+
 router.get("/api/projects/:id", (req: Request, res: Response) => {
   const project = storage.getEntity(req.params.id as string);
   if (!project || project.type !== "project") {

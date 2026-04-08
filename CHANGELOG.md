@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Stale project auto-pruning** — projects whose directories no longer exist on disk are automatically removed after 3 consecutive scan cycles. Cascade removes relationships and board colors. Temporarily missing directories (e.g., unmounted drives) are not pruned.
+- **Manual project deletion** — "Remove Project" button on project popout with confirmation dialog. `DELETE /api/projects/:id` endpoint with cascade cleanup. Cannot delete the current project.
+- **Board filter safety** — project filter automatically clears stale project IDs when projects are deleted or pruned, preventing empty board states.
+
+### Added
 - **Three-zone workspace** — board page restructured into a viewport-filling layout with project cards (35%), kanban board (35%), and archive graveyard (30%). No more unbounded vertical scrolling.
 - **Project info-radiator cards** — compact cards showing health status, milestone/task progress bar, session count, and cost. Click opens a floating detail popout; clicking the current project navigates to the detail page.
 - **Archive zone** — completed milestones displayed in a dimmed graveyard at the bottom of the workspace, yielding space to the terminal panel when open.

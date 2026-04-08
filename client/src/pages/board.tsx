@@ -10,7 +10,7 @@ import type { ArchivedMilestone } from "@/components/board/archive-zone";
 import type { ProjectCardData } from "@/components/board/project-card";
 import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useBoardProjects, useArchivedMilestones } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import type { BoardFilter } from "@shared/board-types";
 
@@ -48,6 +48,16 @@ export default function BoardPage() {
   const { connected } = useBoardEvents();
   const boardProjects = useBoardProjects();
   const { data: archivedMilestones } = useArchivedMilestones();
+
+  // Clean stale project IDs from filter when projects change (deletion or prune)
+  useEffect(() => {
+    if (!filter.projects?.length || !boardProjects.length) return;
+    const validIds = new Set(boardProjects.map((p) => p.id));
+    const cleaned = filter.projects.filter((id) => validIds.has(id));
+    if (cleaned.length !== filter.projects.length) {
+      setFilter((prev) => ({ ...prev, projects: cleaned.length ? cleaned : undefined }));
+    }
+  }, [boardProjects, filter.projects]);
 
   const filteredTasks = useMemo(
     () => board ? applyBoardFilters(board.tasks, filter) : [],

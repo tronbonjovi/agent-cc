@@ -1,5 +1,7 @@
 import type { Entity, CustomNode, CustomEdge } from "@shared/types";
 import { entityId, getFileStat, CLAUDE_DIR, now, dirExists, fileExists, safeReadText, discoverProjectDirs, encodeProjectKey, hasProjectMarkers, getExtraPaths, normPath } from "./utils";
+import { getDB, save } from "../db";
+import type { Storage } from "../storage";
 import path from "path";
 import fs from "fs";
 
@@ -136,6 +138,38 @@ export function scanProjects(): Entity[] {
   }
 
   return results;
+}
+
+const STALE_THRESHOLD = 3;
+
+/** Prune project entities whose directories no longer exist after N consecutive missing scans */
+export function pruneStaleProjects(storage: Storage, currentScanIds: Set<string>): void {
+  const db = getDB();
+  const storedProjects = storage.getEntities("project");
+
+  for (const project of storedProjects) {
+    if (currentScanIds.has(project.id)) {
+      // Project is in current scan — reset counter
+      delete db.staleCounts[project.id];
+      continue;
+    }
+
+    // Not in scan — check if directory still exists on disk
+    if (fs.existsSync(project.path)) {
+      // Directory exists but wasn't in scan (e.g., scanner filter change) — not stale
+      continue;
+    }
+
+    // Directory gone — increment miss count
+    db.staleCounts[project.id] = (db.staleCounts[project.id] || 0) + 1;
+
+    if (db.staleCounts[project.id] >= STALE_THRESHOLD) {
+      // Cascade delete: entity, relationships, board colors, stale counter
+      storage.deleteEntity(project.id);
+    }
+  }
+
+  save();
 }
 
 // Find Claude Code session data for a project directory.
