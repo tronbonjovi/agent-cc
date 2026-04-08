@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Workflow bridge** — kanban board natively discovers and displays claude-workflow task files from `.claude/roadmap/<milestone>/` directories. Workflow tasks appear alongside regular `.claude/tasks/` items with no configuration needed.
+- **Status bridge** — workflow statuses (`pending`, `in_progress`, `completed`, `cancelled`, `blocked`) map to board columns automatically. Board moves write back in workflow format, preserving all workflow-specific frontmatter fields (milestone, complexity, parallelSafe, phase, filesTouch).
+- **Synthetic milestones** — each workflow milestone directory produces a milestone card on the board with computed progress (done/total), title derived from directory name, and status computed from child tasks. ROADMAP.md descriptions and MILESTONE.md status overrides are respected.
+- **Workflow integration tests** — 9 end-to-end tests covering discovery, status mapping, board move write-back, milestone grouping, session linking, and coexistence with regular tasks.
+
+### Fixed
+- **Workflow write-back data loss** — board moves on workflow files previously destroyed workflow-specific frontmatter fields by roundtripping through TaskItem model. Now uses targeted field updates that preserve all original frontmatter.
+
+## [2.1.0] — 2026-04-08
+
+### Added
 - **Board-session integration** — board cards are now info radiators showing live session data. When a session is linked to a task, the card shows a status light (green/amber/red pulsing dot), model badge (e.g. "Sonnet 4.6"), agent activity line, message count, duration, token count, and cost. Cards without sessions keep the existing minimal layout.
 - **Session enricher** — new `server/board/session-enricher.ts` module bridges the task scanner and session analytics, looking up cost, health, model, and activity data for linked sessions
 - **Session detail in side panel** — clicking a card with a linked session shows a detail grid: model, health score, messages, duration, tokens (in/out), cost, and a link to view the full session
