@@ -23,6 +23,7 @@ function makeTask(overrides: Partial<BoardTask>): BoardTask {
     id: "itm-1", title: "T", description: "", column: "backlog",
     project: "p1", projectName: "P", projectColor: "#000",
     priority: "medium", dependsOn: [], tags: [], flagged: false,
+    session: null,
     createdAt: "2026-04-07", updatedAt: "2026-04-07",
     ...overrides,
   };

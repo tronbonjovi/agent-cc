@@ -2,6 +2,13 @@
 
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Bot, User, DollarSign } from "lucide-react";
+import {
+  StatusLight,
+  ModelBadge,
+  CostPill,
+  AgentActivity,
+  SessionStats,
+} from "./session-indicators";
 import type { BoardTask } from "@shared/board-types";
 
 interface BoardTaskCardProps {
@@ -16,21 +23,27 @@ const priorityColors: Record<string, string> = {
 };
 
 export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
+  const hasSession = task.session !== null;
+
   return (
     <div
       onClick={() => onClick(task)}
       className="bg-card border rounded-md p-3 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all group"
     >
-      {/* Project color indicator + title */}
+      {/* Row 1: Status light + title */}
       <div className="flex items-start gap-2">
-        <div
-          className="w-1 h-full min-h-[1.5rem] rounded-full flex-shrink-0 mt-0.5"
-          style={{ backgroundColor: task.projectColor }}
-        />
+        {hasSession ? (
+          <div className="mt-1.5 flex-shrink-0">
+            <StatusLight session={task.session!} />
+          </div>
+        ) : (
+          <div
+            className="w-1 h-full min-h-[1.5rem] rounded-full flex-shrink-0 mt-0.5"
+            style={{ backgroundColor: task.projectColor }}
+          />
+        )}
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium leading-tight truncate">{task.title}</div>
-
-          {/* Project name + milestone */}
           <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground">
             <span>{task.projectName}</span>
             {task.milestone && (
@@ -43,30 +56,40 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
         </div>
       </div>
 
-      {/* Tags row */}
-      {(task.tags.length > 0 || task.priority !== "medium") && (
-        <div className="flex items-center gap-1 mt-2 flex-wrap">
-          {task.priority !== "medium" && (
-            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${priorityColors[task.priority]}`}>
-              {task.priority}
-            </Badge>
-          )}
-          {task.tags.slice(0, 3).map(tag => (
-            <Badge key={tag} variant="outline" className="text-[9px] px-1.5 py-0">
-              {tag}
-            </Badge>
-          ))}
-        </div>
-      )}
+      {/* Row 2: Badges — model, priority, tags */}
+      <div className="flex items-center gap-1 mt-2 flex-wrap">
+        {hasSession && <ModelBadge model={task.session!.model} />}
+        {task.priority !== "medium" && (
+          <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${priorityColors[task.priority]}`}>
+            {task.priority}
+          </Badge>
+        )}
+        {task.tags.slice(0, 2).map(tag => (
+          <Badge key={tag} variant="outline" className="text-[9px] px-1.5 py-0">
+            {tag}
+          </Badge>
+        ))}
+      </div>
 
-      {/* Activity line */}
-      {task.activity && (
+      {/* Row 3: Agent activity (session) or plain activity text (no session) */}
+      {hasSession ? (
+        <div className="mt-2">
+          <AgentActivity session={task.session!} />
+        </div>
+      ) : task.activity ? (
         <div className="mt-2 text-[10px] text-blue-400 truncate">
           {task.activity}
         </div>
+      ) : null}
+
+      {/* Row 4: Session stats (only when session exists) */}
+      {hasSession && (
+        <div className="mt-2">
+          <SessionStats session={task.session!} />
+        </div>
       )}
 
-      {/* Bottom row: assignee, cost, flag */}
+      {/* Row 5: Assignee + cost + flag */}
       <div className="flex items-center gap-2 mt-2">
         {task.assignee && (
           <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -74,12 +97,16 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
             {task.assignee === "ai" ? "AI" : task.assignee}
           </span>
         )}
-        {task.cost != null && task.cost > 0 && (
+        {hasSession ? (
+          <span className="ml-auto">
+            <CostPill costUsd={task.session!.costUsd} />
+          </span>
+        ) : task.cost != null && task.cost > 0 ? (
           <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground ml-auto">
             <DollarSign className="h-3 w-3" />
             {task.cost.toFixed(2)}
           </span>
-        )}
+        ) : null}
         {task.flagged && (
           <span className="flex items-center gap-1 text-[10px] text-amber-500 ml-auto" title={task.flagReason}>
             <AlertTriangle className="h-3 w-3" />
