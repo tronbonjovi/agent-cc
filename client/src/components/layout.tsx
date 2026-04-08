@@ -12,7 +12,6 @@ import { TerminalPanel } from "./terminal-panel";
 
 import {
   LayoutDashboard,
-  FolderOpen,
   Server,
   Wand2,
   Puzzle,
@@ -56,7 +55,6 @@ const navSections: NavSection[] = [
   {
     label: "Entities",
     items: [
-      { path: "/projects", label: "Projects", icon: FolderOpen, countKey: "project" as const },
       { path: "/mcps", label: "MCP Servers", icon: Server, countKey: "mcp" as const },
       { path: "/skills", label: "Skills", icon: Wand2, countKey: "skill" as const },
       { path: "/plugins", label: "Plugins", icon: Puzzle, countKey: "plugin" as const },
