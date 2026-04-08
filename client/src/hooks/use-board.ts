@@ -192,6 +192,19 @@ export function useTaskSession(taskId: string | null) {
   });
 }
 
+/** Delete a DB-stored task. */
+export function useDeleteTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) =>
+      apiFetch(`/api/board/tasks/${taskId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BOARD_KEY });
+      qc.invalidateQueries({ queryKey: STATS_KEY });
+    },
+  });
+}
+
 /** Client-side filter logic. */
 export function applyBoardFilters(tasks: BoardTask[], filter: BoardFilter): BoardTask[] {
   return tasks.filter(t => {

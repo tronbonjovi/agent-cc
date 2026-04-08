@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { aggregateBoardState, computeBoardStats, setArchived, getArchivedMilestones } from "../board/aggregator";
 import { validateMove, checkAutoUnflag } from "../board/validator";
-import { updateTaskField, generateTaskId, taskFilename, writeTaskFile } from "../task-io";
+import { updateTaskField, generateTaskId, taskFilename, writeTaskFile, taskFileIndex } from "../task-io";
 import { parseRoadmapMarkdown } from "../board/ingest";
 import { storage } from "../storage";
 import { scanProjectTasks } from "../scanner/task-scanner";
@@ -171,6 +171,41 @@ export function createBoardRouter(events: BoardEventBus): Router {
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Failed to link session" });
     }
+  });
+
+  // DELETE /api/board/tasks/:id — delete a DB-stored task
+  router.delete("/api/board/tasks/:id", (req, res) => {
+    const { id } = req.params;
+
+    // Only allow deleting DB-stored tasks (itm- prefix)
+    if (!id.startsWith("itm-")) {
+      return res.status(403).json({ error: "Only DB-stored tasks can be deleted" });
+    }
+
+    const state = aggregateBoardState();
+    const task = state.tasks.find(t => t.id === id);
+    if (!task) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+
+    // Workflow tasks cannot be deleted via API
+    if (task.source === "workflow") {
+      return res.status(403).json({ error: "Workflow tasks cannot be deleted" });
+    }
+
+    try {
+      // Find and delete the task file
+      const key = `${task.project}:${id}`;
+      const filePath = taskFileIndex.get(key);
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch {
+      return res.status(500).json({ error: "Failed to delete task" });
+    }
+
+    events.emit("task-deleted", { taskId: id });
+    return res.json({ id, deleted: true });
   });
 
   // GET /api/board/events — SSE stream

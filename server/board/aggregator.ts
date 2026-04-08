@@ -127,6 +127,7 @@ export function mapTaskToBoard(
     session: enrichment,
     createdAt: task.created,
     updatedAt: task.updated,
+    source: task.filePath && task.filePath.includes("/roadmap/") ? "workflow" : "db",
   };
 }
 
