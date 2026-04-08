@@ -3,10 +3,15 @@
 import { BoardHeader } from "@/components/board/board-header";
 import { BoardSidePanel } from "@/components/board/board-side-panel";
 import { BoardTaskCard } from "@/components/board/board-task-card";
-import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useArchiveMilestone, useArchivedMilestones } from "@/hooks/use-board";
+import { ProjectZone } from "@/components/board/project-zone";
+import { ProjectPopout } from "@/components/board/project-popout";
+import { ArchiveZone } from "@/components/board/archive-zone";
+import type { ArchivedMilestone } from "@/components/board/archive-zone";
+import type { ProjectCardData } from "@/components/board/project-card";
+import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useBoardProjects, useArchivedMilestones } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useState, useMemo, useCallback } from "react";
-import { Archive, ChevronDown, ChevronRight } from "lucide-react";
+import { useLocation } from "wouter";
 import type { BoardFilter } from "@shared/board-types";
 
 export default function BoardPage() {
@@ -14,18 +19,34 @@ export default function BoardPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; right: number; bottom: number; width: number; height: number } | null>(null);
 
+  // Project popout state
+  const [selectedProject, setSelectedProject] = useState<ProjectCardData | null>(null);
+  const [projectAnchorRect, setProjectAnchorRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+
+  const [, setLocation] = useLocation();
+
   const handleCardClick = useCallback((task: { id: string }, e: React.MouseEvent) => {
     const el = e.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     setAnchorRect({ top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height });
     setSelectedTaskId(task.id);
   }, []);
-  const [showArchived, setShowArchived] = useState(false);
+
+  const handleProjectClick = useCallback((project: ProjectCardData, e: React.MouseEvent) => {
+    if (project.isCurrent) {
+      setLocation(`/projects/${project.id}`);
+      return;
+    }
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    setProjectAnchorRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+    setSelectedProject(project);
+  }, [setLocation]);
 
   const { data: board, isLoading } = useBoardState();
   const { data: stats } = useBoardStats();
   const { connected } = useBoardEvents();
-  const archiveMilestone = useArchiveMilestone();
+  const boardProjects = useBoardProjects();
   const { data: archivedMilestones } = useArchivedMilestones();
 
   const filteredTasks = useMemo(
@@ -41,16 +62,22 @@ export default function BoardPage() {
     return map;
   }, [filteredTasks]);
 
-  // Milestones where all tasks are done — candidates for archiving
-  const archivableMilestones = useMemo(() => {
-    if (!board) return [];
-    return board.milestones.filter(m => m.totalTasks > 0 && m.doneTasks === m.totalTasks);
-  }, [board]);
-
   // Derive selected task from fresh query data so panel always shows current state
   const selectedTask = selectedTaskId
     ? board?.tasks.find(t => t.id === selectedTaskId) ?? null
     : null;
+
+  // Map archived milestones to ArchiveZone format
+  const archiveData: ArchivedMilestone[] = useMemo(() => {
+    if (!archivedMilestones) return [];
+    return archivedMilestones.map(m => ({
+      id: m.id,
+      title: m.title,
+      project: m.project,
+      totalTasks: m.totalTasks,
+      doneTasks: m.doneTasks,
+    }));
+  }, [archivedMilestones]);
 
   if (isLoading) {
     return (
@@ -61,7 +88,7 @@ export default function BoardPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       <BoardHeader
         stats={stats}
         filter={filter}
@@ -71,8 +98,16 @@ export default function BoardPage() {
         sseConnected={connected}
       />
 
-      {/* Board area */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
+      {/* Zone 1: Projects (35%) */}
+      <div className="min-h-0" style={{ height: "35%" }}>
+        <ProjectZone
+          projects={boardProjects}
+          onProjectClick={handleProjectClick}
+        />
+      </div>
+
+      {/* Zone 2: Kanban Board (35%) */}
+      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden p-4" style={{ height: "35%" }}>
         <div className="flex gap-3 h-full min-w-max">
           {BOARD_COLUMNS.map(col => (
             <div key={col.id} className="w-72 flex flex-col bg-muted/30 rounded-lg border">
@@ -104,58 +139,33 @@ export default function BoardPage() {
           ))}
         </div>
       </div>
-      {/* Archivable milestones — shown when there are completed milestones */}
-      {archivableMilestones.length > 0 && (
-        <div className="px-4 pb-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Archive className="h-3 w-3" />
-            <span>{archivableMilestones.length} completed milestone{archivableMilestones.length > 1 ? "s" : ""} ready to archive:</span>
-            {archivableMilestones.map(m => (
-              <button
-                key={m.id}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs hover:bg-muted/50 transition-colors"
-                onClick={() => archiveMilestone.mutate(m.id)}
-                disabled={archiveMilestone.isPending}
-              >
-                <Archive className="h-3 w-3" />
-                {m.title} ({m.totalTasks} tasks)
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Archived milestones section */}
-      {archivedMilestones && archivedMilestones.length > 0 && (
-        <div className="px-4 pb-3">
-          <button
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setShowArchived(!showArchived)}
-          >
-            {showArchived ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            <Archive className="h-3 w-3" />
-            {archivedMilestones.length} archived milestone{archivedMilestones.length > 1 ? "s" : ""}
-          </button>
-          {showArchived && (
-            <div className="mt-2 space-y-1">
-              {archivedMilestones.map(m => (
-                <div key={m.id} className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
-                  <span className="font-medium">{m.title}</span>
-                  <span className="text-[10px]">{m.totalTasks} tasks</span>
-                  <span className="text-[10px]">{m.project}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Zone 3: Archive (30%) */}
+      <div className="min-h-0" style={{ height: "30%" }}>
+        <ArchiveZone milestones={archiveData} />
+      </div>
 
+      {/* Task side panel */}
       <BoardSidePanel
         task={selectedTask}
         open={selectedTask !== null}
         onClose={() => { setSelectedTaskId(null); setAnchorRect(null); }}
         anchorRect={anchorRect}
       />
+
+      {/* Project popout */}
+      {selectedProject && projectAnchorRect && (
+        <ProjectPopout
+          project={selectedProject}
+          anchorRect={projectAnchorRect}
+          onClose={() => { setSelectedProject(null); setProjectAnchorRect(null); }}
+          onNavigate={(projectId) => {
+            setSelectedProject(null);
+            setProjectAnchorRect(null);
+            setLocation(`/projects/${projectId}`);
+          }}
+        />
+      )}
     </div>
   );
 }

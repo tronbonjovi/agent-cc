@@ -1,8 +1,10 @@
 // client/src/hooks/use-board.ts
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { BoardState, BoardStats, BoardFilter, BoardTask, MoveTaskInput, BoardColumn, SessionEnrichment, MilestoneMeta } from "@shared/board-types";
+import type { ProjectCardData } from "@/components/board/project-card";
+import { useProjects } from "./use-projects";
 
 const BOARD_KEY = ["/api/board"];
 const STATS_KEY = ["/api/board/stats"];
@@ -190,6 +192,67 @@ export function useTaskSession(taskId: string | null) {
     enabled: !!taskId,
     refetchInterval: 5_000,
   });
+}
+
+/** Delete a DB-stored task. */
+export function useDeleteTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) =>
+      apiFetch(`/api/board/tasks/${taskId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BOARD_KEY });
+      qc.invalidateQueries({ queryKey: STATS_KEY });
+    },
+  });
+}
+
+/** Map entity health to ProjectCardData health */
+function mapHealth(health: string): ProjectCardData["health"] {
+  switch (health) {
+    case "ok": return "healthy";
+    case "warning": return "warning";
+    case "error": return "critical";
+    default: return "unknown";
+  }
+}
+
+/** Merge project API data with board state to produce ProjectCardData[]. */
+export function useBoardProjects(): ProjectCardData[] {
+  const { data: projects } = useProjects();
+  const { data: board } = useBoardState();
+
+  return useMemo(() => {
+    if (!projects || !board) return [];
+
+    const boardProjectIds = board.projects.map((bp) => bp.id);
+
+    return projects.map((p) => {
+      const isCurrent = boardProjectIds.length > 0 && boardProjectIds[0] === p.id;
+      const projectMilestones = board.milestones.filter((m) => m.project === p.id);
+      const projectTasks = board.tasks.filter((t) => t.project === p.id);
+      const doneTasks = projectTasks.filter((t) => t.column === "done").length;
+      const inProgressTasks = projectTasks.filter((t) => t.column === "in-progress").length;
+      const totalCost = projectTasks.reduce(
+        (sum, t) => sum + (t.session?.costUsd ?? 0),
+        0,
+      );
+
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description ?? "",
+        health: mapHealth(p.health),
+        sessionCount: p.data.sessionCount,
+        totalCost,
+        milestoneCount: projectMilestones.length,
+        taskCount: projectTasks.length,
+        doneTasks,
+        inProgressTasks,
+        isCurrent,
+      };
+    });
+  }, [projects, board]);
 }
 
 /** Client-side filter logic. */
