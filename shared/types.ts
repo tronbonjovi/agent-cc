@@ -714,14 +714,6 @@ export interface NerveCenterData {
   generatedAt: string;
 }
 
-// --- Session Delegation ---
-export interface DelegationResult {
-  target: "terminal" | "telegram" | "voice";
-  status: "dispatched" | "failed";
-  message: string;
-  contextPrompt?: string;
-}
-
 export interface SessionStats {
   totalCount: number;
   totalSize: number;

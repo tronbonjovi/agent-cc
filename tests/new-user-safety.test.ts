@@ -122,14 +122,11 @@ describe("Graceful degradation without Claude CLI", () => {
 
   it("isClaudeAvailable check exists before summarize", () => {
     const content = fs.readFileSync(path.join(ROOT, "server/routes/sessions.ts"), "utf-8");
-    // Find the summarize route and verify it checks CLI availability
-    const summarizeIdx = content.indexOf("/api/sessions/:id/summarize");
-    const batchIdx = content.indexOf("/api/sessions/summarize-batch");
+    // Find the nl-query route and verify it checks CLI availability
     const nlIdx = content.indexOf("/api/sessions/nl-query");
-    const decisionIdx = content.indexOf("/api/sessions/decisions/extract");
 
     // Each should have isClaudeAvailable check nearby (within 200 chars)
-    for (const [name, idx] of [["summarize", summarizeIdx], ["batch", batchIdx], ["nl-query", nlIdx], ["decisions", decisionIdx]]) {
+    for (const [name, idx] of [["nl-query", nlIdx]]) {
       expect(idx, `${name} route not found`).toBeGreaterThan(-1);
       const snippet = content.slice(idx, idx + 300);
       expect(snippet, `${name} route missing isClaudeAvailable check`).toContain("isClaudeAvailable");
@@ -145,19 +142,9 @@ describe("Nerve center services are configurable", () => {
   });
 });
 
-describe("Voice delegation requires env var config", () => {
-  it("does not hardcode phone numbers or paths", () => {
-    const content = fs.readFileSync(path.join(ROOT, "server/scanner/session-delegation.ts"), "utf-8");
-    expect(content).toContain("VOICE_CALLER_SCRIPT");
-    expect(content).toContain("VOICE_PHONE");
-    expect(content).not.toContain("C:/Users/zwin0");
-    expect(content).not.toContain("+971");
-  });
-});
-
-describe("Terminal delegation is cross-platform", () => {
-  it("handles win32, darwin, and linux", () => {
-    const content = fs.readFileSync(path.join(ROOT, "server/scanner/session-delegation.ts"), "utf-8");
+describe("Terminal open is cross-platform", () => {
+  it("handles win32, darwin, and linux in session open route", () => {
+    const content = fs.readFileSync(path.join(ROOT, "server/routes/sessions.ts"), "utf-8");
     expect(content).toContain("win32");
     expect(content).toContain("darwin");
     expect(content).toContain("x-terminal-emulator");

@@ -111,12 +111,6 @@ vi.mock("../server/scanner/deep-search", () => ({
   deepSearch: vi.fn(async () => ({ results: [], totalMatches: 0, scannedSessions: 0, timings: {} })),
 }));
 
-// Mock session-summarizer
-vi.mock("../server/scanner/session-summarizer", () => ({
-  summarizeSession: vi.fn(),
-  summarizeBatch: vi.fn(),
-}));
-
 // Mock session-analytics
 vi.mock("../server/scanner/session-analytics", () => ({
   getCostAnalytics: vi.fn(() => ({})),
@@ -166,11 +160,6 @@ vi.mock("../server/scanner/continuation-detector", () => ({
   getContinuationBrief: vi.fn(() => null),
 }));
 
-// Mock decision-extractor
-vi.mock("../server/scanner/decision-extractor", () => ({
-  extractDecisions: vi.fn(() => []),
-}));
-
 // Mock bash-knowledge
 vi.mock("../server/scanner/bash-knowledge", () => ({
   getBashKnowledgeBase: vi.fn(() => ({ commands: [], stats: {} })),
@@ -180,14 +169,6 @@ vi.mock("../server/scanner/bash-knowledge", () => ({
 // Mock nerve-center
 vi.mock("../server/scanner/nerve-center", () => ({
   getNerveCenterData: vi.fn(() => ({ services: [] })),
-}));
-
-// Mock session-delegation
-vi.mock("../server/scanner/session-delegation", () => ({
-  delegateToTerminal: vi.fn(),
-  delegateToTelegram: vi.fn(),
-  delegateToVoice: vi.fn(),
-  buildContextPrompt: vi.fn(() => ""),
 }));
 
 // Mock storage
@@ -391,5 +372,38 @@ describe("GET /api/sessions/:id", () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.message).toBe("Session not found");
+  });
+});
+
+// === Removed routes — dead UI elements cleanup ===
+
+describe("removed delegation routes", () => {
+  it("POST /api/sessions/delegate returns 404 (route removed)", async () => {
+    const res = await api("POST", "/api/sessions/delegate", { sessionId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", target: "terminal" });
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /api/sessions/:id/context returns 404 (route removed)", async () => {
+    const res = await api("GET", "/api/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890/context");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("removed summarize routes", () => {
+  it("POST /api/sessions/:id/summarize returns 404 (route removed)", async () => {
+    const res = await api("POST", "/api/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890/summarize");
+    expect(res.status).toBe(404);
+  });
+
+  it("POST /api/sessions/summarize-batch returns 404 (route removed)", async () => {
+    const res = await api("POST", "/api/sessions/summarize-batch");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("removed decisions extract route", () => {
+  it("POST /api/sessions/decisions/extract/:id returns 404 (route removed)", async () => {
+    const res = await api("POST", "/api/sessions/decisions/extract/a1b2c3d4-e5f6-7890-abcd-ef1234567890");
+    expect(res.status).toBe(404);
   });
 });

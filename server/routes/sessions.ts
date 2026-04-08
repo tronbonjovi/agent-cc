@@ -8,7 +8,6 @@ import { CLAUDE_DIR, encodeProjectKey, dirExists, readMessageTimeline, extractMe
 import { SessionIdSchema, SessionListSchema, IdsArraySchema, DeepSearchSchema, validate, qstr, validateSafePath } from "./validation";
 import { TRASH_DIR, MAX_SESSIONS_RESPONSE } from "../config";
 import { deepSearch } from "../scanner/deep-search";
-import { summarizeSession, summarizeBatch } from "../scanner/session-summarizer";
 import { getCostAnalytics, getFileHeatmap, getHealthAnalytics, getSessionCost, getStaleAnalytics } from "../scanner/session-analytics";
 import { getSessionCommits } from "../scanner/commit-linker";
 import { getProjectDashboards } from "../scanner/project-dashboard";
@@ -18,10 +17,8 @@ import { runAutoWorkflows } from "../scanner/auto-workflows";
 import { getFileTimeline } from "../scanner/file-timeline";
 import { runNLQuery } from "../scanner/nl-query";
 import { getContinuationBrief } from "../scanner/continuation-detector";
-import { extractDecisions } from "../scanner/decision-extractor";
 import { getBashKnowledgeBase, searchBashCommands } from "../scanner/bash-knowledge";
 import { getNerveCenterData } from "../scanner/nerve-center";
-import { delegateToTerminal, delegateToTelegram, delegateToVoice, buildContextPrompt } from "../scanner/session-delegation";
 import { storage } from "../storage";
 import crypto from "crypto";
 
@@ -231,19 +228,6 @@ router.get("/api/sessions/search", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[sessions] Deep search failed:", (err as Error).message);
     res.status(500).json({ message: "Search failed" });
-  }
-});
-
-/** POST /api/sessions/summarize-batch — Summarize up to 10 unsummarized sessions */
-router.post("/api/sessions/summarize-batch", async (_req: Request, res: Response) => {
-  if (!isClaudeAvailable()) return res.status(503).json({ message: "Claude Code CLI not installed — required for AI summarization" });
-  try {
-    const sessions = getCachedSessions();
-    const result = await summarizeBatch(sessions, 10);
-    res.json(result);
-  } catch (err) {
-    console.error("[sessions] Batch summarize failed:", (err as Error).message);
-    res.status(500).json({ message: "Batch summarization failed" });
   }
 });
 
@@ -477,21 +461,6 @@ router.get("/api/sessions/decisions", (req: Request, res: Response) => {
   }
 });
 
-/** POST /api/sessions/decisions/extract/:id — Extract decisions from a session */
-router.post("/api/sessions/decisions/extract/:id", async (req: Request, res: Response) => {
-  if (!isClaudeAvailable()) return res.status(503).json({ message: "Claude Code CLI not installed — required for decision extraction" });
-  const idResult = SessionIdSchema.safeParse(String(req.params.id));
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
-  const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
-  try {
-    const decisions = await extractDecisions(session);
-    res.json({ decisions, count: decisions.length });
-  } catch (err) {
-    res.status(500).json({ message: (err as Error).message });
-  }
-});
-
 /** GET /api/sessions/analytics/bash — Bash command knowledge base */
 router.get("/api/sessions/analytics/bash", (_req: Request, res: Response) => {
   const sessions = getCachedSessions();
@@ -514,37 +483,6 @@ router.get("/api/sessions/nerve-center", async (_req: Request, res: Response) =>
   } catch (err) {
     res.status(500).json({ message: (err as Error).message });
   }
-});
-
-/** POST /api/sessions/delegate — Delegate session to terminal/telegram/voice */
-router.post("/api/sessions/delegate", async (req: Request, res: Response) => {
-  const body = req.body as { sessionId?: string; target?: string; task?: string };
-  if (!body.sessionId || !body.target) return res.status(400).json({ message: "sessionId and target required" });
-  const idResult = SessionIdSchema.safeParse(body.sessionId);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID" });
-  const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
-
-  const task = (body.task || "").slice(0, 500);
-
-  if (body.target === "terminal") {
-    res.json(delegateToTerminal(session));
-  } else if (body.target === "telegram") {
-    res.json(await delegateToTelegram(session, task));
-  } else if (body.target === "voice") {
-    res.json(delegateToVoice(session, task));
-  } else {
-    res.status(400).json({ message: "target must be terminal, telegram, or voice" });
-  }
-});
-
-/** GET /api/sessions/:id/context — Build context prompt for delegation */
-router.get("/api/sessions/:id/context", (req: Request, res: Response) => {
-  const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
-  const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
-  res.json({ prompt: buildContextPrompt(session) });
 });
 
 /** GET /api/sessions/:id — Session detail with message timeline */
@@ -751,31 +689,6 @@ router.get("/api/sessions/:id/summary", (req: Request, res: Response) => {
   res.json(summary);
 });
 
-/** POST /api/sessions/:id/summarize — Generate summary for a session */
-router.post("/api/sessions/:id/summarize", async (req: Request, res: Response) => {
-  if (!isClaudeAvailable()) return res.status(503).json({ message: "Claude Code CLI not installed — required for AI summarization" });
-  const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
-
-  const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
-
-  // Return cached unless force=true
-  const force = qstr(req.query.force) === "true";
-  if (!force) {
-    const existing = storage.getSummary(session.id);
-    if (existing) return res.json(existing);
-  }
-
-  try {
-    const summary = await summarizeSession(session);
-    res.json(summary);
-  } catch (err) {
-    console.error("[sessions] Summarize failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to generate summary" });
-  }
-});
-
 /** DELETE /api/sessions/:id — Delete a single session (moves to trash) */
 router.delete("/api/sessions/:id", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
@@ -876,8 +789,35 @@ router.post("/api/sessions/:id/open", (req: Request, res: Response) => {
   const session = getCachedSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ message: "Session not found" });
 
-  const result = delegateToTerminal(session);
-  res.json({ message: result.message, id: session.id });
+  try {
+    const env = { ...process.env, CLAUDECODE: undefined };
+    const plat = process.platform;
+    const rawCwd = session.cwd || process.cwd();
+    const cwd = rawCwd.replace(/[^a-zA-Z0-9\s/\\:._\-]/g, "");
+    const sid = session.id.replace(/[^a-f0-9-]/gi, "");
+    let child;
+    if (plat === "win32") {
+      const winCwd = cwd.replace(/\//g, "\\");
+      child = spawn("cmd", ["/c", "start", "Claude", "cmd", "/k", `cd /d "${winCwd}" && claude --resume ${sid}`], {
+        detached: true, stdio: "ignore", env: env as NodeJS.ProcessEnv,
+      });
+    } else if (plat === "darwin") {
+      const safeCwd = cwd.replace(/'/g, "'\\''");
+      child = spawn("osascript", ["-e", `tell application "Terminal" to do script "cd '${safeCwd}' && claude --resume ${sid}"`], {
+        detached: true, stdio: "ignore", env: env as NodeJS.ProcessEnv,
+      });
+    } else {
+      const safeCwd = cwd.replace(/'/g, "'\\''");
+      child = spawn("x-terminal-emulator", ["-e", "bash", "-c", `cd '${safeCwd}' && claude --resume ${sid}`], {
+        detached: true, stdio: "ignore", env: env as NodeJS.ProcessEnv,
+      });
+    }
+    child.on("error", () => {});
+    child.unref();
+    res.json({ message: `Opened terminal in ${cwd} with --resume ${session.id}`, id: session.id });
+  } catch (err) {
+    res.status(500).json({ message: (err as Error).message });
+  }
 });
 
 export default router;

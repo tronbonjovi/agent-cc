@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSummarizeSession, useSummarizeBatch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useDecisions, useExtractDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useDelegate, useSessionNames } from "@/hooks/use-sessions";
+import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useSessionNames } from "@/hooks/use-sessions";
 import { getSessionDisplayName } from "@/lib/session-display-name";
 import { useDebouncedValue } from "@/hooks/use-debounce";
 import { useAppSettings } from "@/hooks/use-settings";
@@ -18,7 +18,7 @@ import {
   Sparkles, Loader2, Zap, DollarSign, FileText, Activity, Archive,
   GitCommit, BarChart3, FolderKanban, Calendar, Settings,
   Plus, Play, BookOpen, Pin, StickyNote,
-  Server, TerminalSquare, Phone, Send, Lightbulb,
+  Server, TerminalSquare, Lightbulb,
 } from "lucide-react";
 import type { SessionData, DeepSearchMatch } from "@shared/types";
 import { formatBytes, relativeTime as _relativeTime } from "@/lib/utils";
@@ -79,8 +79,6 @@ export default function Sessions() {
   const deleteAll = useDeleteAllSessions();
   const undoDelete = useUndoDeleteSessions();
   const deepSearchQuery = useDeepSearch({ q: searchMode === "deep" ? debouncedSearch : undefined, project: projectFilter || undefined });
-  const summarizeSession = useSummarizeSession();
-  const summarizeBatch = useSummarizeBatch();
   const togglePin = useTogglePin();
   const saveNote = useSaveNote();
 
@@ -208,16 +206,6 @@ export default function Sessions() {
             <option value="messageCount:asc">Fewest Messages</option>
           </select>
           <div className="flex-1" />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => summarizeBatch.mutate()}
-            disabled={summarizeBatch.isPending}
-            className="gap-1.5"
-          >
-            {summarizeBatch.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {summarizeBatch.isPending ? "Summarizing..." : "Summarize All"}
-          </Button>
           <Button
             variant="destructive"
             size="sm"
@@ -355,8 +343,6 @@ export default function Sessions() {
                   onToggleExpand={(id) => setExpanded(expanded === id ? null : id)}
                   onCopyResume={handleCopyResume}
                   copiedId={copiedId}
-                  onSummarize={(id) => summarizeSession.mutate(id)}
-                  isSummarizing={summarizeSession.isPending}
                 />
               ))}
             </div>
@@ -382,7 +368,6 @@ export default function Sessions() {
                   onToggleSelect={handleToggleSelect} onToggleExpand={(id) => setExpanded(expanded === id ? null : id)}
                   onCopyId={handleCopyId} onCopyResume={handleCopyResume} onOpenFolder={handleOpenFolder}
                   onDelete={(id, e) => { e.stopPropagation(); setDeleteConfirm({ type: "single", id }); }}
-                  onSummarize={(id) => summarizeSession.mutate(id)} isSummarizing={summarizeSession.isPending}
                   onTogglePin={(id) => togglePin.mutate(id)} onSaveNote={(id, text) => saveNote.mutate({ id, text })}
                   searchQuery={search} sessionNames={sessionNames}
                 />
@@ -398,7 +383,6 @@ export default function Sessions() {
               onToggleSelect={handleToggleSelect} onToggleExpand={(id) => setExpanded(expanded === id ? null : id)}
               onCopyId={handleCopyId} onCopyResume={handleCopyResume} onOpenFolder={handleOpenFolder}
               onDelete={(id, e) => { e.stopPropagation(); setDeleteConfirm({ type: "single", id }); }}
-              onSummarize={(id) => summarizeSession.mutate(id)} isSummarizing={summarizeSession.isPending}
               onTogglePin={(id) => togglePin.mutate(id)} onSaveNote={(id, text) => saveNote.mutate({ id, text })}
               searchQuery={search} sessionNames={sessionNames}
             />
@@ -1117,43 +1101,6 @@ function WorkflowConfigPanel() {
   );
 }
 
-function SessionActionsExtended({ sessionId }: { sessionId: string }) {
-  const delegate = useDelegate();
-  const extractDecisions = useExtractDecisions();
-
-  return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-[11px] text-muted-foreground/60">Delegate:</span>
-      <button onClick={() => delegate.mutate({ sessionId, target: "terminal" })} className="text-[11px] px-2 py-1 rounded border border-green-500/20 text-green-400 hover:bg-green-500/10">
-        <TerminalSquare className="h-3 w-3 inline mr-0.5" />Terminal
-      </button>
-      <button onClick={() => delegate.mutate({ sessionId, target: "telegram", task: "Continue this session" })} className="text-[11px] px-2 py-1 rounded border border-blue-500/20 text-blue-400 hover:bg-blue-500/10">
-        <Send className="h-3 w-3 inline mr-0.5" />Telegram
-      </button>
-      <button onClick={() => delegate.mutate({ sessionId, target: "voice" })} className="text-[11px] px-2 py-1 rounded border border-purple-500/20 text-purple-400 hover:bg-purple-500/10">
-        <Phone className="h-3 w-3 inline mr-0.5" />Voice
-      </button>
-      <span className="text-muted-foreground/30">|</span>
-      <button
-        onClick={() => extractDecisions.mutate(sessionId)}
-        disabled={extractDecisions.isPending}
-        className="text-[11px] px-2 py-1 rounded border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/10"
-      >
-        {extractDecisions.isPending ? <Loader2 className="h-3 w-3 inline mr-0.5 animate-spin" /> : <Lightbulb className="h-3 w-3 inline mr-0.5" />}
-        Extract Decisions
-      </button>
-      {delegate.data && (
-        <span className={`text-[11px] ${delegate.data.status === "dispatched" ? "text-green-400" : "text-red-400"}`}>
-          {delegate.data.message}
-        </span>
-      )}
-      {extractDecisions.data && (
-        <span className="text-[11px] text-yellow-400">{extractDecisions.data.count} decisions found</span>
-      )}
-    </div>
-  );
-}
-
 function FileTimelinePanel({ filePath, onClose }: { filePath: string; onClose: () => void }) {
   const { data, isLoading } = useFileTimeline(filePath);
   const fileName = filePath.replace(/\\/g, "/").split("/").pop() || filePath;
@@ -1210,8 +1157,6 @@ function SessionCard({
   onCopyResume,
   onOpenFolder,
   onDelete,
-  onSummarize,
-  isSummarizing,
   onTogglePin,
   onSaveNote,
   searchQuery,
@@ -1229,8 +1174,6 @@ function SessionCard({
   onCopyResume: (id: string, e: React.MouseEvent) => void;
   onOpenFolder: (filePath: string, e: React.MouseEvent) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
-  onSummarize: (id: string) => void;
-  isSummarizing: boolean;
   onTogglePin?: (id: string) => void;
   onSaveNote?: (id: string, text: string) => void;
   searchQuery?: string;
@@ -1470,23 +1413,10 @@ function SessionCard({
               <Button variant="outline" size="sm" className="gap-1.5" onClick={(e) => onOpenFolder(s.filePath, e)}>
                 <FolderOpen className="h-3.5 w-3.5" /> Open Folder
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={(e) => { e.stopPropagation(); onSummarize(s.id); }}
-                disabled={isSummarizing}
-              >
-                {isSummarizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {s.hasSummary ? "Re-summarize" : "Summarize"}
-              </Button>
               <Button variant="destructive" size="sm" className="gap-1.5" onClick={(e) => onDelete(s.id, e)}>
                 <Trash2 className="h-3.5 w-3.5" /> Delete Session
               </Button>
             </div>
-
-            {/* Delegation + Decisions */}
-            <SessionActionsExtended sessionId={s.id} />
 
             {/* AI Summary */}
             {s.hasSummary && <SessionSummarySection sessionId={s.id} />}
@@ -1697,8 +1627,6 @@ function DeepSearchCard({
   onToggleExpand,
   onCopyResume,
   copiedId,
-  onSummarize,
-  isSummarizing,
 }: {
   match: DeepSearchMatch;
   index: number;
@@ -1707,8 +1635,6 @@ function DeepSearchCard({
   onToggleExpand: (id: string) => void;
   onCopyResume: (id: string, e: React.MouseEvent) => void;
   copiedId: string | null;
-  onSummarize: (id: string) => void;
-  isSummarizing: boolean;
 }) {
   const s = match.session;
   const resumeCopied = copiedId === "resume:" + s.id;
@@ -1827,16 +1753,6 @@ function DeepSearchCard({
               <Button size="sm" variant="outline" className="gap-1.5" onClick={(e) => onCopyResume(s.id, e)}>
                 {resumeCopied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Terminal className="h-3.5 w-3.5" />}
                 {resumeCopied ? "Copied" : "Resume"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={(e) => { e.stopPropagation(); onSummarize(s.id); }}
-                disabled={isSummarizing}
-              >
-                {isSummarizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                {s.hasSummary ? "Re-summarize" : "Summarize"}
               </Button>
             </div>
           </div>

@@ -8,7 +8,7 @@ import type {
   ProjectDashboardResult, SessionDiffsResult, PromptTemplate, WeeklyDigest, WorkflowConfig,
   SessionNote, FileTimelineResult, NLQueryResult,
   ContinuationBrief, Decision, BashKnowledgeBase, BashSearchResult,
-  NerveCenterData, DelegationResult,
+  NerveCenterData,
 } from "@shared/types";
 
 export function useSessions(params?: { q?: string; sort?: string; order?: string; hideEmpty?: boolean; activeOnly?: boolean; project?: string }) {
@@ -116,36 +116,6 @@ export function useDeepSearch(params: { q?: string; field?: string; dateFrom?: s
     queryKey: [`/api/sessions/search${qs ? `?${qs}` : ""}`],
     enabled: (params.q?.length ?? 0) >= 2,
     staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useSummarizeSession() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiRequest("POST", `/api/sessions/${id}/summarize`);
-      return res.json() as Promise<SessionSummary>;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
-      toast.success("Session summarized");
-    },
-    onError: (err: Error) => { toast.error(`Failed to summarize session: ${err.message}`); },
-  });
-}
-
-export function useSummarizeBatch() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/sessions/summarize-batch");
-      return res.json() as Promise<{ summarized: string[]; failed: string[]; skipped: string[] }>;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("/api/sessions") });
-      toast.success(`${data.summarized.length} done, ${data.skipped.length} skipped`);
-    },
-    onError: (err: Error) => { toast.error(`Batch summarize failed: ${err.message}`); },
   });
 }
 
@@ -398,21 +368,6 @@ export function useDecisions(query?: string) {
   });
 }
 
-export function useExtractDecisions() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiRequest("POST", `/api/sessions/decisions/extract/${id}`);
-      return res.json() as Promise<{ decisions: Decision[]; count: number }>;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["/api/sessions/decisions"] });
-      toast.success(`${data.count} decisions extracted`);
-    },
-    onError: (err: Error) => { toast.error(`Failed to extract decisions: ${err.message}`); },
-  });
-}
-
 export function useBashKnowledge() {
   return useQuery<BashKnowledgeBase>({
     queryKey: ["/api/sessions/analytics/bash"],
@@ -435,13 +390,3 @@ export function useNerveCenter() {
   });
 }
 
-export function useDelegate() {
-  return useMutation({
-    mutationFn: async (params: { sessionId: string; target: string; task?: string }) => {
-      const res = await apiRequest("POST", "/api/sessions/delegate", params);
-      return res.json() as Promise<DelegationResult>;
-    },
-    onSuccess: (data) => { toast.success(`Delegated to ${data.target}`); },
-    onError: (err: Error) => { toast.error(`Delegation failed: ${err.message}`); },
-  });
-}
