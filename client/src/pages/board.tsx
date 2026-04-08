@@ -99,7 +99,7 @@ export default function BoardPage() {
       />
 
       {/* Zone 1: Projects (35%) */}
-      <div className="min-h-0" style={{ height: "35%" }}>
+      <div className="min-h-0" style={{ flex: 35 }}>
         <ProjectZone
           projects={boardProjects}
           onProjectClick={handleProjectClick}
@@ -107,7 +107,7 @@ export default function BoardPage() {
       </div>
 
       {/* Zone 2: Kanban Board (35%) */}
-      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden p-4" style={{ height: "35%" }}>
+      <div className="min-h-0 overflow-x-auto overflow-y-hidden p-4" style={{ flex: 35 }}>
         <div className="flex gap-3 h-full min-w-max">
           {BOARD_COLUMNS.map(col => (
             <div key={col.id} className="w-72 flex flex-col bg-muted/30 rounded-lg border">
@@ -141,7 +141,7 @@ export default function BoardPage() {
       </div>
 
       {/* Zone 3: Archive (30%) */}
-      <div className="min-h-0" style={{ height: "30%" }}>
+      <div className="min-h-0" style={{ flex: 30 }}>
         <ArchiveZone milestones={archiveData} />
       </div>
 
