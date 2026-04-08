@@ -151,6 +151,22 @@ export function createBoardRouter(events: BoardEventBus): Router {
     }
   });
 
+  // POST /api/board/tasks/:id/link-session — Link or unlink a session
+  router.post("/api/board/tasks/:id/link-session", (req, res) => {
+    try {
+      const { sessionId } = req.body;  // null or string
+      const state = aggregateBoardState();
+      const task = state.tasks.find(t => t.id === req.params.id);
+      if (!task) return res.status(404).json({ error: "Task not found" });
+
+      updateTaskField(req.params.id, "sessionId", sessionId || undefined, task.project);
+      events.emit("session-updated", { taskId: req.params.id, sessionId: sessionId || null });
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to link session" });
+    }
+  });
+
   // GET /api/board/events — SSE stream
   router.get("/api/board/events", (req, res) => {
     res.writeHead(200, {

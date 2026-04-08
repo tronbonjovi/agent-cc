@@ -85,6 +85,22 @@ export function useIngestRoadmap() {
   });
 }
 
+/** Link or unlink a session to a board task. */
+export function useLinkSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, sessionId }: { taskId: string; sessionId: string | null }) =>
+      apiFetch(`/api/board/tasks/${taskId}/link-session`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BOARD_KEY });
+      qc.invalidateQueries({ queryKey: STATS_KEY });
+    },
+  });
+}
+
 /** Subscribe to board SSE events with auto-reconnect. Invalidates queries on events. */
 export function useBoardEvents() {
   const qc = useQueryClient();

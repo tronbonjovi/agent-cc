@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Bot, ExternalLink, DollarSign, Clock, MessageSquare, Activity } from "lucide-react";
+import { AlertTriangle, Bot, ExternalLink, DollarSign, Link, Unlink } from "lucide-react";
 import {
   StatusLight,
   formatCost,
@@ -15,7 +15,9 @@ import {
   statusLightColor,
 } from "./session-indicators";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
-import { useMoveTask, useUnflagTask } from "@/hooks/use-board";
+import { useMoveTask, useUnflagTask, useLinkSession } from "@/hooks/use-board";
+import { useSessions } from "@/hooks/use-sessions";
+import { useState } from "react";
 import type { BoardTask, BoardColumn } from "@shared/board-types";
 
 interface BoardSidePanelProps {
@@ -27,6 +29,9 @@ interface BoardSidePanelProps {
 export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
   const moveTask = useMoveTask();
   const unflagTask = useUnflagTask();
+  const linkSession = useLinkSession();
+  const [showSessionPicker, setShowSessionPicker] = useState(false);
+  const { data: sessionData } = useSessions({ sort: "lastTs", order: "desc", hideEmpty: true });
 
   if (!task) return null;
 
@@ -38,8 +43,19 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
     unflagTask.mutate(task!.id);
   }
 
+  function handleLinkSession(sessionId: string) {
+    linkSession.mutate({ taskId: task!.id, sessionId });
+    setShowSessionPicker(false);
+  }
+
+  function handleUnlinkSession() {
+    linkSession.mutate({ taskId: task!.id, sessionId: null });
+  }
+
+  const sessions = sessionData?.sessions ?? [];
+
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+    <Sheet open={open} onOpenChange={(v) => { if (!v) { onClose(); setShowSessionPicker(false); } }}>
       <SheetContent className="w-[420px] sm:max-w-[420px] p-0 flex flex-col">
         <SheetHeader className="px-5 pt-5 pb-3 border-b">
           {/* Project color + title */}
@@ -183,7 +199,7 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
             )}
 
             {/* Session detail */}
-            {task.session && (
+            {task.session ? (
               <>
                 <Separator />
                 <div>
@@ -193,6 +209,15 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
                     <span className="text-[10px] font-normal">
                       {task.session.isActive ? "Active" : "Inactive"}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 px-1.5 text-[10px] text-muted-foreground ml-auto"
+                      onClick={handleUnlinkSession}
+                      title="Unlink session"
+                    >
+                      <Unlink className="h-3 w-3" />
+                    </Button>
                   </div>
 
                   {/* Session stats grid */}
@@ -238,6 +263,53 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
                       View Full Session
                     </a>
                   </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Separator />
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-2">Session</div>
+                  {showSessionPicker ? (
+                    <div className="space-y-1 max-h-48 overflow-y-auto border rounded-md">
+                      {sessions.length === 0 ? (
+                        <div className="p-2 text-xs text-muted-foreground">No sessions found</div>
+                      ) : (
+                        sessions.slice(0, 20).map(s => (
+                          <button
+                            key={s.id}
+                            className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted/50 border-b last:border-b-0 transition-colors"
+                            onClick={() => handleLinkSession(s.id)}
+                          >
+                            <div className="font-medium truncate">{s.firstMessage || s.slug || s.id}</div>
+                            <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                              {s.isActive && <span className="text-green-500">Active</span>}
+                              <span>{s.messageCount} msgs</span>
+                              {s.lastTs && <span>{new Date(s.lastTs).toLocaleDateString()}</span>}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full h-7 text-xs"
+                        onClick={() => setShowSessionPicker(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowSessionPicker(true)}
+                    >
+                      <Link className="h-3 w-3 mr-1.5" />
+                      Link Session
+                    </Button>
+                  )}
                 </div>
               </>
             )}

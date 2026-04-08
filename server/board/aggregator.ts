@@ -80,7 +80,8 @@ export function mapTaskToBoard(
     ? milestones.find(m => m.id === task.parent)
     : undefined;
 
-  const enrichment = enrichTaskSession(task.pipelineSessionIds?.[0], sessions);
+  const linkedSessionId = task.sessionId || task.pipelineSessionIds?.[0];
+  const enrichment = enrichTaskSession(linkedSessionId, sessions);
   if (enrichment && task.pipelineActivity) {
     enrichment.lastActivity = task.pipelineActivity;
   }
@@ -99,7 +100,7 @@ export function mapTaskToBoard(
     dependsOn: task.dependsOn || [],
     tags: task.labels || [],
     assignee: task.assignee,
-    sessionId: task.pipelineSessionIds?.[0],
+    sessionId: linkedSessionId,
     flagged: task.flagged || (task.pipelineStage === "blocked") || false,
     flagReason: task.flagReason || task.pipelineBlockedReason,
     activity: task.pipelineActivity,

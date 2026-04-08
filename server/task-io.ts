@@ -70,6 +70,7 @@ export function parseTaskFile(filePath: string): TaskItem | null {
       flagged: d.flagged !== undefined ? Boolean(d.flagged) : undefined,
       flagReason: d.flagReason ? String(d.flagReason) : undefined,
       assignee: d.assignee ? String(d.assignee) : undefined,
+      sessionId: d.sessionId ? String(d.sessionId) : undefined,
     };
   } catch {
     return null;
@@ -109,6 +110,7 @@ export function writeTaskFile(filePath: string, task: TaskItem): void {
   if (task.flagged !== undefined) frontmatter.flagged = task.flagged;
   if (task.flagReason) frontmatter.flagReason = task.flagReason;
   if (task.assignee) frontmatter.assignee = task.assignee;
+  if (task.sessionId) frontmatter.sessionId = task.sessionId;
 
   const content = matter.stringify(task.body || "", frontmatter);
   writeAtomic(filePath, content);

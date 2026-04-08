@@ -28,6 +28,7 @@ export interface TaskItem {
   flagged?: boolean;
   flagReason?: string;
   assignee?: string;             // human name or "ai"
+  sessionId?: string;            // linked Claude session (manual or auto)
 }
 
 export interface TaskConfig {
