@@ -129,6 +129,7 @@ export function mapWorkflowToTaskItem(
     filePath: filePath.replace(/\\/g, "/"),
     dependsOn: Array.isArray(d.dependsOn) ? d.dependsOn.map(String) : undefined,
     labels: labels.length > 0 ? labels : undefined,
+    sessionId: d.sessionId ? String(d.sessionId) : undefined,
   };
 }
 

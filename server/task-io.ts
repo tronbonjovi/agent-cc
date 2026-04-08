@@ -100,14 +100,62 @@ export function writeTaskFile(filePath: string, task: TaskItem): void {
  * prevent cross-project collisions when different projects reuse task IDs.
  * Best-effort — does nothing if task not found.
  */
+/** Reverse-map board column names to claude-workflow status values. */
+function columnToWorkflowStatus(column: string): string {
+  switch (column) {
+    case "backlog": return "pending";
+    case "ready": return "pending";
+    case "in-progress": return "in_progress";
+    case "review": return "review";
+    case "done": return "completed";
+    default: return column;
+  }
+}
+
+/** Detect whether a file path belongs to a claude-workflow roadmap. */
+function isWorkflowFile(filePath: string): boolean {
+  return filePath.replace(/\\/g, "/").includes("/roadmap/");
+}
+
 export function updateTaskField(taskId: string, field: keyof TaskItem, value: unknown, projectId?: string): void {
   // Try project-scoped lookup first (safe), fall back to legacy unscoped for backward compat
   const key = projectId ? taskFileKey(projectId, taskId) : taskId;
   const filePath = taskFileIndex.get(key);
   if (!filePath) return;
-  const task = parseTaskFile(filePath);
+
+  // parseTaskFile requires 'type' in frontmatter, which workflow files lack.
+  // For workflow files, fall back to reading raw frontmatter and building a minimal TaskItem.
+  let task = parseTaskFile(filePath);
+  if (!task && isWorkflowFile(filePath)) {
+    try {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const parsed = matter(content);
+      const d = parsed.data;
+      if (d.id && d.title && d.status && d.created && d.updated) {
+        task = {
+          id: String(d.id),
+          title: String(d.title),
+          type: "task",
+          status: String(d.status),
+          parent: d.milestone ? String(d.milestone) : undefined,
+          created: String(d.created),
+          updated: String(d.updated),
+          body: parsed.content,
+          filePath: filePath.replace(/\\/g, "/"),
+          sessionId: d.sessionId ? String(d.sessionId) : undefined,
+        };
+      }
+    } catch { /* fall through to null check below */ }
+  }
   if (!task) return;
-  (task as any)[field] = value;
+
+  // Reverse-map status values for workflow files
+  let finalValue = value;
+  if (field === "status" && typeof value === "string" && isWorkflowFile(filePath)) {
+    finalValue = columnToWorkflowStatus(value);
+  }
+
+  (task as any)[field] = finalValue;
   task.updated = new Date().toISOString().split("T")[0];
   writeTaskFile(filePath, task);
 }

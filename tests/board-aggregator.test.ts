@@ -18,7 +18,7 @@ vi.mock("../server/scanner/session-scanner", () => ({
   getCachedSessions: vi.fn(() => []),
 }));
 
-import { aggregateBoardState, mapTaskToBoard, getProjectColor } from "../server/board/aggregator";
+import { aggregateBoardState, mapTaskToBoard, getProjectColor, statusToColumn } from "../server/board/aggregator";
 import { storage } from "../server/storage";
 import { scanProjectTasks } from "../server/scanner/task-scanner";
 import { enrichTaskSession } from "../server/board/session-enricher";
@@ -145,6 +145,65 @@ describe("aggregator", () => {
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.session).toBeNull();
+    });
+  });
+
+  describe("statusToColumn — workflow status values", () => {
+    it("maps 'pending' to 'backlog'", () => {
+      expect(statusToColumn("pending")).toBe("backlog");
+    });
+
+    it("maps 'in_progress' to 'in-progress'", () => {
+      expect(statusToColumn("in_progress")).toBe("in-progress");
+    });
+
+    it("maps 'completed' to 'done'", () => {
+      expect(statusToColumn("completed")).toBe("done");
+    });
+
+    it("maps 'cancelled' to 'done'", () => {
+      expect(statusToColumn("cancelled")).toBe("done");
+    });
+
+    it("maps 'blocked' to 'in-progress'", () => {
+      expect(statusToColumn("blocked")).toBe("in-progress");
+    });
+
+    // Existing status values still work
+    it("still maps 'backlog' to 'backlog'", () => {
+      expect(statusToColumn("backlog")).toBe("backlog");
+    });
+
+    it("still maps 'todo' to 'ready'", () => {
+      expect(statusToColumn("todo")).toBe("ready");
+    });
+
+    it("still maps 'done' to 'done'", () => {
+      expect(statusToColumn("done")).toBe("done");
+    });
+  });
+
+  describe("mapTaskToBoard — blocked workflow tasks", () => {
+    it("sets flagged: true and flagReason for blocked workflow tasks", () => {
+      const task: TaskItem = {
+        id: "itm-wf01", title: "Blocked task", type: "task", status: "blocked",
+        created: "2026-04-08", updated: "2026-04-08", body: "",
+        filePath: "/tmp/project/.claude/roadmap/milestone-1/task-blocked-wf01.md",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.column).toBe("in-progress");
+      expect(result!.flagged).toBe(true);
+      expect(result!.flagReason).toBe("Blocked in workflow");
+    });
+
+    it("does not override existing flagged state for non-blocked tasks", () => {
+      const task: TaskItem = {
+        id: "itm-wf02", title: "Normal task", type: "task", status: "in_progress",
+        created: "2026-04-08", updated: "2026-04-08", body: "",
+        filePath: "/tmp/project/.claude/roadmap/milestone-1/task-normal-wf02.md",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.flagged).toBe(false);
     });
   });
 

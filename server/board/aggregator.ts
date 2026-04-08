@@ -35,20 +35,24 @@ export function getProjectColor(projectId: string, index: number): string {
   return color;
 }
 
-/** Map a status string to a board column. */
-function statusToColumn(status: string): BoardColumn {
+/** Map a status string to a board column. Handles both regular task statuses and claude-workflow statuses. */
+export function statusToColumn(status: string): BoardColumn {
   switch (status) {
     case "backlog":
+    case "pending":
       return "backlog";
     case "todo":
     case "ready":
       return "ready";
     case "in-progress":
+    case "in_progress":
     case "blocked":
       return "in-progress";
     case "review":
       return "review";
     case "done":
+    case "completed":
+    case "cancelled":
       return "done";
     default:
       return "backlog";
@@ -74,6 +78,11 @@ export function mapTaskToBoard(
   const linkedSessionId = task.sessionId;
   const enrichment = enrichTaskSession(linkedSessionId, sessions);
 
+  // Blocked workflow tasks get flagged on the board
+  const isBlocked = task.status === "blocked";
+  const flagged = isBlocked || (task.flagged || false);
+  const flagReason = isBlocked ? "Blocked in workflow" : task.flagReason;
+
   return {
     id: task.id,
     title: task.title,
@@ -89,8 +98,8 @@ export function mapTaskToBoard(
     tags: task.labels || [],
     assignee: task.assignee,
     sessionId: linkedSessionId,
-    flagged: task.flagged || false,
-    flagReason: task.flagReason,
+    flagged,
+    flagReason,
     session: enrichment,
     createdAt: task.created,
     updatedAt: task.updated,
