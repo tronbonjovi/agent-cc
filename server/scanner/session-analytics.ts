@@ -174,6 +174,7 @@ let cachedCostAnalytics: CostAnalytics | null = null;
 let cachedFileHeatmap: FileHeatmapResult | null = null;
 let cachedHealthAnalytics: HealthAnalytics | null = null;
 let cachedSessionCosts: Map<string, SessionCostData> = new Map();
+let cachedSessionHealthMap: Map<string, SessionHealth> = new Map();
 let cacheTimestamp = 0;
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -338,6 +339,7 @@ function runFullScan(sessions: SessionData[]): void {
   };
 
   cachedSessionCosts = costMap;
+  cachedSessionHealthMap = new Map(allHealth.map(h => [h.sessionId, h]));
   cacheTimestamp = Date.now();
 }
 
@@ -359,6 +361,11 @@ export function getHealthAnalytics(sessions: SessionData[]): HealthAnalytics {
 export function getSessionCost(sessions: SessionData[], sessionId: string): SessionCostData | null {
   if (!isCacheValid()) runFullScan(sessions);
   return cachedSessionCosts.get(sessionId) || null;
+}
+
+export function getSessionHealth(sessions: SessionData[], sessionId: string): SessionHealth | null {
+  if (!isCacheValid()) runFullScan(sessions);
+  return cachedSessionHealthMap.get(sessionId) || null;
 }
 
 export function getStaleAnalytics(sessions: SessionData[]): StaleAnalytics {
