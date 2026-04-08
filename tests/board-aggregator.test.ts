@@ -321,6 +321,57 @@ describe("aggregator", () => {
       expect(result.tasks.find(t => t.id === "itm-orphan")).toBeDefined();
     });
 
+    it("auto-archives fully-completed milestones (all tasks done/completed)", () => {
+      vi.mocked(storage.getAllEntities).mockReturnValue([
+        { id: "p1", name: "Alpha", type: "project", path: "/tmp/alpha" },
+      ] as any);
+
+      vi.mocked(scanProjectTasks).mockReturnValue({
+        projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
+        config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
+        items: [
+          // Fully-completed milestone (like pipeline-removal) — all children done
+          { id: "pipeline-removal", title: "Pipeline Removal", type: "milestone", status: "done", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m-done.md" },
+          { id: "pr-task001", title: "Strip pipeline", type: "task", status: "completed", parent: "pipeline-removal", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t-done1.md" },
+          { id: "pr-task002", title: "Remove routes", type: "task", status: "done", parent: "pipeline-removal", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t-done2.md" },
+          // Active milestone — has incomplete tasks
+          { id: "active-milestone", title: "Active Work", type: "milestone", status: "in-progress", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m-active.md" },
+          { id: "active-task", title: "Do thing", type: "task", status: "backlog", parent: "active-milestone", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t-active.md" },
+        ],
+        malformedCount: 0,
+      });
+
+      const result = aggregateBoardState();
+      // Fully-completed milestone and its tasks should be excluded
+      expect(result.milestones.find(m => m.id === "pipeline-removal")).toBeUndefined();
+      expect(result.tasks.find(t => t.id === "pr-task001")).toBeUndefined();
+      expect(result.tasks.find(t => t.id === "pr-task002")).toBeUndefined();
+      // Active milestone and its tasks should still be present
+      expect(result.milestones.find(m => m.id === "active-milestone")).toBeDefined();
+      expect(result.tasks.find(t => t.id === "active-task")).toBeDefined();
+    });
+
+    it("does not auto-archive milestones with any incomplete tasks", () => {
+      vi.mocked(storage.getAllEntities).mockReturnValue([
+        { id: "p1", name: "Alpha", type: "project", path: "/tmp/alpha" },
+      ] as any);
+
+      vi.mocked(scanProjectTasks).mockReturnValue({
+        projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
+        config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
+        items: [
+          { id: "partial-ms", title: "Partial", type: "milestone", status: "in-progress", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
+          { id: "done-child", title: "Done", type: "task", status: "done", parent: "partial-ms", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
+          { id: "wip-child", title: "WIP", type: "task", status: "in-progress", parent: "partial-ms", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t2.md" },
+        ],
+        malformedCount: 0,
+      });
+
+      const result = aggregateBoardState();
+      expect(result.milestones.find(m => m.id === "partial-ms")).toBeDefined();
+      expect(result.tasks).toHaveLength(2);
+    });
+
     it("includes archived milestones and their tasks when includeArchived is true", () => {
       vi.mocked(storage.getAllEntities).mockReturnValue([
         { id: "p1", name: "Alpha", type: "project", path: "/tmp/alpha" },
