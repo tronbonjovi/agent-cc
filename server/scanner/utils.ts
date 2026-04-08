@@ -293,9 +293,53 @@ export function readMessageTimeline(
           let preview = "";
           if (msg && typeof msg === "object") {
             const c = msg.content;
-            if (typeof c === "string") preview = c;
-            else if (Array.isArray(c)) {
-              preview = c.filter((x: any) => x?.type === "text").map((x: any) => x.text || "").join(" ");
+            if (typeof c === "string") {
+              preview = c;
+            } else if (Array.isArray(c)) {
+              // Extract text from text blocks
+              const textParts = c.filter((x: any) => x?.type === "text").map((x: any) => x.text || "");
+              preview = textParts.join(" ");
+
+              // If no text blocks, try to build a useful preview from tool blocks
+              if (!preview) {
+                // Check for tool_use blocks (assistant messages)
+                const toolNames: string[] = [];
+                for (const x of c) {
+                  if (x?.type === "tool_use" && typeof x.name === "string" && !toolNames.includes(x.name)) {
+                    toolNames.push(x.name);
+                  }
+                }
+                if (toolNames.length > 0) {
+                  preview = `Used: ${toolNames.join(", ")}`;
+                }
+
+                // Check for tool_result blocks (user messages with results)
+                if (!preview) {
+                  const resultTexts: string[] = [];
+                  for (const x of c) {
+                    if (x?.type === "tool_result") {
+                      if (Array.isArray(x.content)) {
+                        for (const inner of x.content) {
+                          if (inner?.type === "text" && typeof inner.text === "string") {
+                            resultTexts.push(inner.text);
+                          }
+                        }
+                      }
+                    }
+                  }
+                  if (c.some((x: any) => x?.type === "tool_result")) {
+                    preview = resultTexts.length > 0
+                      ? `[tool result] ${resultTexts.join(" ")}`
+                      : "[tool result]";
+                  }
+                }
+              }
+            }
+
+            // Strip known system XML tags from user messages
+            if (r.type === "user" && preview) {
+              preview = preview.replace(/<(?:system-reminder|command-name|command-message)>[\s\S]*?<\/(?:system-reminder|command-name|command-message)>/g, "");
+              preview = preview.trim();
             }
           }
           const record: { type: string; role?: string; timestamp: string; contentPreview: string; model?: string } = {
