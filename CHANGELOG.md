@@ -14,12 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Workflow integration tests** — 9 end-to-end tests covering discovery, status mapping, board move write-back, milestone grouping, session linking, and coexistence with regular tasks.
 - **Dashboard recent activity popout** — Recent Activity moved from inline side panel to a popover button with activity count badge, freeing dashboard space for Active Sessions to span full width.
 - **Terminal toggle button** — separate open/close buttons consolidated into a single toggle that changes icon (chevron down/up) based on panel state.
+- **Board milestone archive** — completed milestones can be archived off the active board. Fully-completed milestones auto-archive. Archived milestones accessible via collapsible section. Archive state persisted in agent-cc storage.
+- **Board task floating popout** — task detail panel replaced with a floating popout anchored near the clicked card. Positioned intelligently (left/right of card based on screen position), dismissible via outside click or Escape.
+- **Terminal ping keepalive** — client sends 30-second ping messages to prevent WebSocket connections from dying during tab inactivity. Server responds with pong and sends its own protocol-level pings to detect dead connections.
+- **Terminal expired state recovery** — terminals that hit the 5-minute reconnect timeout can now be re-established via visibility change or user input, instead of requiring a page reload.
+- **Draggable explorer panel** — terminal explorer panel width is now resizable via a drag handle on its left edge (100-400px range, default 140px). Width persists in the terminal group store.
+- **Session ID write-back** — subagents dispatched by `/work-task` now self-write their session ID into task frontmatter as their first action, completing the session-to-task linking automation loop.
 
 ### Fixed
 - **Workflow write-back data loss** — board moves on workflow files previously destroyed workflow-specific frontmatter fields by roundtripping through TaskItem model. Now uses targeted field updates that preserve all original frontmatter.
 - **Message timeline "(no content)"** — messages with only tool_use/tool_result blocks now show tool names (e.g., "Used: Read, Edit, Bash") instead of "(no content)". User messages with raw XML system tags are stripped.
 - **Dead `autoTagByPath` workflow option** — toggle referenced removed tag system, now cleaned up from types, DB defaults, processor, and UI.
 - **Misleading empty states** — DecisionLogPanel no longer references the removed "Extract Decisions" button.
+- **Terminal disconnects after tab inactivity** — WebSocket connections silently died in background tabs due to missing keepalive. Added client/server ping/pong (30s interval), WebSocket constructor error handling, and stale connection cleanup.
+- **Stale pipeline project on board** — fully-completed milestones (including the old pipeline-removal milestone) now auto-archive instead of cluttering the board.
 
 ### Removed
 - **Session tags** — word-frequency tag system removed entirely. Tags were top-4 common words from user messages, producing meaningless results. Can be re-added with a better algorithm.
