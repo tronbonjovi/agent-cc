@@ -5,7 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Bot, ExternalLink, DollarSign } from "lucide-react";
+import { AlertTriangle, Bot, ExternalLink, DollarSign, Clock, MessageSquare, Activity } from "lucide-react";
+import {
+  StatusLight,
+  formatCost,
+  formatDuration,
+  formatTokens,
+  shortenModel,
+  statusLightColor,
+} from "./session-indicators";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useMoveTask, useUnflagTask } from "@/hooks/use-board";
 import type { BoardTask, BoardColumn } from "@shared/board-types";
@@ -170,6 +178,66 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-2">Activity</div>
                   <div className="text-xs text-blue-400">{task.activity}</div>
+                </div>
+              </>
+            )}
+
+            {/* Session detail */}
+            {task.session && (
+              <>
+                <Separator />
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                    Session
+                    <StatusLight session={task.session} />
+                    <span className="text-[10px] font-normal">
+                      {task.session.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+
+                  {/* Session stats grid */}
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Model</span>
+                      <div className="mt-0.5 font-medium">{shortenModel(task.session.model) || "Unknown"}</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Health</span>
+                      <div className="mt-0.5 font-medium flex items-center gap-1">
+                        <span className={`inline-block w-2 h-2 rounded-full ${statusLightColor(true, task.session.healthScore)}`} />
+                        {task.session.healthScore ?? "—"}
+                        {task.session.toolErrors > 0 && (
+                          <span className="text-red-400 text-[10px]">({task.session.toolErrors} errors)</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Messages</span>
+                      <div className="mt-0.5 font-medium">{task.session.messageCount}</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Duration</span>
+                      <div className="mt-0.5 font-medium">{formatDuration(task.session.durationMinutes) || "—"}</div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Tokens</span>
+                      <div className="mt-0.5 font-medium">
+                        {formatTokens(task.session.inputTokens)} in / {formatTokens(task.session.outputTokens)} out
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Cost</span>
+                      <div className="mt-0.5 font-medium">{formatCost(task.session.costUsd)}</div>
+                    </div>
+                  </div>
+
+                  {/* Link to full session */}
+                  <Button variant="ghost" size="sm" className="mt-3 text-xs w-full justify-start" asChild>
+                    <a href={`/sessions?highlight=${task.session.sessionId}`}>
+                      <ExternalLink className="h-3 w-3 mr-2" />
+                      View Full Session
+                    </a>
+                  </Button>
                 </div>
               </>
             )}
