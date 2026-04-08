@@ -156,10 +156,15 @@ describe("workflow task scanning", () => {
       'id: m2-task002\ntitle: Second Task\nstatus: done\ncreated: "2026-04-05"\nupdated: "2026-04-06"');
 
     const result = scanProjectTasks(wfTmpDir, "wf-proj", "Workflow Project");
-    expect(result.items).toHaveLength(2);
+    const tasks = result.items.filter(i => i.type === "task");
+    expect(tasks).toHaveLength(2);
 
-    const ids = result.items.map(i => i.id).sort();
+    const ids = tasks.map(i => i.id).sort();
     expect(ids).toEqual(["m1-task001", "m2-task002"]);
+
+    // Synthetic milestones also created
+    const milestones = result.items.filter(i => i.type === "milestone");
+    expect(milestones).toHaveLength(2);
   });
 
   it("skips ROADMAP.md, MILESTONE.md, TASK.md, ARCHIVE.md", () => {
@@ -171,8 +176,9 @@ describe("workflow task scanning", () => {
     writeWorkflowTask("m1", "ARCHIVE.md", 'id: archive\ntitle: Archive\nstatus: todo\ncreated: "2026-04-05"\nupdated: "2026-04-05"');
 
     const result = scanProjectTasks(wfTmpDir, "wf-proj", "Workflow Project");
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].id).toBe("real-task");
+    const tasks = result.items.filter(i => i.type === "task");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].id).toBe("real-task");
   });
 
   it("skips files in drafts/ subdirectory", () => {
@@ -186,8 +192,9 @@ describe("workflow task scanning", () => {
       '---\nid: draft-task\ntitle: Draft\nstatus: todo\ncreated: "2026-04-05"\nupdated: "2026-04-05"\n---\n');
 
     const result = scanProjectTasks(wfTmpDir, "wf-proj", "Workflow Project");
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].id).toBe("real-task");
+    const tasks = result.items.filter(i => i.type === "task");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].id).toBe("real-task");
   });
 
   it("preserves semantic IDs (no itm-hex generation)", () => {
@@ -231,7 +238,8 @@ describe("workflow task scanning", () => {
       'id: m1-new-task\ntitle: New Workflow Task\nstatus: in-progress\ncreated: "2026-04-06"\nupdated: "2026-04-06"');
 
     const result = scanProjectTasks(wfTmpDir, "wf-proj", "Workflow Project");
-    expect(result.items).toHaveLength(2);
+    const tasks = result.items.filter(i => i.type === "task");
+    expect(tasks).toHaveLength(2);
 
     const oldTask = result.items.find(i => i.id === "itm-aaaaaaaa");
     const newTask = result.items.find(i => i.id === "m1-new-task");
@@ -256,5 +264,270 @@ describe("workflow task scanning", () => {
     expect(task.labels).toContain("phase:integration");
     expect(task.labels).toContain("touches:server/foo.ts");
     expect(task.labels).toContain("touches:client/bar.tsx");
+  });
+});
+
+describe("synthetic milestone creation", () => {
+  const msTmpDir = path.join(os.tmpdir(), "task-scanner-ms-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8));
+
+  function writeWorkflowTask(milestone: string, filename: string, frontmatter: string, body: string = "") {
+    const dir = path.join(msTmpDir, ".claude", "roadmap", milestone);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, filename), `---\n${frontmatter}\n---\n${body}`);
+  }
+
+  function writeRoadmapMd(content: string) {
+    const roadmapDir = path.join(msTmpDir, ".claude", "roadmap");
+    fs.mkdirSync(roadmapDir, { recursive: true });
+    fs.writeFileSync(path.join(roadmapDir, "ROADMAP.md"), content);
+  }
+
+  function writeMilestoneMd(content: string) {
+    const roadmapDir = path.join(msTmpDir, ".claude", "roadmap");
+    fs.mkdirSync(roadmapDir, { recursive: true });
+    fs.writeFileSync(path.join(roadmapDir, "MILESTONE.md"), content);
+  }
+
+  beforeEach(() => {
+    fs.rmSync(msTmpDir, { recursive: true, force: true });
+    fs.mkdirSync(msTmpDir, { recursive: true });
+    taskFileIndex.clear();
+  });
+
+  afterAll(() => {
+    fs.rmSync(msTmpDir, { recursive: true, force: true });
+  });
+
+  it("creates a synthetic milestone for each milestone directory", () => {
+    writeWorkflowTask("pipeline-removal", "task001.md",
+      'id: pr-task001\ntitle: Remove pipeline\nstatus: done\nmilestone: pipeline-removal\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeWorkflowTask("workflow-bridge", "task001.md",
+      'id: wb-task001\ntitle: Bridge tasks\nstatus: todo\nmilestone: workflow-bridge\ncreated: "2026-04-03"\nupdated: "2026-04-04"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const milestones = result.items.filter(i => i.type === "milestone");
+    expect(milestones).toHaveLength(2);
+
+    const msIds = milestones.map(m => m.id).sort();
+    expect(msIds).toEqual(["pipeline-removal", "workflow-bridge"]);
+  });
+
+  it("milestone id matches directory name, title is title-cased", () => {
+    writeWorkflowTask("pipeline-removal", "task001.md",
+      'id: pr-task001\ntitle: Remove pipeline\nstatus: done\nmilestone: pipeline-removal\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms).toBeDefined();
+    expect(ms!.id).toBe("pipeline-removal");
+    expect(ms!.title).toBe("Pipeline Removal");
+  });
+
+  it("workflow tasks have parent set to their milestone directory name", () => {
+    writeWorkflowTask("workflow-bridge", "task001.md",
+      'id: wb-task001\ntitle: Bridge tasks\nstatus: todo\nmilestone: workflow-bridge\ncreated: "2026-04-03"\nupdated: "2026-04-04"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const task = result.items.find(i => i.type === "task");
+    expect(task).toBeDefined();
+    expect(task!.parent).toBe("workflow-bridge");
+  });
+
+  it("milestone status computed: all done -> done", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: done\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeWorkflowTask("m1", "task002.md",
+      'id: m1-t2\ntitle: T2\nstatus: completed\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.status).toBe("done");
+  });
+
+  it("milestone status computed: any in-progress -> in-progress", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: in-progress\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeWorkflowTask("m1", "task002.md",
+      'id: m1-t2\ntitle: T2\nstatus: todo\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.status).toBe("in-progress");
+  });
+
+  it("milestone status computed: any in_progress -> in-progress", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: in_progress\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeWorkflowTask("m1", "task002.md",
+      'id: m1-t2\ntitle: T2\nstatus: backlog\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.status).toBe("in-progress");
+  });
+
+  it("milestone status computed: else backlog", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: todo\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeWorkflowTask("m1", "task002.md",
+      'id: m1-t2\ntitle: T2\nstatus: backlog\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.status).toBe("backlog");
+  });
+
+  it("empty milestone directory creates milestone with status backlog", () => {
+    const emptyMs = path.join(msTmpDir, ".claude", "roadmap", "empty-milestone");
+    fs.mkdirSync(emptyMs, { recursive: true });
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms).toBeDefined();
+    expect(ms!.id).toBe("empty-milestone");
+    expect(ms!.title).toBe("Empty Milestone");
+    expect(ms!.status).toBe("backlog");
+  });
+
+  it("milestone created/updated derived from child task dates", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: todo\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-05"');
+    writeWorkflowTask("m1", "task002.md",
+      'id: m1-t2\ntitle: T2\nstatus: done\nmilestone: m1\ncreated: "2026-03-28"\nupdated: "2026-04-07"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.created).toBe("2026-03-28"); // earliest
+    expect(ms!.updated).toBe("2026-04-07"); // latest
+  });
+
+  it("milestone filePath points to milestone directory", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: todo\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.filePath).toContain("/roadmap/m1");
+    expect(ms!.filePath).not.toContain(".md");
+  });
+
+  it("milestone registered in taskFileIndex", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: todo\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+
+    scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const scopedKey = taskFileKey("ms-proj", "m1");
+    expect(taskFileIndex.has(scopedKey)).toBe(true);
+    expect(taskFileIndex.has("m1")).toBe(true);
+  });
+
+  it("ROADMAP.md description populates milestone body", () => {
+    writeWorkflowTask("pipeline-removal", "task001.md",
+      'id: pr-t1\ntitle: T1\nstatus: done\nmilestone: pipeline-removal\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeRoadmapMd(`---
+title: Project Roadmap
+---
+
+| Milestone | Status | Progress | Description |
+|-----------|--------|----------|-------------|
+| pipeline-removal | completed | 1/1 | Clean removal of the abandoned task automation pipeline |
+`);
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.body).toBe("Clean removal of the abandoned task automation pipeline");
+  });
+
+  it("ROADMAP.md status column overrides computed status", () => {
+    writeWorkflowTask("workflow-bridge", "task001.md",
+      'id: wb-t1\ntitle: T1\nstatus: todo\nmilestone: workflow-bridge\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeRoadmapMd(`---
+title: Project Roadmap
+---
+
+| Milestone | Status | Progress | Description |
+|-----------|--------|----------|-------------|
+| workflow-bridge | in_progress | 0/4 | Bridge workflow tasks to the kanban board |
+`);
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    // ROADMAP.md says in_progress, computed would be backlog (since only todo tasks)
+    expect(ms!.status).toBe("in_progress");
+  });
+
+  it("status_override from MILESTONE.md takes precedence over computed status", () => {
+    writeWorkflowTask("workflow-bridge", "task001.md",
+      'id: wb-t1\ntitle: T1\nstatus: todo\nmilestone: workflow-bridge\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeMilestoneMd(`## workflow-bridge
+- **Status:** in_progress
+- **status_override:** done
+`);
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.status).toBe("done");
+  });
+
+  it("MILESTONE.md with null status_override does not override", () => {
+    writeWorkflowTask("workflow-bridge", "task001.md",
+      'id: wb-t1\ntitle: T1\nstatus: todo\nmilestone: workflow-bridge\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeMilestoneMd(`## workflow-bridge
+- **Status:** in_progress
+- **status_override:** null
+`);
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    // null means no override, so computed status should be used (backlog since only todo)
+    expect(ms!.status).toBe("backlog");
+  });
+
+  it("MILESTONE.md override takes precedence over ROADMAP.md override", () => {
+    writeWorkflowTask("workflow-bridge", "task001.md",
+      'id: wb-t1\ntitle: T1\nstatus: todo\nmilestone: workflow-bridge\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeRoadmapMd(`---
+title: Project Roadmap
+---
+
+| Milestone | Status | Progress | Description |
+|-----------|--------|----------|-------------|
+| workflow-bridge | in_progress | 0/4 | Bridge workflow tasks to the kanban board |
+`);
+    writeMilestoneMd(`## workflow-bridge
+- **Status:** in_progress
+- **status_override:** blocked
+`);
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms!.status).toBe("blocked");
+  });
+
+  it("gracefully handles missing ROADMAP.md and MILESTONE.md", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: todo\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+
+    // No ROADMAP.md or MILESTONE.md — should not error
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const ms = result.items.find(i => i.type === "milestone");
+    expect(ms).toBeDefined();
+    expect(ms!.body).toBe("");
+    expect(ms!.status).toBe("backlog");
+  });
+
+  it("existing workflow task scanning still works with milestones added", () => {
+    writeWorkflowTask("m1", "task001.md",
+      'id: m1-t1\ntitle: T1\nstatus: todo\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
+    writeWorkflowTask("m1", "task002.md",
+      'id: m1-t2\ntitle: T2\nstatus: done\nmilestone: m1\ncreated: "2026-04-01"\nupdated: "2026-04-03"');
+
+    const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
+    const tasks = result.items.filter(i => i.type === "task");
+    const milestones = result.items.filter(i => i.type === "milestone");
+
+    expect(tasks).toHaveLength(2);
+    expect(milestones).toHaveLength(1);
+    expect(result.items).toHaveLength(3); // 2 tasks + 1 milestone
   });
 });
