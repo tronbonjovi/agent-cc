@@ -13,9 +13,10 @@ import { getSessionDisplayName } from "@/lib/session-display-name";
 import {
   RefreshCw, Clock, Cpu, Activity,
   GitBranch, Loader2,
-  Terminal, Keyboard, Bot, Monitor, Check, Pin,
+  Terminal, Bot, Monitor, Check, Pin,
   ChevronDown, Pencil,
 } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 import type { EntityType, ActiveSession, AgentExecution } from "@shared/types";
 import { relativeTime as _relativeTime, shortModel, getTypeColor } from "@/lib/utils";
@@ -291,69 +292,58 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* Active Sessions + Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-3">
+      {/* Active Sessions */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Active Sessions</h2>
-          {activeSessions.length === 0 ? (
-            <div className="rounded-xl border bg-card">
-              <EmptyState icon={Monitor} title="No active Claude sessions" description="Sessions will appear here when Claude Code is running" />
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-[264px] overflow-y-auto pr-1">
-              {activeSessions.map((session, i) => (
-                <ActiveSessionCard
-                  key={session.sessionId}
-                  session={session}
-                  index={i}
-                  tick={tick}
-                  isNew={newSessionIds.has(session.sessionId)}
-                  copiedId={copiedId}
-                  onCopyResume={handleCopyResume}
-                  onTogglePin={(id) => togglePin.mutate(id)}
-                  onRename={(id, name) => renameSession.mutate({ id, name })}
-                  sessionNames={sessionNames}
-                  healthThresholds={settings?.healthThresholds}
-                />
-              ))}
-            </div>
-          )}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 h-7 text-xs">
+                <Activity className="h-3.5 w-3.5" />
+                Recent Activity
+                {recentActivity.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-0.5">{recentActivity.length}</Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-96 max-h-80 overflow-y-auto p-3">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Recent Activity</h3>
+              {recentActivity.length === 0 ? (
+                <p className="text-xs text-muted-foreground/60 py-4 text-center">No agents in the past hour</p>
+              ) : (
+                <div className="space-y-2">
+                  {recentActivity.map((exec, i) => (
+                    <RecentActivityItem key={exec.agentId} exec={exec} index={i} />
+                  ))}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
-
-        <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Recent Activity</h2>
-          {recentActivity.length === 0 ? (
-            <div className="rounded-xl border bg-card">
-              <EmptyState icon={Activity} title="No agents in the past hour" />
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[264px] overflow-y-auto pr-1">
-              {recentActivity.map((exec, i) => (
-                <RecentActivityItem key={exec.agentId} exec={exec} index={i} />
-              ))}
-            </div>
-          )}
-        </div>
+        {activeSessions.length === 0 ? (
+          <div className="rounded-xl border bg-card">
+            <EmptyState icon={Monitor} title="No active Claude sessions" description="Sessions will appear here when Claude Code is running" />
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+            {activeSessions.map((session, i) => (
+              <ActiveSessionCard
+                key={session.sessionId}
+                session={session}
+                index={i}
+                tick={tick}
+                isNew={newSessionIds.has(session.sessionId)}
+                copiedId={copiedId}
+                onCopyResume={handleCopyResume}
+                onTogglePin={(id) => togglePin.mutate(id)}
+                onRename={(id, name) => renameSession.mutate({ id, name })}
+                sessionNames={sessionNames}
+                healthThresholds={settings?.healthThresholds}
+              />
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Keyboard Shortcuts Hint */}
-      <button
-        onClick={() => window.dispatchEvent(new CustomEvent("toggle-shortcuts-overlay"))}
-        className="flex items-center gap-3 px-4 py-2 rounded-lg border border-border/30 bg-card/30 hover:bg-card/50 transition-colors w-full text-left"
-      >
-        <Keyboard className="h-3.5 w-3.5 text-muted-foreground/50" />
-        <span className="text-[11px] text-muted-foreground/50">
-          Press <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">?</kbd> for all keyboard shortcuts
-          <span className="mx-2 text-border">|</span>
-          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">Ctrl+K</kbd> search
-          <span className="mx-2 text-border">|</span>
-          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">G</kbd> then
-          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">D</kbd> /
-          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">S</kbd> /
-          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">G</kbd> /
-          <kbd className="px-1 py-0.5 rounded border border-border/50 text-[10px] font-mono">L</kbd> navigate
-        </span>
-      </button>
 
     </div>
   );
