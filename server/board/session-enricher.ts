@@ -2,21 +2,24 @@
 
 import { getCachedSessions } from "../scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../scanner/session-analytics";
+import type { SessionData } from "@shared/types";
 import type { SessionEnrichment } from "@shared/board-types";
 
 /**
  * Look up session data for a task and return enrichment fields.
+ * Accepts an optional pre-fetched sessions array to avoid repeated array copies
+ * when called in a loop (e.g., from the aggregator).
  * Returns null if no sessionId or session not found.
  */
-export function enrichTaskSession(sessionId: string | undefined): SessionEnrichment | null {
+export function enrichTaskSession(sessionId: string | undefined, sessions?: SessionData[]): SessionEnrichment | null {
   if (!sessionId) return null;
 
-  const sessions = getCachedSessions();
-  const session = sessions.find(s => s.id === sessionId);
+  const allSessions = sessions ?? getCachedSessions();
+  const session = allSessions.find(s => s.id === sessionId);
   if (!session) return null;
 
-  const cost = getSessionCost(sessions, sessionId);
-  const health = getSessionHealth(sessions, sessionId);
+  const cost = getSessionCost(allSessions, sessionId);
+  const health = getSessionHealth(allSessions, sessionId);
 
   // Pick the model with the highest token count
   let primaryModel: string | null = null;
@@ -35,7 +38,7 @@ export function enrichTaskSession(sessionId: string | undefined): SessionEnrichm
   let durationMinutes: number | null = null;
   if (session.firstTs && session.lastTs) {
     const diff = new Date(session.lastTs).getTime() - new Date(session.firstTs).getTime();
-    if (diff > 0) {
+    if (diff >= 0) {
       durationMinutes = Math.round(diff / 60000);
     }
   }

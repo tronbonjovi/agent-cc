@@ -14,6 +14,9 @@ vi.mock("../server/scanner/task-scanner", () => ({
 vi.mock("../server/board/session-enricher", () => ({
   enrichTaskSession: vi.fn(() => null),
 }));
+vi.mock("../server/scanner/session-scanner", () => ({
+  getCachedSessions: vi.fn(() => []),
+}));
 
 import { aggregateBoardState, mapTaskToBoard, getProjectColor } from "../server/board/aggregator";
 import { storage } from "../server/storage";
@@ -132,7 +135,7 @@ describe("aggregator", () => {
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.session).toEqual(mockEnrichment);
-      expect(enrichTaskSession).toHaveBeenCalledWith("s-123");
+      expect(vi.mocked(enrichTaskSession).mock.calls[0][0]).toBe("s-123");
     });
 
     it("sets session to null when no sessionId", () => {

@@ -4,6 +4,8 @@ import { storage } from "../storage";
 import { scanProjectTasks } from "../scanner/task-scanner";
 import { getDB, save } from "../db";
 import { enrichTaskSession } from "./session-enricher";
+import { getCachedSessions } from "../scanner/session-scanner";
+import type { SessionData } from "@shared/types";
 import type { TaskItem } from "@shared/task-types";
 import type { BoardTask, BoardState, BoardColumn, ProjectMeta, MilestoneMeta, BoardStats } from "@shared/board-types";
 
@@ -69,6 +71,7 @@ export function mapTaskToBoard(
   projectName: string,
   projectColor: string,
   milestones: TaskItem[],
+  sessions?: SessionData[],
 ): BoardTask | null {
   // Skip milestones and roadmaps — they're metadata, not board cards
   if (task.type === "milestone" || task.type === "roadmap") return null;
@@ -77,7 +80,7 @@ export function mapTaskToBoard(
     ? milestones.find(m => m.id === task.parent)
     : undefined;
 
-  const enrichment = enrichTaskSession(task.pipelineSessionIds?.[0]);
+  const enrichment = enrichTaskSession(task.pipelineSessionIds?.[0], sessions);
   if (enrichment && task.pipelineActivity) {
     enrichment.lastActivity = task.pipelineActivity;
   }
@@ -115,6 +118,7 @@ export function aggregateBoardState(filterProjects?: string[]): BoardState {
   const tasks: BoardTask[] = [];
   const projects: ProjectMeta[] = [];
   const milestoneMap = new Map<string, MilestoneMeta>();
+  const sessions = getCachedSessions();
 
   for (let i = 0; i < projectEntities.length; i++) {
     const entity = projectEntities[i];
@@ -147,7 +151,7 @@ export function aggregateBoardState(filterProjects?: string[]): BoardState {
 
     // Map tasks to board format
     for (const item of board.items) {
-      const boardTask = mapTaskToBoard(item, entity.id, entity.name, color, milestoneItems);
+      const boardTask = mapTaskToBoard(item, entity.id, entity.name, color, milestoneItems, sessions);
       if (boardTask) tasks.push(boardTask);
     }
   }
