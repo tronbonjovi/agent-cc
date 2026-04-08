@@ -24,6 +24,7 @@ vi.mock("../server/scanner/task-scanner", () => ({
     ],
     malformedCount: 0,
   })),
+  isDbStoredTask: vi.fn((id: string) => id.startsWith("itm-")),
 }));
 
 vi.mock("../server/task-io", () => ({

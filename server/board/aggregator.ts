@@ -137,6 +137,7 @@ export function mapTaskToBoard(
     tags: task.labels || [],
     assignee: task.assignee,
     sessionId: linkedSessionId,
+    source: isDbStoredTask(task.id) ? "db" : "workflow",
     flagged,
     flagReason,
     session: enrichment,

@@ -17,6 +17,7 @@ export interface BoardTask {
   tags: string[];
   assignee?: string;
   sessionId?: string;
+  source: "db" | "workflow";
   flagged: boolean;
   flagReason?: string;
   session: SessionEnrichment | null;

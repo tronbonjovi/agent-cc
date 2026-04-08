@@ -10,6 +10,7 @@ vi.mock("../server/storage", () => ({
 }));
 vi.mock("../server/scanner/task-scanner", () => ({
   scanProjectTasks: vi.fn(() => ({ items: [], config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} }, malformedCount: 0, projectId: "", projectName: "", projectPath: "" })),
+  isDbStoredTask: vi.fn((id: string) => id.startsWith("itm-")),
 }));
 vi.mock("../server/board/session-enricher", () => ({
   enrichTaskSession: vi.fn(() => null),
@@ -204,6 +205,27 @@ describe("aggregator", () => {
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.flagged).toBe(false);
+    });
+  });
+
+  describe("mapTaskToBoard — source field", () => {
+    it("should set source to 'db' for itm- prefixed tasks", () => {
+      const task: TaskItem = {
+        id: "itm-abc12345", title: "DB task", type: "task", status: "backlog",
+        created: "2026-04-08", updated: "2026-04-08", body: "", filePath: "/tmp/t.md",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.source).toBe("db");
+    });
+
+    it("should set source to 'workflow' for workflow task IDs", () => {
+      const task: TaskItem = {
+        id: "board-cleanup-task001", title: "Workflow task", type: "task", status: "in_progress",
+        created: "2026-04-08", updated: "2026-04-08", body: "",
+        filePath: "/tmp/project/.claude/roadmap/milestone/task.md",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.source).toBe("workflow");
     });
   });
 
