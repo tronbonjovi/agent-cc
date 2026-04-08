@@ -150,6 +150,38 @@ describe("workflow-bridge integration", () => {
       expect(parsed.data.status).toBe("in_progress"); // workflow format, not board format
       expect(parsed.data.updated).not.toBe("2026-01-01"); // timestamp changed
     });
+
+    it("preserves workflow-specific frontmatter fields after write-back", () => {
+      const taskId = "preserve-task001";
+      writeWorkflowTask(tmpDir, "preserve-ms", "preserve-task001.md", {
+        id: taskId,
+        title: "Preserve Test",
+        milestone: "preserve-ms",
+        status: "pending",
+        complexity: "standard",
+        parallelSafe: true,
+        phase: "testing",
+        filesTouch: ["server/foo.ts"],
+        created: "2026-01-01",
+        updated: "2026-01-01",
+      });
+
+      scanProjectTasks(tmpDir, PROJECT_ID, PROJECT_NAME);
+      updateTaskField(taskId, "status", "in-progress", PROJECT_ID);
+
+      const filePath = taskFileIndex.get(taskFileKey(PROJECT_ID, taskId))!;
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const parsed = matter(raw);
+
+      // Workflow-specific fields must survive the round-trip
+      expect(parsed.data.milestone).toBe("preserve-ms");
+      expect(parsed.data.complexity).toBe("standard");
+      expect(parsed.data.parallelSafe).toBe(true);
+      expect(parsed.data.phase).toBe("testing");
+      expect(parsed.data.filesTouch).toEqual(["server/foo.ts"]);
+      // Status should be in workflow format
+      expect(parsed.data.status).toBe("in_progress");
+    });
   });
 
   // ---- 4. Milestone grouping ----

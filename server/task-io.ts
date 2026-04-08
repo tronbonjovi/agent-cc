@@ -123,39 +123,33 @@ export function updateTaskField(taskId: string, field: keyof TaskItem, value: un
   const filePath = taskFileIndex.get(key);
   if (!filePath) return;
 
-  // parseTaskFile requires 'type' in frontmatter, which workflow files lack.
-  // For workflow files, fall back to reading raw frontmatter and building a minimal TaskItem.
-  let task = parseTaskFile(filePath);
-  if (!task && isWorkflowFile(filePath)) {
+  // Workflow files use different frontmatter fields (milestone, complexity, etc.)
+  // that writeTaskFile doesn't know about. Do a targeted field update to preserve them.
+  if (isWorkflowFile(filePath)) {
     try {
       const content = fs.readFileSync(filePath, "utf-8");
       const parsed = matter(content);
       const d = parsed.data;
-      if (d.id && d.title && d.status && d.created && d.updated) {
-        task = {
-          id: String(d.id),
-          title: String(d.title),
-          type: "task",
-          status: String(d.status),
-          parent: d.milestone ? String(d.milestone) : undefined,
-          created: String(d.created),
-          updated: String(d.updated),
-          body: parsed.content,
-          filePath: filePath.replace(/\\/g, "/"),
-          sessionId: d.sessionId ? String(d.sessionId) : undefined,
-        };
+      if (!d.id) return;
+
+      // Map TaskItem field names to workflow frontmatter field names
+      const workflowField = field === "parent" ? "milestone" : field;
+      let finalValue = value;
+      if (field === "status" && typeof value === "string") {
+        finalValue = columnToWorkflowStatus(value);
       }
-    } catch { /* fall through to null check below */ }
+
+      d[workflowField] = finalValue;
+      d.updated = new Date().toISOString().split("T")[0];
+      const updated = matter.stringify(parsed.content, d);
+      writeAtomic(filePath, updated);
+    } catch { /* best-effort */ }
+    return;
   }
+
+  const task = parseTaskFile(filePath);
   if (!task) return;
-
-  // Reverse-map status values for workflow files
-  let finalValue = value;
-  if (field === "status" && typeof value === "string" && isWorkflowFile(filePath)) {
-    finalValue = columnToWorkflowStatus(value);
-  }
-
-  (task as any)[field] = finalValue;
+  (task as any)[field] = value;
   task.updated = new Date().toISOString().split("T")[0];
   writeTaskFile(filePath, task);
 }
