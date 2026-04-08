@@ -3,7 +3,7 @@
 import { Router } from "express";
 import path from "path";
 import fs from "fs";
-import { aggregateBoardState, computeBoardStats, setArchived, getArchivedMilestones } from "../board/aggregator";
+import { aggregateBoardState, computeBoardStats, setArchived, getArchivedMilestones, deleteDbTask } from "../board/aggregator";
 import { validateMove, checkAutoUnflag } from "../board/validator";
 import { updateTaskField, generateTaskId, taskFilename, writeTaskFile } from "../task-io";
 import { parseRoadmapMarkdown } from "../board/ingest";
@@ -171,6 +171,22 @@ export function createBoardRouter(events: BoardEventBus): Router {
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Failed to link session" });
     }
+  });
+
+  // DELETE /api/board/tasks/:id — delete a DB-stored task
+  router.delete("/api/board/tasks/:id", (req, res) => {
+    const { id } = req.params;
+    const result = deleteDbTask(id);
+
+    if (result.error?.includes("Only DB-stored")) {
+      return res.status(403).json({ error: result.error });
+    }
+    if (!result.deleted) {
+      return res.status(404).json({ error: result.error || `Task not found: ${id}` });
+    }
+
+    events.emit("board-refresh", { taskId: id, action: "deleted" });
+    return res.json({ deleted: true, id });
   });
 
   // GET /api/board/events — SSE stream

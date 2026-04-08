@@ -166,6 +166,34 @@ export function taskFileKey(projectId: string, taskId: string): string {
   return `${projectId}:${taskId}`;
 }
 
+/**
+ * Delete a task file by ID. Looks up the file path from taskFileIndex,
+ * removes the file from disk, and cleans up the index entry.
+ * Returns { deleted: true } on success, or { deleted: false, error } on failure.
+ */
+export function deleteTaskFile(taskId: string): { deleted: boolean; error?: string } {
+  const filePath = taskFileIndex.get(taskId);
+  if (!filePath) {
+    return { deleted: false, error: `Task file not found for ID: ${taskId}` };
+  }
+
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    taskFileIndex.delete(taskId);
+    // Also clean up any project-scoped entries that point to this file
+    for (const [key, val] of Array.from(taskFileIndex.entries())) {
+      if (key !== taskId && val === filePath) {
+        taskFileIndex.delete(key);
+      }
+    }
+    return { deleted: true };
+  } catch (err: any) {
+    return { deleted: false, error: err.message || "Failed to delete task file" };
+  }
+}
+
 export function parseConfigFile(filePath: string): TaskConfig | null {
   try {
     const content = fs.readFileSync(filePath, "utf-8");

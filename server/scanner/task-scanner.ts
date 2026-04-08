@@ -5,6 +5,11 @@ import { parseTaskFile, parseConfigFile, taskFileIndex, taskFileKey } from "../t
 import { DEFAULT_TASK_CONFIG } from "@shared/task-types";
 import type { TaskBoardState, TaskItem } from "@shared/task-types";
 
+/** Check if a task ID belongs to a DB-stored task (itm- prefix from ingest pipeline). */
+export function isDbStoredTask(taskId: string): boolean {
+  return taskId.startsWith("itm-");
+}
+
 /** Files to exclude when scanning .claude/roadmap/<milestone>/ directories */
 const WORKFLOW_EXCLUDED_FILES = new Set(["ROADMAP.md", "MILESTONE.md", "TASK.md", "ARCHIVE.md"]);
 

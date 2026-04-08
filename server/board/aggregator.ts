@@ -1,8 +1,9 @@
 // server/board/aggregator.ts
 
 import { storage } from "../storage";
-import { scanProjectTasks } from "../scanner/task-scanner";
+import { scanProjectTasks, isDbStoredTask } from "../scanner/task-scanner";
 import { getDB, save } from "../db";
+import { deleteTaskFile } from "../task-io";
 import { enrichTaskSession } from "./session-enricher";
 import { getCachedSessions } from "../scanner/session-scanner";
 import type { SessionData } from "@shared/types";
@@ -52,6 +53,20 @@ export function setArchived(milestoneId: string, archived: boolean): void {
     list.splice(idx, 1);
   }
   save();
+}
+
+/** Delete a DB-stored task by ID. Rejects workflow tasks (non itm- prefix). */
+export function deleteDbTask(taskId: string): { deleted: boolean; id?: string; error?: string } {
+  if (!isDbStoredTask(taskId)) {
+    return { deleted: false, error: "Only DB-stored tasks (itm- prefix) can be deleted" };
+  }
+
+  const result = deleteTaskFile(taskId);
+  if (!result.deleted) {
+    return { deleted: false, error: result.error || `Task not found: ${taskId}` };
+  }
+
+  return { deleted: true, id: taskId };
 }
 
 /** Get all archived milestone IDs. */
