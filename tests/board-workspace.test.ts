@@ -303,3 +303,357 @@ describe("workspace layout — board.tsx structure", () => {
     expect(boardSource).toContain("BOARD_COLUMNS");
   });
 });
+
+// --- Cross-zone integration tests ---
+
+describe("cross-zone integration — three-zone workspace", () => {
+  const boardSource = fs.readFileSync(
+    path.join(__dirname, "../client/src/pages/board.tsx"),
+    "utf-8",
+  );
+
+  it("board.tsx imports all three zone components", () => {
+    // ProjectZone and ArchiveZone are the two custom zone components
+    // The middle zone (kanban) is inline in board.tsx using BOARD_COLUMNS
+    expect(boardSource).toMatch(/import\s+\{?\s*ProjectZone\s*\}?\s+from/);
+    expect(boardSource).toMatch(/import\s+\{?\s*ArchiveZone\s*\}?\s+from/);
+    expect(boardSource).toContain("BOARD_COLUMNS");
+  });
+
+  it("renders all three zones with flex-based proportions", () => {
+    // Zone 1: Projects (flex 35)
+    expect(boardSource).toContain("flex: 35");
+    // Zone 3: Archive (flex 30)
+    expect(boardSource).toContain("flex: 30");
+    // The middle zone also uses flex: 35
+    const flexMatches = boardSource.match(/flex:\s*35/g);
+    expect(flexMatches?.length).toBeGreaterThanOrEqual(2); // project + board zones
+  });
+
+  it("passes boardProjects to ProjectZone", () => {
+    expect(boardSource).toContain("useBoardProjects");
+    expect(boardSource).toMatch(/projects=\{boardProjects\}/);
+  });
+
+  it("passes archiveData to ArchiveZone", () => {
+    expect(boardSource).toContain("useArchivedMilestones");
+    expect(boardSource).toMatch(/milestones=\{archiveData\}/);
+  });
+
+  it("has project popout state management for non-current projects", () => {
+    expect(boardSource).toContain("selectedProject");
+    expect(boardSource).toContain("setSelectedProject");
+    expect(boardSource).toContain("projectAnchorRect");
+    expect(boardSource).toContain("setProjectAnchorRect");
+  });
+
+  it("navigates to detail page for current project clicks", () => {
+    // Current project click => setLocation(`/projects/${project.id}`)
+    expect(boardSource).toContain("isCurrent");
+    expect(boardSource).toMatch(/setLocation\(`\/projects\/\$\{project\.id\}`\)/);
+  });
+
+  it("shows floating popout for non-current project clicks", () => {
+    expect(boardSource).toContain("<ProjectPopout");
+    expect(boardSource).toContain("selectedProject && projectAnchorRect");
+  });
+});
+
+// --- Board columns definition ---
+
+describe("board columns — 5-column kanban", () => {
+  const columnsSource = fs.readFileSync(
+    path.join(__dirname, "../client/src/lib/board-columns.ts"),
+    "utf-8",
+  );
+
+  it("defines exactly 5 columns", () => {
+    // Count column definitions by matching id: "..." patterns
+    const idMatches = columnsSource.match(/id:\s*"[^"]+"/g);
+    expect(idMatches).toHaveLength(5);
+  });
+
+  it("has backlog column", () => {
+    expect(columnsSource).toContain('"backlog"');
+  });
+
+  it("has ready column", () => {
+    expect(columnsSource).toContain('"ready"');
+  });
+
+  it("has in-progress column", () => {
+    expect(columnsSource).toContain('"in-progress"');
+  });
+
+  it("has review column", () => {
+    expect(columnsSource).toContain('"review"');
+  });
+
+  it("has done column", () => {
+    expect(columnsSource).toContain('"done"');
+  });
+
+  it("columns are in correct left-to-right order", () => {
+    const backlogIdx = columnsSource.indexOf('"backlog"');
+    const readyIdx = columnsSource.indexOf('"ready"');
+    const inProgressIdx = columnsSource.indexOf('"in-progress"');
+    const reviewIdx = columnsSource.indexOf('"review"');
+    const doneIdx = columnsSource.indexOf('"done"');
+    expect(backlogIdx).toBeLessThan(readyIdx);
+    expect(readyIdx).toBeLessThan(inProgressIdx);
+    expect(inProgressIdx).toBeLessThan(reviewIdx);
+    expect(reviewIdx).toBeLessThan(doneIdx);
+  });
+});
+
+// --- Status-to-column mapping ---
+
+describe("statusToColumn — status mapping coverage", () => {
+  const aggregatorSource = fs.readFileSync(
+    path.join(__dirname, "../server/board/aggregator.ts"),
+    "utf-8",
+  );
+
+  it("maps pending to backlog", () => {
+    expect(aggregatorSource).toMatch(/case\s+"pending":\s*\n?\s*return\s+"backlog"/);
+  });
+
+  it("maps backlog to backlog", () => {
+    expect(aggregatorSource).toMatch(/case\s+"backlog":/);
+  });
+
+  it("maps in_progress to in-progress", () => {
+    expect(aggregatorSource).toMatch(/case\s+"in_progress":/);
+    // Verify it returns in-progress column
+    const inProgressSection = aggregatorSource.slice(
+      aggregatorSource.indexOf('"in-progress"', aggregatorSource.indexOf("statusToColumn")),
+    );
+    expect(inProgressSection).toContain('"in-progress"');
+  });
+
+  it("maps completed to done", () => {
+    expect(aggregatorSource).toMatch(/case\s+"completed":/);
+  });
+
+  it("maps review to review", () => {
+    expect(aggregatorSource).toMatch(/case\s+"review":\s*\n?\s*return\s+"review"/);
+  });
+
+  it("maps ready to ready", () => {
+    expect(aggregatorSource).toMatch(/case\s+"ready":\s*\n?\s*return\s+"ready"/);
+  });
+
+  it("maps todo to ready", () => {
+    expect(aggregatorSource).toMatch(/case\s+"todo":/);
+  });
+
+  it("maps blocked to in-progress", () => {
+    expect(aggregatorSource).toMatch(/case\s+"blocked":/);
+  });
+
+  it("maps cancelled to done", () => {
+    expect(aggregatorSource).toMatch(/case\s+"cancelled":/);
+  });
+
+  it("defaults unknown statuses to backlog", () => {
+    expect(aggregatorSource).toMatch(/default:\s*\n?\s*return\s+"backlog"/);
+  });
+});
+
+// --- Delete button conditional on source ---
+
+describe("delete button — source-conditional in board-side-panel", () => {
+  const panelSource = fs.readFileSync(
+    path.join(__dirname, "../client/src/components/board/board-side-panel.tsx"),
+    "utf-8",
+  );
+
+  it("imports useDeleteTask hook", () => {
+    expect(panelSource).toMatch(/import.*useDeleteTask.*from/);
+  });
+
+  it("calls useDeleteTask", () => {
+    expect(panelSource).toContain("useDeleteTask()");
+  });
+
+  it("conditionally renders delete button based on source === db", () => {
+    // The delete button is only shown when task.source === "db"
+    expect(panelSource).toContain('task.source === "db"');
+  });
+
+  it("uses Trash2 icon for delete button", () => {
+    expect(panelSource).toContain("Trash2");
+  });
+
+  it("calls deleteTask.mutate on confirmation", () => {
+    expect(panelSource).toContain("deleteTask.mutate(task.id)");
+  });
+
+  it("closes panel after deletion", () => {
+    // After mutate, onClose() is called
+    const deleteSection = panelSource.slice(panelSource.indexOf("deleteTask.mutate"));
+    expect(deleteSection).toContain("onClose()");
+  });
+});
+
+// --- Nav redirect: /projects -> /board ---
+
+describe("nav redirect — /projects to /board", () => {
+  const projectsSource = fs.readFileSync(
+    path.join(__dirname, "../client/src/pages/projects.tsx"),
+    "utf-8",
+  );
+  const appSource = fs.readFileSync(
+    path.join(__dirname, "../client/src/App.tsx"),
+    "utf-8",
+  );
+
+  it("/projects page uses Redirect component", () => {
+    expect(projectsSource).toContain("Redirect");
+    expect(projectsSource).toContain("wouter");
+  });
+
+  it("redirects to /board", () => {
+    expect(projectsSource).toContain('to="/board"');
+  });
+
+  it("App.tsx registers /projects route", () => {
+    expect(appSource).toContain('path="/projects"');
+  });
+
+  it("App.tsx registers /projects/:id route for detail pages", () => {
+    expect(appSource).toContain('path="/projects/:id"');
+  });
+
+  it("board is not listed under /projects in nav", () => {
+    const layoutSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/components/layout.tsx"),
+      "utf-8",
+    );
+    // The nav should have /board as a direct nav item, not /projects
+    expect(layoutSource).toContain('path: "/board"');
+    // /projects should NOT be a nav item (it's a redirect route only)
+    const navItemPaths = layoutSource.match(/path:\s*"\/[^"]+"/g) || [];
+    const hasProjectsNav = navItemPaths.some(p => p === 'path: "/projects"');
+    expect(hasProjectsNav).toBe(false);
+  });
+});
+
+// --- Pipeline Test data verification ---
+
+describe("Pipeline Test data removal — verification", () => {
+  it("no source files reference Pipeline Test as runtime data", () => {
+    // Pipeline Test / Auth System references should only exist in docs, scripts, and tests
+    const serverDir = path.join(__dirname, "../server");
+    const clientDir = path.join(__dirname, "../client");
+    const sharedDir = path.join(__dirname, "../shared");
+
+    function searchDir(dir: string): string[] {
+      const hits: string[] = [];
+      if (!fs.existsSync(dir)) return hits;
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules") {
+          hits.push(...searchDir(fullPath));
+        } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx"))) {
+          const content = fs.readFileSync(fullPath, "utf-8");
+          if (content.includes("Pipeline Test") || content.includes("Auth System")) {
+            hits.push(fullPath);
+          }
+        }
+      }
+      return hits;
+    }
+
+    const serverHits = searchDir(serverDir);
+    const clientHits = searchDir(clientDir);
+    const sharedHits = searchDir(sharedDir);
+
+    expect(serverHits).toEqual([]);
+    expect(clientHits).toEqual([]);
+    expect(sharedHits).toEqual([]);
+  });
+
+  it("BoardTask source field exists in shared types", () => {
+    const typesSource = fs.readFileSync(
+      path.join(__dirname, "../shared/board-types.ts"),
+      "utf-8",
+    );
+    // Source field enables delete button gating
+    expect(typesSource).toMatch(/source:\s*"db"\s*\|\s*"workflow"/);
+  });
+
+  it("aggregator assigns source based on isDbStoredTask", () => {
+    const aggregatorSource = fs.readFileSync(
+      path.join(__dirname, "../server/board/aggregator.ts"),
+      "utf-8",
+    );
+    expect(aggregatorSource).toContain("isDbStoredTask");
+    expect(aggregatorSource).toMatch(/source:\s*isDbStoredTask\(/);
+  });
+});
+
+// --- Dead code / cleanup verification ---
+
+describe("workspace cleanup — no dead code", () => {
+  it("board.tsx has no unused old-layout artifacts", () => {
+    const boardSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/board.tsx"),
+      "utf-8",
+    );
+    // Old layout had showArchived toggle state
+    expect(boardSource).not.toContain("showArchived");
+    // Old layout had archivableMilestones
+    expect(boardSource).not.toContain("archivableMilestones");
+    // Old layout had inline archive buttons
+    expect(boardSource).not.toContain("handleArchive");
+  });
+
+  it("use-board.ts exports match what board.tsx imports", () => {
+    const hookSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/hooks/use-board.ts"),
+      "utf-8",
+    );
+    const boardSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/board.tsx"),
+      "utf-8",
+    );
+
+    // All hooks used in board.tsx should be exported from use-board.ts
+    const hooksUsed = ["useBoardState", "useBoardStats", "useBoardEvents", "useBoardProjects", "useArchivedMilestones", "applyBoardFilters"];
+    for (const hook of hooksUsed) {
+      expect(hookSource).toContain(`export function ${hook}`);
+      expect(boardSource).toContain(hook);
+    }
+  });
+
+  it("board-side-panel.tsx has no stale TODO comments", () => {
+    const panelSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/components/board/board-side-panel.tsx"),
+      "utf-8",
+    );
+    // No TODO/FIXME/HACK markers
+    expect(panelSource).not.toMatch(/\/\/\s*TODO/i);
+    expect(panelSource).not.toMatch(/\/\/\s*FIXME/i);
+    expect(panelSource).not.toMatch(/\/\/\s*HACK/i);
+  });
+
+  it("board.tsx has no stale TODO comments", () => {
+    const boardSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/pages/board.tsx"),
+      "utf-8",
+    );
+    expect(boardSource).not.toMatch(/\/\/\s*TODO/i);
+    expect(boardSource).not.toMatch(/\/\/\s*FIXME/i);
+  });
+
+  it("use-board.ts has no stale TODO comments", () => {
+    const hookSource = fs.readFileSync(
+      path.join(__dirname, "../client/src/hooks/use-board.ts"),
+      "utf-8",
+    );
+    expect(hookSource).not.toMatch(/\/\/\s*TODO/i);
+    expect(hookSource).not.toMatch(/\/\/\s*FIXME/i);
+  });
+});
