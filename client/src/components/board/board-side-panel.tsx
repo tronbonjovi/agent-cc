@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Bot, ExternalLink, Link, Unlink, X } from "lucide-react";
+import { AlertTriangle, Bot, ExternalLink, Link, Trash2, Unlink, X } from "lucide-react";
 import {
   StatusLight,
   formatCost,
@@ -14,7 +14,7 @@ import {
   statusLightColor,
 } from "./session-indicators";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
-import { useMoveTask, useUnflagTask, useLinkSession } from "@/hooks/use-board";
+import { useMoveTask, useUnflagTask, useLinkSession, useDeleteTask } from "@/hooks/use-board";
 import { useSessions } from "@/hooks/use-sessions";
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { BoardTask, BoardColumn } from "@shared/board-types";
@@ -82,6 +82,7 @@ export function BoardSidePanel({ task, open, onClose, anchorRect }: BoardSidePan
   const moveTask = useMoveTask();
   const unflagTask = useUnflagTask();
   const linkSession = useLinkSession();
+  const deleteTask = useDeleteTask();
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   const { data: sessionData } = useSessions({ sort: "lastTs", order: "desc", hideEmpty: true });
   const panelRef = useRef<HTMLDivElement>(null);
@@ -412,13 +413,26 @@ export function BoardSidePanel({ task, open, onClose, anchorRect }: BoardSidePan
         </ScrollArea>
 
         {/* Footer */}
-        <div className="border-t px-4 py-2">
-          <Button variant="ghost" size="sm" className="text-xs w-full justify-start" asChild>
+        <div className="border-t px-4 py-2 flex items-center justify-between">
+          <Button variant="ghost" size="sm" className="text-xs justify-start" asChild>
             <a href={`/tasks/${task.project}`}>
               <ExternalLink className="h-3 w-3 mr-2" />
               Open Full Detail
             </a>
           </Button>
+          {task.source === "db" && (
+            <button
+              className="text-xs text-destructive hover:text-destructive/80 flex items-center gap-1"
+              onClick={() => {
+                if (confirm("Delete this task? This cannot be undone.")) {
+                  deleteTask.mutate(task.id);
+                  onClose();
+                }
+              }}
+            >
+              <Trash2 className="w-3 h-3" /> Delete
+            </button>
+          )}
         </div>
       </div>
     </>

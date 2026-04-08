@@ -23,6 +23,7 @@ export interface BoardTask {
   session: SessionEnrichment | null;
   createdAt: string;
   updatedAt: string;
+  source: "db" | "workflow";
 }
 
 export interface SessionEnrichment {
