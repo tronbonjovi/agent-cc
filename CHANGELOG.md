@@ -12,9 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Status bridge** — workflow statuses (`pending`, `in_progress`, `completed`, `cancelled`, `blocked`) map to board columns automatically. Board moves write back in workflow format, preserving all workflow-specific frontmatter fields (milestone, complexity, parallelSafe, phase, filesTouch).
 - **Synthetic milestones** — each workflow milestone directory produces a milestone card on the board with computed progress (done/total), title derived from directory name, and status computed from child tasks. ROADMAP.md descriptions and MILESTONE.md status overrides are respected.
 - **Workflow integration tests** — 9 end-to-end tests covering discovery, status mapping, board move write-back, milestone grouping, session linking, and coexistence with regular tasks.
+- **Dashboard recent activity popout** — Recent Activity moved from inline side panel to a popover button with activity count badge, freeing dashboard space for Active Sessions to span full width.
+- **Terminal toggle button** — separate open/close buttons consolidated into a single toggle that changes icon (chevron down/up) based on panel state.
 
 ### Fixed
 - **Workflow write-back data loss** — board moves on workflow files previously destroyed workflow-specific frontmatter fields by roundtripping through TaskItem model. Now uses targeted field updates that preserve all original frontmatter.
+- **Message timeline "(no content)"** — messages with only tool_use/tool_result blocks now show tool names (e.g., "Used: Read, Edit, Bash") instead of "(no content)". User messages with raw XML system tags are stripped.
+- **Dead `autoTagByPath` workflow option** — toggle referenced removed tag system, now cleaned up from types, DB defaults, processor, and UI.
+- **Misleading empty states** — DecisionLogPanel no longer references the removed "Extract Decisions" button.
+
+### Removed
+- **Session tags** — word-frequency tag system removed entirely. Tags were top-4 common words from user messages, producing meaningless results. Can be re-added with a better algorithm.
+- **Delegate bar** — Terminal, Telegram, Voice, and Extract Decisions buttons removed from session detail view (no API backing).
+- **Summarize AI button** — single-session and batch summarize buttons removed (no API backing). Existing auto-generated summaries still display.
+- **Session delegation backend** — `session-delegation.ts` deleted, 5 API routes removed (delegate, decisions extract, summarize, summarize-batch, context). Read-only decisions and summary endpoints retained.
+- **Keyboard shortcut button** — removed from dashboard (overlay still accessible via `?` key).
 
 ## [2.1.0] — 2026-04-08
 
