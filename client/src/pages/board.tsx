@@ -5,12 +5,20 @@ import { BoardSidePanel } from "@/components/board/board-side-panel";
 import { BoardTaskCard } from "@/components/board/board-task-card";
 import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import type { BoardFilter } from "@shared/board-types";
 
 export default function BoardPage() {
   const [filter, setFilter] = useState<BoardFilter>({});
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; right: number; bottom: number; width: number; height: number } | null>(null);
+
+  const handleCardClick = useCallback((task: { id: string }, e: React.MouseEvent) => {
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    setAnchorRect({ top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height });
+    setSelectedTaskId(task.id);
+  }, []);
   const { data: board, isLoading } = useBoardState();
   const { data: stats } = useBoardStats();
   const { connected } = useBoardEvents();
@@ -72,7 +80,7 @@ export default function BoardPage() {
                   <BoardTaskCard
                     key={task.id}
                     task={task}
-                    onClick={(t) => setSelectedTaskId(t.id)}
+                    onClick={(t, e) => handleCardClick(t, e)}
                   />
                 ))}
                 {(!tasksByColumn[col.id] || tasksByColumn[col.id].length === 0) && (
@@ -88,7 +96,8 @@ export default function BoardPage() {
       <BoardSidePanel
         task={selectedTask}
         open={selectedTask !== null}
-        onClose={() => setSelectedTaskId(null)}
+        onClose={() => { setSelectedTaskId(null); setAnchorRect(null); }}
+        anchorRect={anchorRect}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { BOARD_COLUMNS, columnOrder, isValidColumn } from "../client/src/lib/board-columns";
 import type { BoardTask, BoardFilter } from "../shared/board-types";
+import { computePopoutPosition } from "../client/src/components/board/board-side-panel";
 
 // Test the filter logic that will live in the hook
 function applyFilters(tasks: BoardTask[], filter: BoardFilter): BoardTask[] {
@@ -70,5 +71,66 @@ describe("board-ui filter logic", () => {
   it("returns all tasks with empty filter", () => {
     const result = applyFilters(tasks, {});
     expect(result).toHaveLength(4);
+  });
+});
+
+describe("board popout positioning", () => {
+  const POPOUT_WIDTH = 440;
+  const POPOUT_MAX_HEIGHT = 520;
+  const VIEWPORT_PADDING = 12;
+
+  it("positions popout to the right of a card on the left side", () => {
+    // Card on the left side of the viewport
+    const cardRect = { top: 200, left: 50, right: 330, bottom: 300, width: 280, height: 100 };
+    const viewport = { width: 1200, height: 800 };
+    const pos = computePopoutPosition(cardRect, viewport);
+    // Should appear to the right of the card
+    expect(pos.left).toBeGreaterThanOrEqual(cardRect.right);
+    expect(pos.left).toBeLessThanOrEqual(viewport.width - POPOUT_WIDTH - VIEWPORT_PADDING);
+  });
+
+  it("positions popout to the left of a card on the right side", () => {
+    // Card on the right side of the viewport
+    const cardRect = { top: 200, left: 850, right: 1130, bottom: 300, width: 280, height: 100 };
+    const viewport = { width: 1200, height: 800 };
+    const pos = computePopoutPosition(cardRect, viewport);
+    // Should appear to the left of the card
+    expect(pos.left).toBeLessThan(cardRect.left);
+    expect(pos.left).toBeGreaterThanOrEqual(VIEWPORT_PADDING);
+  });
+
+  it("keeps popout within viewport vertically", () => {
+    // Card near the bottom of the viewport
+    const cardRect = { top: 700, left: 50, right: 330, bottom: 800, width: 280, height: 100 };
+    const viewport = { width: 1200, height: 800 };
+    const pos = computePopoutPosition(cardRect, viewport);
+    expect(pos.top).toBeGreaterThanOrEqual(VIEWPORT_PADDING);
+    expect(pos.top + POPOUT_MAX_HEIGHT).toBeLessThanOrEqual(viewport.height - VIEWPORT_PADDING + POPOUT_MAX_HEIGHT);
+  });
+
+  it("aligns popout top to card top when there is room", () => {
+    const cardRect = { top: 200, left: 50, right: 330, bottom: 300, width: 280, height: 100 };
+    const viewport = { width: 1200, height: 800 };
+    const pos = computePopoutPosition(cardRect, viewport);
+    expect(pos.top).toBe(cardRect.top);
+  });
+
+  it("clamps popout top when card is near viewport bottom", () => {
+    const cardRect = { top: 600, left: 50, right: 330, bottom: 700, width: 280, height: 100 };
+    const viewport = { width: 1200, height: 800 };
+    const pos = computePopoutPosition(cardRect, viewport);
+    // Should be clamped so popout doesn't overflow bottom
+    expect(pos.top).toBeLessThanOrEqual(viewport.height - POPOUT_MAX_HEIGHT - VIEWPORT_PADDING);
+  });
+
+  it("returns valid position for card in the middle", () => {
+    const cardRect = { top: 300, left: 400, right: 680, bottom: 400, width: 280, height: 100 };
+    const viewport = { width: 1200, height: 800 };
+    const pos = computePopoutPosition(cardRect, viewport);
+    // Should have left and top as numbers
+    expect(typeof pos.left).toBe("number");
+    expect(typeof pos.top).toBe("number");
+    expect(pos.left).toBeGreaterThanOrEqual(VIEWPORT_PADDING);
+    expect(pos.top).toBeGreaterThanOrEqual(VIEWPORT_PADDING);
   });
 });

@@ -1,11 +1,10 @@
 // client/src/components/board/board-side-panel.tsx
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Bot, ExternalLink, Link, Unlink } from "lucide-react";
+import { AlertTriangle, Bot, ExternalLink, Link, Unlink, X } from "lucide-react";
 import {
   StatusLight,
   formatCost,
@@ -17,23 +16,112 @@ import {
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useMoveTask, useUnflagTask, useLinkSession } from "@/hooks/use-board";
 import { useSessions } from "@/hooks/use-sessions";
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { BoardTask, BoardColumn } from "@shared/board-types";
+
+const POPOUT_WIDTH = 440;
+const POPOUT_MAX_HEIGHT = 520;
+const VIEWPORT_PADDING = 12;
+const CARD_GAP = 8;
+
+interface CardRect {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
+interface ViewportSize {
+  width: number;
+  height: number;
+}
+
+/** Compute popout position anchored near the clicked card, staying within viewport */
+export function computePopoutPosition(
+  cardRect: CardRect,
+  viewport: ViewportSize,
+): { top: number; left: number } {
+  // Decide left vs right placement
+  const spaceRight = viewport.width - cardRect.right - CARD_GAP - VIEWPORT_PADDING;
+  const spaceLeft = cardRect.left - CARD_GAP - VIEWPORT_PADDING;
+
+  let left: number;
+  if (spaceRight >= POPOUT_WIDTH) {
+    // Place to the right of the card
+    left = cardRect.right + CARD_GAP;
+  } else if (spaceLeft >= POPOUT_WIDTH) {
+    // Place to the left of the card
+    left = cardRect.left - CARD_GAP - POPOUT_WIDTH;
+  } else {
+    // Not enough space on either side — center horizontally
+    left = Math.max(VIEWPORT_PADDING, (viewport.width - POPOUT_WIDTH) / 2);
+  }
+
+  // Vertical: align top of popout with top of card, clamp to viewport
+  let top = cardRect.top;
+  const maxTop = viewport.height - POPOUT_MAX_HEIGHT - VIEWPORT_PADDING;
+  if (top > maxTop) {
+    top = Math.max(VIEWPORT_PADDING, maxTop);
+  }
+  top = Math.max(VIEWPORT_PADDING, top);
+
+  return { top, left };
+}
 
 interface BoardSidePanelProps {
   task: BoardTask | null;
   open: boolean;
   onClose: () => void;
+  /** Bounding rect of the card that was clicked, for positioning */
+  anchorRect: CardRect | null;
 }
 
-export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
+export function BoardSidePanel({ task, open, onClose, anchorRect }: BoardSidePanelProps) {
   const moveTask = useMoveTask();
   const unflagTask = useUnflagTask();
   const linkSession = useLinkSession();
   const [showSessionPicker, setShowSessionPicker] = useState(false);
   const { data: sessionData } = useSessions({ sort: "lastTs", order: "desc", hideEmpty: true });
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  if (!task) return null;
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    // Use a timeout so the click that opened the panel doesn't immediately close it
+    const timer = setTimeout(() => {
+      document.addEventListener("mousedown", handleClick);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [open, onClose]);
+
+  // Reset session picker when task changes
+  useEffect(() => {
+    setShowSessionPicker(false);
+  }, [task?.id]);
+
+  if (!task || !open) return null;
 
   function handleMove(column: BoardColumn) {
     moveTask.mutate({ taskId: task!.id, column });
@@ -54,28 +142,54 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
 
   const sessions = sessionData?.sessions ?? [];
 
+  // Compute position
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  const pos = anchorRect
+    ? computePopoutPosition(anchorRect, viewport)
+    : { top: viewport.height / 2 - POPOUT_MAX_HEIGHT / 2, left: viewport.width / 2 - POPOUT_WIDTH / 2 };
+
   return (
-    <Sheet open={open} onOpenChange={(v) => { if (!v) { onClose(); setShowSessionPicker(false); } }}>
-      <SheetContent className="w-[420px] sm:max-w-[420px] p-0 flex flex-col">
-        <SheetHeader className="px-5 pt-5 pb-3 border-b">
-          {/* Project color + title */}
-          <div className="flex items-start gap-3">
-            <div
-              className="w-1.5 rounded-full h-8 flex-shrink-0 mt-0.5"
-              style={{ backgroundColor: task.projectColor }}
-            />
-            <div>
-              <SheetTitle className="text-base leading-tight">{task.title}</SheetTitle>
-              <div className="text-xs text-muted-foreground mt-1">
-                {task.projectName}
-                {task.milestone && <> &middot; {task.milestone}</>}
-              </div>
+    <>
+      {/* Backdrop overlay — semi-transparent to indicate modal state */}
+      <div className="fixed inset-0 z-40 bg-black/20" />
+
+      {/* Floating popout panel */}
+      <div
+        ref={panelRef}
+        className="fixed z-50 bg-card border rounded-lg shadow-lg flex flex-col animate-in fade-in-0 zoom-in-95 duration-150"
+        style={{
+          top: pos.top,
+          left: pos.left,
+          width: POPOUT_WIDTH,
+          maxHeight: POPOUT_MAX_HEIGHT,
+        }}
+      >
+        {/* Header */}
+        <div className="px-4 pt-4 pb-3 border-b flex items-start gap-3">
+          <div
+            className="w-1.5 rounded-full h-8 flex-shrink-0 mt-0.5"
+            style={{ backgroundColor: task.projectColor }}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-base font-semibold leading-tight">{task.title}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {task.projectName}
+              {task.milestone && <> &middot; {task.milestone}</>}
             </div>
           </div>
-        </SheetHeader>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 flex-shrink-0"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
 
-        <ScrollArea className="flex-1">
-          <div className="px-5 py-4 space-y-4">
+        {/* Scrollable content */}
+        <ScrollArea className="flex-1 overflow-auto">
+          <div className="px-4 py-3 space-y-3">
             {/* Flag warning */}
             {task.flagged && (
               <div className="flex items-start gap-2 p-3 rounded-md bg-amber-500/10 border border-amber-500/20">
@@ -298,7 +412,7 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
         </ScrollArea>
 
         {/* Footer */}
-        <div className="border-t px-5 py-3">
+        <div className="border-t px-4 py-2">
           <Button variant="ghost" size="sm" className="text-xs w-full justify-start" asChild>
             <a href={`/tasks/${task.project}`}>
               <ExternalLink className="h-3 w-3 mr-2" />
@@ -306,7 +420,7 @@ export function BoardSidePanel({ task, open, onClose }: BoardSidePanelProps) {
             </a>
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>
   );
 }

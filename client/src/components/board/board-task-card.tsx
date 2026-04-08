@@ -13,7 +13,7 @@ import type { BoardTask } from "@shared/board-types";
 
 interface BoardTaskCardProps {
   task: BoardTask;
-  onClick: (task: BoardTask) => void;
+  onClick: (task: BoardTask, e: React.MouseEvent) => void;
 }
 
 const priorityColors: Record<string, string> = {
@@ -27,7 +27,7 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
 
   return (
     <div
-      onClick={() => onClick(task)}
+      onClick={(e) => onClick(task, e)}
       className="bg-card border rounded-md p-3 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all group"
     >
       {/* Row 1: Status light + title */}
