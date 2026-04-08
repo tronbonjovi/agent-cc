@@ -1,6 +1,6 @@
 // tests/project-popout.test.ts
 import { describe, it, expect, vi, beforeAll } from "vitest";
-import type { ProjectCardData } from "../client/src/components/board/project-popout";
+import type { ProjectCardData } from "../client/src/components/board/project-card";
 
 function makeProject(overrides?: Partial<ProjectCardData>): ProjectCardData {
   return {

@@ -31,7 +31,7 @@ export function ProjectZone({ projects, onProjectClick }: Props) {
             <ProjectCard
               key={project.id}
               project={project}
-              onClick={(e) => onProjectClick(project, e)}
+              onClick={(e: React.MouseEvent) => onProjectClick(project, e)}
             />
           ))}
         </div>

@@ -7,20 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowRight, Activity, DollarSign, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-// TODO: Import from ./project-card once that file is available (parallel task)
-export interface ProjectCardData {
-  id: string;
-  name: string;
-  description: string;
-  health: "healthy" | "warning" | "critical" | "unknown";
-  sessionCount: number;
-  totalCost: number;
-  milestoneCount: number;
-  taskCount: number;
-  doneTasks: number;
-  inProgressTasks: number;
-  isCurrent: boolean;
-}
+import type { ProjectCardData } from "./project-card";
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 

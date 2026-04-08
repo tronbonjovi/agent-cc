@@ -48,25 +48,25 @@ export function progressSegments(data: Pick<ProjectCardData, "taskCount" | "done
 
 // --- Component ---
 
-interface ProjectCardProps {
-  data: ProjectCardData;
-  onClick: (data: ProjectCardData) => void;
+export interface ProjectCardProps {
+  project: ProjectCardData;
+  onClick: (e: React.MouseEvent) => void;
 }
 
-export function ProjectCard({ data, onClick }: ProjectCardProps) {
-  const segments = progressSegments(data);
-  const hasTasks = data.taskCount > 0;
+export function ProjectCard({ project, onClick }: ProjectCardProps) {
+  const segments = progressSegments(project);
+  const hasTasks = project.taskCount > 0;
 
   return (
     <div
-      onClick={() => onClick(data)}
+      onClick={onClick}
       className="min-w-[180px] max-w-[200px] bg-card border rounded-md p-3 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all"
     >
       {/* Row 1: Health dot + name + current badge */}
       <div className="flex items-center gap-2">
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthDotColor(data.health)}`} />
-        <span className="text-sm font-medium truncate flex-1">{data.name}</span>
-        {data.isCurrent && (
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthDotColor(project.health)}`} />
+        <span className="text-sm font-medium truncate flex-1">{project.name}</span>
+        {project.isCurrent && (
           <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 flex-shrink-0">
             current
           </span>
@@ -75,7 +75,7 @@ export function ProjectCard({ data, onClick }: ProjectCardProps) {
 
       {/* Row 2: Milestone + task counts */}
       <div className="mt-1.5 text-[10px] text-muted-foreground">
-        {data.milestoneCount} milestone{data.milestoneCount !== 1 ? "s" : ""} &middot; {data.taskCount} task{data.taskCount !== 1 ? "s" : ""}
+        {project.milestoneCount} milestone{project.milestoneCount !== 1 ? "s" : ""} &middot; {project.taskCount} task{project.taskCount !== 1 ? "s" : ""}
       </div>
 
       {/* Row 3: Stacked progress bar */}
@@ -104,8 +104,8 @@ export function ProjectCard({ data, onClick }: ProjectCardProps) {
 
       {/* Row 4: Sessions + cost */}
       <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>{data.sessionCount} session{data.sessionCount !== 1 ? "s" : ""}</span>
-        <span>{formatProjectCost(data.totalCost)}</span>
+        <span>{project.sessionCount} session{project.sessionCount !== 1 ? "s" : ""}</span>
+        <span>{formatProjectCost(project.totalCost)}</span>
       </div>
     </div>
   );

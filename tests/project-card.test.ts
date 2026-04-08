@@ -84,32 +84,32 @@ describe("progressSegments", () => {
 
 describe("ProjectCard component structure", () => {
   it("renders project name via the data prop", () => {
-    // Component should use data.name to display the project name
-    expect(source).toContain("data.name");
+    // Component should use project.name to display the project name
+    expect(source).toContain("project.name");
   });
 
   it("shows 'current' badge when isCurrent is true", () => {
     // Should conditionally render a current badge
-    expect(source).toContain("data.isCurrent");
+    expect(source).toContain("project.isCurrent");
     expect(source).toContain("current");
   });
 
   it("hides 'current' badge when isCurrent is false", () => {
     // The current badge should be conditional, not always rendered
     // Verify it uses a conditional pattern (&&, ternary, or similar)
-    const conditionalPattern = /data\.isCurrent\s*&&|data\.isCurrent\s*\?/;
+    const conditionalPattern = /project\.isCurrent\s*&&|project\.isCurrent\s*\?/;
     expect(source).toMatch(conditionalPattern);
   });
 
   it("shows milestone and task counts", () => {
-    expect(source).toContain("data.milestoneCount");
-    expect(source).toContain("data.taskCount");
+    expect(source).toContain("project.milestoneCount");
+    expect(source).toContain("project.taskCount");
   });
 
   it("renders health dot with correct color class via healthDotColor", () => {
     // The component should use healthDotColor to determine the dot class
     expect(source).toContain("healthDotColor");
-    expect(source).toContain("data.health");
+    expect(source).toContain("project.health");
   });
 
   it("calls onClick when clicked", () => {
@@ -123,8 +123,8 @@ describe("ProjectCard component structure", () => {
   });
 
   it("renders session count and cost", () => {
-    expect(source).toContain("data.sessionCount");
-    expect(source).toContain("data.totalCost");
+    expect(source).toContain("project.sessionCount");
+    expect(source).toContain("project.totalCost");
   });
 
   it("renders a stacked progress bar with done, in-progress, and pending segments", () => {
