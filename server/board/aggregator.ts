@@ -3,6 +3,7 @@
 import { storage } from "../storage";
 import { scanProjectTasks } from "../scanner/task-scanner";
 import { getDB, save } from "../db";
+import { enrichTaskSession } from "./session-enricher";
 import type { TaskItem } from "@shared/task-types";
 import type { BoardTask, BoardState, BoardColumn, ProjectMeta, MilestoneMeta, BoardStats } from "@shared/board-types";
 
@@ -76,6 +77,11 @@ export function mapTaskToBoard(
     ? milestones.find(m => m.id === task.parent)
     : undefined;
 
+  const enrichment = enrichTaskSession(task.pipelineSessionIds?.[0]);
+  if (enrichment && task.pipelineActivity) {
+    enrichment.lastActivity = task.pipelineActivity;
+  }
+
   return {
     id: task.id,
     title: task.title,
@@ -95,7 +101,7 @@ export function mapTaskToBoard(
     flagReason: task.flagReason || task.pipelineBlockedReason,
     activity: task.pipelineActivity,
     cost: task.pipelineCost,
-    session: null,
+    session: enrichment,
     createdAt: task.created,
     updatedAt: task.updated,
   };

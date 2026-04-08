@@ -11,10 +11,14 @@ vi.mock("../server/storage", () => ({
 vi.mock("../server/scanner/task-scanner", () => ({
   scanProjectTasks: vi.fn(() => ({ items: [], config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} }, malformedCount: 0, projectId: "", projectName: "", projectPath: "" })),
 }));
+vi.mock("../server/board/session-enricher", () => ({
+  enrichTaskSession: vi.fn(() => null),
+}));
 
 import { aggregateBoardState, mapTaskToBoard, getProjectColor } from "../server/board/aggregator";
 import { storage } from "../server/storage";
 import { scanProjectTasks } from "../server/scanner/task-scanner";
+import { enrichTaskSession } from "../server/board/session-enricher";
 import type { TaskItem } from "../shared/task-types";
 
 describe("aggregator", () => {
@@ -102,6 +106,72 @@ describe("aggregator", () => {
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.flagged).toBe(true);
       expect(result!.flagReason).toBe("Depends on itm-2 which is not done");
+    });
+
+    it("populates session enrichment when sessionId exists", () => {
+      const mockEnrichment = {
+        sessionId: "s-123",
+        isActive: true,
+        model: "claude-3-5-sonnet",
+        lastActivity: null,
+        lastActivityTs: "2026-04-07T12:00:00Z",
+        messageCount: 10,
+        costUsd: 0.50,
+        inputTokens: 1000,
+        outputTokens: 500,
+        healthScore: "good" as const,
+        toolErrors: 0,
+        durationMinutes: 15,
+      };
+      vi.mocked(enrichTaskSession).mockReturnValue(mockEnrichment);
+
+      const task: TaskItem = {
+        id: "itm-1", title: "T", type: "task", status: "in-progress",
+        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
+        pipelineSessionIds: ["s-123"],
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.session).toEqual(mockEnrichment);
+      expect(enrichTaskSession).toHaveBeenCalledWith("s-123");
+    });
+
+    it("sets session to null when no sessionId", () => {
+      vi.mocked(enrichTaskSession).mockReturnValue(null);
+
+      const task: TaskItem = {
+        id: "itm-1", title: "T", type: "task", status: "in-progress",
+        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.session).toBeNull();
+    });
+
+    it("merges pipelineActivity into session.lastActivity", () => {
+      const mockEnrichment = {
+        sessionId: "s-123",
+        isActive: true,
+        model: "claude-3-5-sonnet",
+        lastActivity: null,
+        lastActivityTs: "2026-04-07T12:00:00Z",
+        messageCount: 10,
+        costUsd: 0.50,
+        inputTokens: 1000,
+        outputTokens: 500,
+        healthScore: "good" as const,
+        toolErrors: 0,
+        durationMinutes: 15,
+      };
+      vi.mocked(enrichTaskSession).mockReturnValue(mockEnrichment);
+
+      const task: TaskItem = {
+        id: "itm-1", title: "T", type: "task", status: "in-progress",
+        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
+        pipelineSessionIds: ["s-123"],
+        pipelineActivity: "Processing task with AI",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.session).not.toBeNull();
+      expect(result!.session!.lastActivity).toBe("Processing task with AI");
     });
   });
 
