@@ -32,13 +32,6 @@ export async function runAutoWorkflows(sessions: SessionData[]): Promise<Workflo
     }
   }
 
-  // Auto-tag: tag sessions by file paths
-  if (config.autoTagByPath) {
-    // This is a read-only operation — we annotate the session list response
-    // with tags derived from file paths. No actual mutation needed here.
-    ran.push("auto-tag: enabled (tags computed on-the-fly)");
-  }
-
   // Auto-archive: report stale sessions (we don't delete without confirmation)
   if (config.autoArchiveStale) {
     const THIRTY_DAYS_AGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();

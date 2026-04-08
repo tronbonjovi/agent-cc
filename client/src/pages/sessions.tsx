@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Search, Terminal, Trash2, Copy, Check, ChevronDown, ChevronRight,
-  MessageSquare, Clock, X, AlertTriangle, Undo2, FolderOpen,
+  MessageSquare, X, AlertTriangle, Undo2, FolderOpen,
   Sparkles, Loader2, Zap, DollarSign, FileText, Activity, Archive,
   GitCommit, BarChart3, FolderKanban, Calendar, Settings,
   Plus, Play, BookOpen, Pin, StickyNote,
@@ -863,7 +863,7 @@ function DecisionLogPanel() {
         </div>
       )}
       {decisions && decisions.length === 0 && !decisionSearch && (
-        <p className="text-xs text-muted-foreground">No decisions yet. Use "Extract Decisions" in expanded session cards to mine decisions from past sessions.</p>
+        <p className="text-xs text-muted-foreground">No decisions recorded yet.</p>
       )}
     </div>
   );
@@ -1059,7 +1059,6 @@ function WorkflowConfigPanel() {
         {([
           { key: "autoSummarize" as const, label: "Auto-summarize new sessions", desc: "Summarize completed sessions automatically" },
           { key: "autoArchiveStale" as const, label: "Flag stale sessions", desc: "Identify sessions older than 30 days with <5 messages" },
-          { key: "autoTagByPath" as const, label: "Auto-tag by file paths", desc: "Tag sessions based on which files were modified" },
         ]).map(item => (
           <div key={item.key} className="flex items-center justify-between">
             <div>

@@ -607,7 +607,6 @@ export interface WorkflowConfig {
   autoSummarize: boolean;
   autoArchiveStale: boolean;
   costAlertThreshold: number | null;
-  autoTagByPath: boolean;
 }
 
 export interface SessionNote {

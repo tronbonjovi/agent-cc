@@ -72,7 +72,7 @@ function defaultData(): DBData {
     entityOverrides: {},
     sessionSummaries: {},
     promptTemplates: {},
-    workflowConfig: { autoSummarize: false, autoArchiveStale: false, costAlertThreshold: null, autoTagByPath: false },
+    workflowConfig: { autoSummarize: false, autoArchiveStale: false, costAlertThreshold: null },
     sessionNotes: {},
     pinnedSessions: [],
     sessionNames: {},
@@ -108,7 +108,7 @@ try {
     if (!data.entityOverrides) data.entityOverrides = {};
     if (!data.sessionSummaries) data.sessionSummaries = {};
     if (!data.promptTemplates) data.promptTemplates = {};
-    if (!data.workflowConfig) data.workflowConfig = { autoSummarize: false, autoArchiveStale: false, costAlertThreshold: null, autoTagByPath: false };
+    if (!data.workflowConfig) data.workflowConfig = { autoSummarize: false, autoArchiveStale: false, costAlertThreshold: null };
     if (!data.sessionNotes) data.sessionNotes = {};
     if (!data.pinnedSessions) data.pinnedSessions = [];
     if (!data.sessionNames) data.sessionNames = {};
