@@ -6,6 +6,7 @@ import type { TerminalConnectionState } from "@shared/types";
 const RECONNECT_INITIAL_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
 const RECONNECT_TIMEOUT_MS = 300_000; // 5 minutes — match server grace period
+const PING_INTERVAL_MS = 30_000; // 30s keepalive — prevents browser/proxy idle timeouts
 
 /** Convert HSL string "220 14% 10%" to hex "#xxxxxx" */
 function hslToHex(hsl: string): string {
@@ -56,6 +57,7 @@ interface ManagedTerminal {
   connectionState: TerminalConnectionState;
   reconnectAttempt: number;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
+  pingTimer: ReturnType<typeof setInterval> | null;
   disconnectStartTime: number | null;
   gaveUp: boolean;
   firstConnect: boolean;
@@ -106,6 +108,7 @@ export class TerminalInstanceManager {
       connectionState: "initializing",
       reconnectAttempt: 0,
       reconnectTimer: null,
+      pingTimer: null,
       disconnectStartTime: null,
       gaveUp: false,
       firstConnect: true,
@@ -201,6 +204,11 @@ export class TerminalInstanceManager {
     if (managed.reconnectTimer) {
       clearTimeout(managed.reconnectTimer);
       managed.reconnectTimer = null;
+    }
+
+    if (managed.pingTimer) {
+      clearInterval(managed.pingTimer);
+      managed.pingTimer = null;
     }
 
     if (managed.resizeObserver) {
@@ -309,24 +317,74 @@ export class TerminalInstanceManager {
     });
   }
 
+  private stopPing(managed: ManagedTerminal): void {
+    if (managed.pingTimer) {
+      clearInterval(managed.pingTimer);
+      managed.pingTimer = null;
+    }
+  }
+
+  private startPing(managed: ManagedTerminal, ws: WebSocket): void {
+    this.stopPing(managed);
+    managed.pingTimer = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping" }));
+      } else {
+        // WebSocket is no longer open — stop pinging
+        this.stopPing(managed);
+      }
+    }, PING_INTERVAL_MS);
+  }
+
   private connect(managed: ManagedTerminal): void {
     if (managed.disposed) return;
     this.setConnectionState(managed, "connecting");
+
+    // Close any stale WebSocket that hasn't fired onclose yet
+    if (managed.ws && managed.ws.readyState === WebSocket.OPEN) {
+      managed.ws.close();
+    }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const cols = managed.terminal.cols || 80;
     const rows = managed.terminal.rows || 24;
     const wsUrl = `${protocol}//${window.location.host}/ws/terminal?id=${managed.id}&cols=${cols}&rows=${rows}&mode=attach`;
-    const ws = new WebSocket(wsUrl);
+
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch {
+      // WebSocket creation failed (e.g. network unavailable).
+      // Treat it like a disconnect — schedule a retry with backoff.
+      this.setConnectionState(managed, "disconnected");
+
+      if (managed.disconnectStartTime === null) {
+        managed.disconnectStartTime = Date.now();
+      }
+
+      const backoff = Math.min(
+        RECONNECT_INITIAL_MS * Math.pow(2, managed.reconnectAttempt),
+        RECONNECT_MAX_MS
+      );
+      managed.reconnectAttempt += 1;
+
+      managed.reconnectTimer = setTimeout(() => {
+        managed.reconnectTimer = null;
+        this.connect(managed);
+      }, backoff);
+      return;
+    }
 
     ws.onopen = () => {
       managed.reconnectAttempt = 0;
       managed.disconnectStartTime = null;
+      // Start keepalive pings to prevent background-tab idle timeout
+      this.startPing(managed, ws);
     };
 
     ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data);
+        const msg = JSON.parse(event.data as string);
         switch (msg.type) {
           case "created":
             // If this is a reconnection (old session expired on server),
@@ -368,6 +426,9 @@ export class TerminalInstanceManager {
           case "exit":
             managed.terminal.write("\r\n\x1b[90m[Process exited]\x1b[0m\r\n");
             break;
+          case "pong":
+            // Server acknowledged our ping — connection is alive
+            break;
         }
       } catch {
         // ignore malformed messages
@@ -375,6 +436,9 @@ export class TerminalInstanceManager {
     };
 
     ws.onclose = () => {
+      // Stop keepalive pings for this connection
+      this.stopPing(managed);
+
       if (managed.disposed) return;
       if (managed.gaveUp) return;
       if (managed.connectionState === "expired") return;

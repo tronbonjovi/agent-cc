@@ -95,7 +95,22 @@ export class TerminalManager {
    * Wire up WebSocket message and close handlers for the given terminal.
    * Extracted so both create() and attach() use the same logic.
    */
+  /**
+   * Wire up WebSocket message and close handlers for the given terminal.
+   * Also starts server-side ping interval to detect dead connections.
+   * Extracted so both create() and attach() use the same logic.
+   */
   private wireWs(id: string, terminal: ManagedTerminal, ws: WebSocket): void {
+    // Server-side ping every 30s — detects dead connections that haven't
+    // sent a TCP FIN (e.g. client crash, network disconnect).
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === ws.OPEN) {
+        ws.ping();
+      } else {
+        clearInterval(pingInterval);
+      }
+    }, 30_000);
+
     ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
@@ -109,6 +124,11 @@ export class TerminalManager {
           terminal.rows = newRows;
         } else if (msg.type === "kill") {
           this.kill(id);
+        } else if (msg.type === "ping") {
+          // Respond to client-side application-level pings
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({ type: "pong" }));
+          }
         }
       } catch {
         // ignore malformed messages
@@ -116,6 +136,7 @@ export class TerminalManager {
     });
 
     ws.on("close", () => {
+      clearInterval(pingInterval);
       // Only detach if this WS is still the active one (prevents stale
       // close handlers from tearing down a replacement connection)
       if (terminal.ws === ws) {
