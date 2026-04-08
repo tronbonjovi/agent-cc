@@ -99,7 +99,7 @@ export function useBoardEvents() {
 
     const eventTypes = [
       "task-moved", "task-created", "task-updated", "task-deleted",
-      "task-flagged", "task-unflagged", "board-refresh",
+      "task-flagged", "task-unflagged", "board-refresh", "session-updated",
     ];
 
     function connect() {

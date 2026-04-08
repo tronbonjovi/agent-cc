@@ -9,7 +9,8 @@ export type BoardEventType =
   | "task-deleted"
   | "task-flagged"
   | "task-unflagged"
-  | "board-refresh";
+  | "board-refresh"
+  | "session-updated";
 
 export class BoardEventBus {
   private clients = new Set<SendFn>();
