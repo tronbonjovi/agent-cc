@@ -33,30 +33,30 @@ For production, Agent CC runs bare metal via systemd. See [SETUP.md](SETUP.md) f
 - **Bash knowledge base** — every shell command indexed and searchable with success rates
 - **Decision log** — AI-extracted architectural decisions from past sessions
 - **Natural language query** — ask questions about your analytics data
-- **Session delegation** — continue sessions via terminal, Telegram, or voice
+- **Session delegation** — continue sessions via embedded terminal or external CLI
 - **14 themes** — Dark, Light, Glass, Anthropic Light/Dark, Catppuccin Mocha, Nord, Dracula, Tokyo Night, Solarized Dark, and more. Each theme has its own aesthetic profile controlling glow, borders, elevation, and animation
 - **Live monitoring** — real-time active sessions, context usage, cost estimates, agent tracking (integrated into Dashboard)
 - **Graph visualization** — interactive ecosystem map with AI-assisted suggestions
 - **Markdown editor** — edit `CLAUDE.md` and memory files with version history
 - **Embedded terminal** — VS Code-style bottom panel with xterm.js, multiple tabs, split view
-- **Task automation pipeline** — trigger milestones for automated execution. Workers run `claude -p` in isolated git worktrees, streaming progress to the kanban board. Budget guardrails, retry escalation, dependency-ordered scheduling, and integration gate (auto-detected test command) with human review at milestone boundaries
+- **Task management** — cross-project kanban board with milestone grouping, dependency tracking, info radiator cards, session linking, and two-way sync with [workflow-framework](https://github.com/tronbonjovi/workflow-framework) task files
 
 ## Pages
 
 | Page | What it shows |
 |------|---------------|
-| Dashboard | Live session monitoring, entity counts, system health, recent activity |
+| Dashboard | Live session monitoring, entity counts, system health, recent activity (includes live session tracking) |
 | Board | Cross-project kanban board — info radiator cards with session data, dependency flags, move controls, session linking |
-| Projects | Discovered projects with sessions, tech stack, cost, task boards |
+| Projects | Project discovery hub (redirects to Board with project context) |
 | MCP Servers | Every MCP server from `.mcp.json` files |
 | Skills | User-invocable and system skills |
 | Plugins | Installed and available plugins |
 | Markdown | CLAUDE.md, memory files, READMEs with inline editing |
 | Sessions | Deep search, AI summaries, cost, diffs, notes, pins, delegation |
-| Messages | Message history + prompt templates (split-screen) |
+| Messages | Message history + prompt templates (consolidated view) |
 | Agents | Agent definitions and execution logs |
 | Graph | Interactive node graph with custom nodes and AI suggestions |
-| Analytics | Usage stats, cost tracking, filesystem activity, GitHub discovery |
+| Analytics | Usage stats, cost tracking, filesystem activity, GitHub discovery (includes activity timeline) |
 | Settings | Claude Code settings, permissions, MCP configs |
 
 ## Security and Privacy
@@ -78,6 +78,8 @@ Runs entirely on your local machine. No cloud, no telemetry, no external databas
 | `HOST` | `127.0.0.1` | Bind address |
 | `AGENT_CC_DATA` | `~/.agent-cc/` | Data directory |
 | `NERVE_CENTER_SERVICES` | `Agent CC:5100` | Services to monitor (`name:port,name:port`) |
+| `ALLOWED_ORIGINS` | _(none)_ | Extra CORS origins for reverse proxy (comma-separated) |
+| `EXTRA_PROJECT_DIRS` | _(none)_ | Extra project directories for scanner (comma-separated) |
 
 See [SETUP.md](SETUP.md) for the full list of environment variables.
 
