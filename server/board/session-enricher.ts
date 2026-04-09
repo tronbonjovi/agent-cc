@@ -1,4 +1,31 @@
 // server/board/session-enricher.ts
+//
+// Cost Granularity Investigation (card-overhaul-task001)
+// ──────────────────────────────────────────────────────
+// Finding: Cost data is SESSION-LEVEL only. Here's why:
+//
+// 1. Claude Code stores subagent JSONL files at:
+//      <project>/<session-uuid>/subagents/agent-<id>.jsonl
+//    Each subagent file has its own `usage` blocks (input/output tokens, model).
+//
+// 2. However, the `sessionId` written into task frontmatter by workflow-framework
+//    is always the PARENT session UUID, not a subagent ID. Multiple tasks often
+//    share the same parent session.
+//
+// 3. The session scanner (session-scanner.ts) only reads top-level .jsonl files
+//    in project directories — it does not recurse into subagent subdirectories.
+//
+// 4. session-analytics.ts computes cost by reading the parent session's JSONL,
+//    which contains only the orchestrator's usage, NOT the subagent usage. The
+//    subagent usage lives in separate files under the subagents/ directory.
+//
+// 5. To get per-task cost, we would need:
+//    (a) workflow-framework to write `agentId` into task frontmatter
+//    (b) scanner to read subagent JSONL files and index them by agentId
+//    This is a cross-project change that doesn't exist today.
+//
+// Decision: Display cost with a "(session)" qualifier label and tooltip to
+// set expectations that the cost covers the full session, not just one task.
 
 import { getCachedSessions } from "../scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../scanner/session-analytics";

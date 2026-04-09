@@ -8,6 +8,15 @@ export function formatCost(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
+/**
+ * Format cost with a "(session)" qualifier to indicate the cost covers the
+ * entire session, not just the individual task. Returns empty string for zero.
+ */
+export function formatCostLabel(usd: number): string {
+  if (usd === 0) return "";
+  return `${formatCost(usd)} (session)`;
+}
+
 export function formatDuration(minutes: number | null): string {
   if (minutes === null) return "";
   if (minutes === 0) return "<1m";
@@ -71,13 +80,21 @@ export function ModelBadge({ model }: { model: string | null }) {
   );
 }
 
-/** Dollar amount with icon. Returns null when cost is zero. */
+/**
+ * Dollar amount with icon plus "(session)" qualifier.
+ * Cost is session-level — see investigation comment in session-enricher.ts.
+ * Returns null when cost is zero.
+ */
 export function CostPill({ costUsd }: { costUsd: number }) {
   if (costUsd === 0) return null;
   return (
-    <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+    <span
+      className="inline-flex items-center gap-0.5 text-xs text-muted-foreground"
+      title="Cost covers the entire session, not just this task"
+    >
       <DollarSign className="h-3 w-3" />
       {formatCost(costUsd).replace("$", "")}
+      <span className="text-[10px] opacity-60">session</span>
     </span>
   );
 }

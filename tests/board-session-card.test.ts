@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   formatCost,
+  formatCostLabel,
   formatDuration,
   formatTokens,
   statusLightColor,
@@ -42,5 +43,14 @@ describe("session indicator logic", () => {
     expect(shortenModel("claude-opus-4-6")).toBe("Opus 4.6");
     expect(shortenModel("claude-haiku-4-5-20251001")).toBe("Haiku 4.5");
     expect(shortenModel(null)).toBe("");
+  });
+
+  it("formatCostLabel returns session-level qualifier", () => {
+    expect(formatCostLabel(1.5)).toBe("$1.50 (session)");
+    expect(formatCostLabel(0.0042)).toBe("$0.00 (session)");
+  });
+
+  it("formatCostLabel returns empty string for zero cost", () => {
+    expect(formatCostLabel(0)).toBe("");
   });
 });
