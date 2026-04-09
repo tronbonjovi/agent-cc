@@ -5,7 +5,7 @@ const shortcuts: Record<string, string> = {
   d: "/",          // g+d → dashboard
   s: "/sessions",  // g+s → sessions
   a: "/agents",    // g+a → agents
-  g: "/graph",     // g+g → graph
+  g: "/stats?tab=graph",  // g+g → graph (analytics tab)
   l: "/",          // g+l → dashboard (live merged into dashboard)
   m: "/mcps",      // g+m → mcps
   p: "/projects",  // g+p → projects

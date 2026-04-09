@@ -21,7 +21,6 @@ const Skills = lazy(() => import("@/pages/skills"));
 const Plugins = lazy(() => import("@/pages/plugins"));
 const MarkdownFiles = lazy(() => import("@/pages/markdown-files"));
 const MarkdownEdit = lazy(() => import("@/pages/markdown-edit"));
-const GraphPage = lazy(() => import("@/pages/graph"));
 const ActivityPage = lazy(() => import("@/pages/activity"));
 const Sessions = lazy(() => import("@/pages/sessions"));
 const Agents = lazy(() => import("@/pages/agents"));
@@ -88,10 +87,7 @@ function Router() {
             <Route path="/markdown/:id">
               <ErrorBoundary pageName="Markdown Editor"><MarkdownEdit /></ErrorBoundary>
             </Route>
-            <Route path="/graph">
-              <ErrorBoundary pageName="Graph"><GraphPage /></ErrorBoundary>
-            </Route>
-            <Route path="/activity">
+<Route path="/activity">
               <ErrorBoundary pageName="Activity"><ActivityPage /></ErrorBoundary>
             </Route>
             <Route path="/sessions">

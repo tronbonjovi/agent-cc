@@ -408,7 +408,7 @@ export default function GraphPage() {
   }, [edgeLabelsInView]);
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-[calc(100vh-12rem)] flex flex-col">
       {/* Toolbar */}
       <div className="px-4 py-3 border-b flex items-center justify-between bg-card/50 backdrop-blur">
         <div className="flex items-center gap-3">

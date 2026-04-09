@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
 import { SessionAnalyticsTab } from "@/components/session-analytics-panel";
+import { Suspense, lazy } from "react";
+const GraphPage = lazy(() => import("@/pages/graph"));
 
 // ---- Types ----
 
@@ -883,7 +885,7 @@ export default function Stats() {
       <div>
         <h1 className="text-2xl font-bold text-gradient">Analytics</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Sessions, usage, costs, activity, and discovery
+          Sessions, usage, costs, activity, graph, and discovery
         </p>
       </div>
 
@@ -893,6 +895,7 @@ export default function Stats() {
           <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="costs">Costs</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="graph">Graph</TabsTrigger>
           <TabsTrigger value="discover">Discover</TabsTrigger>
         </TabsList>
 
@@ -910,6 +913,12 @@ export default function Stats() {
 
         <TabsContent value="activity" className="mt-4">
           <ActivityTab />
+        </TabsContent>
+
+        <TabsContent value="graph" className="mt-4">
+          <Suspense fallback={<LoadingSkeleton title="graph" />}>
+            <GraphPage />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="discover" className="mt-4">

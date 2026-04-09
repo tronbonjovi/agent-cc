@@ -38,11 +38,12 @@ describe("analytics page (stats.tsx) has Sessions tab", () => {
     expect(sessionsIdx).toBeLessThan(usageIdx);
   });
 
-  it("has 5 tabs: Sessions, Usage, Costs, Activity, Discover", () => {
+  it("has 6 tabs: Sessions, Usage, Costs, Activity, Graph, Discover", () => {
     expect(src).toMatch(/TabsTrigger.*value="sessions"/);
     expect(src).toMatch(/TabsTrigger.*value="usage"/);
     expect(src).toMatch(/TabsTrigger.*value="costs"/);
     expect(src).toMatch(/TabsTrigger.*value="activity"/);
+    expect(src).toMatch(/TabsTrigger.*value="graph"/);
     expect(src).toMatch(/TabsTrigger.*value="discover"/);
   });
 
@@ -59,7 +60,7 @@ describe("analytics page (stats.tsx) has Sessions tab", () => {
   });
 
   it("has updated subtitle mentioning sessions", () => {
-    expect(src).toMatch(/[Ss]essions.*usage.*costs.*activity.*discovery/i);
+    expect(src).toMatch(/[Ss]essions.*usage.*costs.*activity.*graph.*discovery/i);
   });
 
   it("defaults to sessions tab", () => {
