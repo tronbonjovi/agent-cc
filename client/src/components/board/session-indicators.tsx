@@ -51,6 +51,15 @@ export function shortenModel(model: string | null): string {
   return `${family.charAt(0).toUpperCase() + family.slice(1)} ${major}.${minor}`;
 }
 
+/** Format an agent role string for display — capitalize words, replace hyphens with spaces. */
+export function formatAgentRole(role: string | null): string {
+  if (!role) return "";
+  return role
+    .split("-")
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 // ── React components ──────────────────────────────────────────────────────────
 
 interface SessionProps {
@@ -75,6 +84,19 @@ export function ModelBadge({ model }: { model: string | null }) {
   return (
     <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-xs font-normal">
       <Cpu className="h-3 w-3" />
+      {label}
+    </Badge>
+  );
+}
+
+/** Small badge showing the agent role (e.g. "Explore", "Plan") with a Bot icon.
+ *  Returns null when role is null or empty — graceful degradation. */
+export function AgentRoleBadge({ role }: { role: string | null }) {
+  const label = formatAgentRole(role);
+  if (!label) return null;
+  return (
+    <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-xs font-normal">
+      <Bot className="h-3 w-3" />
       {label}
     </Badge>
   );

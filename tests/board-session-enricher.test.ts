@@ -10,13 +10,19 @@ vi.mock("../server/scanner/session-analytics", () => ({
   getSessionHealth: vi.fn(),
 }));
 
+vi.mock("../server/scanner/agent-scanner", () => ({
+  getCachedExecutions: vi.fn(),
+}));
+
 import { enrichTaskSession } from "../server/board/session-enricher";
 import { getCachedSessions } from "../server/scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../server/scanner/session-analytics";
+import { getCachedExecutions } from "../server/scanner/agent-scanner";
 
 const mockGetCachedSessions = vi.mocked(getCachedSessions);
 const mockGetSessionCost = vi.mocked(getSessionCost);
 const mockGetSessionHealth = vi.mocked(getSessionHealth);
+const mockGetCachedExecutions = vi.mocked(getCachedExecutions);
 
 const makeSession = (overrides = {}) => ({
   id: "sess-abc123",
@@ -58,6 +64,8 @@ const makeHealth = (overrides = {}) => ({
 describe("enrichTaskSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: no agent executions (tests that need them override this)
+    mockGetCachedExecutions.mockReturnValue([]);
   });
 
   it("returns null when no sessionId provided", () => {
@@ -153,8 +161,101 @@ describe("enrichTaskSession", () => {
     mockGetCachedSessions.mockReturnValue([session] as any);
     mockGetSessionCost.mockReturnValue(makeCost() as any);
     mockGetSessionHealth.mockReturnValue(makeHealth() as any);
+    mockGetCachedExecutions.mockReturnValue([]);
 
     const result = enrichTaskSession("sess-abc123");
     expect(result!.durationMinutes).toBeNull();
+  });
+
+  it("extracts agentRole from the most recent agent execution for the session", () => {
+    const session = makeSession();
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(makeCost() as any);
+    mockGetSessionHealth.mockReturnValue(makeHealth() as any);
+    mockGetCachedExecutions.mockReturnValue([
+      {
+        agentId: "agent-1",
+        slug: "explore",
+        sessionId: "sess-abc123",
+        projectKey: "my-project",
+        agentType: "Explore",
+        model: "claude-sonnet-4-5",
+        firstMessage: "Investigating...",
+        firstTs: "2026-04-01T10:05:00.000Z",
+        lastTs: "2026-04-01T10:10:00.000Z",
+        messageCount: 5,
+        sizeBytes: 512,
+        filePath: "/tmp/agent-1.jsonl",
+      },
+      {
+        agentId: "agent-2",
+        slug: "plan",
+        sessionId: "sess-abc123",
+        projectKey: "my-project",
+        agentType: "Plan",
+        model: "claude-sonnet-4-5",
+        firstMessage: "Planning...",
+        firstTs: "2026-04-01T10:15:00.000Z",
+        lastTs: "2026-04-01T10:20:00.000Z",
+        messageCount: 8,
+        sizeBytes: 1024,
+        filePath: "/tmp/agent-2.jsonl",
+      },
+    ] as any);
+
+    const result = enrichTaskSession("sess-abc123");
+    expect(result!.agentRole).toBe("Plan"); // most recent by lastTs
+  });
+
+  it("returns agentRole as null when no agent executions exist for the session", () => {
+    const session = makeSession();
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(makeCost() as any);
+    mockGetSessionHealth.mockReturnValue(makeHealth() as any);
+    mockGetCachedExecutions.mockReturnValue([
+      {
+        agentId: "agent-other",
+        slug: "explore",
+        sessionId: "sess-other-session",
+        projectKey: "other-project",
+        agentType: "Explore",
+        model: "claude-sonnet-4-5",
+        firstMessage: "Doing something else",
+        firstTs: "2026-04-01T10:05:00.000Z",
+        lastTs: "2026-04-01T10:10:00.000Z",
+        messageCount: 5,
+        sizeBytes: 512,
+        filePath: "/tmp/agent-other.jsonl",
+      },
+    ] as any);
+
+    const result = enrichTaskSession("sess-abc123");
+    expect(result!.agentRole).toBeNull();
+  });
+
+  it("returns agentRole as null when agent executions have null agentType", () => {
+    const session = makeSession();
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(makeCost() as any);
+    mockGetSessionHealth.mockReturnValue(makeHealth() as any);
+    mockGetCachedExecutions.mockReturnValue([
+      {
+        agentId: "agent-1",
+        slug: "unknown",
+        sessionId: "sess-abc123",
+        projectKey: "my-project",
+        agentType: null,
+        model: "claude-sonnet-4-5",
+        firstMessage: "Working...",
+        firstTs: "2026-04-01T10:05:00.000Z",
+        lastTs: "2026-04-01T10:10:00.000Z",
+        messageCount: 5,
+        sizeBytes: 512,
+        filePath: "/tmp/agent-1.jsonl",
+      },
+    ] as any);
+
+    const result = enrichTaskSession("sess-abc123");
+    expect(result!.agentRole).toBeNull();
   });
 });

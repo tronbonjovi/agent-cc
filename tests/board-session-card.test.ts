@@ -6,6 +6,7 @@ import {
   formatTokens,
   statusLightColor,
   shortenModel,
+  formatAgentRole,
 } from "../client/src/components/board/session-indicators";
 
 describe("session indicator logic", () => {
@@ -52,5 +53,13 @@ describe("session indicator logic", () => {
 
   it("formatCostLabel returns empty string for zero cost", () => {
     expect(formatCostLabel(0)).toBe("");
+  });
+
+  it("formats agent role for display — capitalizes and trims", () => {
+    expect(formatAgentRole("general-purpose")).toBe("General Purpose");
+    expect(formatAgentRole("Explore")).toBe("Explore");
+    expect(formatAgentRole("code-review")).toBe("Code Review");
+    expect(formatAgentRole(null)).toBe("");
+    expect(formatAgentRole("")).toBe("");
   });
 });

@@ -29,6 +29,7 @@
 
 import { getCachedSessions } from "../scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../scanner/session-analytics";
+import { getCachedExecutions } from "../scanner/agent-scanner";
 import type { SessionData } from "@shared/types";
 import type { SessionEnrichment } from "@shared/board-types";
 
@@ -70,6 +71,13 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
     }
   }
 
+  // Agent role: find the most recent subagent execution for this session.
+  // agentType comes from .meta.json files in subagent directories (e.g. "Explore",
+  // "Plan", "general-purpose"). The parent session itself has no role — it's the
+  // orchestrator. We surface the most recent subagent's type as the "agent role"
+  // to show what the session is currently doing.
+  const agentRole = getMostRecentAgentRole(sessionId);
+
   return {
     sessionId,
     isActive: session.isActive,
@@ -83,5 +91,20 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
     healthScore: health?.healthScore ?? null,
     toolErrors: health?.toolErrors ?? 0,
     durationMinutes,
+    agentRole,
   };
+}
+
+/**
+ * Find the most recent agent execution for a session and return its agentType.
+ * Returns null if no executions exist or none have an agentType.
+ */
+function getMostRecentAgentRole(sessionId: string): string | null {
+  const executions = getCachedExecutions();
+  const sessionExecs = executions.filter(e => e.sessionId === sessionId && e.agentType);
+  if (sessionExecs.length === 0) return null;
+
+  // Pick the one with the most recent lastTs
+  sessionExecs.sort((a, b) => (b.lastTs || "").localeCompare(a.lastTs || ""));
+  return sessionExecs[0].agentType;
 }

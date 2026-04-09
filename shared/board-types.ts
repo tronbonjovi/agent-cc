@@ -39,6 +39,7 @@ export interface SessionEnrichment {
   healthScore: "good" | "fair" | "poor" | null;
   toolErrors: number;
   durationMinutes: number | null;
+  agentRole: string | null;
 }
 
 export interface ProjectMeta {

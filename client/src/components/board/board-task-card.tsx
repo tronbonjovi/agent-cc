@@ -5,6 +5,7 @@ import { AlertTriangle, Bot, User } from "lucide-react";
 import {
   StatusLight,
   ModelBadge,
+  AgentRoleBadge,
   CostPill,
   AgentActivity,
   SessionStats,
@@ -65,6 +66,7 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
       {/* Row 2: Badges — model, priority, tags */}
       <div className="flex items-center gap-1 mt-2 flex-wrap">
         {hasSession && <ModelBadge model={task.session!.model} />}
+        {hasSession && <AgentRoleBadge role={task.session!.agentRole} />}
         {task.priority !== "medium" && (
           <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${priorityColors[task.priority]}`}>
             {task.priority}
