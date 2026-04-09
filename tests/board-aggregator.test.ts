@@ -23,6 +23,7 @@ import { aggregateBoardState, mapTaskToBoard, getProjectColor, statusToColumn, i
 import { storage } from "../server/storage";
 import { scanProjectTasks } from "../server/scanner/task-scanner";
 import { enrichTaskSession } from "../server/board/session-enricher";
+import { getMilestoneColor } from "../shared/milestone-colors";
 import type { TaskItem } from "../shared/task-types";
 
 describe("aggregator", () => {
@@ -184,6 +185,45 @@ describe("aggregator", () => {
     });
   });
 
+  describe("mapTaskToBoard — milestone color", () => {
+    it("includes milestoneColor when task has a milestone parent", () => {
+      const milestone: TaskItem = {
+        id: "ms-alpha", title: "Alpha", type: "milestone", status: "backlog",
+        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md",
+      };
+      const task: TaskItem = {
+        id: "itm-1", title: "T", type: "task", status: "backlog", parent: "ms-alpha",
+        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", [milestone]);
+      expect(result!.milestoneColor).toBe(getMilestoneColor("ms-alpha"));
+      expect(typeof result!.milestoneColor).toBe("string");
+    });
+
+    it("uses milestoneColorMap when provided", () => {
+      const milestone: TaskItem = {
+        id: "ms-beta", title: "Beta", type: "milestone", status: "backlog",
+        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md",
+      };
+      const task: TaskItem = {
+        id: "itm-2", title: "T", type: "task", status: "backlog", parent: "ms-beta",
+        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
+      };
+      const colorMap = new Map([["ms-beta", "#custom1"]]);
+      const result = mapTaskToBoard(task, "p", "P", "#000", [milestone], undefined, colorMap);
+      expect(result!.milestoneColor).toBe("#custom1");
+    });
+
+    it("milestoneColor is undefined when task has no milestone", () => {
+      const task: TaskItem = {
+        id: "itm-3", title: "T", type: "task", status: "backlog",
+        created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.milestoneColor).toBeUndefined();
+    });
+  });
+
   describe("mapTaskToBoard — blocked workflow tasks", () => {
     it("sets flagged: true and flagReason for blocked workflow tasks", () => {
       const task: TaskItem = {
@@ -310,6 +350,38 @@ describe("aggregator", () => {
       expect(result.milestones[0].title).toBe("v1.0 Release");
       expect(result.milestones[0].totalTasks).toBe(2);
       expect(result.milestones[0].doneTasks).toBe(1);
+      // Milestone should have a deterministic color
+      expect(result.milestones[0].color).toBe(getMilestoneColor("itm-m1"));
+      expect(typeof result.milestones[0].color).toBe("string");
+    });
+
+    it("assigns milestoneColor to tasks with a milestone parent", () => {
+      vi.mocked(storage.getAllEntities).mockReturnValue([
+        { id: "p1", name: "Alpha", type: "project", path: "/tmp/alpha" },
+      ] as any);
+
+      vi.mocked(scanProjectTasks).mockReturnValue({
+        projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
+        config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
+        items: [
+          { id: "itm-m1", title: "v1.0 Release", type: "milestone", status: "backlog", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
+          { id: "itm-1", title: "Task A", type: "task", status: "backlog", parent: "itm-m1", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
+          { id: "itm-2", title: "Task B", type: "task", status: "done", parent: "itm-m1", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t2.md" },
+          { id: "itm-3", title: "Orphan Task", type: "task", status: "ready", priority: "low", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t3.md" },
+        ],
+        malformedCount: 0,
+      });
+
+      const result = aggregateBoardState();
+      const taskA = result.tasks.find(t => t.id === "itm-1");
+      const taskB = result.tasks.find(t => t.id === "itm-2");
+      const orphan = result.tasks.find(t => t.id === "itm-3");
+
+      // Tasks with a milestone get milestoneColor
+      expect(taskA!.milestoneColor).toBe(getMilestoneColor("itm-m1"));
+      expect(taskB!.milestoneColor).toBe(getMilestoneColor("itm-m1"));
+      // Orphan task (no milestone) has no milestoneColor
+      expect(orphan!.milestoneColor).toBeUndefined();
     });
 
     it("excludes archived milestones and their tasks by default", () => {

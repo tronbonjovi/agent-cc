@@ -111,9 +111,9 @@ describe("useBoardProjects — mapping logic", () => {
   ];
 
   const milestones: MilestoneMeta[] = [
-    { id: "m1", title: "Milestone 1", project: "p1", totalTasks: 3, doneTasks: 2 },
-    { id: "m2", title: "Milestone 2", project: "p1", totalTasks: 2, doneTasks: 2 },
-    { id: "m3", title: "Milestone 3", project: "p2", totalTasks: 1, doneTasks: 0 },
+    { id: "m1", title: "Milestone 1", project: "p1", color: "#3b82f6", totalTasks: 3, doneTasks: 2 },
+    { id: "m2", title: "Milestone 2", project: "p1", color: "#10b981", totalTasks: 2, doneTasks: 2 },
+    { id: "m3", title: "Milestone 3", project: "p2", color: "#f59e0b", totalTasks: 1, doneTasks: 0 },
   ];
 
   const tasks: BoardTask[] = [

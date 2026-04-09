@@ -48,12 +48,9 @@ export function BoardHeader({ stats, filter, onFilterChange, projects, milestone
         <div className="flex items-center gap-3 flex-wrap">
           {milestones.map(m => {
             const pct = m.totalTasks > 0 ? Math.round((m.doneTasks / m.totalTasks) * 100) : 0;
-            const project = projects.find(p => p.id === m.project);
             return (
               <div key={m.id} className="flex items-center gap-1.5 text-xs">
-                {project && (
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: project.color }} />
-                )}
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
                 <span className="text-muted-foreground">{m.title}</span>
                 <span className="font-mono text-[10px]">{m.doneTasks}/{m.totalTasks}</span>
                 <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">

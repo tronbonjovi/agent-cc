@@ -39,7 +39,7 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
         ) : (
           <div
             className="w-1 h-full min-h-[1.5rem] rounded-full flex-shrink-0 mt-0.5"
-            style={{ backgroundColor: task.projectColor }}
+            style={{ backgroundColor: task.milestoneColor || task.projectColor }}
           />
         )}
         <div className="flex-1 min-w-0">
@@ -49,6 +49,12 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
             {task.milestone && (
               <>
                 <span className="opacity-40">&middot;</span>
+                {task.milestoneColor && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0"
+                    style={{ backgroundColor: task.milestoneColor }}
+                  />
+                )}
                 <span>{task.milestone}</span>
               </>
             )}

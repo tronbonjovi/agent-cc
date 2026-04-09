@@ -12,6 +12,7 @@ export interface BoardTask {
   projectColor: string;         // hex color
   milestone?: string;           // milestone task title (not ID — for display)
   milestoneId?: string;         // milestone task ID (for filtering)
+  milestoneColor?: string;      // deterministic color for milestone grouping
   priority: "high" | "medium" | "low";
   dependsOn: string[];          // task IDs
   tags: string[];
@@ -50,6 +51,7 @@ export interface MilestoneMeta {
   id: string;
   title: string;
   project: string;
+  color: string;                // deterministic milestone color from palette
   totalTasks: number;
   doneTasks: number;
 }

@@ -9,6 +9,7 @@ import { getCachedSessions } from "../scanner/session-scanner";
 import type { SessionData } from "@shared/types";
 import type { TaskItem } from "@shared/task-types";
 import type { BoardTask, BoardState, BoardColumn, ProjectMeta, MilestoneMeta, BoardStats } from "@shared/board-types";
+import { getMilestoneColor } from "@shared/milestone-colors";
 
 // 10 distinct project colors — visually separated, accessible on light/dark
 const PROJECT_COLORS = [
@@ -107,6 +108,7 @@ export function mapTaskToBoard(
   projectColor: string,
   milestones: TaskItem[],
   sessions?: SessionData[],
+  milestoneColorMap?: Map<string, string>,
 ): BoardTask | null {
   // Skip milestones and roadmaps — they're metadata, not board cards
   if (task.type === "milestone" || task.type === "roadmap") return null;
@@ -123,6 +125,11 @@ export function mapTaskToBoard(
   const flagged = isBlocked || (task.flagged || false);
   const flagReason = isBlocked ? "Blocked in workflow" : task.flagReason;
 
+  // Milestone color: from pre-computed map, or compute on the fly
+  const milestoneColor = milestone?.id
+    ? (milestoneColorMap?.get(milestone.id) ?? getMilestoneColor(milestone.id))
+    : undefined;
+
   return {
     id: task.id,
     title: task.title,
@@ -133,6 +140,7 @@ export function mapTaskToBoard(
     projectColor,
     milestone: milestone?.title,
     milestoneId: milestone?.id,
+    milestoneColor,
     priority: (task.priority as "high" | "medium" | "low") || "medium",
     dependsOn: task.dependsOn || [],
     tags: task.labels || [],
@@ -177,14 +185,18 @@ export function aggregateBoardState(filterProjects?: string[], includeArchived?:
     // Determine which milestones are archived (for filtering)
     const archivedSet = includeArchived ? new Set<string>() : new Set(getArchivedMilestones());
 
-    // Build milestone progress metadata
+    // Build milestone progress metadata with colors
+    const milestoneColorMap = new Map<string, string>();
     for (const ms of milestoneItems) {
       if (archivedSet.has(ms.id)) continue;
+      const msColor = getMilestoneColor(ms.id);
+      milestoneColorMap.set(ms.id, msColor);
       const children = board.items.filter(t => t.parent === ms.id && t.type === "task");
       milestoneMap.set(ms.id, {
         id: ms.id,
         title: ms.title,
         project: entity.id,
+        color: msColor,
         totalTasks: children.length,
         doneTasks: children.filter(t => statusToColumn(t.status) === "done").length,
       });
@@ -193,7 +205,7 @@ export function aggregateBoardState(filterProjects?: string[], includeArchived?:
     // Map tasks to board format (skip tasks belonging to archived milestones)
     for (const item of board.items) {
       if (item.parent && archivedSet.has(item.parent)) continue;
-      const boardTask = mapTaskToBoard(item, entity.id, entity.name, color, milestoneItems, sessions);
+      const boardTask = mapTaskToBoard(item, entity.id, entity.name, color, milestoneItems, sessions, milestoneColorMap);
       if (boardTask) tasks.push(boardTask);
     }
   }
