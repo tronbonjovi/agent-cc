@@ -32,6 +32,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
+import { SessionAnalyticsTab } from "@/components/session-analytics-panel";
 
 // ---- Types ----
 
@@ -875,24 +876,29 @@ function DiscoverTab() {
 // ---- Main Analytics Page ----
 
 export default function Stats() {
-  const defaultTab = new URLSearchParams(window.location.search).get("tab") || "usage";
+  const defaultTab = new URLSearchParams(window.location.search).get("tab") || "sessions";
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gradient">Analytics</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Usage, costs, activity, and discovery
+          Sessions, usage, costs, activity, and discovery
         </p>
       </div>
 
       <Tabs defaultValue={defaultTab}>
         <TabsList>
+          <TabsTrigger value="sessions">Sessions</TabsTrigger>
           <TabsTrigger value="usage">Usage</TabsTrigger>
           <TabsTrigger value="costs">Costs</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="discover">Discover</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="sessions" className="mt-4">
+          <SessionAnalyticsTab />
+        </TabsContent>
 
         <TabsContent value="usage" className="mt-4">
           <UsageTab />
