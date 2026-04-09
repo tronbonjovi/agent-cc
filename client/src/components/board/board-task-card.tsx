@@ -29,24 +29,24 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
   return (
     <div
       onClick={(e) => onClick(task, e)}
-      className="bg-card border rounded-md p-3 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all group"
+      className="bg-card border rounded-md p-2.5 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all group"
     >
       {/* Row 1: Status light + title */}
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-1.5">
         {hasSession ? (
           <div className="mt-1.5 flex-shrink-0">
             <StatusLight session={task.session!} />
           </div>
         ) : (
           <div
-            className="w-1 h-full min-h-[1.5rem] rounded-full flex-shrink-0 mt-0.5"
+            className="w-1 self-stretch rounded-full flex-shrink-0"
             style={{ backgroundColor: task.milestoneColor || task.projectColor }}
           />
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium leading-tight truncate">{task.title}</div>
-          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground">
-            <span>{task.projectName}</span>
+          <div className="text-[13px] font-medium leading-snug line-clamp-2">{task.title}</div>
+          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
+            <span className="truncate">{task.projectName}</span>
             {task.milestone && (
               <>
                 <span className="opacity-40">&middot;</span>
@@ -56,63 +56,64 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
                     style={{ backgroundColor: task.milestoneColor }}
                   />
                 )}
-                <span>{task.milestone}</span>
+                <span className="truncate">{task.milestone}</span>
               </>
             )}
           </div>
         </div>
       </div>
 
-      {/* Row 2: Badges — model, priority, tags */}
-      <div className="flex items-center gap-1 mt-2 flex-wrap">
-        {hasSession && <ModelBadge model={task.session!.model} />}
-        {hasSession && <AgentRoleBadge role={task.session!.agentRole} />}
-        {task.priority !== "medium" && (
-          <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${priorityColors[task.priority]}`}>
-            {task.priority}
-          </Badge>
-        )}
-        {task.tags.slice(0, 2).map(tag => (
-          <Badge key={tag} variant="outline" className="text-[9px] px-1.5 py-0">
-            {tag}
-          </Badge>
-        ))}
-      </div>
+      {/* Row 2: Badges — model, role, priority, tags */}
+      {(hasSession || task.priority !== "medium" || task.tags.length > 0) && (
+        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+          {hasSession && <ModelBadge model={task.session!.model} />}
+          {hasSession && <AgentRoleBadge role={task.session!.agentRole} />}
+          {task.priority !== "medium" && (
+            <Badge variant="outline" className={`text-[9px] leading-none px-1.5 py-0.5 ${priorityColors[task.priority]}`}>
+              {task.priority}
+            </Badge>
+          )}
+          {task.tags.slice(0, 2).map(tag => (
+            <Badge key={tag} variant="outline" className="text-[9px] leading-none px-1.5 py-0.5">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       {/* Row 3: Agent activity (session) */}
-      {hasSession ? (
-        <div className="mt-2">
+      {hasSession && (
+        <div className="mt-1.5">
           <AgentActivity session={task.session!} />
         </div>
-      ) : null}
+      )}
 
       {/* Row 4: Session stats (only when session exists) */}
       {hasSession && (
-        <div className="mt-2">
+        <div className="mt-1">
           <SessionStats session={task.session!} />
         </div>
       )}
 
       {/* Row 5: Assignee + cost + flag */}
-      <div className="flex items-center gap-2 mt-2">
-        {task.assignee && (
-          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            {task.assignee === "ai" ? <Bot className="h-3 w-3" /> : <User className="h-3 w-3" />}
-            {task.assignee === "ai" ? "AI" : task.assignee}
-          </span>
-        )}
-        {hasSession ? (
-          <span className="ml-auto">
-            <CostPill costUsd={task.session!.costUsd} />
-          </span>
-        ) : null}
-        {task.flagged && (
-          <span className="flex items-center gap-1 text-[10px] text-amber-500 ml-auto" title={task.flagReason}>
-            <AlertTriangle className="h-3 w-3" />
-            Flagged
-          </span>
-        )}
-      </div>
+      {(task.assignee || hasSession || task.flagged) && (
+        <div className="flex items-center gap-2 mt-1.5 min-h-0">
+          {task.assignee && (
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              {task.assignee === "ai" ? <Bot className="h-3 w-3" /> : <User className="h-3 w-3" />}
+              {task.assignee === "ai" ? "AI" : task.assignee}
+            </span>
+          )}
+          <span className="flex-1" />
+          {task.flagged && (
+            <span className="flex items-center gap-1 text-[10px] text-amber-500" title={task.flagReason}>
+              <AlertTriangle className="h-3 w-3" />
+              Flagged
+            </span>
+          )}
+          {hasSession && <CostPill costUsd={task.session!.costUsd} />}
+        </div>
+      )}
     </div>
   );
 }

@@ -104,8 +104,8 @@ export function ModelBadge({ model }: { model: string | null }) {
   const label = shortenModel(model);
   if (!label) return null;
   return (
-    <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-xs font-normal">
-      <Cpu className="h-3 w-3" />
+    <Badge variant="secondary" className="gap-0.5 px-1.5 py-0.5 text-[10px] leading-none font-normal">
+      <Cpu className="h-2.5 w-2.5" />
       {label}
     </Badge>
   );
@@ -117,8 +117,8 @@ export function AgentRoleBadge({ role }: { role: string | null }) {
   const label = formatAgentRole(role);
   if (!label) return null;
   return (
-    <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-xs font-normal">
-      <Bot className="h-3 w-3" />
+    <Badge variant="secondary" className="gap-0.5 px-1.5 py-0.5 text-[10px] leading-none font-normal">
+      <Bot className="h-2.5 w-2.5" />
       {label}
     </Badge>
   );
@@ -152,7 +152,7 @@ export function AgentActivity({ session }: SessionProps) {
   if (!lastActivity && !isActive) return null;
   const label = lastActivity ?? (isActive ? "Working..." : "Idle");
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground truncate">
+    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate">
       <Bot className="h-3 w-3 shrink-0" />
       <span className="truncate">{label}</span>
     </span>
@@ -164,7 +164,7 @@ export function SessionStats({ session }: SessionProps) {
   const { messageCount, durationMinutes, inputTokens, outputTokens } = session;
   const totalTokens = inputTokens + outputTokens;
   return (
-    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+    <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground">
       <span className="inline-flex items-center gap-0.5">
         <MessageSquare className="h-3 w-3" />
         {messageCount}
