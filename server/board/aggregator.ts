@@ -79,6 +79,7 @@ export function statusToColumn(status: string): BoardColumn {
   switch (status) {
     case "backlog":
     case "pending":
+    case "planned":
       return "backlog";
     case "todo":
     case "ready":

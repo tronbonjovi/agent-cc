@@ -438,7 +438,7 @@ title: Project Roadmap
     expect(ms!.body).toBe("Clean removal of the abandoned task automation pipeline");
   });
 
-  it("ROADMAP.md status column overrides computed status", () => {
+  it("ROADMAP.md status column is ignored for milestone status (v0.5.0+)", () => {
     writeWorkflowTask("workflow-bridge", "task001.md",
       'id: wb-t1\ntitle: T1\nstatus: todo\nmilestone: workflow-bridge\ncreated: "2026-04-01"\nupdated: "2026-04-02"');
     writeRoadmapMd(`---
@@ -452,8 +452,9 @@ title: Project Roadmap
 
     const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
     const ms = result.items.find(i => i.type === "milestone");
-    // ROADMAP.md says in_progress, computed would be backlog (since only todo tasks)
-    expect(ms!.status).toBe("in_progress");
+    // ROADMAP.md status is stale (workflow-framework v0.5.0+ doesn't update it on task changes).
+    // Milestone status should be computed from children: only todo tasks → backlog.
+    expect(ms!.status).toBe("backlog");
   });
 
   it("status_override from MILESTONE.md takes precedence over computed status", () => {

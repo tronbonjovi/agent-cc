@@ -251,18 +251,17 @@ export function scanProjectTasks(
           updated = children.reduce((max: string, c: TaskItem) => c.updated > max ? c.updated : max, children[0].updated);
         }
 
-        // Compute status: MILESTONE.md override > ROADMAP.md override > computed from children
+        // Compute status: MILESTONE.md status_override > computed from children
+        // ROADMAP.md table status is NOT used — workflow-framework v0.5.0+ no longer
+        // keeps it current (only /status syncs it), so it would always be stale.
         let status = computeMilestoneStatus(children);
-        const roadmapEntry = roadmapMeta.get(dirName);
-        if (roadmapEntry?.status) {
-          status = roadmapEntry.status;
-        }
         const milestoneOverride = milestoneOverrides.get(dirName);
         if (milestoneOverride) {
           status = milestoneOverride;
         }
 
-        // Body from ROADMAP.md description
+        // Body from ROADMAP.md description (still useful as static metadata)
+        const roadmapEntry = roadmapMeta.get(dirName);
         const body = roadmapEntry?.description ?? "";
 
         const milestone: TaskItem = {

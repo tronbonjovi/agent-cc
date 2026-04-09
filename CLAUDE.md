@@ -132,6 +132,78 @@ When adding integrations with external services:
   - Missing cross-platform support
   - Missing env var configuration for external services
 
+## Workflow-Framework Integration Contract
+
+Agent CC's board reads task files created by [workflow-framework](~/dev/projects/workflow-framework), a Claude Code plugin. This is a cross-project dependency — changes to either side can break the integration.
+
+### File Layout
+
+Workflow-framework creates tasks at `.claude/roadmap/<milestone-dir>/<task>.md`. Our scanner (`server/scanner/task-scanner.ts`) reads all `.md` files in milestone directories, excluding `ROADMAP.md`, `MILESTONE.md`, `TASK.md`, `ARCHIVE.md`, and the `drafts/` subdirectory.
+
+### Fields We Read (from task frontmatter)
+
+| Field | Required | Mapped To |
+|-------|----------|-----------|
+| `id` | **yes** | `TaskItem.id` |
+| `title` | **yes** | `TaskItem.title` |
+| `status` | **yes** | `TaskItem.status` (mapped via `statusToColumn`) |
+| `created` | **yes** | `TaskItem.created` |
+| `updated` | **yes** | `TaskItem.updated` |
+| `milestone` | no | `TaskItem.parent` |
+| `dependsOn` | no | `TaskItem.dependsOn` |
+| `complexity` | no | label `complexity:{value}` |
+| `parallelSafe` | no | label `parallel-safe` |
+| `phase` | no | label `phase:{value}` |
+| `filesTouch` | no | labels `touches:{path}` |
+| `sessionId` | no | `TaskItem.sessionId` |
+
+If any required field is missing, `mapWorkflowToTaskItem` returns null and the file is counted as malformed.
+
+### Fields We Write Back (via `updateTaskField` in `server/task-io.ts`)
+
+When a task is moved on the board, we update the task file's frontmatter directly (preserving all workflow-specific fields). We write:
+- `status` — reverse-mapped from board column to workflow status
+- `updated` — set to current date
+
+### Status Mapping
+
+```
+Workflow → Board                Board → Workflow
+─────────────────               ─────────────────
+pending    → backlog            backlog     → pending
+todo       → ready              ready       → pending
+in_progress → in-progress       in-progress → in_progress
+review     → review             review      → review
+completed  → done               done        → completed
+blocked    → in-progress
+cancelled  → done
+planned    → backlog
+(unknown)  → backlog
+```
+
+### Milestone Status
+
+Milestones are synthetic — one per directory under `.claude/roadmap/`. Status is computed in priority order:
+1. `MILESTONE.md` `status_override` field (highest — intentional workflow-framework behavior for manual overrides)
+2. Computed from child tasks (all done → done, any in-progress → in-progress, else backlog)
+
+ROADMAP.md description is still used as static milestone metadata (body text), but its status column is **not** used for milestone status. Workflow-framework v0.5.0+ no longer keeps ROADMAP.md current on task changes (only `/status` syncs it), so reading status from it would always be stale.
+
+### What Workflow-Framework Must Not Change Without Coordination
+
+- **Required frontmatter fields**: `id`, `title`, `status`, `created`, `updated` — removing or renaming any of these breaks parsing
+- **Status value strings**: `pending`, `in_progress`, `review`, `completed`, `blocked`, `cancelled` — new values fall through to `backlog`
+- **Directory structure**: `<project>/.claude/roadmap/<milestone>/<task>.md` — changing nesting or moving task files breaks discovery
+- **YAML frontmatter format**: Must remain gray-matter compatible
+
+### Key Files
+
+- `server/scanner/task-scanner.ts` — reads workflow task files, builds milestones
+- `server/task-io.ts` — writes status changes back to task files
+- `server/board/aggregator.ts` — `statusToColumn()` maps workflow statuses to board columns
+- `tests/workflow-bridge.test.ts` — integration tests for the bridge
+- `tests/task-scanner.test.ts` — scanner unit tests
+
 ## Pre-commit Hook (PII Guard)
 
 A git pre-commit hook runs `new-user-safety.test.ts` before every commit. If PII is detected, the commit is blocked.

@@ -414,8 +414,11 @@ describe("statusToColumn — status mapping coverage", () => {
     "utf-8",
   );
 
-  it("maps pending to backlog", () => {
-    expect(aggregatorSource).toMatch(/case\s+"pending":\s*\n?\s*return\s+"backlog"/);
+  it("maps pending and planned to backlog", () => {
+    expect(aggregatorSource).toMatch(/case\s+"pending":/);
+    expect(aggregatorSource).toMatch(/case\s+"planned":/);
+    // Both should resolve to backlog
+    expect(aggregatorSource).toMatch(/case\s+"planned":\s*\n?\s*return\s+"backlog"/);
   });
 
   it("maps backlog to backlog", () => {

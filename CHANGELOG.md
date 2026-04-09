@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Milestone status stuck in backlog** — workflow-framework v0.5.0 stopped updating ROADMAP.md on task changes, but our milestone status used ROADMAP.md as an override. Removed that stale override path; milestone status now computed from child tasks, with MILESTONE.md `status_override` as the only manual override.
+
+### Added
+- **`planned` status mapping** — workflow-framework's new `planned` milestone status now explicitly maps to the backlog board column.
+- **Workflow-framework integration contract** — CLAUDE.md now documents the exact field contract, status mapping, and coordination requirements between Agent CC and the workflow-framework plugin.
+
 ### Added
 - **Stale project auto-pruning** — projects whose directories no longer exist on disk are automatically removed after 3 consecutive scan cycles. Cascade removes relationships and board colors. Temporarily missing directories (e.g., unmounted drives) are not pruned.
 - **Manual project deletion** — "Remove Project" button on project popout with confirmation dialog. `DELETE /api/projects/:id` endpoint with cascade cleanup. Cannot delete the current project.
