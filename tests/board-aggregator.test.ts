@@ -343,7 +343,7 @@ describe("aggregator", () => {
       expect(result.tasks.find(t => t.id === "itm-orphan")).toBeDefined();
     });
 
-    it("auto-archives fully-completed milestones (all tasks done/completed)", () => {
+    it("does NOT auto-archive fully-completed milestones (manual archive only)", () => {
       vi.mocked(storage.getAllEntities).mockReturnValue([
         { id: "p1", name: "Alpha", type: "project", path: "/tmp/alpha" },
       ] as any);
@@ -364,10 +364,10 @@ describe("aggregator", () => {
       });
 
       const result = aggregateBoardState();
-      // Fully-completed milestone and its tasks should be excluded
-      expect(result.milestones.find(m => m.id === "pipeline-removal")).toBeUndefined();
-      expect(result.tasks.find(t => t.id === "pr-task001")).toBeUndefined();
-      expect(result.tasks.find(t => t.id === "pr-task002")).toBeUndefined();
+      // Fully-completed milestone and its tasks should REMAIN visible (no auto-archive)
+      expect(result.milestones.find(m => m.id === "pipeline-removal")).toBeDefined();
+      expect(result.tasks.find(t => t.id === "pr-task001")).toBeDefined();
+      expect(result.tasks.find(t => t.id === "pr-task002")).toBeDefined();
       // Active milestone and its tasks should still be present
       expect(result.milestones.find(m => m.id === "active-milestone")).toBeDefined();
       expect(result.tasks.find(t => t.id === "active-task")).toBeDefined();

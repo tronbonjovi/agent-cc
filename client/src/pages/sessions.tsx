@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions, useDeleteAllSessions, useUndoDeleteSessions, useDeepSearch, useSessionSummary, useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useSessionCost, useSessionCommits, useProjectDashboards, useSessionDiffs, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWeeklyDigest, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows, useTogglePin, useSaveNote, useFileTimeline, useDecisions, useBashKnowledge, useBashSearch, useNerveCenter, useSessionNames } from "@/hooks/use-sessions";
 import { getSessionDisplayName } from "@/lib/session-display-name";
 import { useDebouncedValue } from "@/hooks/use-debounce";
@@ -23,7 +23,6 @@ import {
 import type { SessionData, DeepSearchMatch } from "@shared/types";
 import { formatBytes, relativeTime as _relativeTime } from "@/lib/utils";
 import { EmptyState } from "@/components/empty-state";
-import { SessionHealthPanel } from "@/components/session-health-panel";
 
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -66,9 +65,11 @@ export default function Sessions() {
   const [searchMode, setSearchMode] = useState<"titles" | "deep">("titles");
   const [activeTab, setActiveTab] = useState<"sessions" | "analytics">("sessions");
 
-  // Read project filter from URL
+  // Read project filter and highlight from URL
   const urlParams = new URLSearchParams(window.location.search);
   const [projectFilter, setProjectFilter] = useState(urlParams.get("project") || "");
+  const highlightId = urlParams.get("highlight") || "";
+  const highlightApplied = useRef(false);
 
   const [sort, order] = sortKey.split(":") as [string, string];
   const debouncedSearch = useDebouncedValue(search, 300);
@@ -86,6 +87,24 @@ export default function Sessions() {
 
   const sessions = data?.sessions || [];
   const stats = data?.stats;
+
+  // Auto-expand and scroll to highlighted session (from board "View Full Session" link)
+  useEffect(() => {
+    if (!highlightId || !sessions.length || highlightApplied.current) return;
+    const match = sessions.find(s => s.id === highlightId);
+    if (!match) return;
+    highlightApplied.current = true;
+    setExpanded(highlightId);
+    // Scroll after render
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-session-id="${highlightId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("session-highlight", "ring-2", "ring-blue-500/50");
+        setTimeout(() => el.classList.remove("session-highlight", "ring-2", "ring-blue-500/50"), 3000);
+      }
+    });
+  }, [highlightId, sessions]);
 
   const handleCopyResume = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -217,8 +236,6 @@ export default function Sessions() {
           </Button>
         </div>
       </div>
-
-      <SessionHealthPanel />
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 border-b border-border">
@@ -1184,6 +1201,7 @@ function SessionCard({
 
   return (
     <Card
+      data-session-id={s.id}
       className={`group card-hover animate-fade-in-up cursor-pointer ${s.isEmpty ? "opacity-50" : ""} ${isSelected ? "ring-1 ring-blue-500/50" : ""}`}
       style={{ animationDelay: `${i * 30}ms` }}
       onClick={() => onToggleExpand(s.id)}

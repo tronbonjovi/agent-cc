@@ -413,13 +413,7 @@ export function BoardSidePanel({ task, open, onClose, anchorRect }: BoardSidePan
         </ScrollArea>
 
         {/* Footer */}
-        <div className="border-t px-4 py-2 flex items-center justify-between">
-          <Button variant="ghost" size="sm" className="text-xs justify-start" asChild>
-            <a href={`/tasks/${task.project}`}>
-              <ExternalLink className="h-3 w-3 mr-2" />
-              Open Full Detail
-            </a>
-          </Button>
+        <div className="border-t px-4 py-2 flex items-center justify-end">
           {task.source === "db" && (
             <button
               className="text-xs text-destructive hover:text-destructive/80 flex items-center gap-1"

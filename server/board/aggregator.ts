@@ -177,17 +177,6 @@ export function aggregateBoardState(filterProjects?: string[], includeArchived?:
     // Determine which milestones are archived (for filtering)
     const archivedSet = includeArchived ? new Set<string>() : new Set(getArchivedMilestones());
 
-    // Auto-archive: milestones where every child task is done/completed
-    if (!includeArchived) {
-      for (const ms of milestoneItems) {
-        if (archivedSet.has(ms.id)) continue; // already archived
-        const children = board.items.filter(t => t.parent === ms.id && t.type === "task");
-        if (children.length > 0 && children.every(c => statusToColumn(c.status) === "done")) {
-          archivedSet.add(ms.id);
-        }
-      }
-    }
-
     // Build milestone progress metadata
     for (const ms of milestoneItems) {
       if (archivedSet.has(ms.id)) continue;

@@ -200,7 +200,7 @@ function parseSession(
     return {
       id: basename,
       slug,
-      firstMessage: firstMessage.replace(/\n/g, " ").trim(),
+      firstMessage: firstMessage.replace(/^---\n[\s\S]*?\n---\n*/, "").replace(/\n/g, " ").trim(),
       firstTs,
       lastTs,
       messageCount,

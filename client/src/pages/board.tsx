@@ -8,7 +8,7 @@ import { ProjectPopout } from "@/components/board/project-popout";
 import { ArchiveZone } from "@/components/board/archive-zone";
 import type { ArchivedMilestone } from "@/components/board/archive-zone";
 import type { ProjectCardData } from "@/components/board/project-card";
-import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useBoardProjects, useArchivedMilestones } from "@/hooks/use-board";
+import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useBoardProjects, useArchivedMilestones, useArchiveMilestone } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -48,6 +48,7 @@ export default function BoardPage() {
   const { connected } = useBoardEvents();
   const boardProjects = useBoardProjects();
   const { data: archivedMilestones } = useArchivedMilestones();
+  const archiveMilestone = useArchiveMilestone();
 
   // Clean stale project IDs from filter when projects change (deletion or prune)
   useEffect(() => {
@@ -106,6 +107,7 @@ export default function BoardPage() {
         projects={board?.projects || []}
         milestones={board?.milestones || []}
         sseConnected={connected}
+        onArchiveMilestone={(id) => archiveMilestone.mutate(id)}
       />
 
       {/* Zone 1: Projects (35%) */}

@@ -40,9 +40,12 @@ function runningDuration(startedAt: number, _tick?: number): string {
 
 function shortSummary(msg: string | undefined, maxWords = 5): string {
   if (!msg) return "";
-  const words = msg.trim().split(/\s+/).slice(0, maxWords);
+  // Strip YAML frontmatter (--- ... ---) that workflow system adds to sessions
+  const cleaned = msg.replace(/^---\n[\s\S]*?\n---\n*/, "").trim();
+  if (!cleaned) return "";
+  const words = cleaned.split(/\s+/).slice(0, maxWords);
   let result = words.join(" ");
-  if (msg.trim().split(/\s+/).length > maxWords) result += "...";
+  if (cleaned.split(/\s+/).length > maxWords) result += "...";
   return result;
 }
 
