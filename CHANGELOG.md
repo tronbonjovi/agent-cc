@@ -8,7 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **"Open Full Detail" 404** — removed broken link from board task popout footer that navigated to a non-existent `/tasks/` route.
+- **"View Full Session" navigation** — sessions page now reads `?highlight=` query param, auto-expands the matching session, scrolls to it, and shows a brief blue highlight ring.
+- **Dashboard message previews showing YAML frontmatter** — `shortSummary` now strips frontmatter before truncating. Also fixed server-side in session scanner.
 - **Milestone status stuck in backlog** — workflow-framework v0.5.0 stopped updating ROADMAP.md on task changes, but our milestone status used ROADMAP.md as an override. Removed that stale override path; milestone status now computed from child tasks, with MILESTONE.md `status_override` as the only manual override.
+
+### Changed
+- **Manual milestone archive** — milestones with all tasks done now stay visible on the board instead of auto-archiving. An "Archive" button appears on the milestone progress bar when 100% complete.
+
+### Removed
+- **SessionHealthPanel from sessions page** — duplicated active session data already shown on dashboard.
+- **Project filter dropdown from board** — redundant now that the project zone provides project-level navigation. Priority and Flagged filters remain.
 
 ### Added
 - **`planned` status mapping** — workflow-framework's new `planned` milestone status now explicitly maps to the backlog board column.
