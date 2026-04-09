@@ -159,7 +159,7 @@ export default function APIs() {
                       className="text-[10px] px-1.5 border-entity-project/30 text-entity-project cursor-pointer hover:bg-entity-project/10"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setLocation("/graph");
+                        setLocation("/stats?tab=graph");
                       }}
                     >
                       {c.replace("config-", "")}
@@ -199,7 +199,7 @@ export default function APIs() {
                   className="inline-flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setLocation("/graph");
+                    setLocation("/stats?tab=graph");
                   }}
                 >
                   View in Graph <ExternalLink className="h-2.5 w-2.5" />

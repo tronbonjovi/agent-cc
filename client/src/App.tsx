@@ -27,9 +27,7 @@ const Agents = lazy(() => import("@/pages/agents"));
 const Live = lazy(() => import("@/pages/live"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const Stats = lazy(() => import("@/pages/stats"));
-const MessageHistory = lazy(() => import("@/pages/message-history"));
 const APIs = lazy(() => import("@/pages/apis"));
-const Prompts = lazy(() => import("@/pages/prompts"));
 
 const BoardPage = lazy(() => import("@/pages/board"));
 import NotFound from "@/pages/not-found";
@@ -105,14 +103,8 @@ function Router() {
             <Route path="/stats">
               <ErrorBoundary pageName="Stats"><Stats /></ErrorBoundary>
             </Route>
-            <Route path="/messages">
-              <ErrorBoundary pageName="Messages"><MessageHistory /></ErrorBoundary>
-            </Route>
             <Route path="/apis">
               <ErrorBoundary pageName="APIs"><APIs /></ErrorBoundary>
-            </Route>
-            <Route path="/prompts">
-              <ErrorBoundary pageName="Prompts"><Prompts /></ErrorBoundary>
             </Route>
             <Route component={NotFound} />
           </Switch>

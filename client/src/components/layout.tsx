@@ -21,7 +21,6 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
-  MessageSquareText,
   Bot,
   BarChart3,
 
@@ -64,7 +63,6 @@ const navSections: NavSection[] = [
     label: "Tools",
     items: [
       { path: "/sessions", label: "Sessions", icon: MessageSquare, countKey: "session" as const },
-      { path: "/messages", label: "Messages", icon: MessageSquareText, countKey: null },
       { path: "/agents", label: "Agents", icon: Bot, countKey: "agent" as const },
       { path: "/stats", label: "Analytics", icon: BarChart3, countKey: null },
       { path: "/settings", label: "Settings", icon: SlidersHorizontal, countKey: "config" as const },
