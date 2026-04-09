@@ -95,7 +95,7 @@ export default function MessageHistory() {
 
 // ─── Messages Panel ──────────────────────────────────────────────────────────
 
-function MessagesPanel() {
+export function MessagesPanel() {
   const [search, setSearch] = useState("");
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
@@ -163,7 +163,7 @@ function MessagesPanel() {
 
 // ─── Prompts Panel ───────────────────────────────────────────────────────────
 
-function PromptsPanel() {
+export function PromptsPanel() {
   const { data: templates, isLoading } = usePromptTemplates();
   const updateMutation = useUpdatePrompt();
   const deleteMutation = useDeletePrompt();
