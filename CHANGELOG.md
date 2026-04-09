@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Milestone color grouping** — each milestone gets a deterministic color from a 10-color dark-theme palette. Task cards show milestone color on the vertical bar (replacing project color). Board header displays color dots next to milestone names.
+- **Agent role badge** — board cards now show the subagent type (e.g. "Explore", "Plan", "Code Review") alongside the model badge when available.
+- **Cost session qualifier** — cost pill on board cards now shows "(session)" label with tooltip explaining the cost covers the entire session, not just the task.
+- **Status light tooltips** — the colored status dot on board cards now has a tooltip explaining each state: "Active — healthy", "Active — moderate issues", "Active — high error rate", "Session ended".
+- **Session analytics in Analytics page** — analytics panel moved from sessions page to the Analytics page as a "Sessions" first tab.
+- **Graph tab in Analytics** — Graph page embedded as a lazy-loaded tab in Analytics, removing the standalone `/graph` route.
+- **Sessions page tabs** — sessions page restructured from Sessions/Analytics to Sessions/Messages/Prompts tabs.
+
+### Changed
+- **Card layout polish** — tighter spacing, smaller badges, conditional row rendering for minimal-data cards, `line-clamp-2` titles, `flex-wrap` on badge row.
+- **Sidebar streamlined** — Messages and Graph removed from sidebar nav (now tabs within Sessions and Analytics respectively).
+- **Analytics page** — now has 6 tabs: Sessions, Usage, Costs, Activity, Graph, Discover.
+
+### Removed
+- **Standalone Messages route** — `/messages` removed, content is now a tab in Sessions.
+- **Standalone Graph route** — `/graph` removed, content is now a tab in Analytics.
+- **Standalone Prompts route** — `/prompts` removed, content is now a tab in Sessions.
+
 ### Fixed
 - **"Open Full Detail" 404** — removed broken link from board task popout footer that navigated to a non-existent `/tasks/` route.
 - **"View Full Session" navigation** — sessions page now reads `?highlight=` query param, auto-expands the matching session, scrolls to it, and shows a brief blue highlight ring.
