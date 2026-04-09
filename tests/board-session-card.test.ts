@@ -5,6 +5,7 @@ import {
   formatDuration,
   formatTokens,
   statusLightColor,
+  statusLightTooltip,
   shortenModel,
   formatAgentRole,
 } from "../client/src/components/board/session-indicators";
@@ -53,6 +54,16 @@ describe("session indicator logic", () => {
 
   it("formatCostLabel returns empty string for zero cost", () => {
     expect(formatCostLabel(0)).toBe("");
+  });
+
+  it("returns correct status light tooltip text for all states", () => {
+    expect(statusLightTooltip(true, "good")).toBe("Active — healthy");
+    expect(statusLightTooltip(true, "fair")).toBe("Active — moderate issues");
+    expect(statusLightTooltip(true, "poor")).toBe("Active — high error rate");
+    expect(statusLightTooltip(true, null)).toBe("Active");
+    expect(statusLightTooltip(false, "good")).toBe("Session ended");
+    expect(statusLightTooltip(false, null)).toBe("Session ended");
+    expect(statusLightTooltip(false, "poor")).toBe("Session ended");
   });
 
   it("formats agent role for display — capitalizes and trims", () => {

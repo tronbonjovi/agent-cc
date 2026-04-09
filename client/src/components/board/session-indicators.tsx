@@ -1,5 +1,6 @@
 import { Activity, Bot, Cpu, DollarSign, MessageSquare, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import type { SessionEnrichment } from "@shared/board-types";
 
 // ── Formatting functions (exported for unit testing) ──────────────────────────
@@ -43,6 +44,17 @@ export function statusLightColor(
   return "bg-green-500";
 }
 
+export function statusLightTooltip(
+  isActive: boolean,
+  healthScore: "good" | "fair" | "poor" | null
+): string {
+  if (!isActive) return "Session ended";
+  if (healthScore === "poor") return "Active — high error rate";
+  if (healthScore === "fair") return "Active — moderate issues";
+  if (healthScore === "good") return "Active — healthy";
+  return "Active";
+}
+
 export function shortenModel(model: string | null): string {
   if (!model) return "";
   const match = model.match(/claude-(\w+)-(\d+)-(\d+)/);
@@ -66,14 +78,24 @@ interface SessionProps {
   session: SessionEnrichment;
 }
 
-/** Small colored dot that pulses when the session is active. */
+/** Small colored dot that pulses when the session is active. Tooltip explains the color. */
 export function StatusLight({ session }: SessionProps) {
   const color = statusLightColor(session.isActive, session.healthScore);
+  const tooltip = statusLightTooltip(session.isActive, session.healthScore);
   return (
-    <span
-      className={`inline-block h-2 w-2 rounded-full ${color} ${session.isActive ? "animate-pulse" : ""}`}
-      aria-label={session.isActive ? "active" : "inactive"}
-    />
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${color} ${session.isActive ? "animate-pulse" : ""}`}
+            aria-label={tooltip}
+          />
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <p className="text-xs">{tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
