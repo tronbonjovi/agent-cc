@@ -75,6 +75,7 @@ export interface BoardState {
   columns: BoardColumn[];
   projects: ProjectMeta[];
   milestones: MilestoneMeta[];
+  completedTasks: BoardTask[];
 }
 
 export interface BoardStats {

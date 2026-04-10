@@ -258,7 +258,7 @@ export default function BoardPage() {
           <>
             <ResizeHandle onMouseDown={rightResize.onMouseDown} side="left" />
             <div style={{ width: rightResize.width }} className="shrink-0 overflow-hidden">
-              <CompletedMilestonesZone milestones={board?.milestones || []} />
+              <CompletedMilestonesZone milestones={board?.milestones || []} completedTasks={board?.completedTasks || []} />
             </div>
           </>
         )}

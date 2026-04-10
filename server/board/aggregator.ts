@@ -230,15 +230,23 @@ export function aggregateBoardState(filterProjects?: string[], includeArchived?:
     }
   }
 
-  const kanbanTasks = completedMilestoneIds.size > 0
-    ? tasks.filter(t => !t.milestoneId || !completedMilestoneIds.has(t.milestoneId))
-    : tasks;
+  let kanbanTasks: BoardTask[];
+  let completedTasksList: BoardTask[];
+
+  if (completedMilestoneIds.size > 0) {
+    kanbanTasks = tasks.filter(t => !t.milestoneId || !completedMilestoneIds.has(t.milestoneId));
+    completedTasksList = tasks.filter(t => t.milestoneId && completedMilestoneIds.has(t.milestoneId));
+  } else {
+    kanbanTasks = tasks;
+    completedTasksList = [];
+  }
 
   return {
     tasks: kanbanTasks,
     columns: ["queue", "in-progress", "review", "done"],
     projects,
     milestones: allMilestones,
+    completedTasks: completedTasksList,
   };
 }
 
