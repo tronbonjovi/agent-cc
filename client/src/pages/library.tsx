@@ -5,6 +5,7 @@ import SkillsTab from "@/components/library/skills-tab";
 import PluginsTab from "@/components/library/plugins-tab";
 import McpsTab from "@/components/library/mcps-tab";
 import AgentsTab from "@/components/library/agents-tab";
+import FileEditorTab from "@/components/library/file-editor-tab";
 
 const TAB_ICONS: Record<LibraryTabId, React.ElementType> = {
   skills: BookOpen,
@@ -65,15 +66,7 @@ export default function Library() {
       {activeTab === "plugins" && <PluginsTab />}
       {activeTab === "mcps" && <McpsTab />}
       {activeTab === "agents" && <AgentsTab />}
-      {activeTab === "editor" && (
-        <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
-          <FileEdit className="h-12 w-12 text-muted-foreground/40" />
-          <h2 className="text-xl font-semibold text-muted-foreground">File Editor</h2>
-          <p className="text-muted-foreground text-sm">
-            Editor tab coming in a future update.
-          </p>
-        </div>
-      )}
+      {activeTab === "editor" && <FileEditorTab />}
     </div>
   );
 }
