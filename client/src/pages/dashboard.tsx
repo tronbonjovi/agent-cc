@@ -157,7 +157,7 @@ export default function Dashboard() {
 
   return (
     <PageContainer
-      className="overflow-hidden"
+      className="overflow-hidden flex flex-col"
       title="Dashboard"
       actions={
         <>
@@ -295,60 +295,62 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* Active Sessions */}
-      <div className="w-[70%] mx-auto space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Active Sessions</h2>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 h-7 text-xs">
-                <Activity className="h-3.5 w-3.5" />
-                Recent Activity
-                {recentActivity.length > 0 && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-0.5">{recentActivity.length}</Badge>
+      {/* Active Sessions — scrollable region */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="w-[85%] max-w-[1400px] mx-auto space-y-3 py-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Active Sessions</h2>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 h-7 text-xs">
+                  <Activity className="h-3.5 w-3.5" />
+                  Recent Activity
+                  {recentActivity.length > 0 && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-0.5">{recentActivity.length}</Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-96 max-h-80 overflow-y-auto p-3">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Recent Activity</h3>
+                {recentActivity.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/60 py-4 text-center">No agents in the past hour</p>
+                ) : (
+                  <div className="space-y-2">
+                    {recentActivity.map((exec, i) => (
+                      <RecentActivityItem key={exec.agentId} exec={exec} index={i} />
+                    ))}
+                  </div>
                 )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-96 max-h-80 overflow-y-auto p-3">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Recent Activity</h3>
-              {recentActivity.length === 0 ? (
-                <p className="text-xs text-muted-foreground/60 py-4 text-center">No agents in the past hour</p>
-              ) : (
-                <div className="space-y-2">
-                  {recentActivity.map((exec, i) => (
-                    <RecentActivityItem key={exec.agentId} exec={exec} index={i} />
-                  ))}
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
+              </PopoverContent>
+            </Popover>
+          </div>
+          {activeSessions.length === 0 ? (
+            <div className="rounded-xl border bg-card">
+              <EmptyState icon={Monitor} title="No active Claude sessions" description="Sessions will appear here when Claude Code is running" />
+            </div>
+          ) : (
+            <div
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+              style={{ gap: "var(--card-gap)" }}
+            >
+              {activeSessions.map((session, i) => (
+                <ActiveSessionCard
+                  key={session.sessionId}
+                  session={session}
+                  index={i}
+                  tick={tick}
+                  isNew={newSessionIds.has(session.sessionId)}
+                  copiedId={copiedId}
+                  onCopyResume={handleCopyResume}
+                  onTogglePin={(id) => togglePin.mutate(id)}
+                  onRename={(id, name) => renameSession.mutate({ id, name })}
+                  sessionNames={sessionNames}
+                  healthThresholds={settings?.healthThresholds}
+                />
+              ))}
+            </div>
+          )}
         </div>
-        {activeSessions.length === 0 ? (
-          <div className="rounded-xl border bg-card">
-            <EmptyState icon={Monitor} title="No active Claude sessions" description="Sessions will appear here when Claude Code is running" />
-          </div>
-        ) : (
-          <div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-            style={{ gap: "var(--card-gap)" }}
-          >
-            {activeSessions.map((session, i) => (
-              <ActiveSessionCard
-                key={session.sessionId}
-                session={session}
-                index={i}
-                tick={tick}
-                isNew={newSessionIds.has(session.sessionId)}
-                copiedId={copiedId}
-                onCopyResume={handleCopyResume}
-                onTogglePin={(id) => togglePin.mutate(id)}
-                onRename={(id, name) => renameSession.mutate({ id, name })}
-                sessionNames={sessionNames}
-                healthThresholds={settings?.healthThresholds}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
     </PageContainer>
