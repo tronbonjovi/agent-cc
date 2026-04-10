@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Board 3-zone layout** — board page now has three zones at desktop: left sidebar (projects), center (kanban), right sidebar (completed milestones). Both sidebars are independently scrollable and width-adjustable via drag handles.
+- **Project cards stacked vertically** — project cards in the left sidebar now stack vertically instead of scrolling horizontally. Each card shows per-milestone progress bars for active (incomplete) milestones.
+- **Milestone bars relocated** — milestone progress indicators moved from the board header to their respective project cards (active milestones) and a new right sidebar (completed milestones). Header is now cleaner with just title, stats, and filters.
+
 ### Added
+- **Completed milestones sidebar** — new right panel showing fully-completed milestones with done badges and full progress bars. Independently scrollable, width adjustable (160-360px).
+- **Resizable sidebar hook** — `useResizeHandle` hook for drag-to-resize panel widths, used by both board sidebars.
+- **Active milestone bars on project cards** — each project card shows individual progress bars for milestones that still have incomplete tasks.
+
+### Added (prior)
 - **Library page** — consolidated Skills, Plugins, MCP Servers, Agents, and File Editor into a single tabbed page at `/library`. Tab state syncs to URL via `?tab=` parameter.
 - **Entity card component** — shared `EntityCard` with status badges (installed/saved/available), health indicators, tags, and action buttons. Used across all Library tabs.
 - **Three-tier layout** — each Library entity tab organized into Installed, Saved, and Marketplace sections. Marketplace is a placeholder for future content.
