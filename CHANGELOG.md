@@ -8,12 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Library placeholder page** — `/library` route with placeholder, ready for the library-redesign milestone.
 - **Design specs for next phase** — four specs covering navigation restructure + board cleanup, Library page redesign, responsive foundation, and analytics overhaul (draft). Implementation plans written for specs 1-3.
 - **Analytics overhaul draft** — captured current tab sprawl (16 surfaces), overlap analysis, session health improvement needs, and workflow-framework integration direction.
 
+### Changed
+- **Board columns simplified** — 5 columns → 4: Queue, In Progress, Review, Done. Backlog renamed to Queue, Ready column removed entirely.
+- **Board layout** — 3-zone (Projects/Board/Archive) → 2-zone (Projects 25% / Board 75%). Archive zone removed.
+- **Sidebar navigation** — 10 items across 3 sections → flat list of 6: Dashboard, Projects, Library, Sessions, Analytics, Settings. Section headers removed.
+- **Route rename** — `/board` → `/projects`, `/stats` → `/analytics`. Old URLs redirect automatically.
+
+### Removed
+- **Archive zone** — completed milestones archive panel removed from board page. Server-side archive API retained for future use.
+- **Ready column** — board no longer has a Ready column; those tasks map to Queue.
+
 ### Planned (not yet implemented)
-- **Navigation restructure** — sidebar from 10 items (3 sections) to 6 items (flat): Dashboard, Projects, Library, Sessions, Analytics, Settings. Board renamed to Projects, Stats renamed to Analytics.
-- **Board cleanup** — 5 columns to 4 (Queue/In Progress/Review/Done), Ready column removed, Backlog renamed to Queue, archive zone removed.
 - **Library page** — consolidate Skills, Plugins, MCP Servers, Agents, File Editor into tabbed page with saved/installed/marketplace pattern per entity type.
 - **Responsive foundation** — useBreakpoint hook, sizing tokens, mobile sidebar drawer, PageContainer component, per-page responsive pass.
 
