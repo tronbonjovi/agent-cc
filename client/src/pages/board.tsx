@@ -201,7 +201,7 @@ export default function BoardPage() {
                 ? "flex flex-col"
                 : breakpoint === "md"
                   ? "flex overflow-x-auto snap-x snap-mandatory"
-                  : "flex overflow-x-auto"
+                  : "flex overflow-x-auto justify-center"
             }`}
             style={{ gap: "var(--card-gap)" }}
           >

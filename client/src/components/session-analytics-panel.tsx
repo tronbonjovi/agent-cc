@@ -293,7 +293,7 @@ export function SessionHealthPanel() {
     }
   });
 
-  const headerClass = "px-2 py-2 text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium cursor-pointer hover:text-foreground transition-colors select-none whitespace-nowrap";
+  const headerClass = "px-2 py-2 text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium cursor-pointer hover:text-foreground transition-colors select-none whitespace-nowrap text-left";
 
   return (
     <div className="space-y-6">

@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useScanStatus, useRescan } from "@/hooks/use-entities";
+import { useCostAnalytics } from "@/hooks/use-sessions";
+import { useAppSettings } from "@/hooks/use-settings";
 import {
   BarChart3,
   Bot,
@@ -14,17 +16,12 @@ import {
   HardDrive,
   FolderOpen,
   DollarSign,
-  TrendingUp,
-  Zap,
-  Cpu,
-  Shield,
   Activity,
   FileText,
   FolderPlus,
   Trash2,
   Edit3,
   Clock,
-  Star,
   RefreshCw,
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
@@ -44,51 +41,6 @@ interface StatsOverview {
   averageSessionSize: number;
 }
 
-interface CostTokenBreakdown {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheCreation: number;
-}
-
-interface CostAnalytics {
-  totalCost: number;
-  totalTokens: CostTokenBreakdown;
-  weeklyComparison: { thisWeek: number; lastWeek: number; changePct: number };
-  monthlyTotalCost: number;
-  byModel: Record<string, {
-    cost: number;
-    tokens: CostTokenBreakdown;
-    sessions: number;
-  }>;
-  byProject: Array<{
-    projectKey: string;
-    projectName: string;
-    cost: number;
-    sessions: number;
-  }>;
-  byDay: Array<{
-    date: string;
-    cost: number;
-    computeCost: number;
-    cacheCost: number;
-  }>;
-  topSessions: Array<{
-    sessionId: string;
-    firstMessage: string;
-    model: string;
-    cost: number;
-    subagentCount: number;
-    subagentCost: number;
-    tokens: CostTokenBreakdown;
-  }>;
-  planLimits: {
-    pro: { limit: number; label: string };
-    max5x: { limit: number; label: string };
-    max20x: { limit: number; label: string };
-  };
-}
-
 // ---- Utilities ----
 
 function formatTokens(n: number): string {
@@ -97,8 +49,10 @@ function formatTokens(n: number): string {
   return n.toString();
 }
 
-function formatCost(n: number): string {
-  return "$" + n.toFixed(2);
+function formatUsd(n: number): string {
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n >= 0.01) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(4)}`;
 }
 
 
@@ -120,24 +74,6 @@ function getDistributionColor(key: string): string {
   for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
   return fallbacks[Math.abs(hash) % fallbacks.length];
 }
-
-const MODEL_COLORS: Record<string, string> = {
-  opus: "bg-orange-500",
-  sonnet: "bg-blue-500",
-  haiku: "bg-green-500",
-};
-
-function getModelColor(model: string): string {
-  const lower = model.toLowerCase();
-  for (const [key, color] of Object.entries(MODEL_COLORS)) {
-    if (lower.includes(key)) return color;
-  }
-  const fallbacks = ["bg-cyan-500", "bg-pink-500", "bg-amber-500", "bg-indigo-500"];
-  let hash = 0;
-  for (let i = 0; i < model.length; i++) hash = (hash * 31 + model.charCodeAt(i)) | 0;
-  return fallbacks[Math.abs(hash) % fallbacks.length];
-}
-
 
 // ---- Shared components ----
 
@@ -316,296 +252,112 @@ function UsageTab() {
 // ---- Tab: Costs ----
 
 function CostsTab() {
-  const [, setLocation] = useLocation();
-  const [period, setPeriod] = useState<7 | 30 | 90>(30);
-  const { data, isLoading } = useQuery<CostAnalytics>({
-    queryKey: ["/api/analytics/costs", period],
-    queryFn: async () => {
-      const res = await fetch(`/api/analytics/costs?days=${period}`);
-      if (!res.ok) throw new Error("Failed to fetch cost analytics");
-      return res.json();
-    },
-    staleTime: 60000,
-  });
+  const { data: costs, isLoading } = useCostAnalytics();
+  const { data: settings } = useAppSettings();
+  const billingMode = settings?.billingMode || "auto";
+  const isSub = billingMode === "subscription" || billingMode === "auto";
 
-  if (isLoading || !data) return <LoadingSkeleton title="cost data" />;
-
-  const maxDayCost = Math.max(...data.byDay.map((d) => d.cost), 0.01);
-  const currentSpend = data.monthlyTotalCost;
-  const maxPlanLimit = data.planLimits.max20x.limit;
-  const spendPctOf100 = maxPlanLimit > 0 ? (currentSpend / data.planLimits.max5x.limit) * 100 : 0;
-  let spendColor = "bg-green-500";
-  if (spendPctOf100 > 80) spendColor = "bg-red-500";
-  else if (spendPctOf100 > 50) spendColor = "bg-yellow-500";
-  const modelEntries = Object.entries(data.byModel).sort((a, b) => b[1].cost - a[1].cost);
+  if (isLoading || !costs) return <LoadingSkeleton title="cost data" />;
 
   return (
-    <div className="space-y-6">
-      {/* Period Selector */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground mr-1">Period:</span>
-        {([7, 30, 90] as const).map((d) => (
-          <button
-            key={d}
-            onClick={() => setPeriod(d)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-              period === d
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted/50 text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            {d}d
-          </button>
-        ))}
+    <div className="space-y-3">
+      <h2 className="text-sm font-medium flex items-center gap-2">
+        <DollarSign className="h-4 w-4 text-green-400" /> {isSub ? "Usage Analytics" : "Cost Analytics"}
+        <span className="text-[11px] text-muted-foreground font-normal">({costs.totalSessions} sessions scanned in {costs.durationMs}ms){isSub ? " — Subscription plan" : ""}</span>
+      </h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">{isSub ? "Total Tokens" : "Total Cost"}</p>
+          <p className="text-2xl font-bold font-mono mt-1 text-green-400">{isSub ? formatTokens(costs.totalInputTokens + costs.totalOutputTokens) : formatUsd(costs.totalCostUsd)}</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Input Tokens</p>
+          <p className="text-2xl font-bold font-mono mt-1">{formatTokens(costs.totalInputTokens)}</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Output Tokens</p>
+          <p className="text-2xl font-bold font-mono mt-1">{formatTokens(costs.totalOutputTokens)}</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Sessions</p>
+          <p className="text-2xl font-bold font-mono mt-1">{costs.totalSessions}</p>
+        </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { icon: DollarSign, color: "text-green-400", label: `Cost (${period}d)`, value: formatCost(data.totalCost) },
-          { icon: TrendingUp, color: "text-blue-400", label: "Compute Tokens", value: formatTokens(data.totalTokens.input + data.totalTokens.output) },
-          { icon: Zap, color: "text-amber-400", label: "Cache Tokens", value: formatTokens(data.totalTokens.cacheRead + data.totalTokens.cacheCreation) },
-          { icon: Shield, color: "text-purple-400", label: "Sessions", value: Object.values(data.byModel).reduce((s, m) => s + m.sessions, 0).toString() },
-        ].map((item, i) => (
-          <div key={item.label} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
-            <Card>
-              <CardContent className="pt-5 pb-4">
-                <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
-                  <item.icon className={`h-4 w-4 ${item.color}`} />
-                  <span className="text-xs font-medium">{item.label}</span>
-                </div>
-                <div className="text-2xl font-bold font-mono tabular-nums">{item.value}</div>
-              </CardContent>
-            </Card>
-          </div>
-        ))}
-      </div>
-
-      {/* Weekly Comparison */}
-      {data.weeklyComparison && (
-        <Card className="animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <TrendingUp className={`h-5 w-5 ${data.weeklyComparison.changePct > 0 ? "text-red-400" : data.weeklyComparison.changePct < 0 ? "text-green-400" : "text-muted-foreground"}`} />
-                <div>
-                  <div className="text-sm font-medium">This Week</div>
-                  <div className="text-2xl font-bold font-mono tabular-nums">{formatCost(data.weeklyComparison.thisWeek)}</div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-muted-foreground">vs Last Week</div>
-                <div className="text-lg font-mono tabular-nums text-muted-foreground">{formatCost(data.weeklyComparison.lastWeek)}</div>
-              </div>
-              <div className={`text-right px-3 py-1.5 rounded-lg ${
-                data.weeklyComparison.changePct > 20 ? "bg-red-500/10 text-red-400" :
-                data.weeklyComparison.changePct > 0 ? "bg-amber-500/10 text-amber-400" :
-                data.weeklyComparison.changePct < 0 ? "bg-green-500/10 text-green-400" :
-                "bg-muted/30 text-muted-foreground"
-              }`}>
-                <div className="text-xs">Change</div>
-                <div className="text-lg font-bold font-mono tabular-nums">
-                  {data.weeklyComparison.changePct > 0 ? "+" : ""}{data.weeklyComparison.changePct}%
-                </div>
+      {/* By model */}
+      <div className="rounded-xl border bg-card p-4">
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Cost by Model</p>
+        <div className="space-y-1.5">
+          {Object.entries(costs.byModel).sort((a, b) => b[1].cost - a[1].cost).map(([model, data]) => (
+            <div key={model} className="flex items-center justify-between text-xs">
+              <span className="font-mono text-muted-foreground">{model}</span>
+              <div className="flex items-center gap-4">
+                <span className="text-muted-foreground/60">{formatTokens(data.tokens)} tokens</span>
+                <span className="text-muted-foreground/60">{data.sessions} sessions</span>
+                <span className="font-mono font-medium text-green-400 w-20 text-right">{formatUsd(data.cost)}</span>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ))}
+        </div>
+      </div>
 
-      {/* Daily Cost Chart */}
-      <Card className="animate-fade-in-up" style={{ animationDelay: "200ms" }}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-green-400" />
-            Daily Cost
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1">{`Last ${period} days`}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-1 h-48">
-            {data.byDay.map((day) => {
-              const totalHeight = maxDayCost > 0 ? (day.cost / maxDayCost) * 100 : 0;
-              const cacheHeight = maxDayCost > 0 ? (day.cacheCost / maxDayCost) * 100 : 0;
-              const computeHeight = totalHeight - cacheHeight;
-              const today = isToday(day.date);
+      {/* By day (last 14 days) */}
+      {costs.byDay.length > 0 && (
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Daily Spend (last 14 days)</p>
+          <div className="space-y-1">
+            {costs.byDay.slice(-14).map(d => {
+              const maxCost = Math.max(...costs.byDay.slice(-14).map(x => x.cost));
+              const pct = maxCost > 0 ? (d.cost / maxCost) * 100 : 0;
               return (
-                <div key={day.date} className="flex-1 flex flex-col items-center gap-1 group">
-                  <span className={`text-[9px] font-mono tabular-nums transition-opacity ${day.cost > 0 ? "opacity-0 group-hover:opacity-100" : "opacity-0"} ${today ? "text-green-400 font-semibold" : "text-muted-foreground"}`}>
-                    ${day.cost.toFixed(2)}
-                  </span>
-                  <div className="w-full flex-1 flex items-end">
-                    <div className="w-full flex flex-col items-stretch">
-                      <div
-                        className={`w-full rounded-t-sm ${today ? "bg-blue-400" : "bg-blue-400/50 group-hover:bg-blue-400/70"}`}
-                        style={{ height: `${Math.max(computeHeight, 0)}%` }}
-                        title={`Compute: $${day.computeCost.toFixed(2)}`}
-                      />
-                      <div
-                        className={`w-full ${today ? "bg-green-500" : "bg-green-500/50 group-hover:bg-green-500/70"}`}
-                        style={{ height: `${Math.max(cacheHeight, day.cost > 0 ? 2 : 0)}%` }}
-                        title={`Cache: $${day.cacheCost.toFixed(2)}`}
-                      />
-                    </div>
+                <div key={d.date} className="flex items-center gap-2 text-xs">
+                  <span className="font-mono text-muted-foreground/60 w-20 flex-shrink-0">{d.date.slice(5)}</span>
+                  <div className="flex-1 h-4 bg-muted/30 rounded overflow-hidden">
+                    <div className="h-full bg-green-500/30 rounded" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className={`text-[8px] whitespace-nowrap ${today ? "text-green-400 font-semibold" : "text-muted-foreground/60"}`}>
-                    {formatDayLabel(day.date)}
-                  </span>
+                  <span className="font-mono text-green-400 w-16 text-right flex-shrink-0">{formatUsd(d.cost)}</span>
+                  <span className="text-muted-foreground/50 w-10 text-right flex-shrink-0">{d.sessions}s</span>
                 </div>
               );
             })}
           </div>
-          <div className="flex items-center gap-4 mt-2 text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-blue-400" />Compute (input + output)</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-green-500" />Cache (read + write)</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Plan Comparison */}
-      <Card className="animate-fade-in-up" style={{ animationDelay: "250ms" }}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-blue-400" />
-            Plan Comparison
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Current Spend</span>
-              <span className="font-mono font-bold tabular-nums">{formatCost(currentSpend)}</span>
-            </div>
-            <div className="relative h-6 rounded-full bg-muted/30 overflow-hidden">
-              <div className={`h-full rounded-full ${spendColor} transition-all duration-500 opacity-80`} style={{ width: `${Math.min((currentSpend / Math.max(maxPlanLimit, 1)) * 100, 100)}%` }} />
-              <div className="absolute top-0 bottom-0 w-px bg-yellow-400/70" style={{ left: `${(data.planLimits.max5x.limit / maxPlanLimit) * 100}%` }} title="Max $100/mo" />
-              <div className="absolute top-0 bottom-0 w-px bg-red-400/70" style={{ left: "100%" }} title="Max $200/mo" />
-            </div>
-            <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-muted/50" />{data.planLimits.pro.label}</span>
-              <span className="flex items-center gap-1.5"><span className="w-px h-3 bg-yellow-400/70" />{data.planLimits.max5x.label}</span>
-              <span className="flex items-center gap-1.5"><span className="w-px h-3 bg-red-400/70" />{data.planLimits.max20x.label}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Model & Project Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="animate-fade-in-up" style={{ animationDelay: "300ms" }}>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-purple-400" />
-              Per-Model Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {modelEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No model data available</p>
-            ) : (
-              <div className="space-y-0.5">
-                <div className="flex items-center text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2 py-1.5">
-                  <span className="w-48 min-w-0">Model</span>
-                  <span className="w-14 text-right">In</span>
-                  <span className="w-14 text-right">Out</span>
-                  <span className="w-14 text-right">Cache</span>
-                  <span className="flex-1 text-right">Cost</span>
-                </div>
-                {modelEntries.map(([model, md]) => (
-                  <div key={model} className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors">
-                    <span className="w-48 min-w-0 flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${getModelColor(model)}`} />
-                      <span className="text-muted-foreground text-xs font-mono truncate">{model.replace("claude-", "")}</span>
-                    </span>
-                    <span className="w-14 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.input)}</span>
-                    <span className="w-14 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.output)}</span>
-                    <span className="w-14 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatTokens(md.tokens.cacheRead)}</span>
-                    <span className="flex-1 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(md.cost)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="animate-fade-in-up" style={{ animationDelay: "350ms" }}>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-orange-400" />
-              Per-Project Breakdown
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.byProject.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No project data available</p>
-            ) : (
-              <div className="space-y-0.5 max-h-[400px] overflow-auto">
-                <div className="flex items-center text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2 py-1.5 sticky top-0 bg-card">
-                  <span className="flex-1">Project</span>
-                  <span className="w-16 text-right">Cost</span>
-                  <span className="w-16 text-right">Sessions</span>
-                </div>
-                {data.byProject.map((project) => (
-                  <div
-                    key={project.projectKey}
-                    className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors cursor-pointer"
-                    onClick={() => setLocation(`/sessions?project=${encodeURIComponent(project.projectKey)}`)}
-                  >
-                    <span className="flex-1 truncate text-muted-foreground hover:text-foreground transition-colors">
-                      {project.projectName}
-                    </span>
-                    <span className="w-16 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(project.cost)}</span>
-                    <span className="w-16 text-right font-mono tabular-nums text-xs text-muted-foreground">{project.sessions}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top Sessions */}
-      {data.topSessions && data.topSessions.length > 0 && (
-        <Card className="animate-fade-in-up" style={{ animationDelay: "375ms" }}>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Star className="h-4 w-4 text-amber-400" />
-              Most Expensive Sessions
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1">Top 20</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-0.5 max-h-[500px] overflow-auto">
-              <div className="flex items-center text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2 py-1.5 sticky top-0 bg-card">
-                <span className="flex-1">Session</span>
-                <span className="w-24 text-right">Model</span>
-                <span className="w-16 text-right">Cost</span>
-              </div>
-              {data.topSessions.map((session) => (
-                <div key={session.sessionId} className="flex items-center w-full text-sm px-2 py-2 rounded-md hover:bg-accent/30 transition-colors">
-                  <span className="flex-1 truncate text-muted-foreground hover:text-foreground transition-colors">
-                    {session.firstMessage || session.sessionId.slice(0, 8)}
-                    {session.subagentCount > 0 && (
-                      <span className="ml-2 text-[10px] text-purple-400">
-                        {session.subagentCount} agent{session.subagentCount > 1 ? "s" : ""} (+{formatCost(session.subagentCost)})
-                      </span>
-                    )}
-                  </span>
-                  <span className="w-24 text-right">
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
-                      session.model.includes("opus") ? "text-orange-400 border-orange-400/30" :
-                      session.model.includes("haiku") ? "text-green-400 border-green-400/30" :
-                      "text-blue-400 border-blue-400/30"
-                    }`}>{session.model.replace("claude-", "")}</Badge>
-                  </span>
-                  <span className="w-16 text-right font-mono tabular-nums text-xs text-amber-400/80">{formatCost(session.cost)}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        </div>
       )}
 
+      {/* Top sessions by cost */}
+      {costs.topSessions.length > 0 && (
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Most Expensive Sessions</p>
+          <div className="space-y-1">
+            {costs.topSessions.slice(0, 10).map((s, i) => (
+              <div key={s.sessionId} className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground/50 w-5 text-right">#{i + 1}</span>
+                <span className="text-muted-foreground truncate flex-1">{s.firstMessage || "(no message)"}</span>
+                <span className="text-muted-foreground/50">{formatTokens(s.tokens)}</span>
+                <span className="font-mono text-green-400 w-16 text-right font-medium">{formatUsd(s.cost)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* By project */}
+      {Object.keys(costs.byProject).length > 0 && (
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Cost by Project</p>
+          <div className="space-y-1">
+            {Object.entries(costs.byProject).sort((a, b) => b[1].cost - a[1].cost).slice(0, 10).map(([proj, data]) => (
+              <div key={proj} className="flex items-center justify-between text-xs">
+                <span className="font-mono text-muted-foreground truncate min-w-0 max-w-[300px]">{proj}</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-muted-foreground/50">{data.sessions} sessions</span>
+                  <span className="font-mono text-green-400 w-16 text-right font-medium">{formatUsd(data.cost)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

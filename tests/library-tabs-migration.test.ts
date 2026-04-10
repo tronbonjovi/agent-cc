@@ -170,10 +170,10 @@ describe("agents tab component", () => {
     expect(src).toMatch(/statCards|Total Executions/);
   });
 
-  it("has definitions, history, and stats sub-tabs", () => {
-    expect(src).toMatch(/definitions/);
-    expect(src).toMatch(/history/);
-    expect(src).toMatch(/stats/);
+  it("has installed, saved, and marketplace sub-tabs", () => {
+    expect(src).toMatch(/installed/);
+    expect(src).toMatch(/saved/);
+    expect(src).toMatch(/marketplace/);
   });
 
   it("does not include page-level h1 heading", () => {

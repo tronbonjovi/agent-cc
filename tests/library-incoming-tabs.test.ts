@@ -27,9 +27,9 @@ describe("library-tabs.ts — new tab definitions", () => {
     expect(src).toMatch(/label:\s*["']Bash KB["']/);
   });
 
-  it("has correct tab order: skills, plugins, mcps, agents, editor, discover, prompts, bash-kb", () => {
+  it("has correct tab order: editor, skills, plugins, mcps, agents, discover, prompts, bash-kb", () => {
     const idMatches = [...src.matchAll(/id:\s*["']([^"']+)["']/g)].map(m => m[1]);
-    expect(idMatches).toEqual(["skills", "plugins", "mcps", "agents", "editor", "discover", "prompts", "bash-kb"]);
+    expect(idMatches).toEqual(["editor", "skills", "plugins", "mcps", "agents", "discover", "prompts", "bash-kb"]);
   });
 });
 

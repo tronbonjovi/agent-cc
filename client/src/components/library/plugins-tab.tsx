@@ -103,28 +103,6 @@ export default function PluginsTab() {
         <>
           {subTab === "installed" && (
             <>
-              {/* Marketplaces within installed section */}
-              {marketplaces.length > 0 && (
-                <div className="mb-4 space-y-2">
-                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider font-medium flex items-center gap-1.5 mb-2">
-                    <Store className="h-3 w-3" /> Marketplaces
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-card">
-                    {marketplaces.map((mkt) => (
-                      <EntityCard
-                        key={mkt.id}
-                        icon={<Store className="h-4 w-4 text-entity-plugin" />}
-                        name={mkt.name}
-                        description={mkt.description ?? undefined}
-                        status="installed"
-                        health={mkt.health === "ok" ? "healthy" : mkt.health === "warning" ? "degraded" : mkt.health === "error" ? "error" : undefined}
-                        tags={["marketplace"]}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {installed.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                   {installed.map((plugin) => (
@@ -188,10 +166,32 @@ export default function PluginsTab() {
           )}
 
           {subTab === "marketplace" && (
-            <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
-              <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Marketplace coming soon</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Browse and install community plugins</p>
+            <div className="space-y-4">
+              {marketplaces.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider font-medium flex items-center gap-1.5 mb-2">
+                    <Store className="h-3 w-3" /> Installed Marketplaces
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-card">
+                    {marketplaces.map((mkt) => (
+                      <EntityCard
+                        key={mkt.id}
+                        icon={<Store className="h-4 w-4 text-entity-plugin" />}
+                        name={mkt.name}
+                        description={mkt.description ?? undefined}
+                        status="installed"
+                        health={mkt.health === "ok" ? "healthy" : mkt.health === "warning" ? "degraded" : mkt.health === "error" ? "error" : undefined}
+                        tags={["marketplace"]}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
+                <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Community plugin discovery coming soon</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Browse and install plugins from community repositories</p>
+              </div>
             </div>
           )}
         </>

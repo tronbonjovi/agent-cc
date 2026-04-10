@@ -13,29 +13,29 @@ describe("library tabs", () => {
     expect(LIBRARY_TABS).toHaveLength(8);
   });
 
-  it("tab ids are skills, plugins, mcps, agents, editor, discover, prompts, bash-kb", () => {
+  it("tab ids are editor, skills, plugins, mcps, agents, discover, prompts, bash-kb", () => {
     expect(LIBRARY_TAB_IDS).toEqual([
+      "editor",
       "skills",
       "plugins",
       "mcps",
       "agents",
-      "editor",
       "discover",
       "prompts",
       "bash-kb",
     ]);
   });
 
-  it("default tab is skills", () => {
-    expect(DEFAULT_TAB).toBe("skills");
+  it("default tab is editor", () => {
+    expect(DEFAULT_TAB).toBe("editor");
   });
 
   it("tab labels match expected values", () => {
+    expect(tabLabel("editor")).toBe("Info");
     expect(tabLabel("skills")).toBe("Skills");
     expect(tabLabel("plugins")).toBe("Plugins");
     expect(tabLabel("mcps")).toBe("MCP Servers");
     expect(tabLabel("agents")).toBe("Agents");
-    expect(tabLabel("editor")).toBe("Info");
   });
 });
 
@@ -48,23 +48,23 @@ describe("resolveTab — URL param parsing", () => {
     expect(resolveTab("editor")).toBe("editor");
   });
 
-  it("falls back to skills for null", () => {
-    expect(resolveTab(null)).toBe("skills");
+  it("falls back to editor for null", () => {
+    expect(resolveTab(null)).toBe("editor");
   });
 
-  it("falls back to skills for undefined", () => {
-    expect(resolveTab(undefined)).toBe("skills");
+  it("falls back to editor for undefined", () => {
+    expect(resolveTab(undefined)).toBe("editor");
   });
 
-  it("falls back to skills for empty string", () => {
-    expect(resolveTab("")).toBe("skills");
+  it("falls back to editor for empty string", () => {
+    expect(resolveTab("")).toBe("editor");
   });
 
-  it("falls back to skills for invalid tab names", () => {
-    expect(resolveTab("bogus")).toBe("skills");
-    expect(resolveTab("SKILLS")).toBe("skills"); // case-sensitive
-    expect(resolveTab("mcp")).toBe("skills");
-    expect(resolveTab("skill")).toBe("skills");
+  it("falls back to editor for invalid tab names", () => {
+    expect(resolveTab("bogus")).toBe("editor");
+    expect(resolveTab("SKILLS")).toBe("editor"); // case-sensitive
+    expect(resolveTab("mcp")).toBe("editor");
+    expect(resolveTab("skill")).toBe("editor");
   });
 
   it("simulates URL search param flow", () => {
@@ -74,10 +74,10 @@ describe("resolveTab — URL param parsing", () => {
 
     // Simulate: /library (no tab param)
     const empty = new URLSearchParams("");
-    expect(resolveTab(empty.get("tab"))).toBe("skills");
+    expect(resolveTab(empty.get("tab"))).toBe("editor");
 
     // Simulate: /library?tab=invalid
     const bad = new URLSearchParams("?tab=invalid");
-    expect(resolveTab(bad.get("tab"))).toBe("skills");
+    expect(resolveTab(bad.get("tab"))).toBe("editor");
   });
 });

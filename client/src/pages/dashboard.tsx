@@ -296,7 +296,7 @@ export default function Dashboard() {
       </div>
 
       {/* Active Sessions */}
-      <div className="space-y-3">
+      <div className="w-[70%] mx-auto space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Active Sessions</h2>
           <Popover>

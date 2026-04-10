@@ -1,11 +1,11 @@
 /** Library page tab definitions and URL sync logic. */
 
 export const LIBRARY_TABS = [
+  { id: "editor", label: "Info" },
   { id: "skills", label: "Skills" },
   { id: "plugins", label: "Plugins" },
   { id: "mcps", label: "MCP Servers" },
   { id: "agents", label: "Agents" },
-  { id: "editor", label: "Info" },
   { id: "discover", label: "Discover" },
   { id: "prompts", label: "Prompts" },
   { id: "bash-kb", label: "Bash KB" },
@@ -15,7 +15,7 @@ export type LibraryTabId = (typeof LIBRARY_TABS)[number]["id"];
 
 export const LIBRARY_TAB_IDS: readonly string[] = LIBRARY_TABS.map(t => t.id);
 
-export const DEFAULT_TAB: LibraryTabId = "skills";
+export const DEFAULT_TAB: LibraryTabId = "editor";
 
 /** Validate a tab id from URL search params. Returns the id if valid, otherwise the default. */
 export function resolveTab(raw: string | null | undefined): LibraryTabId {
