@@ -220,11 +220,25 @@ export function aggregateBoardState(filterProjects?: string[], includeArchived?:
     }
   }
 
+  // Identify fully-completed milestones (all tasks done/cancelled/completed)
+  // and filter their tasks out of kanban columns — they show in the completed milestones zone instead
+  const allMilestones = Array.from(milestoneMap.values());
+  const completedMilestoneIds = new Set<string>();
+  for (const ms of allMilestones) {
+    if (ms.totalTasks > 0 && ms.doneTasks === ms.totalTasks) {
+      completedMilestoneIds.add(ms.id);
+    }
+  }
+
+  const kanbanTasks = completedMilestoneIds.size > 0
+    ? tasks.filter(t => !t.milestoneId || !completedMilestoneIds.has(t.milestoneId))
+    : tasks;
+
   return {
-    tasks,
+    tasks: kanbanTasks,
     columns: ["queue", "in-progress", "review", "done"],
     projects,
-    milestones: Array.from(milestoneMap.values()),
+    milestones: allMilestones,
   };
 }
 
