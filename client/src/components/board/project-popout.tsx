@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowRight, Activity, DollarSign, Trash2, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { type ProjectCardData, healthDotColor, formatProjectCost } from "./project-card";
+import { type ProjectCardData, type ProjectMilestoneData, healthDotColor, formatProjectCost } from "./project-card";
 import { useDeleteProject } from "@/hooks/use-projects";
 
 // ── Layout constants ──────────────────────────────────────────────────────────
@@ -70,6 +70,33 @@ const HEALTH_LABELS: Record<ProjectCardData["health"], string> = {
   critical: "Critical",
   unknown: "Unknown",
 };
+
+// ── Milestone classification ─────────────────────────────────────────────────
+
+export interface ClassifiedMilestones {
+  active: ProjectMilestoneData[];
+  planned: ProjectMilestoneData[];
+  completed: ProjectMilestoneData[];
+}
+
+/** Classify milestones into active, planned, and completed buckets. */
+export function classifyMilestones(milestones: ProjectMilestoneData[]): ClassifiedMilestones {
+  const active: ProjectMilestoneData[] = [];
+  const planned: ProjectMilestoneData[] = [];
+  const completed: ProjectMilestoneData[] = [];
+
+  for (const m of milestones) {
+    if (m.totalTasks > 0 && m.doneTasks === m.totalTasks) {
+      completed.push(m);
+    } else if (m.doneTasks > 0) {
+      active.push(m);
+    } else {
+      planned.push(m);
+    }
+  }
+
+  return { active, planned, completed };
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -191,41 +218,57 @@ export function ProjectPopout({ project, anchorRect, onClose, onNavigate }: Prop
 
             <Separator />
 
-            {/* Progress overview */}
+            {/* Roadmap checklist */}
             <div>
-              <div className="text-xs font-medium text-muted-foreground mb-2">Progress</div>
-              <div className="space-y-2">
-                {/* Overall progress bar */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">
-                      {project.doneTasks} of {project.taskCount} tasks complete
-                    </span>
-                    <span className="font-medium">{progressPercent}%</span>
-                  </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full transition-all"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                </div>
+              <div className="text-xs font-medium text-muted-foreground mb-2">Roadmap</div>
+              <div className="space-y-1.5">
+                {(() => {
+                  const classified = classifyMilestones(project.milestones);
+                  const ordered = [...classified.active, ...classified.planned, ...classified.completed];
+                  if (ordered.length === 0) {
+                    return (
+                      <div className="text-xs text-muted-foreground">No milestones</div>
+                    );
+                  }
+                  return ordered.map(m => {
+                    const isCompleted = m.totalTasks > 0 && m.doneTasks === m.totalTasks;
+                    const isActive = !isCompleted && m.doneTasks > 0;
+                    // Icon: ✓ completed, ○ active, — planned
+                    const icon = isCompleted ? "\u2713" : isActive ? "\u25CB" : "\u2014";
+                    const iconColor = isCompleted
+                      ? "text-emerald-500"
+                      : isActive
+                        ? "text-amber-500"
+                        : "text-muted-foreground/50";
+                    return (
+                      <div key={m.id} className="flex items-center gap-2 text-xs">
+                        <span className={`w-4 text-center flex-shrink-0 ${iconColor}`}>{icon}</span>
+                        <span
+                          className={`truncate flex-1 ${isCompleted ? "line-through text-muted-foreground/60" : isActive ? "" : "text-muted-foreground/60"}`}
+                        >
+                          {m.title}
+                        </span>
+                        {isActive && (
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                            {m.doneTasks}/{m.totalTasks} done
+                          </span>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
 
-                {/* Milestone / task summary */}
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="text-center p-2 rounded-md bg-muted/50">
-                    <div className="font-semibold">{project.milestoneCount}</div>
-                    <div className="text-muted-foreground text-[10px]">Milestones</div>
-                  </div>
-                  <div className="text-center p-2 rounded-md bg-muted/50">
-                    <div className="font-semibold">{project.inProgressTasks}</div>
-                    <div className="text-muted-foreground text-[10px]">In Progress</div>
-                  </div>
-                  <div className="text-center p-2 rounded-md bg-muted/50">
-                    <div className="font-semibold">{project.doneTasks}</div>
-                    <div className="text-muted-foreground text-[10px]">Done</div>
-                  </div>
-                </div>
+              {/* Total task summary */}
+              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <span>{project.doneTasks} of {project.taskCount} tasks complete</span>
+                <span className="font-medium">{progressPercent}%</span>
+              </div>
+              <div className="mt-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all"
+                  style={{ width: `${progressPercent}%` }}
+                />
               </div>
             </div>
           </div>
