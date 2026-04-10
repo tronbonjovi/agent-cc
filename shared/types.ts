@@ -512,6 +512,9 @@ export interface SessionHealth {
   totalToolCalls: number;
   healthScore: "good" | "fair" | "poor";
   healthReasons?: string[];
+  projectKey?: string;
+  lastTs?: string;
+  estimatedCostUsd?: number;
 }
 
 export interface HealthAnalytics {

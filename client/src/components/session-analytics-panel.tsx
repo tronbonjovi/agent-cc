@@ -222,55 +222,152 @@ export function FileHeatmapPanel() {
   );
 }
 
+/** Map health reason to a color class for the pill */
+function reasonPillColor(reason: string): string {
+  // Red for error-related reasons
+  if (reason === "high error rate" || reason === "excessive retries" || reason === "context overflow") {
+    return "bg-red-500/15 text-red-400";
+  }
+  // Amber for warnings
+  return "bg-amber-500/15 text-amber-400";
+}
+
+/** Extract a short project name from an encoded projectKey */
+function shortProjectName(key?: string): string {
+  if (!key) return "unknown";
+  // Keys look like -home-tron-dev-projects-agent-cc — grab the last path segment
+  const parts = key.replace(/^-/, "").split("-");
+  return parts[parts.length - 1] || key;
+}
+
+type SortField = "sessionId" | "projectKey" | "lastTs" | "toolErrors" | "estimatedCostUsd" | "healthScore";
+type SortDir = "asc" | "desc";
+
 export function SessionHealthPanel() {
   const { data: health } = useHealthAnalytics();
   const { data: stale } = useStaleAnalytics();
+  const [, setLocation] = useLocation();
+  const [showGood, setShowGood] = useState(false);
+  const [sortField, setSortField] = useState<SortField>("lastTs");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir(field === "lastTs" ? "desc" : "asc");
+    }
+  };
+
+  const sortIndicator = (field: SortField) => {
+    if (sortField !== field) return "";
+    return sortDir === "asc" ? " \u2191" : " \u2193";
+  };
+
+  // Filter sessions
+  const filtered = health
+    ? health.sessions.filter(s => showGood || s.healthScore !== "good")
+    : [];
+
+  // Sort sessions
+  const sorted = [...filtered].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    switch (sortField) {
+      case "sessionId":
+        return dir * a.sessionId.localeCompare(b.sessionId);
+      case "projectKey":
+        return dir * (a.projectKey || "").localeCompare(b.projectKey || "");
+      case "lastTs":
+        return dir * ((a.lastTs || "").localeCompare(b.lastTs || ""));
+      case "toolErrors":
+        return dir * (a.toolErrors - b.toolErrors);
+      case "estimatedCostUsd":
+        return dir * ((a.estimatedCostUsd ?? 0) - (b.estimatedCostUsd ?? 0));
+      case "healthScore": {
+        const order: Record<string, number> = { poor: 0, fair: 1, good: 2 };
+        return dir * ((order[a.healthScore] ?? 1) - (order[b.healthScore] ?? 1));
+      }
+      default:
+        return 0;
+    }
+  });
+
+  const headerClass = "px-2 py-2 text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium cursor-pointer hover:text-foreground transition-colors select-none whitespace-nowrap";
 
   return (
     <div className="space-y-6">
       {health && (
         <div className="space-y-3">
-          <h2 className="text-sm font-medium flex items-center gap-2">
-            <Activity className="h-4 w-4 text-red-400" /> Session Health
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Good</p>
-              <p className="text-2xl font-bold font-mono mt-1 text-green-400">{health.goodCount}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Fair</p>
-              <p className="text-2xl font-bold font-mono mt-1 text-amber-400">{health.fairCount}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Poor</p>
-              <p className="text-2xl font-bold font-mono mt-1 text-red-400">{health.poorCount}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Errors</p>
-              <p className="text-2xl font-bold font-mono mt-1">{health.avgToolErrors}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Retries</p>
-              <p className="text-2xl font-bold font-mono mt-1">{health.avgRetries}</p>
-            </div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium flex items-center gap-2">
+              <Activity className="h-4 w-4 text-red-400" /> Session Health
+            </h2>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showGood}
+                onChange={e => setShowGood(e.target.checked)}
+                className="rounded border-border"
+              />
+              Include good sessions
+            </label>
           </div>
-          {health.sessions.length > 0 && (
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Problematic Sessions</p>
-              <div className="space-y-1">
-                {health.sessions.slice(0, 10).map(h => (
-                  <div key={h.sessionId} className="flex items-center gap-2 text-xs">
-                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${h.healthScore === "poor" ? "border-red-500/30 text-red-400" : "border-amber-500/30 text-amber-400"}`}>
-                      {h.healthScore}
-                    </Badge>
-                    <span className="font-mono text-muted-foreground/60 truncate flex-1">{h.sessionId.slice(0, 8)}...</span>
-                    <span className="text-red-400">{h.toolErrors} errors</span>
-                    <span className="text-amber-400">{h.retries} retries</span>
-                    <span className="text-muted-foreground/50">{h.totalToolCalls} tool calls</span>
-                  </div>
-                ))}
-              </div>
+
+          {/* Summary counters */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="text-green-400 font-medium">{health.goodCount} good</span>
+            <span className="text-amber-400 font-medium">{health.fairCount} fair</span>
+            <span className="text-red-400 font-medium">{health.poorCount} poor</span>
+          </div>
+
+          {sorted.length === 0 ? (
+            <div className="rounded-xl border bg-card p-6 text-center text-sm text-muted-foreground">
+              No unhealthy sessions found
+            </div>
+          ) : (
+            <div className="rounded-xl border bg-card overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className={headerClass} onClick={() => handleSort("sessionId")}>Session{sortIndicator("sessionId")}</th>
+                    <th className={headerClass} onClick={() => handleSort("projectKey")}>Project{sortIndicator("projectKey")}</th>
+                    <th className={headerClass} onClick={() => handleSort("lastTs")}>When{sortIndicator("lastTs")}</th>
+                    <th className={headerClass} onClick={() => handleSort("toolErrors")}>Errors{sortIndicator("toolErrors")}</th>
+                    <th className={headerClass} onClick={() => handleSort("estimatedCostUsd")}>Cost{sortIndicator("estimatedCostUsd")}</th>
+                    <th className={`${headerClass} cursor-default hover:text-muted-foreground/60`}>Health Reasons</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map(s => (
+                    <tr
+                      key={s.sessionId}
+                      className="border-b border-border/30 hover:bg-accent/20 cursor-pointer transition-colors"
+                      onClick={() => setLocation(`/sessions?highlight=${s.sessionId}`)}
+                    >
+                      <td className="px-2 py-2 font-mono text-muted-foreground">
+                        <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                          s.healthScore === "poor" ? "bg-red-500" : s.healthScore === "fair" ? "bg-amber-500" : "bg-green-500"
+                        }`} />
+                        {s.sessionId.slice(0, 8)}...
+                      </td>
+                      <td className="px-2 py-2 text-muted-foreground truncate max-w-[120px]">{shortProjectName(s.projectKey)}</td>
+                      <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">{s.lastTs ? relativeTime(s.lastTs) : "-"}</td>
+                      <td className="px-2 py-2 font-mono text-red-400">{s.toolErrors}</td>
+                      <td className="px-2 py-2 font-mono text-amber-400">{formatUsd(s.estimatedCostUsd ?? 0)}</td>
+                      <td className="px-2 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {(s.healthReasons || []).map(reason => (
+                            <span key={reason} className={`inline-block text-[10px] px-1.5 py-0.5 rounded-full ${reasonPillColor(reason)}`}>
+                              {reason}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

@@ -347,6 +347,9 @@ function runFullScan(sessions: SessionData[]): void {
     const healthWithReasons: SessionHealth = {
       ...result.health,
       healthReasons: reasons,
+      projectKey: session.projectKey || undefined,
+      lastTs: session.lastTs || undefined,
+      estimatedCostUsd: result.cost.estimatedCostUsd,
     };
     allHealth.push(healthWithReasons);
   }
