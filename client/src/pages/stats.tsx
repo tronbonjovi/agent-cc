@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
 import { NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel, DecisionLogPanel, WorkflowConfigPanel, WeeklyDigestPanel } from "@/components/session-analytics-panel";
+import ChartsTab from "@/components/analytics/charts-tab";
 
 // ---- Types ----
 
@@ -831,11 +832,7 @@ export default function Stats() {
         </TabsContent>
 
         <TabsContent value="charts" className="mt-4">
-          <div className="text-center py-12 text-muted-foreground">
-            <BarChart3 className="h-10 w-10 mx-auto mb-3 opacity-20" />
-            <p className="text-sm font-medium">Charts — Coming soon</p>
-            <p className="text-xs mt-1">Time-series visualizations for cost, sessions, tokens, and velocity.</p>
-          </div>
+          <ChartsTab />
         </TabsContent>
       </Tabs>
     </PageContainer>

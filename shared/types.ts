@@ -511,6 +511,7 @@ export interface SessionHealth {
   retries: number;
   totalToolCalls: number;
   healthScore: "good" | "fair" | "poor";
+  healthReasons?: string[];
 }
 
 export interface HealthAnalytics {

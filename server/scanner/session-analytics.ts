@@ -9,10 +9,84 @@ import { getPricing, computeCost } from "./pricing";
 // Alias for backward compat within this file
 const calcCost = computeCost;
 
+// Default context window size for models (tokens)
+const DEFAULT_CONTEXT_WINDOW = 200000;
+
+/** Input data for computing health reason tags */
+export interface HealthReasonInput {
+  toolErrors: number;
+  retries: number;
+  totalToolCalls: number;
+  messageCount: number;
+  estimatedCostUsd: number;
+  totalTokens: number;
+  maxContextTokens: number;
+  messageTimestamps: string[];
+  allSessionCosts: number[];
+}
+
+/**
+ * Compute health reason tags for a session.
+ * A session can have multiple reasons (they're tags, not categories).
+ * Healthy sessions get an empty array.
+ */
+export function computeHealthReasons(input: HealthReasonInput): string[] {
+  const reasons: string[] = [];
+
+  // "high error rate" — error count > 10% of messages
+  if (input.messageCount > 0 && input.toolErrors / input.messageCount > 0.1) {
+    reasons.push("high error rate");
+  }
+
+  // "excessive retries" — retries above threshold (same as health score "poor" threshold)
+  if (input.retries > 8) {
+    reasons.push("excessive retries");
+  }
+
+  // "context overflow" — token usage >= 80% of context limit
+  if (input.maxContextTokens > 0 && input.totalTokens / input.maxContextTokens >= 0.8) {
+    reasons.push("context overflow");
+  }
+
+  // "long idle gaps" — any gap > 5 minutes between consecutive messages
+  if (input.messageTimestamps.length >= 2) {
+    const sorted = input.messageTimestamps
+      .map(ts => new Date(ts).getTime())
+      .filter(t => !isNaN(t))
+      .sort((a, b) => a - b);
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] - sorted[i - 1] > FIVE_MINUTES) {
+        reasons.push("long idle gaps");
+        break;
+      }
+    }
+  }
+
+  // "high cost" — session cost above 90th percentile
+  if (input.allSessionCosts.length > 0 && input.estimatedCostUsd > 0) {
+    const sortedCosts = [...input.allSessionCosts].sort((a, b) => a - b);
+    const p90Index = Math.floor(sortedCosts.length * 0.9);
+    const p90Value = sortedCosts[Math.min(p90Index, sortedCosts.length - 1)];
+    if (input.estimatedCostUsd > p90Value) {
+      reasons.push("high cost");
+    }
+  }
+
+  // "short session" — fewer than 3 messages
+  if (input.messageCount < 3) {
+    reasons.push("short session");
+  }
+
+  return reasons;
+}
+
 interface RawAnalytics {
   cost: SessionCostData;
   files: Map<string, { read: number; write: number; edit: number; lastTs: string; sessions: Set<string> }>;
   health: SessionHealth;
+  messageTimestamps: string[];
+  totalTokens: number;
 }
 
 /** Scan a single session JSONL for cost, file ops, and health data */
@@ -29,6 +103,7 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
   let totalOutput = 0;
   let totalCacheRead = 0;
   let totalCacheCreation = 0;
+  const messageTimestamps: string[] = [];
 
   try {
     const content = fs.readFileSync(session.filePath, "utf-8");
@@ -44,6 +119,11 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
       try {
         const record = JSON.parse(trimmed);
         const ts = record.timestamp || "";
+
+        // Collect timestamps for idle gap detection
+        if (ts && (record.type === "user" || record.type === "assistant")) {
+          messageTimestamps.push(ts);
+        }
 
         if (record.type === "assistant") {
           const msg = record.message;
@@ -147,6 +227,8 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
     filesWithSession.set(fp, { ...ops, sessions: new Set([session.id]) });
   });
 
+  const totalTokens = totalInput + totalOutput + totalCacheRead + totalCacheCreation;
+
   return {
     cost: {
       sessionId: session.id,
@@ -166,6 +248,8 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
       totalToolCalls,
       healthScore,
     },
+    messageTimestamps,
+    totalTokens,
   };
 }
 
@@ -191,6 +275,9 @@ function runFullScan(sessions: SessionData[]): void {
   const allHealth: SessionHealth[] = [];
   const costMap = new Map<string, SessionCostData>();
 
+  // Collect raw results for health reason second pass
+  const rawResults: Array<{ session: SessionData; result: RawAnalytics }> = [];
+
   // Project breakdown
   const byProject: Record<string, { cost: number; sessions: number; tokens: number }> = {};
   const byDay: Record<string, { cost: number; sessions: number; tokens: number }> = {};
@@ -202,7 +289,7 @@ function runFullScan(sessions: SessionData[]): void {
 
     allCosts.push(result.cost);
     costMap.set(session.id, result.cost);
-    allHealth.push(result.health);
+    rawResults.push({ session, result });
 
     // Merge file ops
     result.files.forEach((ops, fp) => {
@@ -241,6 +328,27 @@ function runFullScan(sessions: SessionData[]): void {
       byModel[model].tokens += data.input + data.output;
       byModel[model].sessions++;
     }
+  }
+
+  // Second pass: compute health reasons now that we have all session costs for percentile
+  const allSessionCosts = allCosts.map(c => c.estimatedCostUsd);
+  for (const { session, result } of rawResults) {
+    const reasons = computeHealthReasons({
+      toolErrors: result.health.toolErrors,
+      retries: result.health.retries,
+      totalToolCalls: result.health.totalToolCalls,
+      messageCount: session.messageCount,
+      estimatedCostUsd: result.cost.estimatedCostUsd,
+      totalTokens: result.totalTokens,
+      maxContextTokens: DEFAULT_CONTEXT_WINDOW,
+      messageTimestamps: result.messageTimestamps,
+      allSessionCosts,
+    });
+    const healthWithReasons: SessionHealth = {
+      ...result.health,
+      healthReasons: reasons,
+    };
+    allHealth.push(healthWithReasons);
   }
 
   const durationMs = Math.round(performance.now() - start);

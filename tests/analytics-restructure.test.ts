@@ -49,8 +49,8 @@ describe("analytics tab restructure — stats.tsx", () => {
     expect(src).toMatch(/<ActivityTab/);
   });
 
-  it("Charts tab has a placeholder with coming soon message", () => {
-    expect(src).toMatch(/Charts.*[Cc]oming soon/);
+  it("Charts tab renders ChartsTab component", () => {
+    expect(src).toMatch(/<ChartsTab/);
   });
 
   it("imports NerveCenterPanel from session-analytics-panel", () => {
