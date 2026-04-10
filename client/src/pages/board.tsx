@@ -132,7 +132,7 @@ export default function BoardPage() {
         {/* Zone 1: Projects sidebar */}
         {isLarge ? (
           <>
-            <div style={{ width: leftResize.width }} className="shrink-0 overflow-hidden">
+            <div style={{ width: leftResize.width }} className="shrink-0 overflow-hidden h-full">
               <ProjectZone
                 projects={boardProjects}
                 onProjectClick={handleProjectClick}
@@ -257,7 +257,7 @@ export default function BoardPage() {
         {isLarge && (
           <>
             <ResizeHandle onMouseDown={rightResize.onMouseDown} side="left" />
-            <div style={{ width: rightResize.width }} className="shrink-0 overflow-hidden">
+            <div style={{ width: rightResize.width }} className="shrink-0 overflow-hidden h-full">
               <CompletedMilestonesZone milestones={board?.milestones || []} completedTasks={board?.completedTasks || []} />
             </div>
           </>
