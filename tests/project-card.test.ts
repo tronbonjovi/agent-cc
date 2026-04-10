@@ -88,17 +88,13 @@ describe("ProjectCard component structure", () => {
     expect(source).toContain("project.name");
   });
 
-  it("shows 'current' badge when isCurrent is true", () => {
-    // Should conditionally render a current badge
-    expect(source).toContain("project.isCurrent");
-    expect(source).toContain("current");
+  it("does not render a Current badge (isCurrent removed)", () => {
+    expect(source).not.toContain("isCurrent");
+    expect(source).not.toMatch(/current\s*<\/span>/);
   });
 
-  it("hides 'current' badge when isCurrent is false", () => {
-    // The current badge should be conditional, not always rendered
-    // Verify it uses a conditional pattern (&&, ternary, or similar)
-    const conditionalPattern = /project\.isCurrent\s*&&|project\.isCurrent\s*\?/;
-    expect(source).toMatch(conditionalPattern);
+  it("ProjectCardData interface does not have isCurrent field", () => {
+    expect(source).not.toMatch(/isCurrent/);
   });
 
   it("shows milestone and task counts", () => {

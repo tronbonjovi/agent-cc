@@ -202,10 +202,7 @@ export function useBoardProjects(): ProjectCardData[] {
   return useMemo(() => {
     if (!projects || !board) return [];
 
-    const boardProjectIds = board.projects.map((bp) => bp.id);
-
     return projects.map((p) => {
-      const isCurrent = boardProjectIds.length > 0 && boardProjectIds[0] === p.id;
       const projectMilestones = board.milestones.filter((m) => m.project === p.id);
       const projectTasks = board.tasks.filter((t) => t.project === p.id);
       const doneTasks = projectTasks.filter((t) => t.column === "done").length;
@@ -234,7 +231,6 @@ export function useBoardProjects(): ProjectCardData[] {
         taskCount: projectTasks.length,
         doneTasks,
         inProgressTasks,
-        isCurrent,
         milestones: milestoneDetails,
       };
     });

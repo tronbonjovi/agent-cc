@@ -13,15 +13,11 @@ const HOOKS_PATH = path.resolve(__dirname, "../client/src/hooks/use-projects.ts"
 describe("project popout delete button — source-level assertions", () => {
   const popoutSrc = fs.readFileSync(POPOUT_PATH, "utf-8");
 
-  it("delete button hidden for current project (isCurrent guard)", () => {
-    // The conditional must check !project.isCurrent before rendering delete
-    expect(popoutSrc).toMatch(/!project\.isCurrent/);
-  });
-
-  it("delete button visible for non-current projects (same isCurrent guard)", () => {
-    // The guard `!project.isCurrent` means non-current projects show the button
-    // Verify the delete button is inside this conditional
-    expect(popoutSrc).toMatch(/!project\.isCurrent[\s\S]*?Remove/);
+  it("delete button is always visible (no isCurrent guard)", () => {
+    // isCurrent logic was removed — all projects are deletable
+    expect(popoutSrc).not.toContain("isCurrent");
+    // Delete/Remove button should be unconditionally rendered
+    expect(popoutSrc).toContain("Remove");
   });
 
   it("imports useDeleteProject from hooks", () => {

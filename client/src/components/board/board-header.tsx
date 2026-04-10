@@ -1,24 +1,19 @@
 // client/src/components/board/board-header.tsx
 
-import { BoardFilters } from "./board-filters";
-import type { BoardStats, BoardFilter, ProjectMeta, MilestoneMeta } from "@shared/board-types";
+import type { BoardStats } from "@shared/board-types";
 
 interface BoardHeaderProps {
   stats?: BoardStats;
-  filter: BoardFilter;
-  onFilterChange: (filter: BoardFilter) => void;
-  projects: ProjectMeta[];
-  milestones: MilestoneMeta[];
   sseConnected: boolean;
 }
 
-export function BoardHeader({ stats, filter, onFilterChange, projects, milestones, sseConnected }: BoardHeaderProps) {
+export function BoardHeader({ stats, sseConnected }: BoardHeaderProps) {
   return (
-    <div className="px-5 py-3 border-b space-y-2.5">
+    <div className="px-5 py-3 border-b">
       {/* Title row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Board</h1>
+          <h1 className="text-lg font-semibold">Project Board</h1>
           {!sseConnected && (
             <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">
               Reconnecting...
@@ -41,13 +36,6 @@ export function BoardHeader({ stats, filter, onFilterChange, projects, milestone
           </div>
         )}
       </div>
-
-      {/* Filters */}
-      <BoardFilters
-        filter={filter}
-        onFilterChange={onFilterChange}
-        milestones={milestones}
-      />
     </div>
   );
 }

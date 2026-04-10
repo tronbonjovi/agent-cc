@@ -29,9 +29,6 @@ function mapProjectsToCards(
   tasks: BoardTask[],
 ): ProjectCardData[] {
   return projects.map((p) => {
-    const boardProjectIds = boardProjects.map((bp) => bp.id);
-    const isCurrent = boardProjectIds.length > 0 && boardProjectIds[0] === p.id;
-
     // Map entity health to card health
     const healthMap: Record<string, ProjectCardData["health"]> = {
       ok: "healthy",
@@ -69,7 +66,6 @@ function mapProjectsToCards(
       taskCount: projectTasks.length,
       doneTasks,
       inProgressTasks,
-      isCurrent,
       milestones: milestoneDetails,
     };
   });
@@ -146,7 +142,6 @@ describe("useBoardProjects — mapping logic", () => {
       taskCount: 3,
       doneTasks: 1,
       inProgressTasks: 1,
-      isCurrent: true,
       milestones: [
         { id: "m1", title: "Milestone 1", color: "#3b82f6", totalTasks: 3, doneTasks: 2 },
         { id: "m2", title: "Milestone 2", color: "#10b981", totalTasks: 2, doneTasks: 2 },
@@ -198,10 +193,10 @@ describe("useBoardProjects — mapping logic", () => {
     expect(result[1].totalCost).toBe(1.50); // p2 has a task with $1.50 session
   });
 
-  it("marks first board project as current", () => {
+  it("does not include isCurrent in project card data", () => {
     const result = mapProjectsToCards(projects, boardProjects, milestones, tasks);
-    expect(result[0].isCurrent).toBe(true);
-    expect(result[1].isCurrent).toBe(false);
+    expect(result[0]).not.toHaveProperty("isCurrent");
+    expect(result[1]).not.toHaveProperty("isCurrent");
   });
 
   it("handles empty inputs gracefully", () => {
@@ -301,6 +296,12 @@ describe("workspace layout — board.tsx structure", () => {
     expect(boardSource).toContain("wouter");
   });
 
+  it("centers the kanban zone (Zone 2) with justify-center", () => {
+    expect(boardSource).toMatch(/Zone 2/);
+    // The kanban columns container should use justify-center for centering
+    expect(boardSource).toContain("justify-center");
+  });
+
   it("preserves existing board functionality", () => {
     // SSE connection
     expect(boardSource).toContain("useBoardEvents");
@@ -352,19 +353,18 @@ describe("cross-zone integration — two-zone workspace", () => {
     expect(boardSource).not.toContain("ArchivedMilestone");
   });
 
-  it("has project popout state management for non-current projects", () => {
+  it("has project popout state management", () => {
     expect(boardSource).toContain("selectedProject");
     expect(boardSource).toContain("setSelectedProject");
     expect(boardSource).toContain("projectAnchorRect");
     expect(boardSource).toContain("setProjectAnchorRect");
   });
 
-  it("navigates to detail page for current project clicks", () => {
-    expect(boardSource).toContain("isCurrent");
-    expect(boardSource).toMatch(/setLocation\(`\/projects\/\$\{project\.id\}`\)/);
+  it("does not use isCurrent logic", () => {
+    expect(boardSource).not.toContain("isCurrent");
   });
 
-  it("shows floating popout for non-current project clicks", () => {
+  it("shows floating popout for project clicks", () => {
     expect(boardSource).toContain("<ProjectPopout");
     expect(boardSource).toContain("selectedProject && projectAnchorRect");
   });
