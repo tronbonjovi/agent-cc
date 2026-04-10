@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export type EntityCardStatus = "installed" | "saved" | "available";
 export type EntityCardHealth = "healthy" | "degraded" | "error";
+export type EntityCardVariant = "card" | "row";
 
 export interface EntityCardAction {
   label: string;
@@ -23,6 +24,7 @@ export interface EntityCardProps {
   tags?: string[];
   actions?: EntityCardAction[];
   onClick?: () => void;
+  variant?: EntityCardVariant;
 }
 
 // --- Exported utility functions (tested independently) ---
@@ -64,6 +66,28 @@ export function healthDotClass(health: EntityCardHealth | undefined): string | n
   }
 }
 
+/** Return layout/style classes per variant */
+export function cardVariantClasses(variant: EntityCardVariant | undefined): {
+  container: string;
+  layout: string;
+  description: string;
+} {
+  const v = variant ?? "card";
+  if (v === "row") {
+    return {
+      container: "px-2 py-1.5 rounded-sm border",
+      layout: "flex flex-row items-center gap-1.5",
+      description: "", // hidden in row mode
+    };
+  }
+  // card (default) — compacted from original
+  return {
+    container: "p-2 rounded-md border",
+    layout: "flex flex-col",
+    description: "mt-1 text-[11px] text-muted-foreground line-clamp-1",
+  };
+}
+
 // --- Component ---
 
 export function EntityCard({
@@ -75,52 +99,105 @@ export function EntityCard({
   tags,
   actions,
   onClick,
+  variant,
 }: EntityCardProps) {
   const isClickable = !!onClick;
   const dotClass = healthDotClass(health);
+  const v = variant ?? "card";
+  const classes = cardVariantClasses(v);
 
+  if (v === "row") {
+    // Row variant: single horizontal line — icon, name, health, status, actions
+    return (
+      <div
+        onClick={onClick}
+        className={`bg-card ${classes.container} transition-all ${
+          isClickable ? "cursor-pointer hover:border-foreground/20 hover:bg-muted/30" : ""
+        }`}
+      >
+        <div className={classes.layout}>
+          {icon && <span className="flex-shrink-0 text-muted-foreground">{icon}</span>}
+          <span className="text-xs font-medium truncate flex-1 min-w-0">{name}</span>
+          {dotClass && (
+            <span
+              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotClass}`}
+              title={health}
+            />
+          )}
+          {status && (
+            <Badge
+              variant="outline"
+              className={`text-[9px] leading-none px-1 py-0 ${statusBadgeClass(status)}`}
+            >
+              {statusBadgeLabel(status)}
+            </Badge>
+          )}
+          {actions && actions.length > 0 && (
+            <>
+              {actions.map((action) => (
+                <Button
+                  key={action.label}
+                  variant={action.variant ?? "ghost"}
+                  size="sm"
+                  className="h-5 px-1.5 text-[10px]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    action.onClick();
+                  }}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Card variant (default) — compacted
   return (
     <div
       onClick={onClick}
-      className={`bg-card border rounded-md p-3 transition-all ${
+      className={`bg-card ${classes.container} transition-all ${
         isClickable ? "cursor-pointer hover:border-foreground/20 hover:shadow-sm" : ""
       }`}
     >
       {/* Row 1: Icon + name + status badge + health dot */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {icon && <span className="flex-shrink-0 text-muted-foreground">{icon}</span>}
-        <span className="text-sm font-medium truncate flex-1">{name}</span>
+        <span className="text-xs font-medium truncate flex-1">{name}</span>
         {dotClass && (
           <span
-            className={`w-2 h-2 rounded-full flex-shrink-0 ${dotClass}`}
+            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotClass}`}
             title={health}
           />
         )}
         {status && (
           <Badge
             variant="outline"
-            className={`text-[9px] leading-none px-1.5 py-0.5 ${statusBadgeClass(status)}`}
+            className={`text-[9px] leading-none px-1 py-0 ${statusBadgeClass(status)}`}
           >
             {statusBadgeLabel(status)}
           </Badge>
         )}
       </div>
 
-      {/* Row 2: Description */}
+      {/* Row 2: Description — single line clamp */}
       {description && (
-        <div className="mt-1.5 text-[12px] text-muted-foreground line-clamp-2">
+        <div className={classes.description}>
           {description}
         </div>
       )}
 
       {/* Row 3: Tags */}
       {tags && tags.length > 0 && (
-        <div className="flex items-center gap-1 mt-2 flex-wrap">
+        <div className="flex items-center gap-0.5 mt-1 flex-wrap">
           {tags.map((tag) => (
             <Badge
               key={tag}
               variant="outline"
-              className="text-[9px] leading-none px-1.5 py-0.5 text-muted-foreground"
+              className="text-[9px] leading-none px-1 py-0 text-muted-foreground"
             >
               {tag}
             </Badge>
@@ -130,13 +207,13 @@ export function EntityCard({
 
       {/* Row 4: Actions */}
       {actions && actions.length > 0 && (
-        <div className="flex items-center justify-end gap-1.5 mt-2">
+        <div className="flex items-center justify-end gap-1 mt-1">
           {actions.map((action) => (
             <Button
               key={action.label}
               variant={action.variant ?? "ghost"}
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-5 px-1.5 text-[10px]"
               onClick={(e) => {
                 e.stopPropagation();
                 action.onClick();
