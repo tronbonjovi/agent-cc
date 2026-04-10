@@ -97,18 +97,13 @@ describe("Internal links updated to Library tabs", () => {
     expect(source).toContain("/library?tab=plugins");
   });
 
-  it("graph navigation uses /library?tab= routes", () => {
+  it("graph.tsx was removed (no navigation to check)", () => {
     const graphPath = path.resolve(
       __dirname,
       "../client/src/pages/graph.tsx"
     );
-    const source = fs.readFileSync(graphPath, "utf-8");
-    expect(source).not.toMatch(/setLocation\(["']\/mcps["']\)/);
-    expect(source).not.toMatch(/setLocation\(["']\/skills["']\)/);
-    expect(source).not.toMatch(/setLocation\(["']\/plugins["']\)/);
-    expect(source).toContain("/library?tab=mcps");
-    expect(source).toContain("/library?tab=skills");
-    expect(source).toContain("/library?tab=plugins");
+    // graph.tsx was deleted in analytics-restructure-task003
+    expect(fs.existsSync(graphPath)).toBe(false);
   });
 
   it("markdown-edit back link uses /library?tab=editor", () => {

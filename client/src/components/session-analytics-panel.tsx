@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useFileTimeline, useNerveCenter, useBashKnowledge, useBashSearch, useDecisions, useProjectDashboards, useWeeklyDigest, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows } from "@/hooks/use-sessions";
+import { useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useFileTimeline, useNerveCenter, useBashKnowledge, useBashSearch, useDecisions, useWeeklyDigest, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows } from "@/hooks/use-sessions";
 import { useAppSettings } from "@/hooks/use-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   DollarSign, FileText, Activity, Archive,
-  FolderKanban, Calendar, Settings,
+  Calendar, Settings,
   Plus, Play, BookOpen,
   Server, TerminalSquare, Lightbulb,
   X, AlertTriangle, Check, Copy, Trash2, Loader2,
@@ -28,9 +28,6 @@ function formatTokens(n: number): string {
 const ANALYTICS_TABS = [
   { id: "nerve-center", label: "Nerve Center" },
   { id: "usage", label: "Usage Analytics" },
-  { id: "projects", label: "Projects" },
-  { id: "prompts", label: "Prompts" },
-  { id: "bash", label: "Bash KB" },
 ] as const;
 
 type AnalyticsTabId = typeof ANALYTICS_TABS[number]["id"];
@@ -177,11 +174,6 @@ export function SessionAnalyticsTab() {
         </div>
       )}
 
-      {analyticsTab === "projects" && <ProjectDashboardPanel />}
-
-      {analyticsTab === "prompts" && <PromptLibraryPanel />}
-
-      {analyticsTab === "bash" && <BashKnowledgePanel />}
     </div>
   );
 }
@@ -450,52 +442,6 @@ export function DecisionLogPanel() {
       {decisions && decisions.length === 0 && !decisionSearch && (
         <p className="text-xs text-muted-foreground">No decisions recorded yet.</p>
       )}
-    </div>
-  );
-}
-
-function ProjectDashboardPanel() {
-  const { data } = useProjectDashboards();
-  if (!data || data.projects.length === 0) return null;
-
-  return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-medium flex items-center gap-2">
-        <FolderKanban className="h-4 w-4 text-cyan-400" /> Project Dashboards
-        <span className="text-[11px] text-muted-foreground font-normal">({data.projects.length} projects)</span>
-      </h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {data.projects.map(p => (
-          <div key={p.projectKey} className="rounded-xl border bg-card p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium font-mono truncate">{p.projectPath.split("/").pop() || p.projectKey}</span>
-              <span className="text-sm font-mono text-green-400">{formatUsd(p.totalCost)}</span>
-            </div>
-            <div className="flex gap-3 text-[11px] text-muted-foreground">
-              <span>{p.totalSessions} sessions</span>
-              <span>{p.totalMessages} msgs</span>
-              <span>{formatBytes(p.totalSize)}</span>
-            </div>
-            <div className="flex gap-1">
-              <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-green-500/20 text-green-400">{p.healthBreakdown.good} good</Badge>
-              {p.healthBreakdown.fair > 0 && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/20 text-amber-400">{p.healthBreakdown.fair} fair</Badge>}
-              {p.healthBreakdown.poor > 0 && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-red-500/20 text-red-400">{p.healthBreakdown.poor} poor</Badge>}
-            </div>
-            {p.summaryTopics.length > 0 && (
-              <div className="flex gap-1 flex-wrap">
-                {p.summaryTopics.slice(0, 5).map(t => (
-                  <Badge key={t} variant="outline" className="text-[9px] px-1.5 py-0 border-purple-500/20 text-purple-300/70">{t}</Badge>
-                ))}
-              </div>
-            )}
-            {p.topFiles.length > 0 && (
-              <div className="text-[11px] text-muted-foreground/60">
-                Top files: {p.topFiles.map(f => `${f.fileName} (${f.touchCount}x)`).join(", ")}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // tests/graph-analytics-move.test.ts
-// Tests for moving Graph page into the Analytics page as a tab
+// Tests for Graph page removal from Analytics
+// (graph.tsx deleted in analytics-restructure-task003, @xyflow removed from deps)
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
@@ -9,28 +10,23 @@ const APP_PATH = path.resolve(__dirname, "../client/src/App.tsx");
 const GRAPH_PATH = path.resolve(__dirname, "../client/src/pages/graph.tsx");
 const LAYOUT_PATH = path.resolve(__dirname, "../client/src/components/layout.tsx");
 const SHORTCUTS_PATH = path.resolve(__dirname, "../client/src/hooks/use-keyboard-shortcuts.ts");
+const PKG_PATH = path.resolve(__dirname, "../package.json");
 
-describe("Graph tab removed from Analytics page (restructured)", () => {
+describe("Graph fully removed from Analytics page", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("does not have a Graph tab trigger (removed in analytics restructure)", () => {
+  it("does not have a Graph tab trigger", () => {
     expect(src).not.toMatch(/TabsTrigger.*value="graph"/);
   });
 
-  it("still imports GraphPage lazily (code not deleted yet — cleanup in task003)", () => {
-    // GraphPage import remains but is no longer rendered in a tab
-    expect(src).toMatch(/GraphPage/);
+  it("does not import GraphPage", () => {
+    expect(src).not.toMatch(/GraphPage/);
   });
 });
 
-describe("graph.tsx still exists as a component", () => {
-  it("graph.tsx file exists", () => {
-    expect(fs.existsSync(GRAPH_PATH)).toBe(true);
-  });
-
-  it("exports GraphPage as default export", () => {
-    const src = fs.readFileSync(GRAPH_PATH, "utf-8");
-    expect(src).toMatch(/export\s+default\s+function\s+GraphPage/);
+describe("graph.tsx deleted", () => {
+  it("graph.tsx file no longer exists", () => {
+    expect(fs.existsSync(GRAPH_PATH)).toBe(false);
   });
 });
 
@@ -42,7 +38,6 @@ describe("/graph route removed from App.tsx", () => {
   });
 
   it("does not lazy-import GraphPage", () => {
-    // GraphPage should no longer be lazy-loaded in App.tsx since it's embedded
     expect(src).not.toMatch(/lazy\(\(\)\s*=>\s*import\(.*graph.*\)\)/);
   });
 });
@@ -55,11 +50,10 @@ describe("nav updated for graph removal", () => {
   });
 });
 
-describe("keyboard shortcut updated", () => {
-  const shortcutSrc = fs.readFileSync(SHORTCUTS_PATH, "utf-8");
+describe("@xyflow removed from dependencies", () => {
+  const pkg = JSON.parse(fs.readFileSync(PKG_PATH, "utf-8"));
 
-  it("g+g shortcut points to /analytics?tab=graph instead of /graph", () => {
-    expect(shortcutSrc).toMatch(/g:.*\/analytics\?tab=graph/);
-    expect(shortcutSrc).not.toMatch(/g:\s*"\/graph"/);
+  it("does not have @xyflow/react in dependencies", () => {
+    expect(pkg.dependencies?.["@xyflow/react"]).toBeUndefined();
   });
 });

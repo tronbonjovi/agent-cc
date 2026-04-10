@@ -22,7 +22,7 @@ import {
 import type { SessionData, DeepSearchMatch } from "@shared/types";
 import { formatBytes, relativeTime as _relativeTime } from "@/lib/utils";
 import { EmptyState } from "@/components/empty-state";
-import { MessagesPanel as MessagesTabContent, PromptsPanel as PromptsTabContent } from "@/pages/message-history";
+import { MessagesPanel as MessagesTabContent } from "@/pages/message-history";
 
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -75,7 +75,7 @@ export default function Sessions() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: "single" | "bulk" | "all"; id?: string } | null>(null);
   const [searchMode, setSearchMode] = useState<"titles" | "deep">("titles");
-  const [activeTab, setActiveTab] = useState<"sessions" | "messages" | "prompts">("sessions");
+  const [activeTab, setActiveTab] = useState<"sessions" | "messages">("sessions");
 
   // Read project filter and highlight from URL
   const urlParams = new URLSearchParams(window.location.search);
@@ -264,23 +264,11 @@ export default function Sessions() {
         >
           <BookOpen className="h-3.5 w-3.5 inline mr-1.5" />Messages
         </button>
-        <button
-          onClick={() => setActiveTab("prompts")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap flex-shrink-0 ${
-            activeTab === "prompts" ? "border-amber-500 text-amber-400" : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Sparkles className="h-3.5 w-3.5 inline mr-1.5" />Prompts
-        </button>
       </div>
 
       {activeTab === "messages" ? (
         <div className="flex-1 min-h-0" style={{ height: "calc(100vh - 220px)" }}>
           <MessagesTabContent />
-        </div>
-      ) : activeTab === "prompts" ? (
-        <div className="flex-1 min-h-0" style={{ height: "calc(100vh - 220px)" }}>
-          <PromptsTabContent />
         </div>
       ) : (
       <>

@@ -1,5 +1,6 @@
 // tests/sessions-tabs.test.ts
-// Tests for sessions page tab restructure: Sessions / Messages / Prompts
+// Tests for sessions page tab structure: Sessions / Messages
+// (Prompts tab removed — moved to Library in analytics-restructure-task003)
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
@@ -9,14 +10,14 @@ const SESSIONS_PATH = path.resolve(__dirname, "../client/src/pages/sessions.tsx"
 describe("sessions page tab structure", () => {
   const src = fs.readFileSync(SESSIONS_PATH, "utf-8");
 
-  it("has three tabs: sessions, messages, prompts", () => {
-    // The activeTab state should include all three tab types
-    expect(src).toMatch(/"sessions"\s*\|\s*"messages"\s*\|\s*"prompts"/);
+  it("has two tabs: sessions, messages", () => {
+    // The activeTab state should include both tab types
+    expect(src).toMatch(/"sessions"\s*\|\s*"messages"/);
   });
 
   it("defaults to sessions tab", () => {
     // The initial state should be "sessions"
-    expect(src).toMatch(/useState<.*"sessions".*"messages".*"prompts".*>\("sessions"\)/s);
+    expect(src).toMatch(/useState<.*"sessions".*"messages".*>\("sessions"\)/s);
   });
 
   it("does not have an analytics tab button", () => {
@@ -28,8 +29,8 @@ describe("sessions page tab structure", () => {
     expect(src).toMatch(/setActiveTab\(["']messages["']\)/);
   });
 
-  it("has a Prompts tab button", () => {
-    expect(src).toMatch(/setActiveTab\(["']prompts["']\)/);
+  it("does not have a Prompts tab button (moved to Library)", () => {
+    expect(src).not.toMatch(/setActiveTab\(["']prompts["']\)/);
   });
 
   it("imports MessageHistory components from message-history page", () => {
@@ -39,11 +40,6 @@ describe("sessions page tab structure", () => {
   it("renders MessagesPanel when messages tab is active", () => {
     expect(src).toMatch(/activeTab\s*===\s*["']messages["']/);
     expect(src).toMatch(/<MessagesTabContent/);
-  });
-
-  it("renders PromptsPanel when prompts tab is active", () => {
-    expect(src).toMatch(/activeTab\s*===\s*["']prompts["']/);
-    expect(src).toMatch(/<PromptsTabContent/);
   });
 
   it("does not render AnalyticsPanel", () => {
