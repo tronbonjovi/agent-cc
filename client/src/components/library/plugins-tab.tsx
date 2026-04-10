@@ -101,7 +101,7 @@ export default function PluginsTab() {
                 <p className="text-xs text-muted-foreground/60 uppercase tracking-wider font-medium flex items-center gap-1.5 mb-2">
                   <Store className="h-3 w-3" /> Marketplaces
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-card">
                   {marketplaces.map((mkt) => (
                     <EntityCard
                       key={mkt.id}
@@ -118,7 +118,7 @@ export default function PluginsTab() {
             )}
 
             {installed.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                 {installed.map((plugin) => (
                   <EntityCard
                     key={plugin.id}
@@ -162,7 +162,7 @@ export default function PluginsTab() {
           <section>
             <TierHeading icon={Package} label="Saved" count={saved.length} />
             {saved.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                 {saved.map((plugin) => (
                   <EntityCard
                     key={plugin.id}

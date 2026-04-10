@@ -399,7 +399,7 @@ function DefinitionsTab() {
                   )}
                   {!group.description && <div className="mb-3" />}
                   {!isCollapsed && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                       {group.defs.map((def, i) => (
                         <EntityCard
                           key={def.id}
@@ -424,7 +424,7 @@ function DefinitionsTab() {
       <section>
         <TierHeading icon={Package} label="Saved" count={savedDefs.length} />
         {savedDefs.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
             {savedDefs.map((def) => (
               <EntityCard
                 key={def.id}

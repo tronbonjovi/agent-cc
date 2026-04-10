@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { BookOpen, Puzzle, Server, Bot, FileEdit } from "lucide-react";
 import { LIBRARY_TABS, resolveTab, type LibraryTabId } from "@/lib/library-tabs";
+import { PageContainer } from "@/components/page-container";
+import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
 import SkillsTab from "@/components/library/skills-tab";
 import PluginsTab from "@/components/library/plugins-tab";
 import McpsTab from "@/components/library/mcps-tab";
@@ -30,6 +32,8 @@ function setTabInUrl(tab: LibraryTabId) {
 
 export default function Library() {
   const [activeTab, setActiveTab] = useState<LibraryTabId>(getTabFromUrl);
+  const bp = useBreakpoint();
+  const mobile = isMobile(bp);
 
   // Sync URL on tab change
   useEffect(() => {
@@ -37,25 +41,24 @@ export default function Library() {
   }, [activeTab]);
 
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Library</h1>
-
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-border">
+    <PageContainer title="Library">
+      {/* Tab bar — scrollable at md, wraps at sm/xs */}
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 border-b border-border overflow-x-auto whitespace-nowrap scrollbar-thin">
         {LIBRARY_TABS.map((tab) => {
           const TabIcon = TAB_ICONS[tab.id];
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px flex-shrink-0 ${
                 activeTab === tab.id
                   ? "border-blue-500 text-blue-400"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               <TabIcon className="h-3.5 w-3.5 inline mr-1.5" />
-              {tab.label}
+              {!mobile && tab.label}
+              {mobile && tab.label}
             </button>
           );
         })}
@@ -67,6 +70,6 @@ export default function Library() {
       {activeTab === "mcps" && <McpsTab />}
       {activeTab === "agents" && <AgentsTab />}
       {activeTab === "editor" && <FileEditorTab />}
-    </div>
+    </PageContainer>
   );
 }

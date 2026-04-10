@@ -148,11 +148,11 @@ export default function SkillsTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {invocableCount} invocable, {filtered.length} total
         </p>
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search skills..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
@@ -166,7 +166,7 @@ export default function SkillsTab() {
           <section>
             <TierHeading icon={Wand2} label="Installed" count={installed.length} />
             {installed.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                 {installed.map((skill) => renderSkillCard(skill, "installed"))}
               </div>
             ) : (
@@ -196,7 +196,7 @@ export default function SkillsTab() {
           <section>
             <TierHeading icon={Package} label="Saved" count={saved.length} />
             {saved.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                 {saved.map((skill) => renderSkillCard(skill, "saved"))}
               </div>
             ) : (

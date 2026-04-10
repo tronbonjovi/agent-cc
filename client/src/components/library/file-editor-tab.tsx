@@ -350,7 +350,7 @@ function QuickEditDrawer({ fileId, onClose }: { fileId: string | null; onClose: 
 
   return (
     <Sheet open={!!fileId} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="right" className="w-[500px] sm:max-w-[500px] flex flex-col p-0">
+      <SheetContent side="right" className="w-full sm:w-[500px] sm:max-w-[500px] flex flex-col p-0">
         <SheetHeader className="px-6 pt-6 pb-3 border-b border-border/50">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${badgeColor}`}>{file?.data?.category || ""}</Badge>
@@ -785,7 +785,7 @@ export default function FileEditorTab() {
               </div>
               <p className="text-[11px] text-muted-foreground truncate mt-0.5">{display.subtitle}</p>
             </div>
-            <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-shrink-0">
+            <div className="hidden sm:flex items-center gap-3 text-[11px] text-muted-foreground flex-shrink-0">
               <span className={`font-mono tabular-nums ${lineCountColor(lines)}`}>{lines}L</span>
               {data.tokenEstimate && <span className="font-mono tabular-nums opacity-60">~{data.tokenEstimate}t</span>}
               <span className="font-mono tabular-nums flex items-center gap-1" title={file.lastModified ? new Date(file.lastModified).toLocaleString() : ""}>
@@ -811,10 +811,10 @@ export default function FileEditorTab() {
 
   return (
     <div className="space-y-4">
-      {/* Header toolbar */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{filtered.length} files · <kbd className="text-[10px] font-mono opacity-40">n</kbd> new · <kbd className="text-[10px] font-mono opacity-40">/</kbd> search · <kbd className="text-[10px] font-mono opacity-40">shift+click</kbd> select</p>
-        <div className="flex items-center gap-3">
+      {/* Header toolbar — stacks on mobile */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-sm text-muted-foreground">{filtered.length} files · <kbd className="text-[10px] font-mono opacity-40">n</kbd> new · <kbd className="text-[10px] font-mono opacity-40">/</kbd> search · <kbd className="text-[10px] font-mono opacity-40 hidden sm:inline">shift+click</kbd><span className="hidden sm:inline"> select</span></p>
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
           <Button variant="outline" size="sm" onClick={() => setShowCreate(true)} className="gap-1.5"><Plus className="h-3.5 w-3.5" />New File</Button>
           <select value={sortKey} onChange={e => setSortKey(e.target.value)} className="text-xs px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground">
             <option value="name">Name A-Z</option>
@@ -823,7 +823,7 @@ export default function FileEditorTab() {
             <option value="modified">Recently Modified</option>
             <option value="size">Largest Size</option>
           </select>
-          <div className="relative w-64">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search files..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
