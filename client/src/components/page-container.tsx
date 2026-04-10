@@ -35,7 +35,7 @@ export function PageContainer({
         </header>
       )}
       <div
-        className="flex flex-col"
+        className="flex flex-col flex-1 min-h-0"
         style={{ gap: "var(--section-gap)" }}
       >
         {children}
