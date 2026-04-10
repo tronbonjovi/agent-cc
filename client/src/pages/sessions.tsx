@@ -3,6 +3,7 @@ import { useSessions, useSessionDetail, useDeleteSession, useBulkDeleteSessions,
 import { getSessionDisplayName } from "@/lib/session-display-name";
 import { useDebouncedValue } from "@/hooks/use-debounce";
 import { apiRequest } from "@/lib/queryClient";
+import { PageContainer } from "@/components/page-container";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -169,25 +170,22 @@ export default function Sessions() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
+    <PageContainer title="Sessions">
+      {/* Subheader + Search */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Sessions</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {sessions.length} session{sessions.length !== 1 ? "s" : ""}{stats ? `, ${formatBytes(stats.totalSize)}` : ""}
-            </p>
-          </div>
-          <div className="flex items-center gap-0">
-            <div className="relative w-64">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {sessions.length} session{sessions.length !== 1 ? "s" : ""}{stats ? `, ${formatBytes(stats.totalSize)}` : ""}
+          </p>
+          <div className="flex items-center gap-0 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64 sm:flex-initial">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input placeholder={searchMode === "deep" ? "Deep search content..." : "Search sessions..."} value={search} onChange={e => setSearch(e.target.value)} className="pl-9 rounded-r-none" />
             </div>
-            <div className="flex border border-l-0 border-border rounded-r-md overflow-hidden">
+            <div className="flex border border-l-0 border-border rounded-r-md overflow-hidden flex-shrink-0">
               <button
                 onClick={() => setSearchMode("titles")}
-                className={`text-[11px] px-2.5 py-[7px] transition-colors ${
+                className={`text-[11px] px-2.5 py-[7px] transition-colors whitespace-nowrap ${
                   searchMode === "titles" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`}
               >
@@ -195,7 +193,7 @@ export default function Sessions() {
               </button>
               <button
                 onClick={() => setSearchMode("deep")}
-                className={`text-[11px] px-2.5 py-[7px] transition-colors ${
+                className={`text-[11px] px-2.5 py-[7px] transition-colors whitespace-nowrap ${
                   searchMode === "deep" ? "bg-purple-500/10 text-purple-400 font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`}
               >
@@ -207,7 +205,7 @@ export default function Sessions() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setHideEmpty(!hideEmpty)}
-            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors ${
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors whitespace-nowrap ${
               hideEmpty ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -215,7 +213,7 @@ export default function Sessions() {
           </button>
           <button
             onClick={() => setActiveOnly(!activeOnly)}
-            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors ${
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors whitespace-nowrap ${
               activeOnly ? "border-primary/30 bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -248,11 +246,11 @@ export default function Sessions() {
         </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-border">
+      {/* Tab bar — scrollable at narrow widths */}
+      <div className="flex items-center gap-1 border-b border-border overflow-x-auto whitespace-nowrap scrollbar-thin">
         <button
           onClick={() => setActiveTab("sessions")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap flex-shrink-0 ${
             activeTab === "sessions" ? "border-blue-500 text-blue-400" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -260,7 +258,7 @@ export default function Sessions() {
         </button>
         <button
           onClick={() => setActiveTab("messages")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap flex-shrink-0 ${
             activeTab === "messages" ? "border-blue-500 text-blue-400" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -268,7 +266,7 @@ export default function Sessions() {
         </button>
         <button
           onClick={() => setActiveTab("prompts")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap flex-shrink-0 ${
             activeTab === "prompts" ? "border-amber-500 text-amber-400" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -459,7 +457,7 @@ export default function Sessions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -600,8 +598,8 @@ function SessionCard({
             </button>
           )}
 
-          {/* Hover actions */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          {/* Hover actions — hidden on mobile, visible on md+ hover */}
+          <div className="hidden md:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
             {onTogglePin && !s.isPinned && (
               <button
                 onClick={(e) => { e.stopPropagation(); onTogglePin(s.id); }}
@@ -1015,8 +1013,8 @@ function DeepSearchCard({
             </div>
           </div>
 
-          {/* Hover actions */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          {/* Hover actions — hidden on mobile, visible on md+ hover */}
+          <div className="hidden md:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
             <button
               onClick={(e) => onCopyResume(s.id, e)}
               className="p-1.5 rounded hover:bg-green-500/10 transition-colors"

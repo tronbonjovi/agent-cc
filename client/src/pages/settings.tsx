@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAppSettings, useUpdateSettings, useResetSettings } from "@/hooks/use-settings";
 import { useRuntimeConfig, useConfigSettings } from "@/hooks/use-config";
 import { useRescan } from "@/hooks/use-entities";
+import { PageContainer } from "@/components/page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -270,7 +271,7 @@ function GeneralTab() {
                   setNameChanged(e.target.value !== settings.appName);
                 }}
                 maxLength={50}
-                className="max-w-xs"
+                className="w-full sm:max-w-xs"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && nameChanged) handleSaveName();
                 }}
@@ -626,18 +627,10 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <SettingsIcon className="h-6 w-6" />
-            Settings
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            App preferences, scan paths, and configuration files
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageContainer
+      title="Settings"
+      actions={
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
@@ -661,16 +654,18 @@ export default function Settings() {
             Rescan
           </Button>
         </div>
-      </div>
-
+      }
+    >
       <Tabs defaultValue="general">
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="scan-paths">Scan Paths</TabsTrigger>
-          <TabsTrigger value="config-files">
-            Config Files ({configs?.length || 0})
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto whitespace-nowrap scrollbar-thin">
+          <TabsList>
+            <TabsTrigger value="general" className="whitespace-nowrap">General</TabsTrigger>
+            <TabsTrigger value="scan-paths" className="whitespace-nowrap">Scan Paths</TabsTrigger>
+            <TabsTrigger value="config-files" className="whitespace-nowrap">
+              Config Files ({configs?.length || 0})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="general" className="mt-4">
           <GeneralTab />
@@ -684,6 +679,6 @@ export default function Settings() {
           <ConfigFilesTab />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

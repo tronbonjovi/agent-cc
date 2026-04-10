@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { PageContainer } from "@/components/page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -881,23 +882,22 @@ export default function Stats() {
   const defaultTab = new URLSearchParams(window.location.search).get("tab") || "sessions";
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gradient">Analytics</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Sessions, usage, costs, activity, graph, and discovery
-        </p>
-      </div>
+    <PageContainer title="Analytics">
+      <p className="text-sm text-muted-foreground -mt-2">
+        Sessions, usage, costs, activity, graph, and discovery
+      </p>
 
       <Tabs defaultValue={defaultTab}>
-        <TabsList>
-          <TabsTrigger value="sessions">Sessions</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-          <TabsTrigger value="costs">Costs</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="graph">Graph</TabsTrigger>
-          <TabsTrigger value="discover">Discover</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto whitespace-nowrap scrollbar-thin">
+          <TabsList>
+            <TabsTrigger value="sessions" className="whitespace-nowrap">Sessions</TabsTrigger>
+            <TabsTrigger value="usage" className="whitespace-nowrap">Usage</TabsTrigger>
+            <TabsTrigger value="costs" className="whitespace-nowrap">Costs</TabsTrigger>
+            <TabsTrigger value="activity" className="whitespace-nowrap">Activity</TabsTrigger>
+            <TabsTrigger value="graph" className="whitespace-nowrap">Graph</TabsTrigger>
+            <TabsTrigger value="discover" className="whitespace-nowrap">Discover</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="sessions" className="mt-4">
           <SessionAnalyticsTab />
@@ -925,6 +925,6 @@ export default function Stats() {
           <DiscoverTab />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }
