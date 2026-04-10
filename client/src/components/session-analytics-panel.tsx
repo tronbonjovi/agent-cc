@@ -28,27 +28,18 @@ function formatTokens(n: number): string {
 const ANALYTICS_TABS = [
   { id: "nerve-center", label: "Nerve Center" },
   { id: "usage", label: "Usage Analytics" },
-  { id: "files", label: "File Heatmap" },
-  { id: "health", label: "Session Health" },
   { id: "projects", label: "Projects" },
-  { id: "digest", label: "Weekly Digest" },
   { id: "prompts", label: "Prompts" },
-  { id: "workflows", label: "Workflows" },
   { id: "bash", label: "Bash KB" },
-  { id: "decisions", label: "Decisions" },
 ] as const;
 
 type AnalyticsTabId = typeof ANALYTICS_TABS[number]["id"];
 
 export function SessionAnalyticsTab() {
   const { data: costs } = useCostAnalytics();
-  const { data: files } = useFileHeatmap();
-  const { data: health } = useHealthAnalytics();
-  const { data: stale } = useStaleAnalytics();
   const { data: settings } = useAppSettings();
   const billingMode = settings?.billingMode || "auto";
   const isSub = billingMode === "subscription" || billingMode === "auto"; // default to subscription view
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTabId>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -186,121 +177,125 @@ export function SessionAnalyticsTab() {
         </div>
       )}
 
-      {analyticsTab === "files" && (
-        <div className="space-y-6">
-          {files && files.files.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-medium flex items-center gap-2">
-                <FileText className="h-4 w-4 text-orange-400" /> File Heatmap
-                <span className="text-[11px] text-muted-foreground font-normal">({files.totalFiles} files, {files.totalOperations} operations)</span>
-              </h2>
-              <div className="rounded-xl border bg-card p-4">
-                <div className="space-y-1">
-                  {files.files.slice(0, 25).map((f, i) => {
-                    const maxTouch = files.files[0]?.touchCount || 1;
-                    const pct = (f.touchCount / maxTouch) * 100;
-                    return (
-                      <div key={f.filePath} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1 py-0.5" onClick={() => setSelectedFile(selectedFile === f.filePath ? null : f.filePath)}>
-                        <span className="text-muted-foreground/50 w-5 text-right">#{i + 1}</span>
-                        <span className="font-mono text-orange-400/80 hover:text-orange-300 truncate flex-1" title={f.filePath}>{f.fileName}</span>
-                        <div className="w-32 h-3 bg-muted/30 rounded overflow-hidden flex-shrink-0">
-                          <div className="h-full bg-orange-500/40 rounded" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-muted-foreground/60 w-8 text-right">{f.touchCount}</span>
-                        <div className="flex gap-1 w-24 flex-shrink-0">
-                          {f.operations.read > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-500/20 text-blue-400">R:{f.operations.read}</Badge>}
-                          {f.operations.edit > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/20 text-amber-400">E:{f.operations.edit}</Badge>}
-                          {f.operations.write > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-green-500/20 text-green-400">W:{f.operations.write}</Badge>}
-                        </div>
-                        <span className="text-muted-foreground/40 text-[10px] w-12 text-right">{f.sessionCount}s</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-          {selectedFile && <FileTimelinePanel filePath={selectedFile} onClose={() => setSelectedFile(null)} />}
-        </div>
-      )}
-
-      {analyticsTab === "health" && (
-        <div className="space-y-6">
-          {health && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-medium flex items-center gap-2">
-                <Activity className="h-4 w-4 text-red-400" /> Session Health
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <div className="rounded-xl border bg-card p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Good</p>
-                  <p className="text-2xl font-bold font-mono mt-1 text-green-400">{health.goodCount}</p>
-                </div>
-                <div className="rounded-xl border bg-card p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Fair</p>
-                  <p className="text-2xl font-bold font-mono mt-1 text-amber-400">{health.fairCount}</p>
-                </div>
-                <div className="rounded-xl border bg-card p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Poor</p>
-                  <p className="text-2xl font-bold font-mono mt-1 text-red-400">{health.poorCount}</p>
-                </div>
-                <div className="rounded-xl border bg-card p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Errors</p>
-                  <p className="text-2xl font-bold font-mono mt-1">{health.avgToolErrors}</p>
-                </div>
-                <div className="rounded-xl border bg-card p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Retries</p>
-                  <p className="text-2xl font-bold font-mono mt-1">{health.avgRetries}</p>
-                </div>
-              </div>
-              {health.sessions.length > 0 && (
-                <div className="rounded-xl border bg-card p-4">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Problematic Sessions</p>
-                  <div className="space-y-1">
-                    {health.sessions.slice(0, 10).map(h => (
-                      <div key={h.sessionId} className="flex items-center gap-2 text-xs">
-                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${h.healthScore === "poor" ? "border-red-500/30 text-red-400" : "border-amber-500/30 text-amber-400"}`}>
-                          {h.healthScore}
-                        </Badge>
-                        <span className="font-mono text-muted-foreground/60 truncate flex-1">{h.sessionId.slice(0, 8)}...</span>
-                        <span className="text-red-400">{h.toolErrors} errors</span>
-                        <span className="text-amber-400">{h.retries} retries</span>
-                        <span className="text-muted-foreground/50">{h.totalToolCalls} tool calls</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          {stale && (stale.totalStale > 0 || stale.totalEmpty > 0) && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-medium flex items-center gap-2">
-                <Archive className="h-4 w-4 text-amber-400" /> Stale Sessions
-              </h2>
-              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-                <div className="flex items-center gap-4 text-sm">
-                  <span><strong className="text-amber-400">{stale.totalEmpty}</strong> empty sessions</span>
-                  <span><strong className="text-amber-400">{stale.totalStale}</strong> stale sessions (30+ days, &lt;5 msgs)</span>
-                  <span className="text-muted-foreground">Reclaimable: <strong>{formatBytes(stale.reclaimableBytes)}</strong></span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {analyticsTab === "projects" && <ProjectDashboardPanel />}
-
-      {analyticsTab === "digest" && <WeeklyDigestPanel />}
 
       {analyticsTab === "prompts" && <PromptLibraryPanel />}
 
-      {analyticsTab === "workflows" && <WorkflowConfigPanel />}
-
       {analyticsTab === "bash" && <BashKnowledgePanel />}
+    </div>
+  );
+}
 
-      {analyticsTab === "decisions" && <DecisionLogPanel />}
+export function FileHeatmapPanel() {
+  const { data: files } = useFileHeatmap();
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-6">
+      {files && files.files.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <FileText className="h-4 w-4 text-orange-400" /> File Heatmap
+            <span className="text-[11px] text-muted-foreground font-normal">({files.totalFiles} files, {files.totalOperations} operations)</span>
+          </h2>
+          <div className="rounded-xl border bg-card p-4">
+            <div className="space-y-1">
+              {files.files.slice(0, 25).map((f, i) => {
+                const maxTouch = files.files[0]?.touchCount || 1;
+                const pct = (f.touchCount / maxTouch) * 100;
+                return (
+                  <div key={f.filePath} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/30 rounded px-1 -mx-1 py-0.5" onClick={() => setSelectedFile(selectedFile === f.filePath ? null : f.filePath)}>
+                    <span className="text-muted-foreground/50 w-5 text-right">#{i + 1}</span>
+                    <span className="font-mono text-orange-400/80 hover:text-orange-300 truncate flex-1" title={f.filePath}>{f.fileName}</span>
+                    <div className="w-32 h-3 bg-muted/30 rounded overflow-hidden flex-shrink-0">
+                      <div className="h-full bg-orange-500/40 rounded" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-muted-foreground/60 w-8 text-right">{f.touchCount}</span>
+                    <div className="flex gap-1 w-24 flex-shrink-0">
+                      {f.operations.read > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-500/20 text-blue-400">R:{f.operations.read}</Badge>}
+                      {f.operations.edit > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/20 text-amber-400">E:{f.operations.edit}</Badge>}
+                      {f.operations.write > 0 && <Badge variant="outline" className="text-[9px] px-1 py-0 border-green-500/20 text-green-400">W:{f.operations.write}</Badge>}
+                    </div>
+                    <span className="text-muted-foreground/40 text-[10px] w-12 text-right">{f.sessionCount}s</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+      {selectedFile && <FileTimelinePanel filePath={selectedFile} onClose={() => setSelectedFile(null)} />}
+    </div>
+  );
+}
+
+export function SessionHealthPanel() {
+  const { data: health } = useHealthAnalytics();
+  const { data: stale } = useStaleAnalytics();
+
+  return (
+    <div className="space-y-6">
+      {health && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Activity className="h-4 w-4 text-red-400" /> Session Health
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Good</p>
+              <p className="text-2xl font-bold font-mono mt-1 text-green-400">{health.goodCount}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Fair</p>
+              <p className="text-2xl font-bold font-mono mt-1 text-amber-400">{health.fairCount}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Poor</p>
+              <p className="text-2xl font-bold font-mono mt-1 text-red-400">{health.poorCount}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Errors</p>
+              <p className="text-2xl font-bold font-mono mt-1">{health.avgToolErrors}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Avg Retries</p>
+              <p className="text-2xl font-bold font-mono mt-1">{health.avgRetries}</p>
+            </div>
+          </div>
+          {health.sessions.length > 0 && (
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Problematic Sessions</p>
+              <div className="space-y-1">
+                {health.sessions.slice(0, 10).map(h => (
+                  <div key={h.sessionId} className="flex items-center gap-2 text-xs">
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${h.healthScore === "poor" ? "border-red-500/30 text-red-400" : "border-amber-500/30 text-amber-400"}`}>
+                      {h.healthScore}
+                    </Badge>
+                    <span className="font-mono text-muted-foreground/60 truncate flex-1">{h.sessionId.slice(0, 8)}...</span>
+                    <span className="text-red-400">{h.toolErrors} errors</span>
+                    <span className="text-amber-400">{h.retries} retries</span>
+                    <span className="text-muted-foreground/50">{h.totalToolCalls} tool calls</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {stale && (stale.totalStale > 0 || stale.totalEmpty > 0) && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Archive className="h-4 w-4 text-amber-400" /> Stale Sessions
+          </h2>
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+            <div className="flex items-center gap-4 text-sm">
+              <span><strong className="text-amber-400">{stale.totalEmpty}</strong> empty sessions</span>
+              <span><strong className="text-amber-400">{stale.totalStale}</strong> stale sessions (30+ days, &lt;5 msgs)</span>
+              <span className="text-muted-foreground">Reclaimable: <strong>{formatBytes(stale.reclaimableBytes)}</strong></span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -425,7 +420,7 @@ function BashSearchResults({ query }: { query: string }) {
   );
 }
 
-function DecisionLogPanel() {
+export function DecisionLogPanel() {
   const [decisionSearch, setDecisionSearch] = useState("");
   const { data: decisions } = useDecisions(decisionSearch || undefined);
 
@@ -505,7 +500,7 @@ function ProjectDashboardPanel() {
   );
 }
 
-function WeeklyDigestPanel() {
+export function WeeklyDigestPanel() {
   const { data: digest } = useWeeklyDigest();
   if (!digest) return null;
 
@@ -623,7 +618,7 @@ function PromptLibraryPanel() {
   );
 }
 
-function WorkflowConfigPanel() {
+export function WorkflowConfigPanel() {
   const { data: config } = useWorkflowConfig();
   const updateWorkflow = useUpdateWorkflow();
   const runWorkflows = useRunWorkflows();

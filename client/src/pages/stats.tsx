@@ -33,7 +33,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
-import { SessionAnalyticsTab, NerveCenterPanel } from "@/components/session-analytics-panel";
+import { SessionAnalyticsTab, NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel, DecisionLogPanel, WorkflowConfigPanel, WeeklyDigestPanel } from "@/components/session-analytics-panel";
 import { Suspense, lazy } from "react";
 const GraphPage = lazy(() => import("@/pages/graph"));
 
@@ -878,6 +878,68 @@ function DiscoverTab() {
 
 // ---- Main Analytics Page ----
 
+const NERVE_SUBTABS = [
+  { id: "overview", label: "Overview" },
+  { id: "files", label: "File Heatmap" },
+  { id: "health", label: "Session Health" },
+  { id: "decisions", label: "Decisions" },
+  { id: "workflows", label: "Workflows" },
+] as const;
+
+type NerveSubTabId = typeof NERVE_SUBTABS[number]["id"];
+
+function NerveCenterWithSubtabs() {
+  const [nerveSubTab, setNerveSubTab] = useState<NerveSubTabId>("overview");
+  const [digestOpen, setDigestOpen] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      {/* Secondary tab bar */}
+      <div className="flex gap-1 overflow-x-auto pb-2 border-b border-border/50 scrollbar-thin">
+        {NERVE_SUBTABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setNerveSubTab(tab.id)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${
+              nerveSubTab === tab.id
+                ? "bg-primary/20 text-primary border border-primary/30"
+                : "text-muted-foreground hover:bg-accent/30 hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {nerveSubTab === "overview" && (
+        <div className="space-y-4">
+          <NerveCenterPanel />
+          {/* Weekly Digest — collapsible section */}
+          <div className="rounded-xl border bg-card">
+            <button
+              onClick={() => setDigestOpen(!digestOpen)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/30 transition-colors rounded-xl"
+            >
+              <span>Weekly Digest</span>
+              <span className="text-xs text-muted-foreground">{digestOpen ? "collapse" : "expand"}</span>
+            </button>
+            {digestOpen && (
+              <div className="px-4 pb-4">
+                <WeeklyDigestPanel />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {nerveSubTab === "files" && <FileHeatmapPanel />}
+      {nerveSubTab === "health" && <SessionHealthPanel />}
+      {nerveSubTab === "decisions" && <DecisionLogPanel />}
+      {nerveSubTab === "workflows" && <WorkflowConfigPanel />}
+    </div>
+  );
+}
+
 export default function Stats() {
   const defaultTab = new URLSearchParams(window.location.search).get("tab") || "nerve-center";
 
@@ -898,7 +960,7 @@ export default function Stats() {
         </div>
 
         <TabsContent value="nerve-center" className="mt-4">
-          <NerveCenterPanel />
+          <NerveCenterWithSubtabs />
         </TabsContent>
 
         <TabsContent value="costs" className="mt-4">
