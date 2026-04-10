@@ -123,7 +123,7 @@ When adding integrations with external services:
 
 ## Tests
 
-- **9400+ unit tests** covering parsers, routes, storage, validation, scanners, cost indexer, task I/O, path safety, API integration, terminal (ring buffer, session survival, attach protocol, group store, instance manager, toggle, ping keepalive, explorer resize), board aggregation/validation/events/routes/archive/delete, session enrichment, workflow bridge (discovery, status mapping, milestone synthesis, write-back), message timeline content extraction, dashboard layout, board popout positioning, workspace layout (project cards, project popout, project zone, archive zone, three-zone integration, nav redirect), stale project pruning, project deletion cascade, board filter safety, board side panel, session highlight, board filters, dashboard preview frontmatter stripping, milestone colors, agent role enrichment, status light tooltips, session tab restructure, analytics move, graph analytics move, nav consolidation
+- **9400+ unit tests** covering parsers, routes, storage, validation, scanners, cost indexer, task I/O, path safety, API integration, terminal (ring buffer, session survival, attach protocol, group store, instance manager, toggle, ping keepalive, explorer resize), board aggregation/validation/events/routes/archive/delete, session enrichment, workflow bridge (discovery, status mapping, milestone synthesis, write-back), message timeline content extraction, dashboard layout, board popout positioning, workspace layout (project cards, project popout, project zone, two-zone integration, nav redirect, route restructure), stale project pruning, project deletion cascade, board filter safety, board side panel, session highlight, board filters, dashboard preview frontmatter stripping, milestone colors, agent role enrichment, status light tooltips, session tab restructure, analytics move, graph analytics move, nav consolidation
 - **`new-user-safety.test.ts`** — automated guardrail that scans all source files for:
   - Hardcoded user paths (both decoded `C:/Users/...` and encoded `C--Users-...`)
   - Phone numbers / PII
@@ -170,29 +170,31 @@ When a task is moved on the board, we update the task file's frontmatter directl
 ```
 Workflow → Board                Board → Workflow
 ─────────────────               ─────────────────
-pending    → backlog            backlog     → pending
-todo       → ready              ready       → pending
-in_progress → in-progress       in-progress → in_progress
-review     → review             review      → review
-completed  → done               done        → completed
+pending    → queue              queue       → pending
+todo       → queue              in-progress → in_progress
+in_progress → in-progress       review      → review
+review     → review             done        → completed
+completed  → done
 blocked    → in-progress
 cancelled  → done
-planned    → backlog
-(unknown)  → backlog
+planned    → queue
+ready      → queue
+backlog    → queue
+(unknown)  → queue
 ```
 
 ### Milestone Status
 
 Milestones are synthetic — one per directory under `.claude/roadmap/`. Status is computed in priority order:
 1. `MILESTONE.md` `status_override` field (highest — intentional workflow-framework behavior for manual overrides)
-2. Computed from child tasks (all done → done, any in-progress → in-progress, else backlog)
+2. Computed from child tasks (all done → done, any in-progress → in-progress, else queue)
 
 ROADMAP.md description is still used as static milestone metadata (body text), but its status column is **not** used for milestone status. Workflow-framework v0.5.0+ no longer keeps ROADMAP.md current on task changes (only `/status` syncs it), so reading status from it would always be stale.
 
 ### What Workflow-Framework Must Not Change Without Coordination
 
 - **Required frontmatter fields**: `id`, `title`, `status`, `created`, `updated` — removing or renaming any of these breaks parsing
-- **Status value strings**: `pending`, `in_progress`, `review`, `completed`, `blocked`, `cancelled` — new values fall through to `backlog`
+- **Status value strings**: `pending`, `in_progress`, `review`, `completed`, `blocked`, `cancelled` — new values fall through to `queue`
 - **Directory structure**: `<project>/.claude/roadmap/<milestone>/<task>.md` — changing nesting or moving task files breaks discovery
 - **YAML frontmatter format**: Must remain gray-matter compatible
 
