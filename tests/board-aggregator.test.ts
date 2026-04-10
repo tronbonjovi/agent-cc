@@ -436,10 +436,11 @@ describe("aggregator", () => {
       });
 
       const result = aggregateBoardState();
-      // Fully-completed milestone and its tasks should REMAIN visible (no auto-archive)
+      // Fully-completed milestone metadata should remain (not auto-archived) — visible in completed zone
       expect(result.milestones.find(m => m.id === "pipeline-removal")).toBeDefined();
-      expect(result.tasks.find(t => t.id === "pr-task001")).toBeDefined();
-      expect(result.tasks.find(t => t.id === "pr-task002")).toBeDefined();
+      // But their tasks are filtered from kanban columns (shown via completed milestones zone instead)
+      expect(result.tasks.find(t => t.id === "pr-task001")).toBeUndefined();
+      expect(result.tasks.find(t => t.id === "pr-task002")).toBeUndefined();
       // Active milestone and its tasks should still be present
       expect(result.milestones.find(m => m.id === "active-milestone")).toBeDefined();
       expect(result.tasks.find(t => t.id === "active-task")).toBeDefined();
@@ -483,8 +484,11 @@ describe("aggregator", () => {
 
       // itm-m-archived is already archived from the previous test
       const result = aggregateBoardState(undefined, true);
+      // Milestone metadata is included when includeArchived is true
       expect(result.milestones.find(m => m.id === "itm-m-archived")).toBeDefined();
-      expect(result.tasks.find(t => t.id === "itm-archived-child")).toBeDefined();
+      // But tasks from fully-completed milestones are still filtered from kanban columns
+      // (they're visible via the completed milestones zone, not as kanban cards)
+      expect(result.tasks.find(t => t.id === "itm-archived-child")).toBeUndefined();
     });
   });
 });
