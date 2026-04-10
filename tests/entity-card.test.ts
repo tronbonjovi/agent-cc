@@ -4,8 +4,10 @@ import {
   statusBadgeClass,
   statusBadgeLabel,
   healthDotClass,
+  cardVariantClasses,
   type EntityCardStatus,
   type EntityCardHealth,
+  type EntityCardVariant,
 } from "../client/src/components/library/entity-card";
 
 describe("entity-card status badge", () => {
@@ -64,6 +66,50 @@ describe("entity-card prop types", () => {
     const validHealth: EntityCardHealth[] = ["healthy", "degraded", "error"];
     validHealth.forEach((h) => {
       expect(healthDotClass(h)).toBeTruthy();
+    });
+  });
+});
+
+describe("entity-card variant classes", () => {
+  it("returns card variant classes by default", () => {
+    const classes = cardVariantClasses(undefined);
+    expect(classes.container).toContain("p-2");
+    expect(classes.container).toContain("rounded-md");
+    expect(classes.description).toContain("line-clamp-1");
+  });
+
+  it("returns card variant classes when explicitly set", () => {
+    const classes = cardVariantClasses("card");
+    expect(classes.container).toContain("p-2");
+    expect(classes.description).toContain("line-clamp-1");
+  });
+
+  it("returns row variant classes", () => {
+    const classes = cardVariantClasses("row");
+    expect(classes.container).toContain("px-2");
+    expect(classes.container).toContain("py-1.5");
+    expect(classes.container).toContain("rounded-sm");
+    // Row variant should not have description class (description hidden)
+    expect(classes.description).toBe("");
+  });
+
+  it("card variant includes vertical layout markers", () => {
+    const classes = cardVariantClasses("card");
+    expect(classes.layout).toContain("flex-col");
+  });
+
+  it("row variant includes horizontal layout markers", () => {
+    const classes = cardVariantClasses("row");
+    expect(classes.layout).toContain("flex-row");
+    expect(classes.layout).toContain("items-center");
+  });
+
+  it("variant type accepts only valid values", () => {
+    const validVariants: EntityCardVariant[] = ["card", "row"];
+    validVariants.forEach((v) => {
+      const classes = cardVariantClasses(v);
+      expect(classes.container).toBeTruthy();
+      expect(classes.layout).toBeTruthy();
     });
   });
 });
