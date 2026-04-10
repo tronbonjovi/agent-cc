@@ -25,3 +25,25 @@ describe("PageContainer scroll support", () => {
     expect(src).toMatch(/overflow-y-auto/);
   });
 });
+
+describe("scroll pages use PageContainer defaults", () => {
+  const scrollPages = [
+    "client/src/pages/library.tsx",
+    "client/src/pages/stats.tsx",
+    "client/src/pages/settings.tsx",
+  ];
+
+  for (const page of scrollPages) {
+    it(`${page} uses PageContainer`, async () => {
+      const fs = await import("fs");
+      const src = fs.readFileSync(page, "utf-8");
+      expect(src).toMatch(/PageContainer/);
+    });
+  }
+
+  it("sessions.tsx removes hardcoded calc(100vh - 220px) height", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("client/src/pages/sessions.tsx", "utf-8");
+    expect(src).not.toMatch(/100vh\s*-\s*220px/);
+  });
+});

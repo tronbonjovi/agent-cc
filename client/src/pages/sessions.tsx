@@ -267,7 +267,7 @@ export default function Sessions() {
       </div>
 
       {activeTab === "messages" ? (
-        <div className="flex-1 min-h-0" style={{ height: "calc(100vh - 220px)" }}>
+        <div className="flex-1 min-h-0">
           <MessagesTabContent />
         </div>
       ) : (
