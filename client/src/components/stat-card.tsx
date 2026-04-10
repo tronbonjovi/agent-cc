@@ -33,7 +33,7 @@ export function StatCard({ type, count, subtitle, onClick, trend, trendValue }: 
   return (
     <Card
       className={cn(
-        "cursor-pointer card-hover group overflow-hidden relative gradient-border",
+        "cursor-pointer card-hover group overflow-hidden relative",
       )}
       onClick={onClick}
     >
@@ -63,7 +63,7 @@ export function StatCard({ type, count, subtitle, onClick, trend, trendValue }: 
               </div>
             )}
           </div>
-          <div className={cn("rounded-xl p-3 transition-all group-hover:scale-110 group-hover:shadow-[0_0_16px_currentColor/0.2]", config.bg)}>
+          <div className={cn("rounded-xl p-3 transition-all group-hover:scale-110", config.bg)}>
             <Icon className={cn("h-5 w-5", config.color)} />
           </div>
         </div>

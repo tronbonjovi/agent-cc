@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookOpen, Puzzle, Server, Bot, FileEdit } from "lucide-react";
+import { BookOpen, Puzzle, Server, Bot, Info } from "lucide-react";
 import { LIBRARY_TABS, resolveTab, type LibraryTabId } from "@/lib/library-tabs";
 import { PageContainer } from "@/components/page-container";
 import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
@@ -14,7 +14,7 @@ const TAB_ICONS: Record<LibraryTabId, React.ElementType> = {
   plugins: Puzzle,
   mcps: Server,
   agents: Bot,
-  editor: FileEdit,
+  editor: Info,
 };
 
 /** Read ?tab= from current URL. */

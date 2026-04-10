@@ -5,7 +5,7 @@ export const LIBRARY_TABS = [
   { id: "plugins", label: "Plugins" },
   { id: "mcps", label: "MCP Servers" },
   { id: "agents", label: "Agents" },
-  { id: "editor", label: "File Editor" },
+  { id: "editor", label: "Info" },
 ] as const;
 
 export type LibraryTabId = (typeof LIBRARY_TABS)[number]["id"];

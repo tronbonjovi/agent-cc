@@ -22,13 +22,7 @@
     --status-warning: 38 92% 50%;
     --status-error: 0 84% 60%;
     --info: 270 95% 75%;
-    --glow-blue: rgba(59, 130, 246, 0.4);
-    --glow-purple: rgba(168, 85, 247, 0.4);
-    --glow-green: rgba(34, 197, 94, 0.4);
-    --glow-amber: rgba(245, 158, 11, 0.4);
-    --glow-cyan: rgba(6, 182, 212, 0.4);
     /* Aesthetic token fallbacks (overridden per-theme at runtime) */
-    --glow-intensity: 0.6;
     --card-radius: 6px;
     --gradient-mesh-opacity: 0.035;
     --shadow-multiplier: 1;
@@ -320,9 +314,7 @@ pre code {
 }
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow:
-    0 8px 25px rgba(0,0,0, calc(0.15 * var(--shadow-multiplier, 1))),
-    0 0 calc(12px * var(--glow-intensity, 1)) hsl(var(--primary) / 0.06);
+  box-shadow: 0 8px 25px rgba(0,0,0, calc(0.15 * var(--shadow-multiplier, 1)));
   border-color: hsl(var(--border) / 0.8);
 }
 
@@ -352,84 +344,12 @@ pre code {
   animation: page-enter-anim 0.4s ease-out both;
 }
 
-/* ---- Futuristic Design System ---- */
-
-/* Animated gradient mesh background */
-#root::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  opacity: var(--gradient-mesh-opacity, 0.035);
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 40%, var(--glow-blue), transparent),
-    radial-gradient(ellipse 60% 80% at 80% 20%, var(--glow-purple), transparent),
-    radial-gradient(ellipse 70% 60% at 50% 80%, var(--glow-cyan), transparent);
-  animation: gradient-drift 20s ease-in-out infinite alternate;
-  pointer-events: none;
-}
-
-@keyframes gradient-drift {
-  0% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-2%, 1%) scale(1.02); }
-  66% { transform: translate(1%, -1%) scale(0.98); }
-  100% { transform: translate(-1%, 2%) scale(1.01); }
-}
+/* ---- Design System ---- */
 
 @keyframes glow-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
-
-@keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes border-glow {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 1; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-
-@keyframes scan-line {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
-}
-
-/* Gradient border — pseudo-element that fades in on hover */
-.gradient-border {
-  position: relative;
-}
-.gradient-border::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--glow-blue), var(--glow-purple));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-.gradient-border:hover::before {
-  opacity: var(--glow-intensity, 1);
-}
-
-/* Entity-colored neon glow shadows — scaled by theme glow intensity */
-.neon-glow-blue { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) var(--glow-blue); }
-.neon-glow-green { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) var(--glow-green); }
-.neon-glow-purple { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) var(--glow-purple); }
-.neon-glow-amber { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) var(--glow-amber); }
-.neon-glow-primary { box-shadow: 0 0 calc(12px * var(--glow-intensity, 1)) hsl(var(--primary) / 0.4); }
 
 /* Colored glass morphism tints */
 .glass-blue { background: hsl(var(--entity-project) / 0.05); backdrop-filter: blur(16px) saturate(1.5); }
@@ -437,9 +357,9 @@ pre code {
 .glass-purple { background: hsl(var(--entity-plugin) / 0.05); backdrop-filter: blur(16px) saturate(1.5); }
 .glass-amber { background: hsl(var(--entity-skill) / 0.05); backdrop-filter: blur(16px) saturate(1.5); }
 
-/* Status panel with gradient background + top accent line */
+/* Status panel */
 .status-panel {
-  background: linear-gradient(135deg, hsl(var(--card)), hsl(var(--card) / 0.8));
+  background: hsl(var(--card));
   position: relative;
   overflow: hidden;
 }
@@ -450,16 +370,10 @@ pre code {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, var(--glow-blue), var(--glow-purple), transparent);
-}
-:root[data-animation="minimal"] .status-panel {
-  background: hsl(var(--card));
-}
-:root[data-animation="minimal"] .status-panel::before {
   background: hsl(var(--border));
 }
 
-/* Section header — thin gradient underline */
+/* Section header — thin underline */
 .section-header {
   position: relative;
   padding-bottom: 0.5rem;
@@ -471,24 +385,11 @@ pre code {
   left: 0;
   width: 40px;
   height: 1px;
-  background: linear-gradient(90deg, var(--glow-blue), transparent);
-}
-:root[data-animation="minimal"] .section-header::after {
   background: hsl(var(--border));
 }
 
-/* Gradient text clip — disabled for minimal-animation themes */
+/* Text gradient replaced with solid foreground */
 .text-gradient {
-  background: linear-gradient(135deg, hsl(var(--foreground)), hsl(var(--primary) / 0.8));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-:root[data-animation="minimal"] .text-gradient {
-  background: none;
-  -webkit-background-clip: unset;
-  -webkit-text-fill-color: unset;
-  background-clip: unset;
   color: hsl(var(--foreground));
 }
 

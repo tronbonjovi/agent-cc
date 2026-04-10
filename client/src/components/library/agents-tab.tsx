@@ -78,7 +78,7 @@ export default function AgentsTab() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {statCards.map((s, i) => (
-          <div key={s.label} className="rounded-xl border bg-card p-4 animate-fade-in-up gradient-border group relative" style={{ animationDelay: `${i * 50}ms` }}>
+          <div key={s.label} className="rounded-xl border bg-card p-4 animate-fade-in-up group relative" style={{ animationDelay: `${i * 50}ms` }}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-1">
@@ -706,7 +706,7 @@ function StatsTab() {
               </div>
               <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500 shadow-[0_0_6px_rgba(59,130,246,0.3)]"
+                  className="h-full rounded-full bg-blue-500 transition-all duration-500"
                   style={{ width: `${(count / maxType) * 100}%` }}
                 />
               </div>
@@ -732,7 +732,7 @@ function StatsTab() {
               </div>
               <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-purple-500 to-violet-500 transition-all duration-500 shadow-[0_0_6px_rgba(168,85,247,0.3)]"
+                  className="h-full rounded-full bg-purple-500 transition-all duration-500"
                   style={{ width: `${(count / maxModel) * 100}%` }}
                 />
               </div>

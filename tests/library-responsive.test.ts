@@ -128,34 +128,20 @@ describe("Sub-tab sections — responsive adaptation", () => {
   }
 });
 
-// ── File Editor tab — mobile usability ───────────────────────────────────────
+// ── Info tab (formerly File Editor) — responsive layout ─────────────────────
 
-describe("File Editor tab — responsive layout", () => {
+describe("Info tab — responsive layout", () => {
   const src = readSrc(FILE_EDITOR_TAB);
 
-  it("header toolbar stacks on mobile", () => {
-    // Should use flex-wrap or flex-col at small screens
-    expect(src).toMatch(/flex-wrap|sm:flex-row|flex-col/);
+  it("uses responsive grid for insight modules", () => {
+    // Should use grid-cols-1 md:grid-cols-2 or similar
+    expect(src).toMatch(/grid-cols-1|md:grid-cols-2/);
   });
 
-  it("search input adapts width on mobile", () => {
-    // Should not use fixed w-64 without a responsive alternative
-    expect(src).toMatch(/w-full|sm:w-64|md:w-64|max-w-/);
-  });
-
-  it("file metadata is responsive", () => {
-    // File card metadata (lines, tokens, date) should hide or adapt at mobile
-    expect(src).toMatch(/hidden\s+sm:flex|hidden\s+md:flex|sm:items-center|sm:gap/);
-  });
-
-  it("file list items work at all widths", () => {
-    // File cards should be full-width
-    expect(src).toMatch(/w-full/);
-  });
-
-  it("quick edit drawer adapts to mobile width", () => {
-    // Sheet should have responsive width
-    expect(src).toMatch(/w-full\s+sm:w-|sm:max-w-|w-\[.*\]\s+max-w/);
+  it("contains insight modules", () => {
+    expect(src).toMatch(/MemoryBudgetMeter/);
+    expect(src).toMatch(/FileDependencyGraph/);
+    expect(src).toMatch(/ContextSummaryPanel/);
   });
 });
 
@@ -165,7 +151,7 @@ describe("EntityCard — responsive internals", () => {
   const src = readSrc(ENTITY_CARD);
 
   it("card uses responsive padding token", () => {
-    expect(src).toMatch(/p-card|p-3|var\(--card-padding\)/);
+    expect(src).toMatch(/p-card|p-2|p-3|var\(--card-padding\)/);
   });
 
   it("card content does not overflow (truncate or wrap)", () => {

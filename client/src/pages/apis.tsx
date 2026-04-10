@@ -108,7 +108,7 @@ export default function APIs() {
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
               <div
-                className="rounded-lg p-2 mt-0.5 transition-shadow group-hover:shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                className="rounded-lg p-2 mt-0.5"
                 style={{ backgroundColor: `${api.color || "#f97316"}20` }}
               >
                 <Globe className="h-5 w-5" style={{ color: api.color || "#f97316" }} />

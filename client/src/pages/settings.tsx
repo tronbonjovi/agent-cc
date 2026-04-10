@@ -233,7 +233,7 @@ function GeneralTab() {
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-2">
+              <div className="rounded-lg bg-blue-500/10 p-2">
                 <Rocket className="h-4 w-4 text-blue-400" />
               </div>
               <div>

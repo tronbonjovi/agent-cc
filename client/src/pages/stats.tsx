@@ -218,7 +218,7 @@ function UsageTab() {
           { icon: FolderOpen, color: "text-orange-400", label: "Total Storage", value: formatBytes(data.totalTokensEstimate) },
         ].map((item, i) => (
           <div key={item.label} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
-            <Card className="gradient-border">
+            <Card>
               <CardContent className="pt-5 pb-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
                   <item.icon className={`h-4 w-4 ${item.color}`} />
@@ -252,7 +252,7 @@ function UsageTab() {
                   </span>
                   <div className="w-full flex-1 flex items-end">
                     <div
-                      className={`w-full rounded-t-sm transition-all duration-300 min-h-[2px] ${today ? "bg-gradient-to-t from-blue-500 to-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.3)]" : day.count > 0 ? "bg-gradient-to-t from-blue-500/60 to-blue-400/40 group-hover:from-blue-500/80 group-hover:to-blue-400/60" : "bg-muted/20"}`}
+                      className={`w-full rounded-t-sm transition-all duration-300 min-h-[2px] ${today ? "bg-blue-500" : day.count > 0 ? "bg-blue-500/50 group-hover:bg-blue-500/70" : "bg-muted/20"}`}
                       style={{ height: `${Math.max(heightPct, 2)}%` }}
                     />
                   </div>
@@ -374,7 +374,7 @@ function CostsTab() {
           { icon: Shield, color: "text-purple-400", label: "Sessions", value: Object.values(data.byModel).reduce((s, m) => s + m.sessions, 0).toString() },
         ].map((item, i) => (
           <div key={item.label} className="animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
-            <Card className="gradient-border">
+            <Card>
               <CardContent className="pt-5 pb-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
                   <item.icon className={`h-4 w-4 ${item.color}`} />

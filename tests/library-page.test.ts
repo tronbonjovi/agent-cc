@@ -32,7 +32,7 @@ describe("library tabs", () => {
     expect(tabLabel("plugins")).toBe("Plugins");
     expect(tabLabel("mcps")).toBe("MCP Servers");
     expect(tabLabel("agents")).toBe("Agents");
-    expect(tabLabel("editor")).toBe("File Editor");
+    expect(tabLabel("editor")).toBe("Info");
   });
 });
 
