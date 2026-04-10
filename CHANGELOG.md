@@ -25,8 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Archive zone** — completed milestones archive panel removed from board page. Server-side archive API retained for future use.
 - **Ready column** — board no longer has a Ready column; those tasks map to Queue.
 
-### Planned (not yet implemented)
-- **Responsive foundation** — useBreakpoint hook, sizing tokens, mobile sidebar drawer, PageContainer component, per-page responsive pass.
+### Added
+- **Responsive design system** — `useBreakpoint()` hook returning viewport tier (xs/sm/md/lg/xl), CSS responsive tokens (`--page-padding`, `--card-padding`, `--card-gap`, `--section-gap`), and Tailwind utility extensions (`p-page`, `p-card`, `gap-card`, `gap-section`).
+- **Responsive sidebar** — sidebar adapts to viewport: expanded at desktop, icon-only at tablet, hamburger drawer (Sheet component) at mobile. Ctrl+L toggle preserved at all breakpoints.
+- **PageContainer component** — shared page wrapper with responsive padding, optional title/actions header, consistent section spacing. Adopted across all pages.
+- **Per-page responsive pass** — Dashboard, Board, Library, Sessions, Analytics, and Settings all adapt: card grids scale 4→3→2→1 columns, tables collapse progressively, tab bars scroll at narrow widths, Board gets column tabs on mobile.
+- **Design specs** — board overhaul (completed task handling, card info restoration, project sidebar), library cleanup (file editor tab reorg), analytics overhaul (updated with detailed decisions and brainstorm items).
 
 ### Added (prior)
 - **Milestone color grouping** — each milestone gets a deterministic color from a 10-color dark-theme palette. Task cards show milestone color on the vertical bar (replacing project color). Board header displays color dots next to milestone names.

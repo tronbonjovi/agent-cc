@@ -1,96 +1,119 @@
-# Spec 4: Analytics Overhaul (Draft — Needs Full Brainstorm)
+# Analytics Overhaul Design
 
 ## Status
 
-This is a rough design captured during the April 10, 2026 brainstorm session. It documents the problems, known overlaps, and directional thinking but has NOT been through a full brainstorm cycle. A dedicated brainstorm session should flesh out the consolidation strategy, tab structure, and session health improvements before implementation planning.
-
-## Problem
-
-The Analytics page has grown into an information architecture mess. There are 6 main tabs, and the first tab (Sessions) alone has 10 sub-tabs. Many sub-tabs overlap with main tabs or show data that belongs on other pages entirely. The user sees two levels of navigation with 16 total surfaces, many of which present different angles on the same underlying data.
+Partially decided, partially needs brainstorm. User notes captured April 10, 2026. Items marked [DECIDED] can go straight to implementation planning. Items marked [BRAINSTORM] need investigation and a short design session before speccing.
 
 ## Current Structure
 
-**Main tabs (6):** Sessions, Usage, Costs, Activity, Graph, Discover
+**Main Navigation (top bar):** Sessions, Usage, Costs, Activity, Graph, Discover
 
 **Sessions sub-tabs (10):** Nerve Center, Usage Analytics, File Heatmap, Session Health, Projects, Weekly Digest, Prompts, Workflows, Bash KB, Decisions
 
 Total surfaces: 16
 
-## Known Overlaps and Misplacements
+---
 
-| Sessions Sub-tab | Problem | Likely Resolution |
-|---|---|---|
-| Usage Analytics | Overlaps with main Usage tab — showing similar data in two places | Merge into main Usage tab |
-| Session Health | Belongs closer to session browsing, not analytics | Move to Sessions page or make actionable within Analytics |
-| Projects | Duplicates data available on the Projects/Board page | Remove or replace with a cross-link |
-| Weekly Digest | Related to Costs/Usage aggregate data | Merge into Costs or make a standalone periodic report |
-| Prompts | Already exists as a tab on the Sessions page | Remove the duplicate |
-| Workflows | Dead feature — auto-summarize, flag stale, cost alerts toggles that were never used | Repurpose or remove entirely |
+## Decided Changes
 
-## Unique Features Needing Homes
+### [DECIDED] Costs Consolidation
 
-These sub-tabs are genuinely unique and need to be preserved somewhere:
+- **Remove** the main "Costs" tab
+- **Rename** Sessions > "Usage Analytics" sub-tab to **"Costs"**
+- This becomes the single source of truth for cost data
+- Modules within need to be vetted and fixed but the structural decision is made
 
-| Sub-tab | What It Does | Possible Home |
-|---|---|---|
-| Nerve Center | Live monitoring / overview | Dashboard (it's real-time data) or stays in Analytics |
-| File Heatmap | Visualization of which files are touched most | Stays in Analytics (unique viz) |
-| Bash KB | Knowledge base of bash commands/patterns from sessions | Library (it's a reference resource) or stays |
-| Decisions | ADR-like decision tracking from sessions | Needs its own deeper plan — currently underbuilt |
+### [DECIDED] Move Discover to Library
 
-## Session Health Improvements
+- **Remove** "Discover" from Analytics main nav
+- **Move** to Library page — this is a search/marketplace tool, not analytics
+- May need refinement after the move, but it belongs in Library
 
-The Session Health view is the most specifically criticized feature. Current problems:
+### [DECIDED] Move Prompts to Library
 
-1. **Health rating is a black box** — shows "poor"/"fair"/"good" with no breakdown of what contributed to the score
-2. **Errors are just counts** — "3 errors" with no access to the actual error messages
-3. **No drill-down** — can't click into a session to see what happened
-4. **No pattern recognition** — doesn't surface recurring issues across sessions
-5. **Truncated session IDs** — hard to identify which session is which
+- **Remove** "Prompts" from Sessions sub-tabs
+- **Move** to Library page
+- Already exists as a tab on the Sessions page — remove the duplicate in Analytics entirely
 
-What it needs:
-- **Score breakdown** — which health factors (errors, retries, context overflow, cost, runtime) contributed to the rating, with weights visible
-- **Error detail** — actual error messages from the JSONL, not just counts
-- **Clickable sessions** — click a session to navigate to its detail view (on the Sessions page)
-- **Pattern detection** — "5 sessions this week hit the same tool error" or "project X consistently overflows context"
-- **Remediation hints** — when possible, suggest what to do about common issues
+### [DECIDED] Remove Projects Sub-tab
 
-This is a significant feature that touches:
-- Scanner (extracting error details from JSONL session files)
-- API (serving richer health data with error messages)
-- Frontend (drill-down UI, score breakdown visualization)
+- **Remove** Sessions > "Projects" sub-tab
+- Doesn't do much beyond showing card info available elsewhere
+- Tags look bad (part of a broken tagging system that needs fixing)
+- No deeper menus or details to justify a dedicated tab
 
-## Workflow-Framework Integration
+### [DECIDED] Demote Weekly Digest
 
-The Workflows sub-tab currently has unused auto-workflow toggles. Options for repurposing:
+- **Remove** as a dedicated Sessions sub-tab
+- **Relocate** as a section within another page (specific page TBD — minor decision)
 
-1. **Plugin management** — install, configure, check status of the workflow-framework plugin. This might belong in Library instead.
-2. **Workflow viewer** — visual representation of active roadmaps, milestones, task flow. This is the "interact" use case.
-3. **Educational** — explain how workflow-framework works, link to docs. Lightweight but useful for onboarding.
+### [DECIDED] Demote Bash KB
 
-Decision needed: is workflow-framework integration a configure thing (Library), an interact thing (its own view), or an educate thing (docs)? This needs separate discussion.
+- **Remove** as a dedicated Sessions sub-tab
+- **Relocate** as a section within another page (specific page TBD — minor decision)
 
-## Design Direction
+### [DECIDED] Remove/Replace Usage Main Tab
 
-The same consolidation pattern used for Library (Spec 2) should apply here: find natural groupings, layer related data, eliminate duplication. The goal is fewer surfaces showing more coherent information.
+- The main "Usage" tab feels generic and not very helpful
+- Replaced by the consolidated Costs tab (see above)
 
-Rough direction:
-- Merge overlapping tabs (Usage + Usage Analytics, remove duplicate Prompts/Projects)
-- Elevate unique features (File Heatmap, Bash KB) to main tabs or integrate into relevant main tabs
-- Make Session Health actionable (the biggest feature improvement)
-- Decide on Nerve Center's home (Dashboard vs Analytics)
-- Decide on Decisions' future (standalone feature or part of something larger)
+### [DECIDED] Activity Tab
+
+- Currently a basic changelog
+- Keep for now, but it's a candidate for future rework
+
+---
+
+## Needs Brainstorm
+
+### [BRAINSTORM] Nerve Center Repurposing
+
+**Current state:** Not serving a clear purpose.
+**Direction:** Could be repurposed as a real-time "analytics dashboard" — live nerve-center info like active sessions, current spend rate, running agents, system health.
+**Needs:** Investigation into what real-time data we have access to, what would be actionable, and what layout makes sense.
+
+### [BRAINSTORM] Session Health Rework
+
+**Current state:** Shows useless aggregates like "30 poor" or "21 errors" with no way to investigate or act.
+**Direction:** Needs real intelligence — drill-down into what's wrong, pattern recognition, actionable remediation.
+**Needs:** Investigation into what health data the scanner currently extracts, what's possible to surface, and UI design for drill-down.
+
+### [BRAINSTORM] Graph Page
+
+**Current state:** Confusing and appears broken. Shows some kind of entity mapping.
+**Direction:** Could be useful for actual analytic insights presented as charts/graphs, not entity relationship mapping.
+**Needs:** Investigation into what it currently does, then brainstorm on what graphing would actually provide value (cost trends? session patterns? project velocity?).
+
+### [BRAINSTORM] Decisions System
+
+**Current state:** Appears to be leftover vibe-code that may be broken.
+**Needs:** Investigation first. Might just be a "delete it" outcome, or might have a kernel worth salvaging.
+
+### [BRAINSTORM] Workflows Tab Rework
+
+**Current state:** Has unused auto-workflow toggles (auto-summarize, flag stale, cost alerts) that were never used.
+**Direction:** Should be reworked, but undecided. Parking for now.
+**Options from prior spec:** Plugin management, workflow viewer, educational content — needs its own discussion.
+
+---
+
+## Proposed New Structure (Post-Overhaul)
+
+Pending brainstorm outcomes, but directionally:
+
+**Main tabs:** Sessions, Costs, Activity, [Graph — reworked or removed], [Nerve Center — if kept here]
+
+**Sessions sub-tabs (reduced):** [Nerve Center — if moved here], File Heatmap, Session Health (reworked), Workflows (reworked), [Weekly Digest section], [Bash KB section]
+
+**Moved to Library:** Discover, Prompts
+
+**Removed entirely:** Projects sub-tab, Usage main tab, Costs main tab (replaced by promoted sub-tab)
+
+---
 
 ## Dependencies
 
-- Independent of Specs 1-3 structurally
-- Session Health improvements may benefit from Responsive Foundation (Spec 3) for the drill-down UI
-- If Nerve Center moves to Dashboard, that's a Dashboard change not covered by other specs
-
-## Next Steps
-
-1. Dedicated brainstorm session to work through the consolidation strategy
-2. Decide on the new tab structure (how many main tabs, what goes where)
-3. Design the Session Health drill-down in detail
-4. Decide on Workflows/Decisions/Nerve Center placement
-5. Write full spec and implementation plan
+- Library cleanup spec covers the receiving end for Discover and Prompts moves
+- Session Health rework touches scanner, API, and frontend
+- Nerve Center repurposing may affect Dashboard if it moves there
+- Independent of responsive-foundation but may benefit from it
