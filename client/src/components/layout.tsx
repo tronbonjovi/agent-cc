@@ -277,8 +277,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="ml-2 font-semibold text-sm">{appName}</span>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="page-enter">
+        <div className="flex-1 overflow-hidden">
+          <div className="page-enter h-full">
             {children}
           </div>
         </div>
