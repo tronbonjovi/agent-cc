@@ -316,11 +316,11 @@ describe("cross-zone integration — two-zone workspace", () => {
     expect(boardSource).toContain("BOARD_COLUMNS");
   });
 
-  it("renders two zones with flex-based proportions", () => {
-    // Zone 1: Projects (flex 25)
-    expect(boardSource).toContain("flex: 25");
-    // Zone 2: Board (flex 75)
-    expect(boardSource).toContain("flex: 75");
+  it("renders two zones with responsive proportions", () => {
+    // Zone 1: Projects (~25% at large breakpoints via w-1/4)
+    expect(boardSource).toContain("w-1/4");
+    // Zone 2: Board takes remaining space via flex-1
+    expect(boardSource).toMatch(/flex-1/);
     // Should NOT have old 3-zone flex values
     expect(boardSource).not.toContain("flex: 30");
     expect(boardSource).not.toContain("flex: 35");

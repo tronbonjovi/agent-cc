@@ -10,9 +10,15 @@ import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useBoa
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
-import type { BoardFilter } from "@shared/board-types";
+import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import type { BoardFilter, BoardColumn } from "@shared/board-types";
 
 export default function BoardPage() {
+  const breakpoint = useBreakpoint();
+  const mobile = isMobile(breakpoint);
+  const isLarge = breakpoint === "lg" || breakpoint === "xl";
+
   const [filter, setFilter] = useState<BoardFilter>({});
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; right: number; bottom: number; width: number; height: number } | null>(null);
@@ -21,7 +27,22 @@ export default function BoardPage() {
   const [selectedProject, setSelectedProject] = useState<ProjectCardData | null>(null);
   const [projectAnchorRect, setProjectAnchorRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
+  // Collapsible projects panel for md and below
+  const [projectsExpanded, setProjectsExpanded] = useState(true);
+
+  // Mobile column tab switching (sm/xs)
+  const [activeColumn, setActiveColumn] = useState<BoardColumn>("queue");
+
   const [, setLocation] = useLocation();
+
+  // Auto-collapse projects panel on smaller breakpoints
+  useEffect(() => {
+    if (mobile) {
+      setProjectsExpanded(false);
+    } else {
+      setProjectsExpanded(true);
+    }
+  }, [mobile]);
 
   const handleCardClick = useCallback((task: { id: string }, e: React.MouseEvent) => {
     const el = e.currentTarget as HTMLElement;
@@ -93,45 +114,124 @@ export default function BoardPage() {
         sseConnected={connected}
       />
 
-      {/* Zone 1: Projects (25%) */}
-      <div className="min-h-0" style={{ flex: 25 }}>
-        <ProjectZone
-          projects={boardProjects}
-          onProjectClick={handleProjectClick}
-        />
-      </div>
+      {/* 2-zone layout: side-by-side at lg+, stacked at md and below */}
+      <div className={`flex min-h-0 flex-1 ${isLarge ? "flex-row" : "flex-col"}`}>
 
-      {/* Zone 2: Kanban Board (75%) */}
-      <div className="min-h-0 overflow-x-auto overflow-y-hidden p-4" style={{ flex: 75 }}>
-        <div className="flex gap-3 h-full min-w-max">
-          {BOARD_COLUMNS.map(col => (
-            <div key={col.id} className="w-72 flex flex-col bg-muted/30 rounded-lg border">
-              {/* Column header */}
-              <div className="flex items-center gap-2 px-3 py-2.5 border-b">
-                <div className={`w-2 h-2 rounded-full ${col.color}`} />
-                <span className="text-sm font-medium">{col.label}</span>
-                <span className="text-[10px] text-muted-foreground ml-auto font-mono">
-                  {tasksByColumn[col.id]?.length || 0}
-                </span>
-              </div>
+        {/* Zone 1: Projects panel (~25% at lg+, full width stacked below) */}
+        <div className={isLarge ? "w-1/4 min-w-[220px] border-r overflow-y-auto" : "border-b"}>
+          {/* Collapsible header for md and below */}
+          {!isLarge && (
+            <button
+              onClick={() => setProjectsExpanded(!projectsExpanded)}
+              className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-muted/50 transition-colors"
+              aria-expanded={projectsExpanded}
+            >
+              {projectsExpanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+              Projects
+              <span className="text-xs text-muted-foreground font-normal">
+                {boardProjects.length}
+              </span>
+            </button>
+          )}
 
-              {/* Cards */}
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {tasksByColumn[col.id]?.map(task => (
-                  <BoardTaskCard
-                    key={task.id}
-                    task={task}
-                    onClick={(t, e) => handleCardClick(t, e)}
-                  />
-                ))}
-                {(!tasksByColumn[col.id] || tasksByColumn[col.id].length === 0) && (
-                  <div className="text-xs text-muted-foreground/50 text-center py-8">
-                    No tasks
-                  </div>
-                )}
-              </div>
+          {/* Project content — always visible at lg+, toggled below */}
+          {(isLarge || projectsExpanded) && (
+            <ProjectZone
+              projects={boardProjects}
+              onProjectClick={handleProjectClick}
+            />
+          )}
+        </div>
+
+        {/* Zone 2: Kanban Board (~75% at lg+, full width below) */}
+        <div
+          className="min-h-0 flex-1 overflow-hidden"
+          style={{ padding: "var(--card-gap)" }}
+        >
+          {/* Mobile column tabs (sm/xs) */}
+          {mobile && (
+            <div className="flex gap-1 mb-2 overflow-x-auto pb-1">
+              {BOARD_COLUMNS.map(col => (
+                <button
+                  key={col.id}
+                  onClick={() => setActiveColumn(col.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                    activeColumn === col.id
+                      ? "bg-foreground/10 text-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${col.color}`} />
+                  {col.label}
+                  <span className="text-[10px] font-mono opacity-60">
+                    {tasksByColumn[col.id]?.length || 0}
+                  </span>
+                </button>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* Kanban columns */}
+          <div
+            className={`h-full ${
+              mobile
+                ? "flex flex-col"
+                : breakpoint === "md"
+                  ? "flex overflow-x-auto snap-x snap-mandatory"
+                  : "flex overflow-x-auto"
+            }`}
+            style={{ gap: "var(--card-gap)" }}
+          >
+            {BOARD_COLUMNS.map(col => {
+              // On mobile, only show the active column
+              if (mobile && col.id !== activeColumn) return null;
+
+              return (
+                <div
+                  key={col.id}
+                  className={`flex flex-col bg-muted/30 rounded-lg border snap-start ${
+                    mobile
+                      ? "flex-1 min-h-0"
+                      : breakpoint === "md"
+                        ? "min-w-[260px] w-[45%] shrink-0"
+                        : "w-72 shrink-0"
+                  }`}
+                >
+                  {/* Column header */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 border-b">
+                    <div className={`w-2 h-2 rounded-full ${col.color}`} />
+                    <span className="text-sm font-medium">{col.label}</span>
+                    <span className="text-[10px] text-muted-foreground ml-auto font-mono">
+                      {tasksByColumn[col.id]?.length || 0}
+                    </span>
+                  </div>
+
+                  {/* Cards */}
+                  <div
+                    className="flex-1 overflow-y-auto"
+                    style={{ padding: "var(--card-padding)", display: "flex", flexDirection: "column", gap: "var(--card-gap)" }}
+                  >
+                    {tasksByColumn[col.id]?.map(task => (
+                      <BoardTaskCard
+                        key={task.id}
+                        task={task}
+                        onClick={(t, e) => handleCardClick(t, e)}
+                      />
+                    ))}
+                    {(!tasksByColumn[col.id] || tasksByColumn[col.id].length === 0) && (
+                      <div className="text-xs text-muted-foreground/50 text-center py-8">
+                        No tasks
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
