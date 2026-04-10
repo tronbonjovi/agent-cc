@@ -86,8 +86,8 @@ describe("nav updated for graph removal", () => {
 describe("keyboard shortcut updated", () => {
   const shortcutSrc = fs.readFileSync(SHORTCUTS_PATH, "utf-8");
 
-  it("g+g shortcut points to /stats?tab=graph instead of /graph", () => {
-    expect(shortcutSrc).toMatch(/g:.*\/stats\?tab=graph/);
+  it("g+g shortcut points to /analytics?tab=graph instead of /graph", () => {
+    expect(shortcutSrc).toMatch(/g:.*\/analytics\?tab=graph/);
     expect(shortcutSrc).not.toMatch(/g:\s*"\/graph"/);
   });
 });

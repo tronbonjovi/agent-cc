@@ -3,6 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Switch, Route } from "wouter";
+import { Redirect } from "wouter";
 import { Suspense, lazy, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -30,6 +31,7 @@ const Stats = lazy(() => import("@/pages/stats"));
 const APIs = lazy(() => import("@/pages/apis"));
 
 const BoardPage = lazy(() => import("@/pages/board"));
+const Library = lazy(() => import("@/pages/library"));
 import NotFound from "@/pages/not-found";
 
 function PageLoader() {
@@ -61,14 +63,17 @@ function Router() {
               <ErrorBoundary pageName="Dashboard"><Dashboard /></ErrorBoundary>
             </Route>
             <Route path="/projects">
-              <ErrorBoundary pageName="Projects"><Projects /></ErrorBoundary>
+              <ErrorBoundary pageName="Projects"><BoardPage /></ErrorBoundary>
             </Route>
             <Route path="/projects/:id">
               <ErrorBoundary pageName="Project Detail"><ProjectDetail /></ErrorBoundary>
             </Route>
 
             <Route path="/board">
-              <ErrorBoundary pageName="Board"><BoardPage /></ErrorBoundary>
+              <Redirect to="/projects" />
+            </Route>
+            <Route path="/library">
+              <ErrorBoundary pageName="Library"><Library /></ErrorBoundary>
             </Route>
             <Route path="/mcps">
               <ErrorBoundary pageName="MCPs"><MCPs /></ErrorBoundary>
@@ -100,8 +105,11 @@ function Router() {
             <Route path="/settings">
               <ErrorBoundary pageName="Settings"><SettingsPage /></ErrorBoundary>
             </Route>
+            <Route path="/analytics">
+              <ErrorBoundary pageName="Analytics"><Stats /></ErrorBoundary>
+            </Route>
             <Route path="/stats">
-              <ErrorBoundary pageName="Stats"><Stats /></ErrorBoundary>
+              <Redirect to="/analytics" />
             </Route>
             <Route path="/apis">
               <ErrorBoundary pageName="APIs"><APIs /></ErrorBoundary>

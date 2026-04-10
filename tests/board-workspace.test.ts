@@ -488,9 +488,9 @@ describe("delete button — source-conditional in board-side-panel", () => {
   });
 });
 
-// --- Nav redirect: /projects -> /board ---
+// --- /projects serves board page directly ---
 
-describe("nav redirect — /projects to /board", () => {
+describe("/projects serves board page", () => {
   const projectsSource = fs.readFileSync(
     path.join(__dirname, "../client/src/pages/projects.tsx"),
     "utf-8",
@@ -500,13 +500,12 @@ describe("nav redirect — /projects to /board", () => {
     "utf-8",
   );
 
-  it("/projects page uses Redirect component", () => {
-    expect(projectsSource).toContain("Redirect");
-    expect(projectsSource).toContain("wouter");
+  it("/projects page re-exports from board", () => {
+    expect(projectsSource).toMatch(/board/i);
   });
 
-  it("redirects to /board", () => {
-    expect(projectsSource).toContain('to="/board"');
+  it("/projects page does NOT redirect to /board", () => {
+    expect(projectsSource).not.toContain('to="/board"');
   });
 
   it("App.tsx registers /projects route", () => {
@@ -517,17 +516,17 @@ describe("nav redirect — /projects to /board", () => {
     expect(appSource).toContain('path="/projects/:id"');
   });
 
-  it("board is not listed under /projects in nav", () => {
+  it("projects is a direct nav item", () => {
     const layoutSource = fs.readFileSync(
       path.join(__dirname, "../client/src/components/layout.tsx"),
       "utf-8",
     );
-    // The nav should have /board as a direct nav item, not /projects
-    expect(layoutSource).toContain('path: "/board"');
-    // /projects should NOT be a nav item (it's a redirect route only)
+    // /projects should be a direct nav item (renamed from /board)
+    expect(layoutSource).toContain('path: "/projects"');
+    // /board should NOT be a nav item anymore
     const navItemPaths = layoutSource.match(/path:\s*"\/[^"]+"/g) || [];
-    const hasProjectsNav = navItemPaths.some(p => p === 'path: "/projects"');
-    expect(hasProjectsNav).toBe(false);
+    const hasBoardNav = navItemPaths.some(p => p === 'path: "/board"');
+    expect(hasBoardNav).toBe(false);
   });
 });
 
