@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Layout system redesign spec** — design for fixed shell + page viewport model. Nav, terminal, and page headers form a consistent outer shell; pages get a fixed-size viewport box and manage their own internal scrolling. Fixes independent panel scrolling on Board and Dashboard width issues.
+- **Layout system implementation plan** — 6-task plan: shell fix, PageContainer update, dashboard, board panels, scroll pages, regression check.
+
+### Fixed
+- **Analytics costs tab** — swapped to correct session-based cost view (subscription-aware, horizontal bars, top sessions, cost by project).
+- **Agents tab** — converted from vertical stacked sections to Installed/Saved/Marketplace sub-tabs matching other Library entity tabs.
+- **Kanban center-alignment** — board columns now centered in their section.
+- **Session health column alignment** — table headers left-aligned to match data alignment.
+- **Library info tab position** — Info tab moved to first position in tab bar.
+- **Plugins marketplace separation** — marketplace cards moved from Installed view to dedicated Marketplace sub-tab.
+- **Library tabs** — added Discover, Prompts, and Bash KB tabs.
+- **Analytics tabs** — Charts tab with time-series visualizations, session health drill-down table.
+
 ### Changed
 - **Board 3-zone layout** — board page now has three zones at desktop: left sidebar (projects), center (kanban), right sidebar (completed milestones). Both sidebars are independently scrollable and width-adjustable via drag handles.
 - **Project cards stacked vertically** — project cards in the left sidebar now stack vertically instead of scrolling horizontally. Each card shows per-milestone progress bars for active (incomplete) milestones.
