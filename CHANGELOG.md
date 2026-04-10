@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Layout system redesign spec** — design for fixed shell + page viewport model. Nav, terminal, and page headers form a consistent outer shell; pages get a fixed-size viewport box and manage their own internal scrolling. Fixes independent panel scrolling on Board and Dashboard width issues.
-- **Layout system implementation plan** — 6-task plan: shell fix, PageContainer update, dashboard, board panels, scroll pages, regression check.
+- **Fixed shell layout system** — app layout changed from scroll wrapper to fixed viewport box. Pages now own their scrolling — either as a single scroll area (Library, Sessions, Analytics, Settings) or as independently scrollable panels (Board, Dashboard). Nav sidebar and terminal panel stay fixed at all times.
+- **Dashboard panel layout** — status bar pins at top while active sessions scroll independently below. Sessions area centered at 85% width (1400px cap).
+- **Board independent panel scrolling** — all three zones (projects, kanban columns, completed milestones) now scroll independently within the viewport.
 
 ### Fixed
 - **Analytics costs tab** — swapped to correct session-based cost view (subscription-aware, horizontal bars, top sessions, cost by project).
