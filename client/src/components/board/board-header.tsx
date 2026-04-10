@@ -10,10 +10,9 @@ interface BoardHeaderProps {
   projects: ProjectMeta[];
   milestones: MilestoneMeta[];
   sseConnected: boolean;
-  onArchiveMilestone?: (milestoneId: string) => void;
 }
 
-export function BoardHeader({ stats, filter, onFilterChange, projects, milestones, sseConnected, onArchiveMilestone }: BoardHeaderProps) {
+export function BoardHeader({ stats, filter, onFilterChange, projects, milestones, sseConnected }: BoardHeaderProps) {
   return (
     <div className="px-5 py-3 border-b space-y-2.5">
       {/* Title row */}
@@ -56,14 +55,6 @@ export function BoardHeader({ stats, filter, onFilterChange, projects, milestone
                 <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
                 </div>
-                {pct === 100 && onArchiveMilestone && (
-                  <button
-                    onClick={() => onArchiveMilestone(m.id)}
-                    className="text-[10px] text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 px-1.5 py-0.5 rounded transition-colors"
-                  >
-                    Archive
-                  </button>
-                )}
               </div>
             );
           })}

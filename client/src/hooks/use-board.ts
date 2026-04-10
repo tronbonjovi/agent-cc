@@ -87,29 +87,6 @@ export function useIngestRoadmap() {
   });
 }
 
-/** Archive a completed milestone. */
-export function useArchiveMilestone() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (milestoneId: string) =>
-      apiFetch(`/api/board/milestones/${milestoneId}/archive`, { method: "POST" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: BOARD_KEY });
-      qc.invalidateQueries({ queryKey: STATS_KEY });
-      qc.invalidateQueries({ queryKey: ARCHIVED_KEY });
-    },
-  });
-}
-
-/** Fetch archived milestones. */
-const ARCHIVED_KEY = ["/api/board/milestones/archived"];
-export function useArchivedMilestones() {
-  return useQuery<MilestoneMeta[]>({
-    queryKey: ARCHIVED_KEY,
-    queryFn: () => apiFetch("/api/board/milestones/archived"),
-  });
-}
-
 /** Link or unlink a session to a board task. */
 export function useLinkSession() {
   const qc = useQueryClient();

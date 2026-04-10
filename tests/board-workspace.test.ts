@@ -245,17 +245,13 @@ describe("workspace layout — board.tsx structure", () => {
     expect(boardSource).toContain("ProjectZone");
   });
 
-  it("renders ArchiveZone component", () => {
-    expect(boardSource).toContain("<ArchiveZone");
-    expect(boardSource).toContain("ArchiveZone");
+  it("does NOT render ArchiveZone component", () => {
+    expect(boardSource).not.toContain("<ArchiveZone");
+    expect(boardSource).not.toContain("ArchiveZone");
   });
 
   it("imports ProjectZone from the correct path", () => {
     expect(boardSource).toMatch(/import.*ProjectZone.*from/);
-  });
-
-  it("imports ArchiveZone from the correct path", () => {
-    expect(boardSource).toMatch(/import.*ArchiveZone.*from/);
   });
 
   it("uses useBoardProjects hook", () => {
@@ -271,10 +267,12 @@ describe("workspace layout — board.tsx structure", () => {
     expect(boardSource).toContain("<ProjectPopout");
   });
 
-  it("uses percentage-based zone heights", () => {
-    // Should have three zones with percentage heights
-    expect(boardSource).toContain("35%");
-    expect(boardSource).toContain("30%");
+  it("uses percentage-based zone heights for 2-zone layout", () => {
+    // Should have two zones: projects (25%) and board (75%)
+    expect(boardSource).toContain("25%");
+    expect(boardSource).toContain("75%");
+    // Should NOT have the old 3-zone percentages
+    expect(boardSource).not.toContain("30%");
   });
 
   it("does NOT have the old inline archive section", () => {
@@ -306,28 +304,26 @@ describe("workspace layout — board.tsx structure", () => {
 
 // --- Cross-zone integration tests ---
 
-describe("cross-zone integration — three-zone workspace", () => {
+describe("cross-zone integration — two-zone workspace", () => {
   const boardSource = fs.readFileSync(
     path.join(__dirname, "../client/src/pages/board.tsx"),
     "utf-8",
   );
 
-  it("board.tsx imports all three zone components", () => {
-    // ProjectZone and ArchiveZone are the two custom zone components
-    // The middle zone (kanban) is inline in board.tsx using BOARD_COLUMNS
+  it("board.tsx imports ProjectZone but not ArchiveZone", () => {
     expect(boardSource).toMatch(/import\s+\{?\s*ProjectZone\s*\}?\s+from/);
-    expect(boardSource).toMatch(/import\s+\{?\s*ArchiveZone\s*\}?\s+from/);
+    expect(boardSource).not.toMatch(/import\s+\{?\s*ArchiveZone\s*\}?\s+from/);
     expect(boardSource).toContain("BOARD_COLUMNS");
   });
 
-  it("renders all three zones with flex-based proportions", () => {
-    // Zone 1: Projects (flex 35)
-    expect(boardSource).toContain("flex: 35");
-    // Zone 3: Archive (flex 30)
-    expect(boardSource).toContain("flex: 30");
-    // The middle zone also uses flex: 35
-    const flexMatches = boardSource.match(/flex:\s*35/g);
-    expect(flexMatches?.length).toBeGreaterThanOrEqual(2); // project + board zones
+  it("renders two zones with flex-based proportions", () => {
+    // Zone 1: Projects (flex 25)
+    expect(boardSource).toContain("flex: 25");
+    // Zone 2: Board (flex 75)
+    expect(boardSource).toContain("flex: 75");
+    // Should NOT have old 3-zone flex values
+    expect(boardSource).not.toContain("flex: 30");
+    expect(boardSource).not.toContain("flex: 35");
   });
 
   it("passes boardProjects to ProjectZone", () => {
@@ -335,9 +331,10 @@ describe("cross-zone integration — three-zone workspace", () => {
     expect(boardSource).toMatch(/projects=\{boardProjects\}/);
   });
 
-  it("passes archiveData to ArchiveZone", () => {
-    expect(boardSource).toContain("useArchivedMilestones");
-    expect(boardSource).toMatch(/milestones=\{archiveData\}/);
+  it("does not use archive hooks or data", () => {
+    expect(boardSource).not.toContain("useArchivedMilestones");
+    expect(boardSource).not.toContain("archiveData");
+    expect(boardSource).not.toContain("ArchivedMilestone");
   });
 
   it("has project popout state management for non-current projects", () => {
@@ -348,7 +345,6 @@ describe("cross-zone integration — three-zone workspace", () => {
   });
 
   it("navigates to detail page for current project clicks", () => {
-    // Current project click => setLocation(`/projects/${project.id}`)
     expect(boardSource).toContain("isCurrent");
     expect(boardSource).toMatch(/setLocation\(`\/projects\/\$\{project\.id\}`\)/);
   });
@@ -624,7 +620,7 @@ describe("workspace cleanup — no dead code", () => {
     );
 
     // All hooks used in board.tsx should be exported from use-board.ts
-    const hooksUsed = ["useBoardState", "useBoardStats", "useBoardEvents", "useBoardProjects", "useArchivedMilestones", "applyBoardFilters"];
+    const hooksUsed = ["useBoardState", "useBoardStats", "useBoardEvents", "useBoardProjects", "applyBoardFilters"];
     for (const hook of hooksUsed) {
       expect(hookSource).toContain(`export function ${hook}`);
       expect(boardSource).toContain(hook);

@@ -5,10 +5,8 @@ import { BoardSidePanel } from "@/components/board/board-side-panel";
 import { BoardTaskCard } from "@/components/board/board-task-card";
 import { ProjectZone } from "@/components/board/project-zone";
 import { ProjectPopout } from "@/components/board/project-popout";
-import { ArchiveZone } from "@/components/board/archive-zone";
-import type { ArchivedMilestone } from "@/components/board/archive-zone";
 import type { ProjectCardData } from "@/components/board/project-card";
-import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useBoardProjects, useArchivedMilestones, useArchiveMilestone } from "@/hooks/use-board";
+import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useBoardProjects } from "@/hooks/use-board";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -47,8 +45,6 @@ export default function BoardPage() {
   const { data: stats } = useBoardStats();
   const { connected } = useBoardEvents();
   const boardProjects = useBoardProjects();
-  const { data: archivedMilestones } = useArchivedMilestones();
-  const archiveMilestone = useArchiveMilestone();
 
   // Clean stale project IDs from filter when projects change (deletion or prune)
   useEffect(() => {
@@ -78,18 +74,6 @@ export default function BoardPage() {
     ? board?.tasks.find(t => t.id === selectedTaskId) ?? null
     : null;
 
-  // Map archived milestones to ArchiveZone format
-  const archiveData: ArchivedMilestone[] = useMemo(() => {
-    if (!archivedMilestones) return [];
-    return archivedMilestones.map(m => ({
-      id: m.id,
-      title: m.title,
-      project: m.project,
-      totalTasks: m.totalTasks,
-      doneTasks: m.doneTasks,
-    }));
-  }, [archivedMilestones]);
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -107,19 +91,18 @@ export default function BoardPage() {
         projects={board?.projects || []}
         milestones={board?.milestones || []}
         sseConnected={connected}
-        onArchiveMilestone={(id) => archiveMilestone.mutate(id)}
       />
 
-      {/* Zone 1: Projects (35%) */}
-      <div className="min-h-0" style={{ flex: 35 }}>
+      {/* Zone 1: Projects (25%) */}
+      <div className="min-h-0" style={{ flex: 25 }}>
         <ProjectZone
           projects={boardProjects}
           onProjectClick={handleProjectClick}
         />
       </div>
 
-      {/* Zone 2: Kanban Board (35%) */}
-      <div className="min-h-0 overflow-x-auto overflow-y-hidden p-4" style={{ flex: 35 }}>
+      {/* Zone 2: Kanban Board (75%) */}
+      <div className="min-h-0 overflow-x-auto overflow-y-hidden p-4" style={{ flex: 75 }}>
         <div className="flex gap-3 h-full min-w-max">
           {BOARD_COLUMNS.map(col => (
             <div key={col.id} className="w-72 flex flex-col bg-muted/30 rounded-lg border">
@@ -150,11 +133,6 @@ export default function BoardPage() {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Zone 3: Archive (30%) */}
-      <div className="min-h-0" style={{ flex: 30 }}>
-        <ArchiveZone milestones={archiveData} />
       </div>
 
       {/* Task side panel */}
