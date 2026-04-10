@@ -8,22 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Library placeholder page** — `/library` route with placeholder, ready for the library-redesign milestone.
+- **Library page** — consolidated Skills, Plugins, MCP Servers, Agents, and File Editor into a single tabbed page at `/library`. Tab state syncs to URL via `?tab=` parameter.
+- **Entity card component** — shared `EntityCard` with status badges (installed/saved/available), health indicators, tags, and action buttons. Used across all Library tabs.
+- **Three-tier layout** — each Library entity tab organized into Installed, Saved, and Marketplace sections. Marketplace is a placeholder for future content.
 - **Design specs for next phase** — four specs covering navigation restructure + board cleanup, Library page redesign, responsive foundation, and analytics overhaul (draft). Implementation plans written for specs 1-3.
-- **Analytics overhaul draft** — captured current tab sprawl (16 surfaces), overlap analysis, session health improvement needs, and workflow-framework integration direction.
 
 ### Changed
 - **Board columns simplified** — 5 columns → 4: Queue, In Progress, Review, Done. Backlog renamed to Queue, Ready column removed entirely.
 - **Board layout** — 3-zone (Projects/Board/Archive) → 2-zone (Projects 25% / Board 75%). Archive zone removed.
 - **Sidebar navigation** — 10 items across 3 sections → flat list of 6: Dashboard, Projects, Library, Sessions, Analytics, Settings. Section headers removed.
 - **Route rename** — `/board` → `/projects`, `/stats` → `/analytics`. Old URLs redirect automatically.
+- **Entity page routes** — `/skills`, `/plugins`, `/mcps`, `/agents`, `/markdown` now redirect to their corresponding Library tab. `/markdown/:id` editor remains standalone.
 
 ### Removed
+- **Standalone entity pages** — `skills.tsx`, `plugins.tsx`, `mcps.tsx`, `agents.tsx`, `markdown-files.tsx` deleted (~2,600 lines). All content lives in Library tabs.
 - **Archive zone** — completed milestones archive panel removed from board page. Server-side archive API retained for future use.
 - **Ready column** — board no longer has a Ready column; those tasks map to Queue.
 
 ### Planned (not yet implemented)
-- **Library page** — consolidate Skills, Plugins, MCP Servers, Agents, File Editor into tabbed page with saved/installed/marketplace pattern per entity type.
 - **Responsive foundation** — useBreakpoint hook, sizing tokens, mobile sidebar drawer, PageContainer component, per-page responsive pass.
 
 ### Added (prior)
