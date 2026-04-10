@@ -2,103 +2,79 @@
 
 ## Status
 
-Spec ready for implementation planning. Decisions captured from user notes (April 10, 2026). No brainstorm needed.
+Spec finalized April 10, 2026. All brainstorm items resolved. Cross-referenced against current codebase. Items marked [DONE] are already implemented. Items marked [IMPLEMENT] are ready for planning.
 
 ## Overview
 
-Three related changes to the Board page: fix the completed task/milestone visibility after archive removal, restore info radiators to task cards, and convert the project cards section into a left sidebar.
+Improvements to the Board page covering completed task visibility, card info restoration, project sidebar cleanup, and layout/header polish.
 
 ---
 
 ## 1. Completed Task/Milestone Handling
 
-### Problem
+### What's Already Done
 
-When the archive zone was removed from the board, the wiring that auto-hid completed milestones/tasks was also removed. Now all completed milestones and tasks are visible in the Done column, cluttering the board with historical noise.
+- [DONE] 3-zone layout with completed milestones in right sidebar (`completed-milestones-zone.tsx`)
+- [DONE] Completed milestone cards show color dot, "done" badge, task count, full green progress bar
+- [DONE] Project cards only show active milestone progress bars (completed milestones filtered out via `activeMilestones()`)
 
-### Design
+### What's Still Needed
 
-- **Completed tasks should NOT appear as cards in the Done column.** Only recently-completed items (e.g., completed within the current session or last 24h) should briefly appear, then age out.
-- **Project cards should list completed milestones** — the popout view should show a full roadmap checklist with strikethrough or checkmarks indicating which milestones are completed vs. active.
-- The current popout shows "Milestones / In Progress / Done" as aggregate numbers. Replace this with a named list of milestones with completion status.
-
-### Reference
-
-See `archive-removal-bug.png` — Done column flooded with completed items.
-See `project-card-popout.png` — current popout shows "21 Milestones, 0 In Progress, 62 Done" but no milestone names or completion indicators.
+- [IMPLEMENT] **Completed milestones should absorb their Done tasks.** Currently completed tasks from finished milestones still show as cards in the Done column. The completed milestones zone (right sidebar) should "claim" those tasks — hide them from Done and make them accessible as collapsible children within each completed milestone card. Click a completed milestone → see its task cards.
+- [IMPLEMENT] **Project popout roadmap list.** The popout currently shows aggregate numbers (e.g., "21 Milestones, 0 In Progress, 62 Done") but no milestone names. Replace with a named checklist — strikethrough or checkmarks indicating which milestones are completed vs. active. Full roadmap visibility.
 
 ---
 
-## 2. Task Card Info Restoration
+## 2. Task Card Info Radiators
 
-### Problem
+### What's Already Done
 
-During a previous card redesign, several info radiators were removed from task cards: model, agent, messages, time, tokens, cost. These were supposed to be reorganized, not removed.
+- [DONE] Cards with linked sessions show: model badge, agent role badge, message count, duration, token count, cost pill (with "session" qualifier), status light, agent activity
+- [DONE] Tags, priority badges render when present
+- [DONE] Cost labeled as session-level with tooltip
 
-### Design
+### What's Still Needed
 
-Updated card layout (top to bottom):
+- [IMPLEMENT] **Cards without sessions show almost nothing.** The `hasSession` guard means historical/completed tasks display only: title, project name, milestone name, tags. Need to surface task-level metadata (complexity, parallel-safe, model, agent, messages, time, tokens, cost) from the task's last-known session or from stored task metadata, even after the session ends.
+- [IMPLEMENT] **Task name max-char truncation.** Currently `line-clamp-2` — need a character limit with ellipsis for size uniformity across cards.
+- [IMPLEMENT] **Updated card layout (all cards, session or not):**
 
 ```
-Task Name (max-char truncation with ellipsis for uniformity)
+Task Name (truncated at max chars)
 project name · milestone name
 model · agent
-complexity:___ · parallel-safe · [other tags]
+complexity:___ · parallel-safe · [tags]
 messages · time · tokens · cost
 ```
 
-- **Task name** should have a max character limit before truncating with ellipsis. This preserves card size uniformity across the board.
-- All metadata fields from the old cards should be restored in the organized layout above.
-- Card width should remain uniform within a column.
+---
 
-### Reference
+## 3. Project Sidebar Cleanup
 
-See `old-vs-new-cards.png` — old cards show model, agent, messages (19), time (3h 27m), tokens (69k), cost ($23.84). New cards show only task name, project/milestone, and tags.
+### What's Already Done
+
+- [DONE] Project cards are in a left sidebar (Zone 1) — resizable, default 260px, min 180px, max 400px
+- [DONE] Shows: health dot, project name, milestone/task counts, overall progress bar, active milestone bars with colors, session count, total cost
+- [DONE] Scrollable independently, adjustable width via drag handle
+- [DONE] Card width adjusts dynamically with sidebar width
+
+### What's Still Needed
+
+- [IMPLEMENT] **Remove "Current" badge.** It's just the first project in the array — not user-selected, not meaningful. Remove the badge, remove the `isCurrent` logic, and allow delete on all projects equally.
+- [IMPLEMENT] **Kanban center alignment.** The board (Zone 2) is left-aligned within its flex container. Should be center-aligned relative to the two sidebars so there's balanced whitespace.
+- [IMPLEMENT] **Header rename.** Change "Board" to "Project Board" in `board-header.tsx`.
 
 ---
 
-## 3. Project Sidebar (replaces top project cards)
+## 4. Filter System
 
-### Problem
-
-Project cards currently sit in a horizontal row above the kanban columns. This wastes vertical space and doesn't scale well with many projects.
-
-### Design
-
-- **Move project cards to a left sidebar**, positioned between the navigation and the kanban board.
-- **Sidebar behavior:**
-  - Scrollable independently from the kanban board
-  - Adjustable width (drag handle)
-  - Project names listed vertically
-- **Project card content:**
-  - Universal card size within sidebar
-  - Info radiators: session count, number of milestones, number of tasks
-  - Dynamic milestone progress bars (replacing the current top-of-page milestone display)
-  - Bars use milestone colors matching card colors
-  - Bars show task count that updates as tasks are completed
-- **Card sizing:**
-  - Card width adjusts dynamically when sidebar width changes
-  - Card height adjusts dynamically based on whether milestone bars are present
-
-### Layout
-
-```
-+------+----------+------------------------------------------+
-| Nav  | Projects | Kanban Board                             |
-|      | Sidebar  | +--------+ +--------+ +--------+ +----+ |
-|      |          | | Queue  | | In Prog| | Review | |Done| |
-|      | [proj 1] | |        | |        | |        | |    | |
-|      |  bars... | |        | |        | |        | |    | |
-|      |          | |        | |        | |        | |    | |
-|      | [proj 2] | |        | |        | |        | |    | |
-|      |  bars... | |        | |        | |        | |    | |
-|      |          | +--------+ +--------+ +--------+ +----+ |
-+------+----------+------------------------------------------+
-```
+- [IMPLEMENT] **Remove filters.** The current priority/flagged filter UI isn't earning its space — the board doesn't have enough cards to need filtering. Remove `board-filters.tsx` UI from the header. Backend filter support can stay (no cost to keeping it), but the UI goes away. If the board gets busier in the future, filters can be re-added with better context on what's actually needed.
+- [IMPLEMENT] **Default hide completed milestone tasks.** This is not a filter — it's default behavior in the board aggregator. Tasks belonging to fully-completed milestones should not appear in kanban columns. The completed milestones zone handles their display (see item 1).
 
 ---
 
 ## Dependencies
 
-- Card info restoration requires that session/task metadata (model, agent, tokens, cost, etc.) is still available from the scanner/API. Verify data availability.
-- Project sidebar is a significant layout change to the Board page — may benefit from responsive-foundation work but is not blocked by it.
+- Card info for non-session tasks requires snapshotting session metadata onto the task record when a session ends (or reading from the last-known session). May need changes to session-enricher or task-scanner.
+- Completed milestone task absorption requires changes to board aggregator (filter tasks by milestone completion status) and completed-milestones-zone (add expandable task lists).
+- "Current" badge removal touches `project-card.tsx`, `use-board.ts`, and `project-popout.tsx` (which gates delete on `isCurrent`).
