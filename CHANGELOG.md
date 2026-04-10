@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Design specs for next phase** — four specs covering navigation restructure + board cleanup, Library page redesign, responsive foundation, and analytics overhaul (draft). Implementation plans written for specs 1-3.
+- **Analytics overhaul draft** — captured current tab sprawl (16 surfaces), overlap analysis, session health improvement needs, and workflow-framework integration direction.
+
+### Planned (not yet implemented)
+- **Navigation restructure** — sidebar from 10 items (3 sections) to 6 items (flat): Dashboard, Projects, Library, Sessions, Analytics, Settings. Board renamed to Projects, Stats renamed to Analytics.
+- **Board cleanup** — 5 columns to 4 (Queue/In Progress/Review/Done), Ready column removed, Backlog renamed to Queue, archive zone removed.
+- **Library page** — consolidate Skills, Plugins, MCP Servers, Agents, File Editor into tabbed page with saved/installed/marketplace pattern per entity type.
+- **Responsive foundation** — useBreakpoint hook, sizing tokens, mobile sidebar drawer, PageContainer component, per-page responsive pass.
+
+### Added (prior)
 - **Milestone color grouping** — each milestone gets a deterministic color from a 10-color dark-theme palette. Task cards show milestone color on the vertical bar (replacing project color). Board header displays color dots next to milestone names.
 - **Agent role badge** — board cards now show the subagent type (e.g. "Explore", "Plan", "Code Review") alongside the model badge when available.
 - **Cost session qualifier** — cost pill on board cards now shows "(session)" label with tooltip explaining the cost covers the entire session, not just the task.
