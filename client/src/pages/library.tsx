@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { BookOpen, Puzzle, Server, Bot, FileEdit } from "lucide-react";
 import { LIBRARY_TABS, resolveTab, type LibraryTabId } from "@/lib/library-tabs";
+import SkillsTab from "@/components/library/skills-tab";
+import PluginsTab from "@/components/library/plugins-tab";
+import McpsTab from "@/components/library/mcps-tab";
+import AgentsTab from "@/components/library/agents-tab";
 
 const TAB_ICONS: Record<LibraryTabId, React.ElementType> = {
   skills: BookOpen,
@@ -31,8 +35,6 @@ export default function Library() {
     setTabInUrl(activeTab);
   }, [activeTab]);
 
-  const Icon = TAB_ICONS[activeTab];
-
   return (
     <div className="flex flex-col gap-4 p-6">
       <h1 className="text-2xl font-semibold">Library</h1>
@@ -58,16 +60,20 @@ export default function Library() {
         })}
       </div>
 
-      {/* Tab content placeholder */}
-      <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
-        <Icon className="h-12 w-12 text-muted-foreground/40" />
-        <h2 className="text-xl font-semibold text-muted-foreground">
-          {LIBRARY_TABS.find((t) => t.id === activeTab)?.label}
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          Content coming soon.
-        </p>
-      </div>
+      {/* Tab content */}
+      {activeTab === "skills" && <SkillsTab />}
+      {activeTab === "plugins" && <PluginsTab />}
+      {activeTab === "mcps" && <McpsTab />}
+      {activeTab === "agents" && <AgentsTab />}
+      {activeTab === "editor" && (
+        <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
+          <FileEdit className="h-12 w-12 text-muted-foreground/40" />
+          <h2 className="text-xl font-semibold text-muted-foreground">File Editor</h2>
+          <p className="text-muted-foreground text-sm">
+            Editor tab coming in a future update.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
