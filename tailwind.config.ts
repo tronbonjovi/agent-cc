@@ -146,6 +146,20 @@ export default {
         "glow-amber": "0 0 12px var(--glow-amber)",
         "inner-glow": "inset 0 1px 0 0 rgba(255,255,255,0.03)",
       },
+      spacing: {
+        page: "var(--page-padding)",
+        card: "var(--card-padding)",
+        "gap-card": "var(--card-gap)",
+        "gap-section": "var(--section-gap)",
+      },
+      gap: {
+        card: "var(--card-gap)",
+        section: "var(--section-gap)",
+      },
+      padding: {
+        page: "var(--page-padding)",
+        card: "var(--card-padding)",
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
