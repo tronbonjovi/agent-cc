@@ -5,14 +5,29 @@ import { BoardSidePanel } from "@/components/board/board-side-panel";
 import { BoardTaskCard } from "@/components/board/board-task-card";
 import { ProjectZone } from "@/components/board/project-zone";
 import { ProjectPopout } from "@/components/board/project-popout";
+import { CompletedMilestonesZone } from "@/components/board/completed-milestones-zone";
 import type { ProjectCardData } from "@/components/board/project-card";
 import { useBoardState, useBoardStats, useBoardEvents, applyBoardFilters, useBoardProjects } from "@/hooks/use-board";
+import { useResizeHandle } from "@/hooks/use-resize-handle";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { BoardFilter, BoardColumn } from "@shared/board-types";
+
+/** Drag handle bar rendered between panels */
+function ResizeHandle({ onMouseDown, side }: { onMouseDown: (e: React.MouseEvent) => void; side: "left" | "right" }) {
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      className={`w-1 hover:w-1.5 bg-transparent hover:bg-foreground/10 cursor-col-resize transition-all shrink-0 ${
+        side === "right" ? "border-r border-border" : "border-l border-border"
+      }`}
+      title="Drag to resize"
+    />
+  );
+}
 
 export default function BoardPage() {
   const breakpoint = useBreakpoint();
@@ -32,6 +47,10 @@ export default function BoardPage() {
 
   // Mobile column tab switching (sm/xs)
   const [activeColumn, setActiveColumn] = useState<BoardColumn>("queue");
+
+  // Resizable sidebars (lg+ only)
+  const leftResize = useResizeHandle({ initialWidth: 260, minWidth: 180, maxWidth: 400, side: "right" });
+  const rightResize = useResizeHandle({ initialWidth: 220, minWidth: 160, maxWidth: 360, side: "left" });
 
   const [, setLocation] = useLocation();
 
@@ -114,13 +133,23 @@ export default function BoardPage() {
         sseConnected={connected}
       />
 
-      {/* 2-zone layout: side-by-side at lg+, stacked at md and below */}
+      {/* 3-zone layout at lg+: Left sidebar | Kanban | Right sidebar */}
+      {/* Stacked at md and below */}
       <div className={`flex min-h-0 flex-1 ${isLarge ? "flex-row" : "flex-col"}`}>
 
-        {/* Zone 1: Projects panel (~25% at lg+, full width stacked below) */}
-        <div className={isLarge ? "w-1/4 min-w-[220px] border-r overflow-y-auto" : "border-b"}>
-          {/* Collapsible header for md and below */}
-          {!isLarge && (
+        {/* Zone 1: Projects sidebar */}
+        {isLarge ? (
+          <>
+            <div style={{ width: leftResize.width }} className="shrink-0 overflow-hidden">
+              <ProjectZone
+                projects={boardProjects}
+                onProjectClick={handleProjectClick}
+              />
+            </div>
+            <ResizeHandle onMouseDown={leftResize.onMouseDown} side="right" />
+          </>
+        ) : (
+          <div className="border-b">
             <button
               onClick={() => setProjectsExpanded(!projectsExpanded)}
               className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold hover:bg-muted/50 transition-colors"
@@ -136,18 +165,16 @@ export default function BoardPage() {
                 {boardProjects.length}
               </span>
             </button>
-          )}
+            {projectsExpanded && (
+              <ProjectZone
+                projects={boardProjects}
+                onProjectClick={handleProjectClick}
+              />
+            )}
+          </div>
+        )}
 
-          {/* Project content — always visible at lg+, toggled below */}
-          {(isLarge || projectsExpanded) && (
-            <ProjectZone
-              projects={boardProjects}
-              onProjectClick={handleProjectClick}
-            />
-          )}
-        </div>
-
-        {/* Zone 2: Kanban Board (~75% at lg+, full width below) */}
+        {/* Zone 2: Kanban Board (center, takes remaining space) */}
         <div
           className="min-h-0 flex-1 overflow-hidden"
           style={{ padding: "var(--card-gap)" }}
@@ -233,6 +260,16 @@ export default function BoardPage() {
             })}
           </div>
         </div>
+
+        {/* Zone 3: Completed milestones sidebar (lg+ only) */}
+        {isLarge && (
+          <>
+            <ResizeHandle onMouseDown={rightResize.onMouseDown} side="left" />
+            <div style={{ width: rightResize.width }} className="shrink-0 overflow-hidden">
+              <CompletedMilestonesZone milestones={board?.milestones || []} />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Task side panel */}

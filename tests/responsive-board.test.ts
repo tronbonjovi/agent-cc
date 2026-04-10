@@ -60,9 +60,9 @@ describe("Responsive board page", () => {
       expect(boardSource).toMatch(/flex-col/);
     });
 
-    it("projects zone takes ~25% width at large breakpoints", () => {
-      // Should have width constraint for project zone at desktop
-      expect(boardSource).toMatch(/w-1\/4|25%|flex.*25|w-\[25/i);
+    it("projects zone uses resizable width at large breakpoints", () => {
+      // Left sidebar uses useResizeHandle for dynamic width
+      expect(boardSource).toMatch(/useResizeHandle|leftResize\.width/);
     });
   });
 
@@ -152,9 +152,9 @@ describe("Responsive board page", () => {
       expect(zoneSource).toMatch(/flex|grid/);
     });
 
-    it("project cards have min-width for readability", () => {
+    it("project cards show active milestone progress bars", () => {
       const cardSource = readComponent("project-card.tsx");
-      expect(cardSource).toMatch(/min-w/);
+      expect(cardSource).toMatch(/activeMilestones/);
     });
   });
 

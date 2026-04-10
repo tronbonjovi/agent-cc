@@ -42,25 +42,6 @@ export function BoardHeader({ stats, filter, onFilterChange, projects, milestone
         )}
       </div>
 
-      {/* Milestone progress */}
-      {milestones.length > 0 && (
-        <div className="flex items-center gap-3 flex-wrap">
-          {milestones.map(m => {
-            const pct = m.totalTasks > 0 ? Math.round((m.doneTasks / m.totalTasks) * 100) : 0;
-            return (
-              <div key={m.id} className="flex items-center gap-1.5 text-xs">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
-                <span className="text-muted-foreground">{m.title}</span>
-                <span className="font-mono text-[10px]">{m.doneTasks}/{m.totalTasks}</span>
-                <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {/* Filters */}
       <BoardFilters
         filter={filter}

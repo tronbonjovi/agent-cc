@@ -17,9 +17,9 @@ describe("ProjectZone component source", () => {
     expect(projectZoneSource).toMatch(/projects\.map/);
   });
 
-  it("has horizontal scrolling container", () => {
-    expect(projectZoneSource).toContain("overflow-x-auto");
-    expect(projectZoneSource).toContain("overflow-y-hidden");
+  it("has vertical scrolling container", () => {
+    expect(projectZoneSource).toContain("overflow-y-auto");
+    expect(projectZoneSource).toContain("flex-col");
   });
 
   it("has a border-bottom separator", () => {

@@ -117,9 +117,11 @@ describe("ProjectCard component structure", () => {
     expect(source).toContain("onClick");
   });
 
-  it("has min-width and max-width constraints", () => {
-    expect(source).toContain("min-w-[180px]");
-    expect(source).toContain("max-w-[200px]");
+  it("renders active milestone progress bars", () => {
+    expect(source).toContain("activeMilestones");
+    expect(source).toContain("m.title");
+    expect(source).toContain("m.doneTasks");
+    expect(source).toContain("m.totalTasks");
   });
 
   it("renders session count and cost", () => {

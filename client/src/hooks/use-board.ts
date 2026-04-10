@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
 import type { BoardState, BoardStats, BoardFilter, BoardTask, MoveTaskInput, BoardColumn, SessionEnrichment, MilestoneMeta } from "@shared/board-types";
-import type { ProjectCardData } from "@/components/board/project-card";
+import type { ProjectCardData, ProjectMilestoneData } from "@/components/board/project-card";
 import { useProjects } from "./use-projects";
 
 const BOARD_KEY = ["/api/board"];
@@ -215,6 +215,14 @@ export function useBoardProjects(): ProjectCardData[] {
         0,
       );
 
+      const milestoneDetails: ProjectMilestoneData[] = projectMilestones.map((m) => ({
+        id: m.id,
+        title: m.title,
+        color: m.color,
+        totalTasks: m.totalTasks,
+        doneTasks: m.doneTasks,
+      }));
+
       return {
         id: p.id,
         name: p.name,
@@ -227,6 +235,7 @@ export function useBoardProjects(): ProjectCardData[] {
         doneTasks,
         inProgressTasks,
         isCurrent,
+        milestones: milestoneDetails,
       };
     });
   }, [projects, board]);

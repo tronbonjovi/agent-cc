@@ -5,7 +5,7 @@ import path from "path";
 
 // --- useBoardProjects hook: pure mapping logic ---
 
-import type { ProjectCardData } from "../client/src/components/board/project-card";
+import type { ProjectCardData, ProjectMilestoneData } from "../client/src/components/board/project-card";
 import type { MilestoneMeta, BoardTask, ProjectMeta } from "../shared/board-types";
 
 interface ProjectApiItem {
@@ -50,6 +50,14 @@ function mapProjectsToCards(
       0,
     );
 
+    const milestoneDetails: ProjectMilestoneData[] = projectMilestones.map((m) => ({
+      id: m.id,
+      title: m.title,
+      color: m.color,
+      totalTasks: m.totalTasks,
+      doneTasks: m.doneTasks,
+    }));
+
     return {
       id: p.id,
       name: p.name,
@@ -62,6 +70,7 @@ function mapProjectsToCards(
       doneTasks,
       inProgressTasks,
       isCurrent,
+      milestones: milestoneDetails,
     };
   });
 }
@@ -138,6 +147,10 @@ describe("useBoardProjects — mapping logic", () => {
       doneTasks: 1,
       inProgressTasks: 1,
       isCurrent: true,
+      milestones: [
+        { id: "m1", title: "Milestone 1", color: "#3b82f6", totalTasks: 3, doneTasks: 2 },
+        { id: "m2", title: "Milestone 2", color: "#10b981", totalTasks: 2, doneTasks: 2 },
+      ],
     });
   });
 
@@ -267,12 +280,13 @@ describe("workspace layout — board.tsx structure", () => {
     expect(boardSource).toContain("<ProjectPopout");
   });
 
-  it("uses percentage-based zone heights for 2-zone layout", () => {
-    // Should have two zones: projects (25%) and board (75%)
-    expect(boardSource).toContain("25%");
-    expect(boardSource).toContain("75%");
-    // Should NOT have the old 3-zone percentages
-    expect(boardSource).not.toContain("30%");
+  it("uses resizable sidebars for 3-zone layout", () => {
+    // Left sidebar uses useResizeHandle for projects
+    expect(boardSource).toContain("useResizeHandle");
+    expect(boardSource).toContain("leftResize");
+    // Right sidebar for completed milestones
+    expect(boardSource).toContain("rightResize");
+    expect(boardSource).toContain("CompletedMilestonesZone");
   });
 
   it("does NOT have the old inline archive section", () => {
@@ -316,14 +330,15 @@ describe("cross-zone integration — two-zone workspace", () => {
     expect(boardSource).toContain("BOARD_COLUMNS");
   });
 
-  it("renders two zones with responsive proportions", () => {
-    // Zone 1: Projects (~25% at large breakpoints via w-1/4)
-    expect(boardSource).toContain("w-1/4");
+  it("renders three zones with resizable sidebars", () => {
+    // Zone 1: Projects sidebar with dynamic width via leftResize
+    expect(boardSource).toContain("leftResize.width");
     // Zone 2: Board takes remaining space via flex-1
     expect(boardSource).toMatch(/flex-1/);
-    // Should NOT have old 3-zone flex values
-    expect(boardSource).not.toContain("flex: 30");
-    expect(boardSource).not.toContain("flex: 35");
+    // Zone 3: Completed milestones sidebar with dynamic width via rightResize
+    expect(boardSource).toContain("rightResize.width");
+    // Uses ResizeHandle components
+    expect(boardSource).toContain("ResizeHandle");
   });
 
   it("passes boardProjects to ProjectZone", () => {

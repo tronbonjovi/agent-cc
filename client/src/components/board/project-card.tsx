@@ -1,5 +1,13 @@
 // client/src/components/board/project-card.tsx
 
+export interface ProjectMilestoneData {
+  id: string;
+  title: string;
+  color: string;
+  totalTasks: number;
+  doneTasks: number;
+}
+
 export interface ProjectCardData {
   id: string;
   name: string;
@@ -12,6 +20,7 @@ export interface ProjectCardData {
   doneTasks: number;
   inProgressTasks: number;
   isCurrent: boolean;
+  milestones: ProjectMilestoneData[];
 }
 
 // --- Exported utility functions (tested independently) ---
@@ -53,14 +62,20 @@ export interface ProjectCardProps {
   onClick: (e: React.MouseEvent) => void;
 }
 
+/** Filter milestones that are not yet complete */
+export function activeMilestones(milestones: ProjectMilestoneData[]): ProjectMilestoneData[] {
+  return milestones.filter(m => m.totalTasks === 0 || m.doneTasks < m.totalTasks);
+}
+
 export function ProjectCard({ project, onClick }: ProjectCardProps) {
   const segments = progressSegments(project);
   const hasTasks = project.taskCount > 0;
+  const active = activeMilestones(project.milestones);
 
   return (
     <div
       onClick={onClick}
-      className="min-w-[180px] max-w-[200px] bg-card border rounded-md p-3 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all"
+      className="bg-card border rounded-md p-3 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all"
     >
       {/* Row 1: Health dot + name + current badge */}
       <div className="flex items-center gap-2">
@@ -78,7 +93,7 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
         {project.milestoneCount} milestone{project.milestoneCount !== 1 ? "s" : ""} &middot; {project.taskCount} task{project.taskCount !== 1 ? "s" : ""}
       </div>
 
-      {/* Row 3: Stacked progress bar */}
+      {/* Row 3: Overall progress bar */}
       {hasTasks && (
         <div className="mt-2 flex h-1.5 rounded-full overflow-hidden bg-muted">
           {segments.done > 0 && (
@@ -102,7 +117,26 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
         </div>
       )}
 
-      {/* Row 4: Sessions + cost */}
+      {/* Row 4: Active milestone progress bars */}
+      {active.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {active.map(m => {
+            const pct = m.totalTasks > 0 ? Math.round((m.doneTasks / m.totalTasks) * 100) : 0;
+            return (
+              <div key={m.id} className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
+                <span className="text-[10px] text-muted-foreground truncate flex-1">{m.title}</span>
+                <span className="text-[9px] font-mono text-muted-foreground/70">{m.doneTasks}/{m.totalTasks}</span>
+                <div className="w-10 h-1 bg-muted rounded-full overflow-hidden flex-shrink-0">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Row 5: Sessions + cost */}
       <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
         <span>{project.sessionCount} session{project.sessionCount !== 1 ? "s" : ""}</span>
         <span>{formatProjectCost(project.totalCost)}</span>

@@ -15,18 +15,18 @@ export function formatProjectCount(count: number): string {
 
 export function ProjectZone({ projects, onProjectClick }: Props) {
   return (
-    <div className="border-b">
+    <div className="h-full flex flex-col">
       {/* Header bar */}
-      <div className="px-5 py-3 flex items-center gap-3">
+      <div className="px-3 py-2.5 flex items-center gap-2 border-b shrink-0">
         <h2 className="text-sm font-semibold">Projects</h2>
         <span className="text-xs text-muted-foreground">
           {formatProjectCount(projects.length)}
         </span>
       </div>
 
-      {/* Horizontal scrolling row of project cards */}
-      <div className="px-5 pb-3 overflow-x-auto overflow-y-hidden">
-        <div className="flex gap-3">
+      {/* Vertically stacked project cards */}
+      <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex flex-col gap-2">
           {projects.map((project) => (
             <ProjectCard
               key={project.id}
