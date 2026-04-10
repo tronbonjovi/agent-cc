@@ -9,44 +9,90 @@ const APP_PATH = path.resolve(__dirname, "../client/src/App.tsx");
 const layoutSource = fs.readFileSync(LAYOUT_PATH, "utf-8");
 const appSource = fs.readFileSync(APP_PATH, "utf-8");
 
-describe("Sidebar nav — Tools section items", () => {
-  // Extract the navSections array from the layout source
-  const navSectionsMatch = layoutSource.match(
-    /const navSections[\s\S]*?(?=\nexport|\nfunction|\ninterface)/
-  );
-
-  it("has navSections defined", () => {
-    expect(navSectionsMatch).toBeTruthy();
+describe("Sidebar nav — flat 6-item navigation", () => {
+  it("uses a flat navItems array, not sectioned navSections", () => {
+    expect(layoutSource).toMatch(/const navItems/);
+    expect(layoutSource).not.toMatch(/const navSections/);
   });
 
-  const navSections = navSectionsMatch![0];
-
-  it("contains Sessions in Tools section", () => {
-    expect(navSections).toMatch(/path:\s*["']\/sessions["']/);
+  it("does not have NavSection interface", () => {
+    expect(layoutSource).not.toMatch(/interface NavSection/);
   });
 
-  it("contains Agents in Tools section", () => {
-    expect(navSections).toMatch(/path:\s*["']\/agents["']/);
+  it("does not render section headers", () => {
+    expect(layoutSource).not.toMatch(/section-header/);
   });
 
-  it("contains Analytics in Tools section", () => {
-    expect(navSections).toMatch(/path:\s*["']\/stats["']/);
+  // Exactly 6 nav items expected
+  const navItemPaths = [...layoutSource.matchAll(/path:\s*["'](\/[^"']*)["']/g)].map(m => m[1]);
+
+  it("has exactly 6 nav items", () => {
+    expect(navItemPaths).toHaveLength(6);
   });
 
-  it("contains Settings in Tools section", () => {
-    expect(navSections).toMatch(/path:\s*["']\/settings["']/);
+  it("contains Dashboard at /", () => {
+    expect(navItemPaths).toContain("/");
   });
 
-  it("does NOT contain Messages in sidebar", () => {
-    expect(navSections).not.toMatch(/path:\s*["']\/messages["']/);
+  it("contains Projects at /projects", () => {
+    expect(navItemPaths).toContain("/projects");
   });
 
-  it("does NOT contain Graph in sidebar", () => {
-    expect(navSections).not.toMatch(/path:\s*["']\/graph["']/);
+  it("contains Library at /library", () => {
+    expect(navItemPaths).toContain("/library");
   });
 
-  it("does NOT contain Prompts in sidebar", () => {
-    expect(navSections).not.toMatch(/path:\s*["']\/prompts["']/);
+  it("contains Sessions at /sessions", () => {
+    expect(navItemPaths).toContain("/sessions");
+  });
+
+  it("contains Analytics at /analytics", () => {
+    expect(navItemPaths).toContain("/analytics");
+  });
+
+  it("contains Settings at /settings", () => {
+    expect(navItemPaths).toContain("/settings");
+  });
+
+  // Removed nav items
+  it("does NOT contain /board", () => {
+    expect(navItemPaths).not.toContain("/board");
+  });
+
+  it("does NOT contain /mcps", () => {
+    expect(navItemPaths).not.toContain("/mcps");
+  });
+
+  it("does NOT contain /skills", () => {
+    expect(navItemPaths).not.toContain("/skills");
+  });
+
+  it("does NOT contain /plugins", () => {
+    expect(navItemPaths).not.toContain("/plugins");
+  });
+
+  it("does NOT contain /markdown", () => {
+    expect(navItemPaths).not.toContain("/markdown");
+  });
+
+  it("does NOT contain /agents", () => {
+    expect(navItemPaths).not.toContain("/agents");
+  });
+
+  it("does NOT contain /stats", () => {
+    expect(navItemPaths).not.toContain("/stats");
+  });
+
+  it("does NOT contain /messages", () => {
+    expect(navItemPaths).not.toContain("/messages");
+  });
+
+  it("does NOT contain /graph", () => {
+    expect(navItemPaths).not.toContain("/graph");
+  });
+
+  it("does NOT contain /prompts", () => {
+    expect(navItemPaths).not.toContain("/prompts");
   });
 });
 
@@ -73,7 +119,6 @@ describe("Routes — removed pages", () => {
 });
 
 describe("No broken links to old routes", () => {
-  // Scan all .tsx/.ts files in client/src for old route references
   const clientDir = path.resolve(__dirname, "../client/src");
 
   function getAllFiles(dir: string): string[] {
@@ -94,9 +139,7 @@ describe("No broken links to old routes", () => {
   it("no client files link to /messages", () => {
     for (const file of clientFiles) {
       const content = fs.readFileSync(file, "utf-8");
-      // Allow redirect files that point away from /messages, but no links TO /messages
       const relativePath = path.relative(clientDir, file);
-      // Skip checking redirect stubs — they may still exist as catch-all redirects
       if (relativePath.includes("prompts.tsx") || relativePath.includes("message-history.tsx")) continue;
       const hasLink = content.match(/["']\/messages["']/);
       expect(hasLink, `Found /messages reference in ${relativePath}`).toBeNull();
@@ -114,24 +157,36 @@ describe("No broken links to old routes", () => {
 });
 
 describe("Layout — unused icon imports cleaned up", () => {
-  it("does not import MessageSquareText if unused", () => {
-    // If MessageSquareText is not used in the nav items, it shouldn't be imported
-    const navSectionsMatch = layoutSource.match(
-      /const navSections[\s\S]*?(?=\nexport|\nfunction|\ninterface)/
-    );
-    const navSections = navSectionsMatch![0];
-    if (!navSections.includes("MessageSquareText")) {
-      expect(layoutSource).not.toMatch(/\bMessageSquareText\b/);
-    }
+  it("does not import Server icon (removed from nav)", () => {
+    // Server was only used for MCP Servers nav item, now removed
+    expect(layoutSource).not.toMatch(/\bServer\b/);
   });
 
-  it("does not import GitBranch if unused", () => {
-    const navSectionsMatch = layoutSource.match(
-      /const navSections[\s\S]*?(?=\nexport|\nfunction|\ninterface)/
-    );
-    const navSections = navSectionsMatch![0];
-    if (!navSections.includes("GitBranch")) {
-      expect(layoutSource).not.toMatch(/\bGitBranch\b/);
-    }
+  it("does not import Wand2 icon (removed from nav)", () => {
+    expect(layoutSource).not.toMatch(/\bWand2\b/);
+  });
+
+  it("does not import Puzzle icon (removed from nav)", () => {
+    expect(layoutSource).not.toMatch(/\bPuzzle\b/);
+  });
+
+  it("does not import FileText icon (removed from nav)", () => {
+    expect(layoutSource).not.toMatch(/\bFileText\b/);
+  });
+
+  it("does not import Bot icon (removed from nav)", () => {
+    expect(layoutSource).not.toMatch(/\bBot\b/);
+  });
+
+  it("does not import unused Settings icon", () => {
+    // Settings icon was imported but SlidersHorizontal is used instead
+    // Check the import block specifically for the Settings icon import
+    const importBlock = layoutSource.match(/import\s*\{[\s\S]*?\}\s*from\s*["']lucide-react["']/);
+    expect(importBlock).toBeTruthy();
+    expect(importBlock![0]).not.toMatch(/\bSettings\b/);
+  });
+
+  it("imports BookOpen for Library", () => {
+    expect(layoutSource).toMatch(/\bBookOpen\b/);
   });
 });
