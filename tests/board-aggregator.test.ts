@@ -51,7 +51,7 @@ describe("aggregator", () => {
         id: "itm-abc12345",
         title: "Build auth",
         type: "task",
-        status: "backlog",
+        status: "pending",
         priority: "high",
         labels: ["backend"],
         created: "2026-04-07",
@@ -63,7 +63,7 @@ describe("aggregator", () => {
 
       const result = mapTaskToBoard(task, "proj-1", "My Project", "#3b82f6", []);
       expect(result!.id).toBe("itm-abc12345");
-      expect(result!.column).toBe("backlog");
+      expect(result!.column).toBe("queue");
       expect(result!.project).toBe("proj-1");
       expect(result!.projectName).toBe("My Project");
       expect(result!.projectColor).toBe("#3b82f6");
@@ -93,7 +93,7 @@ describe("aggregator", () => {
 
     it("skips milestone and roadmap type items", () => {
       const task: TaskItem = {
-        id: "itm-1", title: "M", type: "milestone", status: "backlog",
+        id: "itm-1", title: "M", type: "milestone", status: "pending",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
@@ -151,8 +151,8 @@ describe("aggregator", () => {
   });
 
   describe("statusToColumn — workflow status values", () => {
-    it("maps 'pending' to 'backlog'", () => {
-      expect(statusToColumn("pending")).toBe("backlog");
+    it("maps 'pending' to 'queue'", () => {
+      expect(statusToColumn("pending")).toBe("queue");
     });
 
     it("maps 'in_progress' to 'in-progress'", () => {
@@ -172,12 +172,12 @@ describe("aggregator", () => {
     });
 
     // Existing status values still work
-    it("still maps 'backlog' to 'backlog'", () => {
-      expect(statusToColumn("backlog")).toBe("backlog");
+    it("maps 'backlog' to 'queue'", () => {
+      expect(statusToColumn("backlog")).toBe("queue");
     });
 
-    it("still maps 'todo' to 'ready'", () => {
-      expect(statusToColumn("todo")).toBe("ready");
+    it("maps 'todo' to 'queue'", () => {
+      expect(statusToColumn("todo")).toBe("queue");
     });
 
     it("still maps 'done' to 'done'", () => {
@@ -188,11 +188,11 @@ describe("aggregator", () => {
   describe("mapTaskToBoard — milestone color", () => {
     it("includes milestoneColor when task has a milestone parent", () => {
       const milestone: TaskItem = {
-        id: "ms-alpha", title: "Alpha", type: "milestone", status: "backlog",
+        id: "ms-alpha", title: "Alpha", type: "milestone", status: "pending",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md",
       };
       const task: TaskItem = {
-        id: "itm-1", title: "T", type: "task", status: "backlog", parent: "ms-alpha",
+        id: "itm-1", title: "T", type: "task", status: "pending", parent: "ms-alpha",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", [milestone]);
@@ -202,11 +202,11 @@ describe("aggregator", () => {
 
     it("uses milestoneColorMap when provided", () => {
       const milestone: TaskItem = {
-        id: "ms-beta", title: "Beta", type: "milestone", status: "backlog",
+        id: "ms-beta", title: "Beta", type: "milestone", status: "pending",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md",
       };
       const task: TaskItem = {
-        id: "itm-2", title: "T", type: "task", status: "backlog", parent: "ms-beta",
+        id: "itm-2", title: "T", type: "task", status: "pending", parent: "ms-beta",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
       };
       const colorMap = new Map([["ms-beta", "#custom1"]]);
@@ -216,7 +216,7 @@ describe("aggregator", () => {
 
     it("milestoneColor is undefined when task has no milestone", () => {
       const task: TaskItem = {
-        id: "itm-3", title: "T", type: "task", status: "backlog",
+        id: "itm-3", title: "T", type: "task", status: "pending",
         created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t.md",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
@@ -251,7 +251,7 @@ describe("aggregator", () => {
   describe("mapTaskToBoard — source field", () => {
     it("should set source to 'db' for itm- prefixed tasks", () => {
       const task: TaskItem = {
-        id: "itm-abc12345", title: "DB task", type: "task", status: "backlog",
+        id: "itm-abc12345", title: "DB task", type: "task", status: "pending",
         created: "2026-04-08", updated: "2026-04-08", body: "", filePath: "/tmp/t.md",
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
@@ -295,7 +295,7 @@ describe("aggregator", () => {
       expect(result.tasks).toEqual([]);
       expect(result.projects).toEqual([]);
       expect(result.milestones).toEqual([]);
-      expect(result.columns).toEqual(["backlog", "ready", "in-progress", "review", "done"]);
+      expect(result.columns).toEqual(["queue", "in-progress", "review", "done"]);
     });
 
     it("aggregates tasks from multiple projects", () => {
@@ -309,7 +309,7 @@ describe("aggregator", () => {
           projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
           config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
           items: [
-            { id: "itm-1", title: "Task A", type: "task", status: "backlog", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/alpha/.claude/tasks/t.md" },
+            { id: "itm-1", title: "Task A", type: "task", status: "pending", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/alpha/.claude/tasks/t.md" },
           ],
           malformedCount: 0,
         })
@@ -317,7 +317,7 @@ describe("aggregator", () => {
           projectId: "p2", projectName: "Beta", projectPath: "/tmp/beta",
           config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
           items: [
-            { id: "itm-2", title: "Task B", type: "task", status: "ready", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/beta/.claude/tasks/t.md" },
+            { id: "itm-2", title: "Task B", type: "task", status: "pending", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/beta/.claude/tasks/t.md" },
           ],
           malformedCount: 0,
         });
@@ -338,8 +338,8 @@ describe("aggregator", () => {
         projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
         config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
         items: [
-          { id: "itm-m1", title: "v1.0 Release", type: "milestone", status: "backlog", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
-          { id: "itm-1", title: "Task A", type: "task", status: "backlog", parent: "itm-m1", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
+          { id: "itm-m1", title: "v1.0 Release", type: "milestone", status: "pending", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
+          { id: "itm-1", title: "Task A", type: "task", status: "pending", parent: "itm-m1", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
           { id: "itm-2", title: "Task B", type: "task", status: "done", parent: "itm-m1", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t2.md" },
         ],
         malformedCount: 0,
@@ -364,10 +364,10 @@ describe("aggregator", () => {
         projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
         config: { statuses: [], types: [], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
         items: [
-          { id: "itm-m1", title: "v1.0 Release", type: "milestone", status: "backlog", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
-          { id: "itm-1", title: "Task A", type: "task", status: "backlog", parent: "itm-m1", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
+          { id: "itm-m1", title: "v1.0 Release", type: "milestone", status: "pending", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
+          { id: "itm-1", title: "Task A", type: "task", status: "pending", parent: "itm-m1", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
           { id: "itm-2", title: "Task B", type: "task", status: "done", parent: "itm-m1", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t2.md" },
-          { id: "itm-3", title: "Orphan Task", type: "task", status: "ready", priority: "low", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t3.md" },
+          { id: "itm-3", title: "Orphan Task", type: "task", status: "pending", priority: "low", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t3.md" },
         ],
         malformedCount: 0,
       });
@@ -395,9 +395,9 @@ describe("aggregator", () => {
         items: [
           { id: "itm-m-archived", title: "Old Milestone", type: "milestone", status: "done", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m.md" },
           { id: "itm-archived-child", title: "Old Task", type: "task", status: "done", parent: "itm-m-archived", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t1.md" },
-          { id: "itm-m-active", title: "Active Milestone", type: "milestone", status: "backlog", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m2.md" },
-          { id: "itm-active-child", title: "Active Task", type: "task", status: "backlog", parent: "itm-m-active", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t2.md" },
-          { id: "itm-orphan", title: "No Milestone Task", type: "task", status: "ready", priority: "low", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t3.md" },
+          { id: "itm-m-active", title: "Active Milestone", type: "milestone", status: "pending", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m2.md" },
+          { id: "itm-active-child", title: "Active Task", type: "task", status: "pending", parent: "itm-m-active", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t2.md" },
+          { id: "itm-orphan", title: "No Milestone Task", type: "task", status: "pending", priority: "low", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t3.md" },
         ],
         malformedCount: 0,
       });
@@ -430,7 +430,7 @@ describe("aggregator", () => {
           { id: "pr-task002", title: "Remove routes", type: "task", status: "done", parent: "pipeline-removal", priority: "medium", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t-done2.md" },
           // Active milestone — has incomplete tasks
           { id: "active-milestone", title: "Active Work", type: "milestone", status: "in-progress", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/m-active.md" },
-          { id: "active-task", title: "Do thing", type: "task", status: "backlog", parent: "active-milestone", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t-active.md" },
+          { id: "active-task", title: "Do thing", type: "task", status: "pending", parent: "active-milestone", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "", filePath: "/tmp/t-active.md" },
         ],
         malformedCount: 0,
       });

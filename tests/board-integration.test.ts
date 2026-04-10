@@ -16,11 +16,11 @@ vi.mock("../server/storage", () => ({
 vi.mock("../server/scanner/task-scanner", () => ({
   scanProjectTasks: vi.fn(() => ({
     projectId: "p1", projectName: "Alpha", projectPath: "/tmp/alpha",
-    config: { statuses: ["backlog", "ready", "in-progress", "review", "done"], types: ["task", "milestone"], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
+    config: { statuses: ["queue", "in-progress", "review", "done"], types: ["task", "milestone"], defaultType: "task", defaultPriority: "medium", columnOrder: {} },
     items: [
       { id: "itm-1", title: "Setup DB", type: "task", status: "done", priority: "high", created: "2026-04-07", updated: "2026-04-07", body: "Set up database", filePath: "/tmp/t1.md" },
-      { id: "itm-2", title: "Build API", type: "task", status: "backlog", priority: "high", dependsOn: ["itm-1"], created: "2026-04-07", updated: "2026-04-07", body: "Build the API", filePath: "/tmp/t2.md" },
-      { id: "itm-3", title: "Write tests", type: "task", status: "backlog", priority: "medium", dependsOn: ["itm-2"], created: "2026-04-07", updated: "2026-04-07", body: "Write tests", filePath: "/tmp/t3.md" },
+      { id: "itm-2", title: "Build API", type: "task", status: "queue", priority: "high", dependsOn: ["itm-1"], created: "2026-04-07", updated: "2026-04-07", body: "Build the API", filePath: "/tmp/t2.md" },
+      { id: "itm-3", title: "Write tests", type: "task", status: "queue", priority: "medium", dependsOn: ["itm-2"], created: "2026-04-07", updated: "2026-04-07", body: "Write tests", filePath: "/tmp/t3.md" },
     ],
     malformedCount: 0,
   })),
@@ -64,8 +64,8 @@ describe("board integration", () => {
     expect(boardRes.status).toBe(200);
     expect(boardRes.body.tasks).toHaveLength(3);
     expect(boardRes.body.tasks[0].column).toBe("done");   // itm-1 (done)
-    expect(boardRes.body.tasks[1].column).toBe("backlog"); // itm-2 (backlog)
-    expect(boardRes.body.tasks[2].column).toBe("backlog"); // itm-3 (backlog)
+    expect(boardRes.body.tasks[1].column).toBe("queue"); // itm-2 (backlog)
+    expect(boardRes.body.tasks[2].column).toBe("queue"); // itm-3 (backlog)
 
     // 2. Move itm-2 to in-progress — dep (itm-1) is done, should be fine
     const move1 = await request(app)

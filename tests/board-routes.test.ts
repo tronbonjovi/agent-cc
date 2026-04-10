@@ -33,7 +33,7 @@ vi.mock("../server/board/aggregator", () => ({
         id: "itm-test",
         title: "Test Task",
         description: "A test task",
-        column: "ready" as const,
+        column: "queue" as const,
         project: "p1",
         projectName: "Test Project",
         projectColor: "#3b82f6",
@@ -59,7 +59,7 @@ vi.mock("../server/board/aggregator", () => ({
         updatedAt: "2026-04-08T10:30:00Z",
       },
     ],
-    columns: ["backlog", "ready", "in-progress", "review", "done"],
+    columns: ["queue", "in-progress", "review", "done"],
     projects: [],
     milestones: [
       { id: "itm-m1", title: "v1.0", project: "p1", totalTasks: 3, doneTasks: 3 },
@@ -67,7 +67,7 @@ vi.mock("../server/board/aggregator", () => ({
   })),
   computeBoardStats: vi.fn(() => ({
     totalTasks: 1,
-    byColumn: { backlog: 0, ready: 1, "in-progress": 0, review: 0, done: 0 },
+    byColumn: { queue: 1, "in-progress": 0, review: 0, done: 0 },
     activeAgents: 0,
     totalSpend: 0.35,
     flaggedCount: 0,
@@ -108,7 +108,7 @@ describe("board routes", () => {
     expect(res.body).toHaveProperty("columns");
     expect(res.body).toHaveProperty("projects");
     expect(res.body).toHaveProperty("milestones");
-    expect(res.body.columns).toEqual(["backlog", "ready", "in-progress", "review", "done"]);
+    expect(res.body.columns).toEqual(["queue", "in-progress", "review", "done"]);
   });
 
   it("GET /api/board/stats returns stats", async () => {
@@ -132,7 +132,7 @@ describe("board routes", () => {
   it("POST /api/board/tasks/:id/move returns 404 for missing task", async () => {
     const res = await request(app)
       .post("/api/board/tasks/itm-nonexistent/move")
-      .send({ column: "ready" });
+      .send({ column: "queue" });
     expect(res.status).toBe(404);
   });
 
@@ -165,7 +165,7 @@ describe("board routes", () => {
   it("GET /api/board/tasks/:id/session returns 404 when task not found", async () => {
     vi.mocked(aggregateBoardState).mockReturnValueOnce({
       tasks: [],
-      columns: ["backlog", "ready", "in-progress", "review", "done"],
+      columns: ["queue", "in-progress", "review", "done"],
       projects: [],
       milestones: [],
     });
@@ -181,7 +181,7 @@ describe("board routes", () => {
           id: "itm-test",
           title: "Test Task",
           description: "A test task",
-          column: "ready" as const,
+          column: "queue" as const,
           project: "p1",
           projectName: "Test Project",
           projectColor: "#3b82f6",
@@ -194,7 +194,7 @@ describe("board routes", () => {
           updatedAt: "2026-04-08T10:30:00Z",
         },
       ],
-      columns: ["backlog", "ready", "in-progress", "review", "done"],
+      columns: ["queue", "in-progress", "review", "done"],
       projects: [],
       milestones: [],
     });

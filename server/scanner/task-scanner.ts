@@ -23,12 +23,12 @@ function titleCaseFromDirName(dirName: string): string {
 
 /** Compute milestone status from child task statuses */
 function computeMilestoneStatus(children: TaskItem[]): string {
-  if (children.length === 0) return "backlog";
+  if (children.length === 0) return "queue";
   const allDone = children.every(c => c.status === "done" || c.status === "completed");
   if (allDone) return "done";
   const anyInProgress = children.some(c => c.status === "in-progress" || c.status === "in_progress");
   if (anyInProgress) return "in-progress";
-  return "backlog";
+  return "queue";
 }
 
 /** Parse ROADMAP.md milestone table — returns map of milestone name to { description, status } */

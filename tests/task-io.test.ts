@@ -187,31 +187,17 @@ describe("task-io", () => {
       expect(parsed!.status).toBe("in_progress");
     });
 
-    it("maps 'backlog' to 'pending' for workflow files", () => {
-      const workflowPath = path.join(tmpDir, "roadmap", "m1", "task-backlog-bbbb.md");
+    it("maps 'queue' to 'pending' for workflow files", () => {
+      const workflowPath = path.join(tmpDir, "roadmap", "m1", "task-queue-bbbb.md");
       fs.mkdirSync(path.dirname(workflowPath), { recursive: true });
       writeTaskFile(workflowPath, {
-        id: "itm-bbbb2222", title: "Backlog Test", type: "task",
+        id: "itm-bbbb2222", title: "Queue Test", type: "task",
         status: "in_progress", created: "2026-04-08", updated: "2026-04-07",
         body: "", filePath: workflowPath,
       });
       taskFileIndex.set(taskFileKey("proj-wf2", "itm-bbbb2222"), workflowPath);
 
-      updateTaskField("itm-bbbb2222", "status", "backlog", "proj-wf2");
-      expect(parseTaskFile(workflowPath)!.status).toBe("pending");
-    });
-
-    it("maps 'ready' to 'pending' for workflow files", () => {
-      const workflowPath = path.join(tmpDir, "roadmap", "m1", "task-ready-cccc.md");
-      fs.mkdirSync(path.dirname(workflowPath), { recursive: true });
-      writeTaskFile(workflowPath, {
-        id: "itm-cccc3333", title: "Ready Test", type: "task",
-        status: "in_progress", created: "2026-04-08", updated: "2026-04-07",
-        body: "", filePath: workflowPath,
-      });
-      taskFileIndex.set(taskFileKey("proj-wf3", "itm-cccc3333"), workflowPath);
-
-      updateTaskField("itm-cccc3333", "status", "ready", "proj-wf3");
+      updateTaskField("itm-bbbb2222", "status", "queue", "proj-wf2");
       expect(parseTaskFile(workflowPath)!.status).toBe("pending");
     });
 

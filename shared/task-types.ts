@@ -28,7 +28,7 @@ export interface TaskConfig {
 }
 
 export const DEFAULT_TASK_CONFIG: TaskConfig = {
-  statuses: ["backlog", "todo", "in-progress", "blocked", "review", "done"],
+  statuses: ["queue", "todo", "in-progress", "blocked", "review", "done"],
   types: ["roadmap", "milestone", "task"],
   defaultType: "task",
   defaultPriority: "medium",

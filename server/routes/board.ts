@@ -13,7 +13,7 @@ import type { BoardEventBus } from "../board/events";
 import type { MoveTaskInput, BoardColumn } from "@shared/board-types";
 import type { TaskItem } from "@shared/task-types";
 
-const VALID_COLUMNS = ["backlog", "ready", "in-progress", "review", "done"];
+const VALID_COLUMNS = ["queue", "in-progress", "review", "done"];
 
 export function createBoardRouter(events: BoardEventBus): Router {
   const router = Router();
@@ -257,7 +257,7 @@ export function createBoardRouter(events: BoardEventBus): Router {
         id,
         title: ms.title,
         type: "milestone",
-        status: "backlog",
+        status: "queue",
         priority: ms.priority,
         created: new Date().toISOString().split("T")[0],
         updated: new Date().toISOString().split("T")[0],
@@ -299,7 +299,7 @@ export function createBoardRouter(events: BoardEventBus): Router {
         id,
         title: t.title,
         type: "task",
-        status: "backlog",
+        status: "queue",
         priority: t.priority,
         parent: t.milestone ? milestoneIdMap.get(t.milestone) : undefined,
         dependsOn: deps.length > 0 ? deps : undefined,

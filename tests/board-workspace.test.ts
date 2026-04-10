@@ -71,7 +71,7 @@ function makeTask(overrides: Partial<BoardTask>): BoardTask {
     id: "t1",
     title: "Task",
     description: "",
-    column: "backlog",
+    column: "queue",
     project: "p1",
     projectName: "Project",
     projectColor: "#000",
@@ -119,7 +119,7 @@ describe("useBoardProjects — mapping logic", () => {
   const tasks: BoardTask[] = [
     makeTask({ id: "t1", project: "p1", column: "done" }),
     makeTask({ id: "t2", project: "p1", column: "in-progress" }),
-    makeTask({ id: "t3", project: "p1", column: "backlog" }),
+    makeTask({ id: "t3", project: "p1", column: "queue" }),
     makeTask({ id: "t4", project: "p2", column: "done", session: { sessionId: "s1", isActive: true, model: "opus", lastActivity: null, lastActivityTs: null, messageCount: 10, costUsd: 1.50, inputTokens: 1000, outputTokens: 500, healthScore: "good", toolErrors: 0, durationMinutes: 10 } }),
   ];
 
@@ -357,24 +357,20 @@ describe("cross-zone integration — two-zone workspace", () => {
 
 // --- Board columns definition ---
 
-describe("board columns — 5-column kanban", () => {
+describe("board columns — 4-column kanban", () => {
   const columnsSource = fs.readFileSync(
     path.join(__dirname, "../client/src/lib/board-columns.ts"),
     "utf-8",
   );
 
-  it("defines exactly 5 columns", () => {
+  it("defines exactly 4 columns", () => {
     // Count column definitions by matching id: "..." patterns
     const idMatches = columnsSource.match(/id:\s*"[^"]+"/g);
-    expect(idMatches).toHaveLength(5);
+    expect(idMatches).toHaveLength(4);
   });
 
-  it("has backlog column", () => {
-    expect(columnsSource).toContain('"backlog"');
-  });
-
-  it("has ready column", () => {
-    expect(columnsSource).toContain('"ready"');
+  it("has queue column", () => {
+    expect(columnsSource).toContain('"queue"');
   });
 
   it("has in-progress column", () => {
@@ -389,14 +385,20 @@ describe("board columns — 5-column kanban", () => {
     expect(columnsSource).toContain('"done"');
   });
 
+  it("does not have backlog or ready columns", () => {
+    // These were removed in the column consolidation
+    const idMatches = columnsSource.match(/id:\s*"[^"]+"/g) || [];
+    const ids = idMatches.map(m => m.replace(/id:\s*"/, "").replace(/"$/, ""));
+    expect(ids).not.toContain("backlog");
+    expect(ids).not.toContain("ready");
+  });
+
   it("columns are in correct left-to-right order", () => {
-    const backlogIdx = columnsSource.indexOf('"backlog"');
-    const readyIdx = columnsSource.indexOf('"ready"');
+    const queueIdx = columnsSource.indexOf('"queue"');
     const inProgressIdx = columnsSource.indexOf('"in-progress"');
     const reviewIdx = columnsSource.indexOf('"review"');
     const doneIdx = columnsSource.indexOf('"done"');
-    expect(backlogIdx).toBeLessThan(readyIdx);
-    expect(readyIdx).toBeLessThan(inProgressIdx);
+    expect(queueIdx).toBeLessThan(inProgressIdx);
     expect(inProgressIdx).toBeLessThan(reviewIdx);
     expect(reviewIdx).toBeLessThan(doneIdx);
   });
@@ -410,15 +412,14 @@ describe("statusToColumn — status mapping coverage", () => {
     "utf-8",
   );
 
-  it("maps pending and planned to backlog", () => {
+  it("maps pending, planned, todo, ready, backlog to queue", () => {
     expect(aggregatorSource).toMatch(/case\s+"pending":/);
     expect(aggregatorSource).toMatch(/case\s+"planned":/);
-    // Both should resolve to backlog
-    expect(aggregatorSource).toMatch(/case\s+"planned":\s*\n?\s*return\s+"backlog"/);
-  });
-
-  it("maps backlog to backlog", () => {
+    expect(aggregatorSource).toMatch(/case\s+"todo":/);
+    expect(aggregatorSource).toMatch(/case\s+"ready":/);
     expect(aggregatorSource).toMatch(/case\s+"backlog":/);
+    // All should resolve to queue
+    expect(aggregatorSource).toMatch(/case\s+"backlog":\s*\n?\s*return\s+"queue"/);
   });
 
   it("maps in_progress to in-progress", () => {
@@ -438,14 +439,6 @@ describe("statusToColumn — status mapping coverage", () => {
     expect(aggregatorSource).toMatch(/case\s+"review":\s*\n?\s*return\s+"review"/);
   });
 
-  it("maps ready to ready", () => {
-    expect(aggregatorSource).toMatch(/case\s+"ready":\s*\n?\s*return\s+"ready"/);
-  });
-
-  it("maps todo to ready", () => {
-    expect(aggregatorSource).toMatch(/case\s+"todo":/);
-  });
-
   it("maps blocked to in-progress", () => {
     expect(aggregatorSource).toMatch(/case\s+"blocked":/);
   });
@@ -454,8 +447,8 @@ describe("statusToColumn — status mapping coverage", () => {
     expect(aggregatorSource).toMatch(/case\s+"cancelled":/);
   });
 
-  it("defaults unknown statuses to backlog", () => {
-    expect(aggregatorSource).toMatch(/default:\s*\n?\s*return\s+"backlog"/);
+  it("defaults unknown statuses to queue", () => {
+    expect(aggregatorSource).toMatch(/default:\s*\n?\s*return\s+"queue"/);
   });
 });
 

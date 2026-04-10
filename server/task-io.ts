@@ -103,8 +103,7 @@ export function writeTaskFile(filePath: string, task: TaskItem): void {
 /** Reverse-map board column names to claude-workflow status values. */
 function columnToWorkflowStatus(column: string): string {
   switch (column) {
-    case "backlog": return "pending";
-    case "ready": return "pending";
+    case "queue": return "pending";
     case "in-progress": return "in_progress";
     case "review": return "review";
     case "done": return "completed";
@@ -203,7 +202,7 @@ export function parseConfigFile(filePath: string): TaskConfig | null {
     if (d.type !== "task-config") return null;
 
     return {
-      statuses: Array.isArray(d.statuses) ? d.statuses.map(String) : ["backlog", "todo", "in-progress", "review", "done"],
+      statuses: Array.isArray(d.statuses) ? d.statuses.map(String) : ["queue", "todo", "in-progress", "review", "done"],
       types: Array.isArray(d.types) ? d.types.map(String) : ["roadmap", "milestone", "task"],
       defaultType: d.default_type ? String(d.default_type) : "task",
       defaultPriority: d.default_priority ? String(d.default_priority) : "medium",

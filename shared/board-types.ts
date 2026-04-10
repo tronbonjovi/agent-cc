@@ -1,6 +1,6 @@
 // shared/board-types.ts
 
-export type BoardColumn = "backlog" | "ready" | "in-progress" | "review" | "done";
+export type BoardColumn = "queue" | "in-progress" | "review" | "done";
 
 export interface BoardTask {
   id: string;

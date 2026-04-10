@@ -78,13 +78,12 @@ export function getArchivedMilestones(): string[] {
 /** Map a status string to a board column. Handles both regular task statuses and claude-workflow statuses. */
 export function statusToColumn(status: string): BoardColumn {
   switch (status) {
-    case "backlog":
     case "pending":
     case "planned":
-      return "backlog";
     case "todo":
     case "ready":
-      return "ready";
+    case "backlog":
+      return "queue";
     case "in-progress":
     case "in_progress":
     case "blocked":
@@ -96,7 +95,7 @@ export function statusToColumn(status: string): BoardColumn {
     case "cancelled":
       return "done";
     default:
-      return "backlog";
+      return "queue";
   }
 }
 
@@ -212,7 +211,7 @@ export function aggregateBoardState(filterProjects?: string[], includeArchived?:
 
   return {
     tasks,
-    columns: ["backlog", "ready", "in-progress", "review", "done"],
+    columns: ["queue", "in-progress", "review", "done"],
     projects,
     milestones: Array.from(milestoneMap.values()),
   };
@@ -221,7 +220,7 @@ export function aggregateBoardState(filterProjects?: string[], includeArchived?:
 /** Compute quick stats from board state. */
 export function computeBoardStats(state: BoardState): BoardStats {
   const byColumn: Record<BoardColumn, number> = {
-    "backlog": 0, "ready": 0, "in-progress": 0, "review": 0, "done": 0,
+    "queue": 0, "in-progress": 0, "review": 0, "done": 0,
   };
   let activeAgents = 0;
   let flaggedCount = 0;

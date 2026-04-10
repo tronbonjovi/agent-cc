@@ -3,9 +3,9 @@ import { describe, it, expect } from "vitest";
 import { BOARD_COLUMNS, columnOrder, isValidColumn } from "../client/src/lib/board-columns";
 
 describe("board-columns", () => {
-  it("defines exactly 5 columns in order", () => {
+  it("defines exactly 4 columns in order", () => {
     expect(BOARD_COLUMNS.map(c => c.id)).toEqual([
-      "backlog", "ready", "in-progress", "review", "done",
+      "queue", "in-progress", "review", "done",
     ]);
   });
 
@@ -18,17 +18,18 @@ describe("board-columns", () => {
   });
 
   it("columnOrder returns numeric index", () => {
-    expect(columnOrder("backlog")).toBe(0);
-    expect(columnOrder("done")).toBe(4);
+    expect(columnOrder("queue")).toBe(0);
+    expect(columnOrder("done")).toBe(3);
     expect(columnOrder("unknown")).toBe(-1);
   });
 
   it("isValidColumn validates column names", () => {
-    expect(isValidColumn("backlog")).toBe(true);
-    expect(isValidColumn("ready")).toBe(true);
+    expect(isValidColumn("queue")).toBe(true);
     expect(isValidColumn("in-progress")).toBe(true);
     expect(isValidColumn("review")).toBe(true);
     expect(isValidColumn("done")).toBe(true);
+    expect(isValidColumn("backlog")).toBe(false);
+    expect(isValidColumn("ready")).toBe(false);
     expect(isValidColumn("build")).toBe(false);
     expect(isValidColumn("")).toBe(false);
   });
@@ -40,7 +41,7 @@ describe("board-types", () => {
       id: "itm-abc12345",
       title: "Test task",
       description: "A test",
-      column: "backlog",
+      column: "queue",
       project: "proj-1",
       projectName: "My Project",
       projectColor: "#3b82f6",
@@ -57,8 +58,8 @@ describe("board-types", () => {
   });
 
   it("BoardColumn type matches column ids", () => {
-    const col: import("../shared/board-types").BoardColumn = "backlog";
-    expect(col).toBe("backlog");
+    const col: import("../shared/board-types").BoardColumn = "queue";
+    expect(col).toBe("queue");
   });
 
   it("SessionEnrichment can be created with complete data", () => {

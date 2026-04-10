@@ -13,7 +13,7 @@ describe("BoardEventBus", () => {
   it("registers and emits to clients", () => {
     const send = vi.fn();
     bus.addClient(send);
-    bus.emit("task-moved", { taskId: "itm-1", column: "ready" });
+    bus.emit("task-moved", { taskId: "itm-1", column: "queue" });
     expect(send).toHaveBeenCalledOnce();
     expect(send.mock.calls[0][0]).toContain("event: task-moved");
     expect(send.mock.calls[0][0]).toContain('"taskId":"itm-1"');

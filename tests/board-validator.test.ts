@@ -5,7 +5,7 @@ import type { BoardTask } from "../shared/board-types";
 
 function makeTask(overrides: Partial<BoardTask>): BoardTask {
   return {
-    id: "itm-1", title: "T", description: "", column: "backlog",
+    id: "itm-1", title: "T", description: "", column: "queue",
     project: "p1", projectName: "P", projectColor: "#000",
     priority: "medium", dependsOn: [], tags: [], flagged: false,
     createdAt: "2026-04-07", updatedAt: "2026-04-07",
@@ -30,7 +30,7 @@ describe("validateMove", () => {
   });
 
   it("flags task when dependency is not done", () => {
-    const dep = makeTask({ id: "itm-dep", column: "ready" });
+    const dep = makeTask({ id: "itm-dep", column: "queue" });
     const task = makeTask({ id: "itm-1", dependsOn: ["itm-dep"] });
     const result = validateMove(task, "in-progress", [task, dep]);
     expect(result.allowed).toBe(true); // move is allowed, just flagged
@@ -40,7 +40,7 @@ describe("validateMove", () => {
   });
 
   it("flags when multiple dependencies are unfinished", () => {
-    const dep1 = makeTask({ id: "itm-d1", title: "Dep 1", column: "backlog" });
+    const dep1 = makeTask({ id: "itm-d1", title: "Dep 1", column: "queue" });
     const dep2 = makeTask({ id: "itm-d2", title: "Dep 2", column: "in-progress" });
     const task = makeTask({ id: "itm-1", dependsOn: ["itm-d1", "itm-d2"] });
     const result = validateMove(task, "in-progress", [task, dep1, dep2]);
@@ -48,15 +48,15 @@ describe("validateMove", () => {
     expect(result.flag!.reason).toContain("Dep 2");
   });
 
-  it("does not flag when moving to backlog or ready", () => {
-    const dep = makeTask({ id: "itm-dep", column: "backlog" });
+  it("does not flag when moving to queue", () => {
+    const dep = makeTask({ id: "itm-dep", column: "queue" });
     const task = makeTask({ id: "itm-1", dependsOn: ["itm-dep"] });
-    const result = validateMove(task, "ready", [task, dep]);
+    const result = validateMove(task, "queue", [task, dep]);
     expect(result.flag).toBeUndefined();
   });
 
   it("skips validation when force=true", () => {
-    const dep = makeTask({ id: "itm-dep", column: "backlog" });
+    const dep = makeTask({ id: "itm-dep", column: "queue" });
     const task = makeTask({ id: "itm-1", dependsOn: ["itm-dep"] });
     const result = validateMove(task, "in-progress", [task, dep], true);
     expect(result.allowed).toBe(true);

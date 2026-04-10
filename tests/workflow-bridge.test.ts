@@ -87,7 +87,7 @@ describe("workflow-bridge integration", () => {
   // ---- 2. Status mapping ----
   describe("status mapping", () => {
     it("maps workflow statuses to correct board columns", () => {
-      expect(statusToColumn("pending")).toBe("backlog");
+      expect(statusToColumn("pending")).toBe("queue");
       expect(statusToColumn("in_progress")).toBe("in-progress");
       expect(statusToColumn("review")).toBe("review");
       expect(statusToColumn("completed")).toBe("done");
@@ -273,7 +273,7 @@ describe("workflow-bridge integration", () => {
         id: "regular-001",
         title: "Regular Task",
         type: "task",
-        status: "backlog",
+        status: "pending",
         created: "2026-04-08",
         updated: "2026-04-08",
       });

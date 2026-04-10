@@ -21,7 +21,7 @@ function applyFilters(tasks: BoardTask[], filter: BoardFilter): BoardTask[] {
 
 function makeTask(overrides: Partial<BoardTask>): BoardTask {
   return {
-    id: "itm-1", title: "T", description: "", column: "backlog",
+    id: "itm-1", title: "T", description: "", column: "queue",
     project: "p1", projectName: "P", projectColor: "#000",
     priority: "medium", dependsOn: [], tags: [], flagged: false,
     session: null,
@@ -32,7 +32,7 @@ function makeTask(overrides: Partial<BoardTask>): BoardTask {
 
 describe("board-ui filter logic", () => {
   const tasks = [
-    makeTask({ id: "t1", project: "p1", column: "backlog", priority: "high" }),
+    makeTask({ id: "t1", project: "p1", column: "queue", priority: "high" }),
     makeTask({ id: "t2", project: "p2", column: "in-progress", priority: "medium", assignee: "ai" }),
     makeTask({ id: "t3", project: "p1", column: "done", priority: "low", flagged: true }),
     makeTask({ id: "t4", project: "p2", column: "review", milestoneId: "m1" }),
@@ -44,7 +44,7 @@ describe("board-ui filter logic", () => {
   });
 
   it("filters by column", () => {
-    const result = applyFilters(tasks, { columns: ["backlog", "done"] });
+    const result = applyFilters(tasks, { columns: ["queue", "done"] });
     expect(result.map(t => t.id)).toEqual(["t1", "t3"]);
   });
 

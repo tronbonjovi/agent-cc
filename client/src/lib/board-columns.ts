@@ -10,8 +10,7 @@ export interface BoardColumnDef {
 }
 
 export const BOARD_COLUMNS: BoardColumnDef[] = [
-  { id: "backlog",     label: "Backlog",     color: "bg-slate-400",  description: "Known work, not yet prioritized" },
-  { id: "ready",       label: "Ready",       color: "bg-blue-400",   description: "Prioritized, ready to pick up" },
+  { id: "queue",       label: "Queue",       color: "bg-slate-400",  description: "Known work, not yet started" },
   { id: "in-progress", label: "In Progress", color: "bg-amber-400",  description: "Someone is actively working" },
   { id: "review",      label: "Review",      color: "bg-purple-400", description: "Work done, needs human eyes" },
   { id: "done",        label: "Done",        color: "bg-emerald-400",description: "Approved and complete" },

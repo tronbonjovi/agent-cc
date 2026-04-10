@@ -21,7 +21,7 @@ describe("task-scanner", () => {
   it("returns empty board state when no tasks directory exists", () => {
     const result = scanProjectTasks(tmpDir, "test-id", "test-project");
     expect(result.items).toEqual([]);
-    expect(result.config.statuses).toEqual(["backlog", "todo", "in-progress", "blocked", "review", "done"]);
+    expect(result.config.statuses).toEqual(["queue", "todo", "in-progress", "blocked", "review", "done"]);
     expect(result.malformedCount).toBe(0);
   });
 
@@ -374,7 +374,7 @@ describe("synthetic milestone creation", () => {
 
     const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
     const ms = result.items.find(i => i.type === "milestone");
-    expect(ms!.status).toBe("backlog");
+    expect(ms!.status).toBe("queue");
   });
 
   it("empty milestone directory creates milestone with status backlog", () => {
@@ -386,7 +386,7 @@ describe("synthetic milestone creation", () => {
     expect(ms).toBeDefined();
     expect(ms!.id).toBe("empty-milestone");
     expect(ms!.title).toBe("Empty Milestone");
-    expect(ms!.status).toBe("backlog");
+    expect(ms!.status).toBe("queue");
   });
 
   it("milestone created/updated derived from child task dates", () => {
@@ -454,7 +454,7 @@ title: Project Roadmap
     const ms = result.items.find(i => i.type === "milestone");
     // ROADMAP.md status is stale (workflow-framework v0.5.0+ doesn't update it on task changes).
     // Milestone status should be computed from children: only todo tasks → backlog.
-    expect(ms!.status).toBe("backlog");
+    expect(ms!.status).toBe("queue");
   });
 
   it("status_override from MILESTONE.md takes precedence over computed status", () => {
@@ -481,7 +481,7 @@ title: Project Roadmap
     const result = scanProjectTasks(msTmpDir, "ms-proj", "MS Project");
     const ms = result.items.find(i => i.type === "milestone");
     // null means no override, so computed status should be used (backlog since only todo)
-    expect(ms!.status).toBe("backlog");
+    expect(ms!.status).toBe("queue");
   });
 
   it("MILESTONE.md override takes precedence over ROADMAP.md override", () => {
@@ -514,7 +514,7 @@ title: Project Roadmap
     const ms = result.items.find(i => i.type === "milestone");
     expect(ms).toBeDefined();
     expect(ms!.body).toBe("");
-    expect(ms!.status).toBe("backlog");
+    expect(ms!.status).toBe("queue");
   });
 
   it("existing workflow task scanning still works with milestones added", () => {
