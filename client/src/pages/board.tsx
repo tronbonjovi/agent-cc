@@ -71,15 +71,11 @@ export default function BoardPage() {
   }, []);
 
   const handleProjectClick = useCallback((project: ProjectCardData, e: React.MouseEvent) => {
-    if (project.isCurrent) {
-      setLocation(`/projects/${project.id}`);
-      return;
-    }
     const el = e.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     setProjectAnchorRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
     setSelectedProject(project);
-  }, [setLocation]);
+  }, []);
 
   const { data: board, isLoading } = useBoardState();
   const { data: stats } = useBoardStats();
@@ -126,10 +122,6 @@ export default function BoardPage() {
     <div className="flex flex-col h-full overflow-hidden">
       <BoardHeader
         stats={stats}
-        filter={filter}
-        onFilterChange={setFilter}
-        projects={board?.projects || []}
-        milestones={board?.milestones || []}
         sseConnected={connected}
       />
 
@@ -176,7 +168,7 @@ export default function BoardPage() {
 
         {/* Zone 2: Kanban Board (center, takes remaining space) */}
         <div
-          className="min-h-0 flex-1 overflow-hidden"
+          className="min-h-0 flex-1 overflow-hidden flex flex-col justify-center"
           style={{ padding: "var(--card-gap)" }}
         >
           {/* Mobile column tabs (sm/xs) */}

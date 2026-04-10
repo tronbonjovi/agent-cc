@@ -2,44 +2,40 @@ import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 
-const filtersPath = path.join(__dirname, "../client/src/components/board/board-filters.tsx");
-const filtersSource = fs.readFileSync(filtersPath, "utf-8");
-
 const headerPath = path.join(__dirname, "../client/src/components/board/board-header.tsx");
 const headerSource = fs.readFileSync(headerPath, "utf-8");
 
-describe("board-filters", () => {
-  it("does not contain a Project dropdown", () => {
-    // No "Project" button text in the filters
-    expect(filtersSource).not.toMatch(/>\s*Project\s/);
-    expect(filtersSource).not.toContain("toggleProject");
+describe("board-header — filter UI removed", () => {
+  it("does not import BoardFilters", () => {
+    expect(headerSource).not.toContain("BoardFilters");
+    expect(headerSource).not.toContain("board-filters");
   });
 
-  it("does not accept projects prop", () => {
-    expect(filtersSource).not.toMatch(/projects:\s*ProjectMeta/);
+  it("does not render a BoardFilters component", () => {
+    expect(headerSource).not.toMatch(/<BoardFilters/);
   });
 
-  it("still contains Priority filter", () => {
-    expect(filtersSource).toContain("Priority");
-    expect(filtersSource).toContain("togglePriority");
+  it("displays 'Project Board' as the title", () => {
+    expect(headerSource).toContain("Project Board");
+    // Should NOT have the old plain "Board" title without "Project" prefix
+    expect(headerSource).not.toMatch(/>Board</);
   });
 
-  it("still contains Flagged toggle", () => {
-    expect(filtersSource).toContain("Flagged");
-    expect(filtersSource).toContain("filter.flagged");
+  it("still shows stats summary", () => {
+    expect(headerSource).toContain("stats.totalTasks");
+    expect(headerSource).toContain("stats.activeAgents");
   });
 
-  it("still has a clear button", () => {
-    expect(filtersSource).toContain("clearFilters");
-    expect(filtersSource).toContain("Clear");
+  it("still shows SSE reconnecting indicator", () => {
+    expect(headerSource).toContain("sseConnected");
+    expect(headerSource).toContain("Reconnecting");
   });
 });
 
-describe("board-header", () => {
-  it("does not pass projects prop to BoardFilters", () => {
-    // The BoardFilters call should not have projects=
-    const filtersCallMatch = headerSource.match(/<BoardFilters[\s\S]*?\/>/);
-    expect(filtersCallMatch).toBeTruthy();
-    expect(filtersCallMatch![0]).not.toContain("projects=");
+describe("board-filters.tsx still exists for backend use", () => {
+  const filtersPath = path.join(__dirname, "../client/src/components/board/board-filters.tsx");
+
+  it("board-filters.tsx file still exists", () => {
+    expect(fs.existsSync(filtersPath)).toBe(true);
   });
 });

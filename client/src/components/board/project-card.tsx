@@ -19,7 +19,6 @@ export interface ProjectCardData {
   taskCount: number;
   doneTasks: number;
   inProgressTasks: number;
-  isCurrent: boolean;
   milestones: ProjectMilestoneData[];
 }
 
@@ -77,15 +76,10 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
       onClick={onClick}
       className="bg-card border rounded-md p-3 cursor-pointer hover:border-foreground/20 hover:shadow-sm transition-all"
     >
-      {/* Row 1: Health dot + name + current badge */}
+      {/* Row 1: Health dot + name */}
       <div className="flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${healthDotColor(project.health)}`} />
         <span className="text-sm font-medium truncate flex-1">{project.name}</span>
-        {project.isCurrent && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 flex-shrink-0">
-            current
-          </span>
-        )}
       </div>
 
       {/* Row 2: Milestone + task counts */}

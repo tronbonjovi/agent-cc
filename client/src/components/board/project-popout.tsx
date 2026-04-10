@@ -242,21 +242,19 @@ export function ProjectPopout({ project, anchorRect, onClose, onNavigate }: Prop
             <ArrowRight className="h-3 w-3 mr-2" />
             View Details
           </Button>
-          {!project.isCurrent && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-destructive hover:text-destructive"
-              onClick={() => {
-                if (window.confirm("Remove this project from tracking? This does not delete files on disk.")) {
-                  deleteProject.mutate(project.id, { onSuccess: onClose });
-                }
-              }}
-            >
-              <Trash2 className="h-3 w-3 mr-1" />
-              Remove
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-destructive hover:text-destructive"
+            onClick={() => {
+              if (window.confirm("Remove this project from tracking? This does not delete files on disk.")) {
+                deleteProject.mutate(project.id, { onSuccess: onClose });
+              }
+            }}
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Remove
+          </Button>
         </div>
       </div>
     </>
