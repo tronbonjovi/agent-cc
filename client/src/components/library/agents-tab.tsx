@@ -38,8 +38,11 @@ import {
   Zap,
   GitBranch,
   Wrench,
+  Package,
+  ShoppingBag,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { EntityCard } from "@/components/library/entity-card";
 import { formatBytes, relativeTime, shortModel, getTypeColor } from "@/lib/utils";
 import type { AgentDefinition, AgentExecution } from "@shared/types";
 
@@ -301,6 +304,17 @@ function AgentLearnGuide({ show, onToggle }: { show: boolean; onToggle: () => vo
   );
 }
 
+/** Section heading for three-tier layout */
+function TierHeading({ icon: Icon, label, count }: { icon: React.ComponentType<{ className?: string }>; label: string; count: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      <h2 className="text-sm font-semibold">{label}</h2>
+      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
+    </div>
+  );
+}
+
 function DefinitionsTab() {
   const { data: definitions, isLoading } = useAgentDefinitions();
   const [createOpen, setCreateOpen] = useState(false);
@@ -335,56 +349,115 @@ function DefinitionsTab() {
 
   if (isLoading) return <ListSkeleton rows={4} />;
 
+  const allDefs = definitions ? deduplicateDefinitions(definitions) : [];
   const groups = definitions ? groupDefinitions(definitions) : [];
 
+  // Three-tier: all definitions on disk are "installed"
+  // No API concept of saved-but-inactive agents currently
+  const installedCount = allDefs.length;
+  const savedDefs: AgentDefinition[] = [];
+
+  const buildAgentTags = (def: AgentDefinition): string[] => {
+    const tags: string[] = [];
+    if (def.source) tags.push(def.source);
+    if (def.model && def.model !== "inherit") tags.push(def.model);
+    if (def.tools.length > 0) tags.push(`${def.tools.length} tools`);
+    return tags;
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex justify-end">
         <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> Create Agent
         </Button>
       </div>
 
-      {groups.length === 0 ? (
-        <EmptyState icon={Bot} title="No agent definitions found" description="Create a custom agent to get started" />
-      ) : (
-        <div className="space-y-6">
-          {groups.map(group => {
-            const isCollapsed = collapsedGroups.has(group.label);
-            return (
-              <div key={group.label}>
-                <button
-                  onClick={() => toggleGroup(group.label)}
-                  className="flex items-center gap-2 mb-1 group/header hover:opacity-80 transition-opacity"
-                >
-                  {isCollapsed
-                    ? <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
-                    : <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
-                  }
-                  <h3 className="text-sm font-semibold">{group.label}</h3>
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/20 text-muted-foreground">
-                    {group.defs.length}
-                  </Badge>
-                </button>
-                {group.description && !isCollapsed && (
-                  <div className="flex items-start gap-1.5 mb-3 ml-6">
-                    <Info className="h-3 w-3 text-muted-foreground/40 mt-0.5 flex-shrink-0" />
-                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{group.description}</p>
-                  </div>
-                )}
-                {!group.description && <div className="mb-3" />}
-                {!isCollapsed && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {group.defs.map((def, i) => (
-                      <DefinitionCard key={def.id} def={def} index={i} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      {/* --- Installed --- */}
+      <section>
+        <TierHeading icon={Bot} label="Installed" count={installedCount} />
+
+        {groups.length === 0 ? (
+          <EmptyState icon={Bot} title="No installed agents" description="Create a custom agent to get started" />
+        ) : (
+          <div className="space-y-6">
+            {groups.map(group => {
+              const isCollapsed = collapsedGroups.has(group.label);
+              return (
+                <div key={group.label}>
+                  <button
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex items-center gap-2 mb-1 group/header hover:opacity-80 transition-opacity"
+                  >
+                    {isCollapsed
+                      ? <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+                      : <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
+                    }
+                    <h3 className="text-sm font-semibold">{group.label}</h3>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/20 text-muted-foreground">
+                      {group.defs.length}
+                    </Badge>
+                  </button>
+                  {group.description && !isCollapsed && (
+                    <div className="flex items-start gap-1.5 mb-3 ml-6">
+                      <Info className="h-3 w-3 text-muted-foreground/40 mt-0.5 flex-shrink-0" />
+                      <p className="text-[11px] text-muted-foreground/60 leading-relaxed">{group.description}</p>
+                    </div>
+                  )}
+                  {!group.description && <div className="mb-3" />}
+                  {!isCollapsed && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {group.defs.map((def, i) => (
+                        <EntityCard
+                          key={def.id}
+                          icon={<Bot className="h-4 w-4 text-cyan-400" />}
+                          name={def.name}
+                          description={def.description}
+                          status="installed"
+                          tags={buildAgentTags(def)}
+                          onClick={() => toggleGroup(`detail:${def.id}`)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* --- Saved --- */}
+      <section>
+        <TierHeading icon={Package} label="Saved" count={savedDefs.length} />
+        {savedDefs.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {savedDefs.map((def) => (
+              <EntityCard
+                key={def.id}
+                icon={<Bot className="h-4 w-4 text-cyan-400" />}
+                name={def.name}
+                description={def.description}
+                status="saved"
+                tags={buildAgentTags(def)}
+                actions={[{ label: "Enable", onClick: () => {} }]}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground/60 pl-6">No saved agents — all discovered agents are currently active</p>
+        )}
+      </section>
+
+      {/* --- Marketplace --- */}
+      <section>
+        <TierHeading icon={ShoppingBag} label="Marketplace" count={0} />
+        <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
+          <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Marketplace coming soon</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Browse and install community agent definitions</p>
         </div>
-      )}
+      </section>
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

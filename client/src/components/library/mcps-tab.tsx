@@ -1,31 +1,32 @@
 import { useEntities, useRescan } from "@/hooks/use-entities";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { HealthIndicator } from "@/components/health-indicator";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, Server, Copy, Check, ExternalLink, ChevronDown, ChevronRight, Tag, RefreshCw, Settings } from "lucide-react";
+import { Search, Server, Copy, Check, ExternalLink, ChevronDown, ChevronRight, Package, ShoppingBag, RefreshCw, Settings } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ListSkeleton } from "@/components/skeleton";
+import { EntityCard } from "@/components/library/entity-card";
+import type { EntityCardStatus, EntityCardHealth } from "@/components/library/entity-card";
 import type { MCPEntity } from "@shared/types";
 
-const CATEGORY_COLORS: Record<string, string> = {
-  data: "border-cyan-500/30 text-cyan-400",
-  "dev-tools": "border-violet-500/30 text-violet-400",
-  integration: "border-pink-500/30 text-pink-400",
-  ai: "border-emerald-500/30 text-emerald-400",
-  browser: "border-amber-500/30 text-amber-400",
-  productivity: "border-sky-500/30 text-sky-400",
-};
+/** Section heading for three-tier layout */
+function TierHeading({ icon: Icon, label, count }: { icon: React.ComponentType<{ className?: string }>; label: string; count: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <Icon className="h-4 w-4 text-muted-foreground" />
+      <h2 className="text-sm font-semibold">{label}</h2>
+      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
+    </div>
+  );
+}
 
 export default function McpsTab() {
   const { data: mcps, isLoading } = useEntities<MCPEntity>("mcp");
   const [search, setSearch] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [groupByCategory, setGroupByCategory] = useState(true);
   const rescan = useRescan();
   const [, setLocation] = useLocation();
 
@@ -35,6 +36,10 @@ export default function McpsTab() {
       m.path.toLowerCase().includes(search.toLowerCase()) ||
       m.description?.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Three-tier: all configured MCPs are "installed"
+  const installed = filtered;
+  const saved: MCPEntity[] = [];
 
   const handleCopyCommand = (mcp: MCPEntity, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -51,226 +56,156 @@ export default function McpsTab() {
     } catch {}
   };
 
-  const basename = (path: string) => {
-    const parts = path.replace(/\\/g, "/").split("/");
-    return parts.length > 1 ? `${parts[parts.length - 2]}/${parts[parts.length - 1]}` : parts[parts.length - 1];
+  const mapHealth = (mcp: MCPEntity): EntityCardHealth | undefined => {
+    if (mcp.health === "ok") return "healthy";
+    if (mcp.health === "warning") return "degraded";
+    if (mcp.health === "error") return "error";
+    return undefined;
   };
 
-  // Group by category
-  const grouped = groupByCategory
-    ? filtered.reduce<Record<string, typeof filtered>>((acc, mcp) => {
-        const cat = mcp.data.category || "other";
-        (acc[cat] = acc[cat] || []).push(mcp);
-        return acc;
-      }, {})
-    : null;
-
-  const categoryLabel = (cat: string) => {
-    const labels: Record<string, string> = {
-      data: "Data & Databases",
-      "dev-tools": "Developer Tools",
-      integration: "Integrations",
-      ai: "AI & ML",
-      browser: "Browser",
-      productivity: "Productivity",
-      other: "Other",
-    };
-    return labels[cat] || cat;
+  const buildTags = (mcp: MCPEntity): string[] => {
+    const tags: string[] = [];
+    tags.push(mcp.data.transport);
+    if (mcp.data.category) tags.push(mcp.data.category);
+    return tags;
   };
 
-  const renderCard = (mcp: MCPEntity, i: number) => {
-    const data = mcp.data;
+  const buildActions = (mcp: MCPEntity) => {
+    const actions = [];
+    actions.push({
+      label: copiedId === mcp.id ? "Copied" : "Copy cmd",
+      onClick: () => {
+        const cmd = mcp.data.command ? `${mcp.data.command} ${(mcp.data.args || []).join(" ")}` : mcp.data.url || "";
+        navigator.clipboard.writeText(cmd.trim());
+        setCopiedId(mcp.id);
+        setTimeout(() => setCopiedId(null), 1500);
+      },
+      variant: "ghost" as const,
+    });
+    actions.push({
+      label: "Source",
+      onClick: () => {
+        apiRequest("POST", "/api/actions/open-file", { path: mcp.data.sourceFile }).catch(() => {});
+      },
+      variant: "ghost" as const,
+    });
+    return actions;
+  };
+
+  const renderMcpCard = (mcp: MCPEntity, status: EntityCardStatus) => {
     const isExpanded = expanded === mcp.id;
     return (
-      <Card
-        key={mcp.id}
-        className="group card-hover animate-fade-in-up cursor-pointer"
-        style={{ animationDelay: `${i * 40}ms` }}
-        onClick={() => setExpanded(isExpanded ? null : mcp.id)}
-      >
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="rounded-lg bg-entity-mcp/10 p-2 mt-0.5 relative group-hover:shadow-[0_0_12px_var(--glow-green)]  transition-shadow">
-                <Server className="h-5 w-5 text-entity-mcp" />
-                <span
-                  className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${
-                    data.transport === "stdio" ? "bg-green-500 pulse-ring" : "bg-amber-500"
-                  }`}
-                  style={{ color: data.transport === "stdio" ? "#22c55e40" : "#f59e0b40" }}
-                />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{mcp.name}</span>
-                  <HealthIndicator health={mcp.health} />
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] ${data.transport === "stdio" ? "border-blue-500/30 text-blue-400" : "border-amber-500/30 text-amber-400"}`}
-                  >
-                    {data.transport}
-                  </Badge>
-                  {data.category && (
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] ${CATEGORY_COLORS[data.category] || "border-slate-500/30 text-slate-400"}`}
-                    >
-                      {data.category}
-                    </Badge>
-                  )}
-                </div>
-                {mcp.description && (
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{mcp.description}</p>
-                )}
-                {data.command && (
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <code className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded font-mono">
-                      {data.command} {(data.args || []).join(" ")}
-                    </code>
-                    <button
-                      onClick={(e) => handleCopyCommand(mcp, e)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent"
-                      title="Copy command"
-                      aria-label="Copy command"
-                    >
-                      {copiedId === mcp.id ? (
-                        <Check className="h-3 w-3 text-green-400" />
-                      ) : (
-                        <Copy className="h-3 w-3 text-muted-foreground" />
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="text-right space-y-1 flex-shrink-0">
-              <button
-                onClick={(e) => handleOpenSource(data.sourceFile, e)}
-                className="text-xs text-muted-foreground font-mono hover:text-foreground transition-colors flex items-center gap-1 ml-auto"
-                title={data.sourceFile}
+      <div key={mcp.id}>
+        <EntityCard
+          icon={<Server className="h-4 w-4 text-entity-mcp" />}
+          name={mcp.name}
+          description={mcp.description ?? undefined}
+          status={status}
+          health={mapHealth(mcp)}
+          tags={buildTags(mcp)}
+          actions={buildActions(mcp)}
+          onClick={() => setExpanded(isExpanded ? null : mcp.id)}
+        />
+        {isExpanded && mcp.data.capabilities && mcp.data.capabilities.length > 0 && (
+          <div className="mt-1 ml-2 p-3 bg-muted rounded-md border border-border/50">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Capabilities</span>
+            <ul className="mt-1.5 space-y-1">
+              {mcp.data.capabilities.map((cap: string, idx: number) => (
+                <li key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                  <span className="text-entity-mcp mt-0.5">-</span>
+                  {cap}
+                </li>
+              ))}
+            </ul>
+            {mcp.data.website && (
+              <a
+                href={mcp.data.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 mt-2"
+                onClick={(e) => e.stopPropagation()}
               >
-                {basename(data.sourceFile)}
-                <ExternalLink className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-              {data.env && (
-                <div className="flex gap-1 justify-end flex-wrap">
-                  {Object.entries(data.env).map(([k, v]) => (
-                    <Badge
-                      key={k}
-                      variant="secondary"
-                      className="text-[10px] px-1.5"
-                      title={`${k}=${v}`}
-                    >
-                      {k}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
+                {mcp.data.website} <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            )}
           </div>
-
-          {/* Expandable capabilities */}
-          {data.capabilities && data.capabilities.length > 0 && (
-            <div className="flex items-center justify-center mt-2 text-muted-foreground/50">
-              {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </div>
-          )}
-          {isExpanded && data.capabilities && (
-            <div className="mt-3 pt-3 border-t border-border/50">
-              <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">Capabilities</span>
-              <ul className="mt-1.5 space-y-1">
-                {data.capabilities.map((cap: string, idx: number) => (
-                  <li key={idx} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                    <span className="text-entity-mcp mt-0.5">-</span>
-                    {cap}
-                  </li>
-                ))}
-              </ul>
-              {data.website && (
-                <a
-                  href={data.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 mt-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {data.website} <ExternalLink className="h-2.5 w-2.5" />
-                </a>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+      </div>
     );
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {filtered.length} servers configured
         </p>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setGroupByCategory(!groupByCategory)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border font-medium transition-colors ${
-              groupByCategory
-                ? "border-blue-500/40 bg-blue-500/10 text-blue-400"
-                : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
-          >
-            <Tag className="h-3.5 w-3.5" />
-            {groupByCategory ? "Grouped by Category" : "Group by Category"}
-          </button>
-          <div className="relative w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search MCPs..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-          </div>
+        <div className="relative w-64">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search MCPs..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
       </div>
 
       {isLoading ? (
         <ListSkeleton rows={4} />
-      ) : grouped ? (
-        <div className="space-y-6">
-          {Object.entries(grouped)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([category, items]) => (
-              <div key={category} className="space-y-3">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2 section-header">
-                  <Server className="h-3.5 w-3.5" />
-                  {categoryLabel(category)}
-                  <Badge variant="secondary" className="text-[10px] ml-1">{items.length}</Badge>
-                </h2>
-                {items.map((mcp, i) => renderCard(mcp, i))}
-              </div>
-            ))}
-        </div>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((mcp, i) => renderCard(mcp, i))}
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 space-y-4">
-              <Server className="h-12 w-12 text-muted-foreground/30" />
-              <div className="text-center space-y-1">
-                <p className="text-muted-foreground font-medium">No MCP servers found</p>
-                <p className="text-xs text-muted-foreground/70">
-                  Scanner looks in ~/.mcp.json, project .mcp.json files, and plugin directories
-                </p>
+        <div className="space-y-8">
+          {/* --- Installed --- */}
+          <section>
+            <TierHeading icon={Server} label="Installed" count={installed.length} />
+            {installed.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {installed.map((mcp) => renderMcpCard(mcp, "installed"))}
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} className="gap-1.5">
-                  <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
-                  Rescan
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setLocation("/settings")} className="gap-1.5">
-                  <Settings className="h-3.5 w-3.5" />
-                  Configure Paths
-                </Button>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <Server className="h-10 w-10 text-muted-foreground/30" />
+                <div className="text-center space-y-1">
+                  <p className="text-muted-foreground font-medium">No installed MCP servers</p>
+                  <p className="text-xs text-muted-foreground/70">
+                    Scanner looks in ~/.mcp.json, project .mcp.json files, and plugin directories
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} className="gap-1.5">
+                    <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
+                    Rescan
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setLocation("/settings")} className="gap-1.5">
+                    <Settings className="h-3.5 w-3.5" />
+                    Configure Paths
+                  </Button>
+                </div>
               </div>
+            )}
+          </section>
+
+          {/* --- Saved --- */}
+          <section>
+            <TierHeading icon={Package} label="Saved" count={saved.length} />
+            {saved.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {saved.map((mcp) => renderMcpCard(mcp, "saved"))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground/60 pl-6">No saved MCP servers — all configured servers are currently active</p>
+            )}
+          </section>
+
+          {/* --- Marketplace --- */}
+          <section>
+            <TierHeading icon={ShoppingBag} label="Marketplace" count={0} />
+            <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
+              <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Marketplace coming soon</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">
+                Browse community MCP servers at{" "}
+                <a href="https://mcp.so" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                  mcp.so
+                </a>
+              </p>
             </div>
-          )}
+          </section>
         </div>
       )}
     </div>

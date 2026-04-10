@@ -105,7 +105,8 @@ describe("plugins tab component", () => {
   });
 
   it("includes health indicator for marketplaces", () => {
-    expect(src).toMatch(/HealthIndicator/);
+    // Health is now conveyed via EntityCard's health prop instead of HealthIndicator
+    expect(src).toMatch(/health=/);
   });
 });
 
@@ -130,11 +131,15 @@ describe("mcps tab component", () => {
   });
 
   it("includes health indicators", () => {
-    expect(src).toMatch(/HealthIndicator/);
+    // Health is now conveyed via EntityCard's health prop instead of HealthIndicator
+    expect(src).toMatch(/health=/);
   });
 
-  it("supports group by category toggle", () => {
-    expect(src).toMatch(/groupByCategory/);
+  it("uses EntityCard with three-tier layout", () => {
+    expect(src).toMatch(/EntityCard/);
+    expect(src).toMatch(/Installed/);
+    expect(src).toMatch(/Saved/);
+    expect(src).toMatch(/Marketplace/);
   });
 
   it("does not include page-level h1 heading", () => {
