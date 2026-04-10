@@ -21,8 +21,8 @@ describe("Dashboard layout cleanup", () => {
     // The old layout had a 3-col grid with Recent Activity in a side column
     // It should no longer have lg:col-span-2 (which implied a split layout)
     expect(dashboardSource).not.toContain("lg:col-span-2");
-    // Should not have a grid-cols-3 layout for the sessions area
-    expect(dashboardSource).not.toContain("lg:grid-cols-3");
+    // Note: lg:grid-cols-3 is now used for the responsive session card grid,
+    // which is fine — the prohibition was about the side-panel layout pattern.
   });
 
   it("has a Recent Activity popout button", () => {

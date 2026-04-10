@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
+import { PageContainer } from "@/components/page-container";
 import type { EntityType, ActiveSession, AgentExecution } from "@shared/types";
 import { relativeTime as _relativeTime, shortModel, getTypeColor } from "@/lib/utils";
 
@@ -155,28 +156,27 @@ export default function Dashboard() {
   );
 
   return (
-    <div className="p-6 space-y-6 ">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gradient">Dashboard</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {status?.totalEntities || 0} entities across {entityTypes.length} types
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => rescan.mutate()}
-          disabled={rescan.isPending}
-          className="gap-2 border-primary/30 hover:bg-primary/10 hover:border-primary/50 hover:shadow-glow transition-all"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 transition-transform ${rescan.isPending ? "animate-spin" : ""}`} />
-          {rescan.isPending ? "Scanning..." : "Rescan"}
-        </Button>
-      </div>
+    <PageContainer
+      className="overflow-hidden"
+      title="Dashboard"
+      actions={
+        <>
+          <span className="text-sm text-muted-foreground hidden sm:inline">
+            {status?.totalEntities || 0} entities across {entityTypes.length} types
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => rescan.mutate()}
+            disabled={rescan.isPending}
+            className="gap-2 border-primary/30 hover:bg-primary/10 hover:border-primary/50 hover:shadow-glow transition-all"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 transition-transform ${rescan.isPending ? "animate-spin" : ""}`} />
+            {rescan.isPending ? "Scanning..." : "Rescan"}
+          </Button>
+        </>
+      }
+    >
 
       {/* Combined system + live status bar */}
       <div className={`flex items-center gap-4 px-4 py-2.5 rounded-lg border border-border/50 status-panel flex-wrap ${hasActive ? "live-border border-primary/20 shadow-[0_0_20px_hsl(var(--primary)/0.08)]" : ""}`}>
@@ -328,7 +328,10 @@ export default function Dashboard() {
             <EmptyState icon={Monitor} title="No active Claude sessions" description="Sessions will appear here when Claude Code is running" />
           </div>
         ) : (
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            style={{ gap: "var(--card-gap)" }}
+          >
             {activeSessions.map((session, i) => (
               <ActiveSessionCard
                 key={session.sessionId}
@@ -348,7 +351,7 @@ export default function Dashboard() {
         )}
       </div>
 
-    </div>
+    </PageContainer>
   );
 }
 
@@ -408,7 +411,7 @@ function ActiveSessionCard({
       className={`animate-fade-in-up ${sc.cardClass} ${sc.borderClass ? `border ${sc.borderClass}` : ""} ${isNew ? "ring-2 ring-primary/40 shadow-[0_0_20px_hsl(var(--primary)/0.2)]" : ""}`}
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <CardContent className="p-4">
+      <CardContent className="overflow-hidden" style={{ padding: "var(--card-padding)" }}>
         <div className="flex items-start gap-3">
           <div className="mt-1 flex flex-col items-center gap-0.5 flex-shrink-0">
             <span className={`w-2.5 h-2.5 rounded-full ${sc.dotClass}`} />
