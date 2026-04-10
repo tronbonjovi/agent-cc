@@ -33,7 +33,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
-import { SessionAnalyticsTab } from "@/components/session-analytics-panel";
+import { SessionAnalyticsTab, NerveCenterPanel } from "@/components/session-analytics-panel";
 import { Suspense, lazy } from "react";
 const GraphPage = lazy(() => import("@/pages/graph"));
 
@@ -879,32 +879,26 @@ function DiscoverTab() {
 // ---- Main Analytics Page ----
 
 export default function Stats() {
-  const defaultTab = new URLSearchParams(window.location.search).get("tab") || "sessions";
+  const defaultTab = new URLSearchParams(window.location.search).get("tab") || "nerve-center";
 
   return (
     <PageContainer title="Analytics">
       <p className="text-sm text-muted-foreground -mt-2">
-        Sessions, usage, costs, activity, graph, and discovery
+        Nerve center, costs, activity, and charts
       </p>
 
       <Tabs defaultValue={defaultTab}>
         <div className="overflow-x-auto whitespace-nowrap scrollbar-thin">
           <TabsList>
-            <TabsTrigger value="sessions" className="whitespace-nowrap">Sessions</TabsTrigger>
-            <TabsTrigger value="usage" className="whitespace-nowrap">Usage</TabsTrigger>
+            <TabsTrigger value="nerve-center" className="whitespace-nowrap">Nerve Center</TabsTrigger>
             <TabsTrigger value="costs" className="whitespace-nowrap">Costs</TabsTrigger>
             <TabsTrigger value="activity" className="whitespace-nowrap">Activity</TabsTrigger>
-            <TabsTrigger value="graph" className="whitespace-nowrap">Graph</TabsTrigger>
-            <TabsTrigger value="discover" className="whitespace-nowrap">Discover</TabsTrigger>
+            <TabsTrigger value="charts" className="whitespace-nowrap">Charts</TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="sessions" className="mt-4">
-          <SessionAnalyticsTab />
-        </TabsContent>
-
-        <TabsContent value="usage" className="mt-4">
-          <UsageTab />
+        <TabsContent value="nerve-center" className="mt-4">
+          <NerveCenterPanel />
         </TabsContent>
 
         <TabsContent value="costs" className="mt-4">
@@ -915,14 +909,12 @@ export default function Stats() {
           <ActivityTab />
         </TabsContent>
 
-        <TabsContent value="graph" className="mt-4">
-          <Suspense fallback={<LoadingSkeleton title="graph" />}>
-            <GraphPage />
-          </Suspense>
-        </TabsContent>
-
-        <TabsContent value="discover" className="mt-4">
-          <DiscoverTab />
+        <TabsContent value="charts" className="mt-4">
+          <div className="text-center py-12 text-muted-foreground">
+            <BarChart3 className="h-10 w-10 mx-auto mb-3 opacity-20" />
+            <p className="text-sm font-medium">Charts — Coming soon</p>
+            <p className="text-xs mt-1">Time-series visualizations for cost, sessions, tokens, and velocity.</p>
+          </div>
         </TabsContent>
       </Tabs>
     </PageContainer>

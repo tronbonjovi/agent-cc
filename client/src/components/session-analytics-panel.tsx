@@ -305,7 +305,7 @@ export function SessionAnalyticsTab() {
   );
 }
 
-function NerveCenterPanel() {
+export function NerveCenterPanel() {
   const { data } = useNerveCenter();
   if (!data) return null;
 

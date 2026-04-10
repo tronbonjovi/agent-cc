@@ -26,46 +26,38 @@ describe("session analytics extraction", () => {
   });
 });
 
-describe("analytics page (stats.tsx) has Sessions tab", () => {
+describe("analytics page (stats.tsx) has restructured tabs", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("has a Sessions tab trigger as the first tab", () => {
-    // Sessions should appear before Usage in the tab list
-    const sessionsIdx = src.indexOf('value="sessions"');
-    const usageIdx = src.indexOf('value="usage"');
-    expect(sessionsIdx).toBeGreaterThan(-1);
-    expect(usageIdx).toBeGreaterThan(-1);
-    expect(sessionsIdx).toBeLessThan(usageIdx);
+  it("has Nerve Center as the first tab", () => {
+    const nerveCenterIdx = src.indexOf('value="nerve-center"');
+    const costsIdx = src.indexOf('value="costs"');
+    expect(nerveCenterIdx).toBeGreaterThan(-1);
+    expect(costsIdx).toBeGreaterThan(-1);
+    expect(nerveCenterIdx).toBeLessThan(costsIdx);
   });
 
-  it("has 6 tabs: Sessions, Usage, Costs, Activity, Graph, Discover", () => {
-    expect(src).toMatch(/TabsTrigger.*value="sessions"/);
-    expect(src).toMatch(/TabsTrigger.*value="usage"/);
+  it("has 4 tabs: Nerve Center, Costs, Activity, Charts", () => {
+    expect(src).toMatch(/TabsTrigger.*value="nerve-center"/);
     expect(src).toMatch(/TabsTrigger.*value="costs"/);
     expect(src).toMatch(/TabsTrigger.*value="activity"/);
-    expect(src).toMatch(/TabsTrigger.*value="graph"/);
-    expect(src).toMatch(/TabsTrigger.*value="discover"/);
+    expect(src).toMatch(/TabsTrigger.*value="charts"/);
   });
 
-  it("has a TabsContent for sessions", () => {
-    expect(src).toMatch(/TabsContent.*value="sessions"/);
+  it("has a TabsContent for nerve-center", () => {
+    expect(src).toMatch(/TabsContent.*value="nerve-center"/);
   });
 
-  it("renders SessionAnalyticsTab inside the sessions TabsContent", () => {
-    expect(src).toMatch(/<SessionAnalyticsTab/);
+  it("renders NerveCenterPanel inside the nerve-center TabsContent", () => {
+    expect(src).toMatch(/<NerveCenterPanel/);
   });
 
-  it("imports SessionAnalyticsTab from session-analytics-panel", () => {
-    expect(src).toMatch(/import.*SessionAnalyticsTab.*from.*session-analytics-panel/);
+  it("imports NerveCenterPanel from session-analytics-panel", () => {
+    expect(src).toMatch(/import.*NerveCenterPanel.*from.*session-analytics-panel/);
   });
 
-  it("has updated subtitle mentioning sessions", () => {
-    expect(src).toMatch(/[Ss]essions.*usage.*costs.*activity.*graph.*discovery/i);
-  });
-
-  it("defaults to sessions tab", () => {
-    // The default tab variable should fall back to "sessions"
-    expect(src).toMatch(/\|\|\s*["']sessions["']/);
+  it("defaults to nerve-center tab", () => {
+    expect(src).toMatch(/\|\|\s*["']nerve-center["']/);
   });
 });
 

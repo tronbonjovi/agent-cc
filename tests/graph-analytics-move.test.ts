@@ -10,44 +10,16 @@ const GRAPH_PATH = path.resolve(__dirname, "../client/src/pages/graph.tsx");
 const LAYOUT_PATH = path.resolve(__dirname, "../client/src/components/layout.tsx");
 const SHORTCUTS_PATH = path.resolve(__dirname, "../client/src/hooks/use-keyboard-shortcuts.ts");
 
-describe("Graph embedded in Analytics page", () => {
+describe("Graph tab removed from Analytics page (restructured)", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("has 6 tabs: Sessions, Usage, Costs, Activity, Graph, Discover", () => {
-    expect(src).toMatch(/TabsTrigger.*value="sessions"/);
-    expect(src).toMatch(/TabsTrigger.*value="usage"/);
-    expect(src).toMatch(/TabsTrigger.*value="costs"/);
-    expect(src).toMatch(/TabsTrigger.*value="activity"/);
-    expect(src).toMatch(/TabsTrigger.*value="graph"/);
-    expect(src).toMatch(/TabsTrigger.*value="discover"/);
+  it("does not have a Graph tab trigger (removed in analytics restructure)", () => {
+    expect(src).not.toMatch(/TabsTrigger.*value="graph"/);
   });
 
-  it("Graph tab appears between Activity and Discover", () => {
-    const activityIdx = src.indexOf('value="activity"');
-    const graphIdx = src.indexOf('value="graph"');
-    const discoverIdx = src.indexOf('value="discover"');
-    expect(activityIdx).toBeGreaterThan(-1);
-    expect(graphIdx).toBeGreaterThan(-1);
-    expect(discoverIdx).toBeGreaterThan(-1);
-    expect(graphIdx).toBeGreaterThan(activityIdx);
-    expect(graphIdx).toBeLessThan(discoverIdx);
-  });
-
-  it("has a TabsContent for graph", () => {
-    expect(src).toMatch(/TabsContent.*value="graph"/);
-  });
-
-  it("renders GraphPage inside the graph TabsContent", () => {
-    expect(src).toMatch(/<GraphPage/);
-  });
-
-  it("imports GraphPage from graph.tsx (direct or lazy)", () => {
-    // Could be a direct import or a lazy() wrapper
-    expect(src).toMatch(/GraphPage.*graph/);
-  });
-
-  it("subtitle mentions graph", () => {
-    expect(src).toMatch(/[Gg]raph/);
+  it("still imports GraphPage lazily (code not deleted yet — cleanup in task003)", () => {
+    // GraphPage import remains but is no longer rendered in a tab
+    expect(src).toMatch(/GraphPage/);
   });
 });
 
