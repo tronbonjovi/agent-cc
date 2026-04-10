@@ -11,7 +11,8 @@ import {
   Server, TerminalSquare, Lightbulb,
   X, AlertTriangle, Check, Copy, Trash2, Loader2,
 } from "lucide-react";
-import { formatBytes } from "@/lib/utils";
+import { formatBytes, relativeTime } from "@/lib/utils";
+import { useLocation } from "wouter";
 
 function formatUsd(n: number): string {
   if (n >= 1) return `$${n.toFixed(2)}`;
@@ -353,7 +354,7 @@ export function NerveCenterPanel() {
   );
 }
 
-function BashKnowledgePanel() {
+export function BashKnowledgePanel() {
   const { data } = useBashKnowledge();
   const [bashSearch, setBashSearch] = useState("");
   if (!data) return null;
@@ -491,7 +492,7 @@ export function WeeklyDigestPanel() {
   );
 }
 
-function PromptLibraryPanel() {
+export function PromptLibraryPanel() {
   const { data: templates } = usePromptTemplates();
   const createPrompt = useCreatePrompt();
   const deletePrompt = useDeletePrompt();

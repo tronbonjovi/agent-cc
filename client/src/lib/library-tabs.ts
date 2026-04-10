@@ -6,6 +6,9 @@ export const LIBRARY_TABS = [
   { id: "mcps", label: "MCP Servers" },
   { id: "agents", label: "Agents" },
   { id: "editor", label: "Info" },
+  { id: "discover", label: "Discover" },
+  { id: "prompts", label: "Prompts" },
+  { id: "bash-kb", label: "Bash KB" },
 ] as const;
 
 export type LibraryTabId = (typeof LIBRARY_TABS)[number]["id"];

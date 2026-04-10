@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BookOpen, Puzzle, Server, Bot, Info } from "lucide-react";
+import { BookOpen, Puzzle, Server, Bot, Info, Compass, FileText, TerminalSquare } from "lucide-react";
 import { LIBRARY_TABS, resolveTab, type LibraryTabId } from "@/lib/library-tabs";
 import { PageContainer } from "@/components/page-container";
 import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
@@ -8,6 +8,9 @@ import PluginsTab from "@/components/library/plugins-tab";
 import McpsTab from "@/components/library/mcps-tab";
 import AgentsTab from "@/components/library/agents-tab";
 import FileEditorTab from "@/components/library/file-editor-tab";
+import { DiscoverTab } from "@/components/discover-tab";
+import { PromptLibraryPanel } from "@/components/session-analytics-panel";
+import { BashKnowledgePanel } from "@/components/session-analytics-panel";
 
 const TAB_ICONS: Record<LibraryTabId, React.ElementType> = {
   skills: BookOpen,
@@ -15,6 +18,9 @@ const TAB_ICONS: Record<LibraryTabId, React.ElementType> = {
   mcps: Server,
   agents: Bot,
   editor: Info,
+  discover: Compass,
+  prompts: FileText,
+  "bash-kb": TerminalSquare,
 };
 
 /** Read ?tab= from current URL. */
@@ -70,6 +76,9 @@ export default function Library() {
       {activeTab === "mcps" && <McpsTab />}
       {activeTab === "agents" && <AgentsTab />}
       {activeTab === "editor" && <FileEditorTab />}
+      {activeTab === "discover" && <DiscoverTab />}
+      {activeTab === "prompts" && <PromptLibraryPanel />}
+      {activeTab === "bash-kb" && <BashKnowledgePanel />}
     </PageContainer>
   );
 }

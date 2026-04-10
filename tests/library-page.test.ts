@@ -9,17 +9,20 @@ import {
 } from "../client/src/lib/library-tabs";
 
 describe("library tabs", () => {
-  it("has exactly 5 tabs", () => {
-    expect(LIBRARY_TABS).toHaveLength(5);
+  it("has exactly 8 tabs", () => {
+    expect(LIBRARY_TABS).toHaveLength(8);
   });
 
-  it("tab ids are skills, plugins, mcps, agents, editor", () => {
+  it("tab ids are skills, plugins, mcps, agents, editor, discover, prompts, bash-kb", () => {
     expect(LIBRARY_TAB_IDS).toEqual([
       "skills",
       "plugins",
       "mcps",
       "agents",
       "editor",
+      "discover",
+      "prompts",
+      "bash-kb",
     ]);
   });
 
