@@ -1,14 +1,15 @@
 import { useEntities, useRescan } from "@/hooks/use-entities";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, Wand2, Terminal, ChevronDown, ChevronRight, Copy, Check, Edit3, FolderOpen, RefreshCw, Settings, Package, ShoppingBag } from "lucide-react";
+import { Search, Wand2, Terminal, ChevronDown, ChevronRight, Copy, Check, Edit3, FolderOpen, RefreshCw, Settings, ShoppingBag } from "lucide-react";
 import { ListSkeleton } from "@/components/skeleton";
 import { EntityCard } from "@/components/library/entity-card";
 import type { EntityCardStatus } from "@/components/library/entity-card";
 import type { SkillEntity, MarkdownEntity } from "@shared/types";
+
+type SubTab = "installed" | "saved" | "marketplace";
 
 function formatPreview(content: string): string {
   const lines = content.split("\n");
@@ -29,23 +30,13 @@ function formatPreview(content: string): string {
   return paragraphs.slice(0, 3).join("\n\n") || content.slice(0, 300);
 }
 
-/** Section heading for three-tier layout */
-function TierHeading({ icon: Icon, label, count }: { icon: React.ComponentType<{ className?: string }>; label: string; count: number }) {
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <Icon className="h-4 w-4 text-muted-foreground" />
-      <h2 className="text-sm font-semibold">{label}</h2>
-      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
-    </div>
-  );
-}
-
 export default function SkillsTab() {
   const { data: skills, isLoading } = useEntities<SkillEntity>("skill");
   const { data: markdowns } = useEntities<MarkdownEntity>("markdown");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [subTab, setSubTab] = useState<SubTab>("installed");
   const [, setLocation] = useLocation();
   const rescan = useRescan();
 
@@ -158,14 +149,29 @@ export default function SkillsTab() {
         </div>
       </div>
 
+      {/* Sub-tabs */}
+      <div className="flex items-center gap-1 border-b border-border">
+        {(["installed", "saved", "marketplace"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setSubTab(t)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              subTab === t
+                ? "border-blue-500 text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "installed" ? "Installed" : t === "saved" ? "Saved" : "Marketplace"}
+          </button>
+        ))}
+      </div>
+
       {isLoading ? (
         <ListSkeleton rows={6} />
       ) : (
-        <div className="space-y-8">
-          {/* --- Installed --- */}
-          <section>
-            <TierHeading icon={Wand2} label="Installed" count={installed.length} />
-            {installed.length > 0 ? (
+        <>
+          {subTab === "installed" && (
+            installed.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                 {installed.map((skill) => renderSkillCard(skill, "installed"))}
               </div>
@@ -189,31 +195,27 @@ export default function SkillsTab() {
                   </Button>
                 </div>
               </div>
-            )}
-          </section>
+            )
+          )}
 
-          {/* --- Saved --- */}
-          <section>
-            <TierHeading icon={Package} label="Saved" count={saved.length} />
-            {saved.length > 0 ? (
+          {subTab === "saved" && (
+            saved.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                 {saved.map((skill) => renderSkillCard(skill, "saved"))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground/60 pl-6">No saved skills — all discovered skills are currently active</p>
-            )}
-          </section>
+              <p className="text-sm text-muted-foreground/60">No saved skills — all discovered skills are currently active</p>
+            )
+          )}
 
-          {/* --- Marketplace --- */}
-          <section>
-            <TierHeading icon={ShoppingBag} label="Marketplace" count={0} />
+          {subTab === "marketplace" && (
             <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
               <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">Marketplace coming soon</p>
               <p className="text-xs text-muted-foreground/60 mt-1">Browse and install community skills</p>
             </div>
-          </section>
-        </div>
+          )}
+        </>
       )}
     </div>
   );

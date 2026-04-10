@@ -101,9 +101,9 @@ describe("Entity card grid — responsive columns", () => {
   }
 });
 
-// ── Three-tier layout adapts without overflow ────────────────────────────────
+// ── Sub-tab layout adapts without overflow ──────────────────────────────────
 
-describe("Three-tier sections — responsive adaptation", () => {
+describe("Sub-tab sections — responsive adaptation", () => {
   const tabFiles = [
     { name: "Skills", path: SKILLS_TAB },
     { name: "Plugins", path: PLUGINS_TAB },
@@ -119,9 +119,10 @@ describe("Three-tier sections — responsive adaptation", () => {
         expect(src).toMatch(/items-center justify-center/);
       });
 
-      it("section headings stack naturally without fixed widths", () => {
-        // TierHeading should use flex-wrap or no fixed widths
-        expect(src).not.toMatch(/TierHeading.*w-\[/);
+      it("uses sub-tabs instead of TierHeading sections", () => {
+        // Sub-tabs replaced vertical TierHeading sections
+        expect(src).not.toMatch(/function TierHeading/);
+        expect(src).toMatch(/border-b border-border/);
       });
     });
   }
