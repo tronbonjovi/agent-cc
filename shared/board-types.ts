@@ -2,6 +2,18 @@
 
 export type BoardColumn = "queue" | "in-progress" | "review" | "done";
 
+/** Snapshot of session metadata persisted in memory so completed tasks retain
+ *  their session info even after the live session is no longer active/found. */
+export interface LastSessionSnapshot {
+  model: string | null;
+  agentRole: string | null;
+  messageCount: number;
+  durationMinutes: number | null;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
 export interface BoardTask {
   id: string;
   title: string;
@@ -22,6 +34,7 @@ export interface BoardTask {
   flagged: boolean;
   flagReason?: string;
   session: SessionEnrichment | null;
+  lastSession?: LastSessionSnapshot;
   createdAt: string;
   updatedAt: string;
 }

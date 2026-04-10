@@ -9,6 +9,7 @@ import {
   shortenModel,
   formatAgentRole,
 } from "../client/src/components/board/session-indicators";
+import { truncateTitle } from "../client/src/components/board/board-task-card";
 
 describe("session indicator logic", () => {
   it("formats cost as dollars with 2 decimal places", () => {
@@ -72,5 +73,38 @@ describe("session indicator logic", () => {
     expect(formatAgentRole("code-review")).toBe("Code Review");
     expect(formatAgentRole(null)).toBe("");
     expect(formatAgentRole("")).toBe("");
+  });
+});
+
+describe("truncateTitle", () => {
+  it("returns short titles unchanged", () => {
+    expect(truncateTitle("Build auth")).toBe("Build auth");
+  });
+
+  it("returns titles at exactly the limit unchanged", () => {
+    const exact = "A".repeat(60);
+    expect(truncateTitle(exact)).toBe(exact);
+  });
+
+  it("truncates titles longer than 60 chars with ellipsis", () => {
+    const long = "A".repeat(80);
+    const result = truncateTitle(long);
+    expect(result.length).toBeLessThanOrEqual(61); // 60 chars + ellipsis character
+    expect(result.endsWith("\u2026")).toBe(true);
+  });
+
+  it("respects custom maxLen parameter", () => {
+    const title = "This is a moderately long title for testing";
+    const result = truncateTitle(title, 20);
+    expect(result.length).toBeLessThanOrEqual(21);
+    expect(result.endsWith("\u2026")).toBe(true);
+  });
+
+  it("trims trailing whitespace before adding ellipsis", () => {
+    // 58 chars + 2 spaces at the cut point
+    const title = "A".repeat(58) + "  " + "B".repeat(10);
+    const result = truncateTitle(title);
+    expect(result).not.toMatch(/\s\u2026$/);
+    expect(result.endsWith("\u2026")).toBe(true);
   });
 });

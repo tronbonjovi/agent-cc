@@ -14,6 +14,17 @@ vi.mock("../server/scanner/task-scanner", () => ({
 }));
 vi.mock("../server/board/session-enricher", () => ({
   enrichTaskSession: vi.fn(() => null),
+  buildSessionSnapshot: vi.fn((enrichment: any) => ({
+    model: enrichment.model,
+    agentRole: enrichment.agentRole,
+    messageCount: enrichment.messageCount,
+    durationMinutes: enrichment.durationMinutes,
+    inputTokens: enrichment.inputTokens,
+    outputTokens: enrichment.outputTokens,
+    costUsd: enrichment.costUsd,
+  })),
+  cacheSnapshot: vi.fn(),
+  getCachedSnapshot: vi.fn(() => undefined),
 }));
 vi.mock("../server/scanner/session-scanner", () => ({
   getCachedSessions: vi.fn(() => []),
@@ -22,7 +33,7 @@ vi.mock("../server/scanner/session-scanner", () => ({
 import { aggregateBoardState, mapTaskToBoard, getProjectColor, statusToColumn, isArchived, setArchived, getArchivedMilestones } from "../server/board/aggregator";
 import { storage } from "../server/storage";
 import { scanProjectTasks } from "../server/scanner/task-scanner";
-import { enrichTaskSession } from "../server/board/session-enricher";
+import { enrichTaskSession, buildSessionSnapshot, cacheSnapshot, getCachedSnapshot } from "../server/board/session-enricher";
 import { getMilestoneColor } from "../shared/milestone-colors";
 import type { TaskItem } from "../shared/task-types";
 
@@ -266,6 +277,80 @@ describe("aggregator", () => {
       };
       const result = mapTaskToBoard(task, "p", "P", "#000", []);
       expect(result!.source).toBe("workflow");
+    });
+  });
+
+  describe("mapTaskToBoard — lastSession snapshot", () => {
+    it("populates lastSession when enrichment succeeds", () => {
+      const mockEnrichment = {
+        sessionId: "s-snap1",
+        isActive: false,
+        model: "claude-sonnet-4-5",
+        lastActivity: null,
+        lastActivityTs: "2026-04-07T12:00:00Z",
+        messageCount: 15,
+        costUsd: 0.35,
+        inputTokens: 3000,
+        outputTokens: 1500,
+        healthScore: "good" as const,
+        toolErrors: 0,
+        durationMinutes: 20,
+        agentRole: "Explore",
+      };
+      vi.mocked(enrichTaskSession).mockReturnValue(mockEnrichment);
+
+      const task: TaskItem = {
+        id: "itm-snap1", title: "Snapshot task", type: "task", status: "done",
+        created: "2026-04-08", updated: "2026-04-08", body: "", filePath: "/tmp/t.md",
+        sessionId: "s-snap1",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.lastSession).toBeDefined();
+      expect(result!.lastSession!.model).toBe("claude-sonnet-4-5");
+      expect(result!.lastSession!.agentRole).toBe("Explore");
+      expect(result!.lastSession!.messageCount).toBe(15);
+      expect(result!.lastSession!.durationMinutes).toBe(20);
+      expect(result!.lastSession!.inputTokens).toBe(3000);
+      expect(result!.lastSession!.outputTokens).toBe(1500);
+      expect(result!.lastSession!.costUsd).toBe(0.35);
+      // Should cache the snapshot
+      expect(vi.mocked(cacheSnapshot)).toHaveBeenCalledWith("itm-snap1", result!.lastSession);
+    });
+
+    it("uses cached snapshot when enrichment returns null", () => {
+      const cachedSnap = {
+        model: "claude-opus-4-6",
+        agentRole: "Plan",
+        messageCount: 42,
+        durationMinutes: 90,
+        inputTokens: 10000,
+        outputTokens: 5000,
+        costUsd: 1.25,
+      };
+      vi.mocked(enrichTaskSession).mockReturnValue(null);
+      vi.mocked(getCachedSnapshot).mockReturnValue(cachedSnap);
+
+      const task: TaskItem = {
+        id: "itm-cached1", title: "Cached task", type: "task", status: "done",
+        created: "2026-04-08", updated: "2026-04-08", body: "", filePath: "/tmp/t.md",
+        sessionId: "s-old",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.session).toBeNull();
+      expect(result!.lastSession).toEqual(cachedSnap);
+    });
+
+    it("lastSession is undefined when no enrichment and no cache", () => {
+      vi.mocked(enrichTaskSession).mockReturnValue(null);
+      vi.mocked(getCachedSnapshot).mockReturnValue(undefined);
+
+      const task: TaskItem = {
+        id: "itm-none1", title: "No session", type: "task", status: "pending",
+        created: "2026-04-08", updated: "2026-04-08", body: "", filePath: "/tmp/t.md",
+      };
+      const result = mapTaskToBoard(task, "p", "P", "#000", []);
+      expect(result!.session).toBeNull();
+      expect(result!.lastSession).toBeUndefined();
     });
   });
 

@@ -31,7 +31,42 @@ import { getCachedSessions } from "../scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../scanner/session-analytics";
 import { getCachedExecutions } from "../scanner/agent-scanner";
 import type { SessionData } from "@shared/types";
-import type { SessionEnrichment } from "@shared/board-types";
+import type { SessionEnrichment, LastSessionSnapshot } from "@shared/board-types";
+
+/**
+ * In-memory cache of session snapshots keyed by task ID.
+ * Persists across aggregation cycles so completed tasks retain their
+ * session metadata even after the live session data is no longer available.
+ */
+const snapshotCache = new Map<string, LastSessionSnapshot>();
+
+/** Build a LastSessionSnapshot from a SessionEnrichment. */
+export function buildSessionSnapshot(enrichment: SessionEnrichment): LastSessionSnapshot {
+  return {
+    model: enrichment.model,
+    agentRole: enrichment.agentRole,
+    messageCount: enrichment.messageCount,
+    durationMinutes: enrichment.durationMinutes,
+    inputTokens: enrichment.inputTokens,
+    outputTokens: enrichment.outputTokens,
+    costUsd: enrichment.costUsd,
+  };
+}
+
+/** Store a snapshot for a task. Called by the aggregator when enrichment succeeds. */
+export function cacheSnapshot(taskId: string, snapshot: LastSessionSnapshot): void {
+  snapshotCache.set(taskId, snapshot);
+}
+
+/** Retrieve a cached snapshot for a task. Returns undefined if none cached. */
+export function getCachedSnapshot(taskId: string): LastSessionSnapshot | undefined {
+  return snapshotCache.get(taskId);
+}
+
+/** Clear the snapshot cache (for testing). */
+export function clearSnapshotCache(): void {
+  snapshotCache.clear();
+}
 
 /**
  * Look up session data for a task and return enrichment fields.

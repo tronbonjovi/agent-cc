@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { scanProjectTasks, isDbStoredTask } from "../scanner/task-scanner";
 import { getDB, save } from "../db";
 import { deleteTaskFile } from "../task-io";
-import { enrichTaskSession } from "./session-enricher";
+import { enrichTaskSession, buildSessionSnapshot, cacheSnapshot, getCachedSnapshot } from "./session-enricher";
 import { getCachedSessions } from "../scanner/session-scanner";
 import type { SessionData } from "@shared/types";
 import type { TaskItem } from "@shared/task-types";
@@ -119,6 +119,16 @@ export function mapTaskToBoard(
   const linkedSessionId = task.sessionId;
   const enrichment = enrichTaskSession(linkedSessionId, sessions);
 
+  // Build/update lastSession snapshot: active session > cached snapshot
+  let lastSession: import("@shared/board-types").LastSessionSnapshot | undefined;
+  if (enrichment) {
+    const snapshot = buildSessionSnapshot(enrichment);
+    cacheSnapshot(task.id, snapshot);
+    lastSession = snapshot;
+  } else {
+    lastSession = getCachedSnapshot(task.id);
+  }
+
   // Blocked workflow tasks get flagged on the board
   const isBlocked = task.status === "blocked";
   const flagged = isBlocked || (task.flagged || false);
@@ -149,6 +159,7 @@ export function mapTaskToBoard(
     flagged,
     flagReason,
     session: enrichment,
+    lastSession,
     createdAt: task.created,
     updatedAt: task.updated,
   };
