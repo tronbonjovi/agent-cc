@@ -107,9 +107,9 @@ describe("library page renders FileEditorTab", () => {
   });
 });
 
-describe("original page files still exist", () => {
-  it("markdown-files.tsx still exists", () => {
-    expect(fs.existsSync(MARKDOWN_FILES_PATH)).toBe(true);
+describe("original page files (task006 — redirects replace standalone pages)", () => {
+  it("markdown-files.tsx removed", () => {
+    expect(fs.existsSync(MARKDOWN_FILES_PATH)).toBe(false);
   });
 
   it("markdown-edit.tsx still exists", () => {

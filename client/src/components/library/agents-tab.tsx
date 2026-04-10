@@ -24,20 +24,13 @@ import {
   Tags,
   FileCode,
   Search,
-  Lock,
   ChevronDown,
   ChevronRight,
   Plus,
-  Clock,
-  Copy,
-  Check,
   Info,
-  FolderOpen,
-  Clipboard,
   HelpCircle,
   Zap,
   GitBranch,
-  Wrench,
   Package,
   ShoppingBag,
 } from "lucide-react";
@@ -498,167 +491,6 @@ function DefinitionsTab() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function CopyNameButton({ name }: { name: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(name);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-  return (
-    <button
-      onClick={handleCopy}
-      className="p-1 rounded hover:bg-muted/80 transition-colors opacity-0 group-hover:opacity-100"
-      title="Copy agent name"
-    >
-      {copied
-        ? <Check className="h-3 w-3 text-green-400" />
-        : <Copy className="h-3 w-3 text-muted-foreground/50" />
-      }
-    </button>
-  );
-}
-
-function CopyButton({ text, label }: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-      className="p-1 rounded hover:bg-muted/80 transition-colors"
-      title={label || "Copy"}
-    >
-      {copied ? <Check className="h-3 w-3 text-green-400" /> : <Clipboard className="h-3 w-3 text-muted-foreground/50" />}
-    </button>
-  );
-}
-
-/** Shorten a file path for display — keep the meaningful tail */
-function shortenPath(fp: string): string {
-  const parts = fp.replace(/\\/g, "/").split("/");
-  const pluginsIdx = parts.indexOf("plugins");
-  if (pluginsIdx >= 0 && pluginsIdx < parts.length - 2) {
-    return "~/" + parts.slice(pluginsIdx).join("/");
-  }
-  if (parts.length > 3) return ".../" + parts.slice(-3).join("/");
-  return fp;
-}
-
-function ExpandedDetails({ def }: { def: AgentDefinition }) {
-  return (
-    <div className="mt-4 pt-4 border-t border-border/50 space-y-3" onClick={(e) => e.stopPropagation()}>
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        {def.pluginName && (
-          <div>
-            <span className="text-muted-foreground/60">Plugin:</span>
-            <span className="ml-1.5 font-medium">{def.pluginName}</span>
-          </div>
-        )}
-        {def.model && (
-          <div>
-            <span className="text-muted-foreground/60">Model:</span>
-            <span className="ml-1.5 font-medium">{def.model}</span>
-          </div>
-        )}
-        {def.lastUsed && (
-          <div>
-            <span className="text-muted-foreground/60">Last used:</span>
-            <span className="ml-1.5 font-mono">{rt(def.lastUsed)}</span>
-          </div>
-        )}
-        {def.tools.length > 0 && (
-          <div>
-            <span className="text-muted-foreground/60">Tools:</span>
-            <span className="ml-1.5">{def.tools.join(", ")}</span>
-          </div>
-        )}
-      </div>
-
-      {/* File path — short display with copy */}
-      <div className="flex items-center gap-1.5 text-xs rounded bg-muted/30 px-2.5 py-1.5">
-        <FolderOpen className="h-3 w-3 text-muted-foreground/50 flex-shrink-0" />
-        <span className="font-mono text-muted-foreground truncate" title={def.filePath}>{shortenPath(def.filePath)}</span>
-        <CopyButton text={def.filePath} label="Copy full path" />
-      </div>
-
-      {def.content && (
-        <div>
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">System Prompt</span>
-          <pre className="text-xs text-muted-foreground mt-1 p-3 rounded bg-muted/30 max-h-40 overflow-auto whitespace-pre-wrap font-mono">
-            {def.content.slice(0, 1500)}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DefinitionCard({ def, index }: { def: AgentDefinition; index: number }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <Card
-      className="group card-hover animate-fade-in-up cursor-pointer"
-      style={{ animationDelay: `${index * 30}ms` }}
-      onClick={() => setExpanded(!expanded)}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="rounded-lg bg-muted/50 p-2 mt-0.5">
-            <Bot className="h-4 w-4 text-cyan-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{def.name}</span>
-              <CopyNameButton name={def.name} />
-              {!def.writable && <Lock className="h-3 w-3 text-muted-foreground/50" />}
-              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${
-                def.source === "plugin" ? "border-entity-plugin/30 text-entity-plugin" : "border-green-500/30 text-green-400"
-              }`}>
-                {def.source}
-              </Badge>
-              {def.model && def.model !== "inherit" && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/30 text-blue-400">
-                  {def.model}
-                </Badge>
-              )}
-              {def.color && (
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: def.color === "green" ? "#22c55e" : def.color === "yellow" ? "#eab308" : def.color === "blue" ? "#3b82f6" : def.color === "red" ? "#ef4444" : def.color }} />
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{def.description}</p>
-            <div className="flex items-center gap-3 mt-1.5">
-              {def.lastUsed && (
-                <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
-                  <Clock className="h-3 w-3" />
-                  Last used {rt(def.lastUsed)}
-                </span>
-              )}
-              {def.tools.length > 0 && (
-                <div className="flex gap-1 flex-wrap">
-                  {def.tools.slice(0, 4).map(t => (
-                    <Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">{t}</Badge>
-                  ))}
-                  {def.tools.length > 4 && (
-                    <span className="text-[10px] text-muted-foreground/50">+{def.tools.length - 4}</span>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex-shrink-0 mt-1">
-            {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground/50" /> : <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
-          </div>
-        </div>
-
-        {expanded && (
-          <ExpandedDetails def={def} />
-        )}
-      </CardContent>
-    </Card>
   );
 }
 

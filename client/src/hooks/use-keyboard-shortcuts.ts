@@ -4,12 +4,12 @@ import { useLocation } from "wouter";
 const shortcuts: Record<string, string> = {
   d: "/",          // g+d → dashboard
   s: "/sessions",  // g+s → sessions
-  a: "/agents",    // g+a → agents
+  a: "/library?tab=agents",    // g+a → agents
   g: "/analytics?tab=graph",  // g+g → graph (analytics tab)
   l: "/",          // g+l → dashboard (live merged into dashboard)
-  m: "/mcps",      // g+m → mcps
+  m: "/library?tab=mcps",      // g+m → mcps
   p: "/projects",  // g+p → projects
-  k: "/skills",    // g+k → skills
+  k: "/library?tab=skills",    // g+k → skills
 };
 
 export function useKeyboardShortcuts() {

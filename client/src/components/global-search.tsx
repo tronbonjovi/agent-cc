@@ -18,9 +18,9 @@ import type { Entity, EntityType } from "@shared/types";
 function getEntityRoute(entity: Entity): string {
   switch (entity.type) {
     case "project": return `/projects/${entity.id}`;
-    case "mcp": return "/mcps";
-    case "skill": return "/skills";
-    case "plugin": return "/plugins";
+    case "mcp": return "/library?tab=mcps";
+    case "skill": return "/library?tab=skills";
+    case "plugin": return "/library?tab=plugins";
     case "markdown": return `/markdown/${entity.id}`;
     case "config": return "/config";
     default: return "/";

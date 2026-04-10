@@ -17,14 +17,9 @@ import { KeyboardShortcutsOverlay } from "@/components/keyboard-shortcuts";
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Projects = lazy(() => import("@/pages/projects"));
 const ProjectDetail = lazy(() => import("@/pages/project-detail"));
-const MCPs = lazy(() => import("@/pages/mcps"));
-const Skills = lazy(() => import("@/pages/skills"));
-const Plugins = lazy(() => import("@/pages/plugins"));
-const MarkdownFiles = lazy(() => import("@/pages/markdown-files"));
 const MarkdownEdit = lazy(() => import("@/pages/markdown-edit"));
 const ActivityPage = lazy(() => import("@/pages/activity"));
 const Sessions = lazy(() => import("@/pages/sessions"));
-const Agents = lazy(() => import("@/pages/agents"));
 const Live = lazy(() => import("@/pages/live"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const Stats = lazy(() => import("@/pages/stats"));
@@ -75,17 +70,20 @@ function Router() {
             <Route path="/library">
               <ErrorBoundary pageName="Library"><Library /></ErrorBoundary>
             </Route>
-            <Route path="/mcps">
-              <ErrorBoundary pageName="MCPs"><MCPs /></ErrorBoundary>
-            </Route>
             <Route path="/skills">
-              <ErrorBoundary pageName="Skills"><Skills /></ErrorBoundary>
+              <Redirect to="/library?tab=skills" />
             </Route>
             <Route path="/plugins">
-              <ErrorBoundary pageName="Plugins"><Plugins /></ErrorBoundary>
+              <Redirect to="/library?tab=plugins" />
+            </Route>
+            <Route path="/mcps">
+              <Redirect to="/library?tab=mcps" />
+            </Route>
+            <Route path="/agents">
+              <Redirect to="/library?tab=agents" />
             </Route>
             <Route path="/markdown">
-              <ErrorBoundary pageName="Markdown Files"><MarkdownFiles /></ErrorBoundary>
+              <Redirect to="/library?tab=editor" />
             </Route>
             <Route path="/markdown/:id">
               <ErrorBoundary pageName="Markdown Editor"><MarkdownEdit /></ErrorBoundary>
@@ -95,9 +93,6 @@ function Router() {
             </Route>
             <Route path="/sessions">
               <ErrorBoundary pageName="Sessions"><Sessions /></ErrorBoundary>
-            </Route>
-            <Route path="/agents">
-              <ErrorBoundary pageName="Agents"><Agents /></ErrorBoundary>
             </Route>
             <Route path="/live">
               <ErrorBoundary pageName="Live View"><Live /></ErrorBoundary>

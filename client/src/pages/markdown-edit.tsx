@@ -174,7 +174,7 @@ export default function MarkdownEdit() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/markdown"><Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
+          <Link href="/library?tab=editor"><Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
           <div>
             <h1 className="text-lg font-bold">{file.name}</h1>
             <p className="text-xs text-muted-foreground font-mono">{relativePath(file.path)}</p>

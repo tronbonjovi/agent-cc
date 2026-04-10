@@ -362,9 +362,9 @@ export default function GraphPage() {
     if (!target) return;
     switch (target.type) {
       case "project": setLocation(`/projects/${target.id}`); break;
-      case "mcp": setLocation("/mcps"); break;
-      case "skill": setLocation("/skills"); break;
-      case "plugin": setLocation("/plugins"); break;
+      case "mcp": setLocation("/library?tab=mcps"); break;
+      case "skill": setLocation("/library?tab=skills"); break;
+      case "plugin": setLocation("/library?tab=plugins"); break;
       case "markdown": setLocation(`/markdown/${target.id}`); break;
       case "config": setLocation("/config"); break;
       case "session": setLocation("/sessions"); break;

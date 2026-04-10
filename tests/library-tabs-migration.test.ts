@@ -230,20 +230,20 @@ describe("library page renders tab components", () => {
   });
 });
 
-describe("original page files still exist", () => {
-  it("skills.tsx still exists", () => {
-    expect(fs.existsSync(SKILLS_PAGE_PATH)).toBe(true);
+describe("original page files removed (task006 — redirects replace standalone pages)", () => {
+  it("skills.tsx removed", () => {
+    expect(fs.existsSync(SKILLS_PAGE_PATH)).toBe(false);
   });
 
-  it("plugins.tsx still exists", () => {
-    expect(fs.existsSync(PLUGINS_PAGE_PATH)).toBe(true);
+  it("plugins.tsx removed", () => {
+    expect(fs.existsSync(PLUGINS_PAGE_PATH)).toBe(false);
   });
 
-  it("mcps.tsx still exists", () => {
-    expect(fs.existsSync(MCPS_PAGE_PATH)).toBe(true);
+  it("mcps.tsx removed", () => {
+    expect(fs.existsSync(MCPS_PAGE_PATH)).toBe(false);
   });
 
-  it("agents.tsx still exists", () => {
-    expect(fs.existsSync(AGENTS_PAGE_PATH)).toBe(true);
+  it("agents.tsx removed", () => {
+    expect(fs.existsSync(AGENTS_PAGE_PATH)).toBe(false);
   });
 });
