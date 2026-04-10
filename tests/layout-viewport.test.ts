@@ -16,3 +16,12 @@ describe("layout viewport contract", () => {
     expect(src).toContain("page-enter h-full");
   });
 });
+
+describe("PageContainer scroll support", () => {
+  it("PageContainer renders with h-full and overflow-y-auto by default", async () => {
+    const fs = await import("fs");
+    const src = fs.readFileSync("client/src/components/page-container.tsx", "utf-8");
+    expect(src).toMatch(/h-full/);
+    expect(src).toMatch(/overflow-y-auto/);
+  });
+});

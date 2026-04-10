@@ -23,7 +23,7 @@ export function PageContainer({
 }: PageContainerProps) {
   return (
     <div
-      className={`w-full ${className ?? ""}`}
+      className={`w-full h-full overflow-y-auto ${className ?? ""}`}
       style={{ padding: "var(--page-padding)" }}
     >
       {title && (
