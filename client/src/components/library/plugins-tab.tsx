@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { useEntities, useRescan } from "@/hooks/use-entities";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Puzzle, Store, ShieldAlert, ShieldCheck, Server, Package, ShoppingBag, RefreshCw, Settings } from "lucide-react";
+import { Puzzle, Store, ShieldAlert, ShieldCheck, Server, ShoppingBag, RefreshCw, Settings } from "lucide-react";
 import { EntityCard } from "@/components/library/entity-card";
 import type { EntityCardStatus } from "@/components/library/entity-card";
 import type { PluginEntity } from "@shared/types";
+
+type SubTab = "installed" | "saved" | "marketplace";
 
 const CATEGORY_LABELS: Record<string, string> = {
   "dev-tools": "Developer Tools",
@@ -17,21 +20,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   lsp: "Language Servers (LSP)",
 };
 
-/** Section heading for three-tier layout */
-function TierHeading({ icon: Icon, label, count }: { icon: React.ComponentType<{ className?: string }>; label: string; count: number }) {
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <Icon className="h-4 w-4 text-muted-foreground" />
-      <h2 className="text-sm font-semibold">{label}</h2>
-      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
-    </div>
-  );
-}
-
 export default function PluginsTab() {
   const { data: plugins, isLoading } = useEntities<PluginEntity>("plugin");
   const rescan = useRescan();
   const [, setLocation] = useLocation();
+  const [subTab, setSubTab] = useState<SubTab>("installed");
 
   const marketplaces = (plugins || []).filter((p) => p.tags.includes("marketplace"));
   const blocked = (plugins || []).filter((p) => !p.tags.includes("marketplace") && p.data.blocked);
@@ -87,81 +80,95 @@ export default function PluginsTab() {
         </div>
       )}
 
+      {/* Sub-tabs */}
+      <div className="flex items-center gap-1 border-b border-border">
+        {(["installed", "saved", "marketplace"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setSubTab(t)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              subTab === t
+                ? "border-blue-500 text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "installed" ? "Installed" : t === "saved" ? "Saved" : "Marketplace"}
+          </button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">Loading plugins...</div>
       ) : (
-        <div className="space-y-8">
-          {/* --- Installed --- */}
-          <section>
-            <TierHeading icon={Puzzle} label="Installed" count={installed.length} />
+        <>
+          {subTab === "installed" && (
+            <>
+              {/* Marketplaces within installed section */}
+              {marketplaces.length > 0 && (
+                <div className="mb-4 space-y-2">
+                  <p className="text-xs text-muted-foreground/60 uppercase tracking-wider font-medium flex items-center gap-1.5 mb-2">
+                    <Store className="h-3 w-3" /> Marketplaces
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-card">
+                    {marketplaces.map((mkt) => (
+                      <EntityCard
+                        key={mkt.id}
+                        icon={<Store className="h-4 w-4 text-entity-plugin" />}
+                        name={mkt.name}
+                        description={mkt.description ?? undefined}
+                        status="installed"
+                        health={mkt.health === "ok" ? "healthy" : mkt.health === "warning" ? "degraded" : mkt.health === "error" ? "error" : undefined}
+                        tags={["marketplace"]}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-            {/* Marketplaces within installed section */}
-            {marketplaces.length > 0 && (
-              <div className="mb-4 space-y-2">
-                <p className="text-xs text-muted-foreground/60 uppercase tracking-wider font-medium flex items-center gap-1.5 mb-2">
-                  <Store className="h-3 w-3" /> Marketplaces
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-card">
-                  {marketplaces.map((mkt) => (
+              {installed.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
+                  {installed.map((plugin) => (
                     <EntityCard
-                      key={mkt.id}
-                      icon={<Store className="h-4 w-4 text-entity-plugin" />}
-                      name={mkt.name}
-                      description={mkt.description ?? undefined}
-                      status="installed"
-                      health={mkt.health === "ok" ? "healthy" : mkt.health === "warning" ? "degraded" : mkt.health === "error" ? "error" : undefined}
-                      tags={["marketplace"]}
+                      key={plugin.id}
+                      icon={
+                        plugin.data.blocked
+                          ? <ShieldAlert className="h-4 w-4 text-red-400" />
+                          : <Puzzle className="h-4 w-4 text-entity-plugin" />
+                      }
+                      name={plugin.name}
+                      description={plugin.description ?? undefined}
+                      status={getStatus(plugin)}
+                      health={getHealth(plugin)}
+                      tags={buildTags(plugin)}
                     />
                   ))}
                 </div>
-              </div>
-            )}
-
-            {installed.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
-                {installed.map((plugin) => (
-                  <EntityCard
-                    key={plugin.id}
-                    icon={
-                      plugin.data.blocked
-                        ? <ShieldAlert className="h-4 w-4 text-red-400" />
-                        : <Puzzle className="h-4 w-4 text-entity-plugin" />
-                    }
-                    name={plugin.name}
-                    description={plugin.description ?? undefined}
-                    status={getStatus(plugin)}
-                    health={getHealth(plugin)}
-                    tags={buildTags(plugin)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                <Puzzle className="h-10 w-10 text-muted-foreground/30" />
-                <div className="text-center space-y-1">
-                  <p className="text-muted-foreground font-medium">No installed plugins</p>
-                  <p className="text-xs text-muted-foreground/70">
-                    Scanner looks in ~/.claude/plugins/ for marketplaces and blocklist
-                  </p>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                  <Puzzle className="h-10 w-10 text-muted-foreground/30" />
+                  <div className="text-center space-y-1">
+                    <p className="text-muted-foreground font-medium">No installed plugins</p>
+                    <p className="text-xs text-muted-foreground/70">
+                      Scanner looks in ~/.claude/plugins/ for marketplaces and blocklist
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} className="gap-1.5">
+                      <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
+                      Rescan
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setLocation("/settings")} className="gap-1.5">
+                      <Settings className="h-3.5 w-3.5" />
+                      Configure Paths
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} className="gap-1.5">
-                    <RefreshCw className={`h-3.5 w-3.5 ${rescan.isPending ? "animate-spin" : ""}`} />
-                    Rescan
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setLocation("/settings")} className="gap-1.5">
-                    <Settings className="h-3.5 w-3.5" />
-                    Configure Paths
-                  </Button>
-                </div>
-              </div>
-            )}
-          </section>
+              )}
+            </>
+          )}
 
-          {/* --- Saved --- */}
-          <section>
-            <TierHeading icon={Package} label="Saved" count={saved.length} />
-            {saved.length > 0 ? (
+          {subTab === "saved" && (
+            saved.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
                 {saved.map((plugin) => (
                   <EntityCard
@@ -176,20 +183,18 @@ export default function PluginsTab() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground/60 pl-6">No saved plugins — all discovered plugins are currently active</p>
-            )}
-          </section>
+              <p className="text-sm text-muted-foreground/60">No saved plugins — all discovered plugins are currently active</p>
+            )
+          )}
 
-          {/* --- Marketplace --- */}
-          <section>
-            <TierHeading icon={ShoppingBag} label="Marketplace" count={0} />
+          {subTab === "marketplace" && (
             <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
               <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">Marketplace coming soon</p>
               <p className="text-xs text-muted-foreground/60 mt-1">Browse and install community plugins</p>
             </div>
-          </section>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
