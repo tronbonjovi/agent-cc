@@ -14,7 +14,7 @@ vi.mock("../server/scanner/agent-scanner", () => ({
   getCachedExecutions: vi.fn(),
 }));
 
-import { enrichTaskSession } from "../server/board/session-enricher";
+import { enrichTaskSession, buildSessionSnapshot, cacheSnapshot, getCachedSnapshot, clearSnapshotCache } from "../server/board/session-enricher";
 import { getCachedSessions } from "../server/scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../server/scanner/session-analytics";
 import { getCachedExecutions } from "../server/scanner/agent-scanner";
@@ -257,5 +257,114 @@ describe("enrichTaskSession", () => {
 
     const result = enrichTaskSession("sess-abc123");
     expect(result!.agentRole).toBeNull();
+  });
+});
+
+describe("buildSessionSnapshot", () => {
+  it("extracts snapshot fields from a SessionEnrichment", () => {
+    const enrichment = {
+      sessionId: "sess-snap1",
+      isActive: false,
+      model: "claude-sonnet-4-5",
+      lastActivity: null,
+      lastActivityTs: "2026-04-01T10:30:00.000Z",
+      messageCount: 20,
+      costUsd: 0.42,
+      inputTokens: 5000,
+      outputTokens: 2000,
+      healthScore: "good" as const,
+      toolErrors: 1,
+      durationMinutes: 30,
+      agentRole: "Explore",
+    };
+
+    const snap = buildSessionSnapshot(enrichment);
+    expect(snap.model).toBe("claude-sonnet-4-5");
+    expect(snap.agentRole).toBe("Explore");
+    expect(snap.messageCount).toBe(20);
+    expect(snap.durationMinutes).toBe(30);
+    expect(snap.inputTokens).toBe(5000);
+    expect(snap.outputTokens).toBe(2000);
+    expect(snap.costUsd).toBe(0.42);
+  });
+
+  it("preserves null values from enrichment", () => {
+    const enrichment = {
+      sessionId: "sess-snap2",
+      isActive: true,
+      model: null,
+      lastActivity: null,
+      lastActivityTs: null,
+      messageCount: 0,
+      costUsd: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      healthScore: null,
+      toolErrors: 0,
+      durationMinutes: null,
+      agentRole: null,
+    };
+
+    const snap = buildSessionSnapshot(enrichment);
+    expect(snap.model).toBeNull();
+    expect(snap.agentRole).toBeNull();
+    expect(snap.durationMinutes).toBeNull();
+  });
+});
+
+describe("snapshot cache", () => {
+  beforeEach(() => {
+    clearSnapshotCache();
+  });
+
+  it("cacheSnapshot stores and getCachedSnapshot retrieves", () => {
+    const snap = {
+      model: "claude-opus-4-6",
+      agentRole: "Plan",
+      messageCount: 42,
+      durationMinutes: 90,
+      inputTokens: 10000,
+      outputTokens: 5000,
+      costUsd: 1.25,
+    };
+    cacheSnapshot("task-123", snap);
+    expect(getCachedSnapshot("task-123")).toEqual(snap);
+  });
+
+  it("getCachedSnapshot returns undefined for unknown tasks", () => {
+    expect(getCachedSnapshot("nonexistent")).toBeUndefined();
+  });
+
+  it("cacheSnapshot overwrites previous snapshot", () => {
+    const snap1 = {
+      model: "claude-sonnet-4-5",
+      agentRole: null,
+      messageCount: 10,
+      durationMinutes: 5,
+      inputTokens: 1000,
+      outputTokens: 500,
+      costUsd: 0.10,
+    };
+    const snap2 = {
+      model: "claude-opus-4-6",
+      agentRole: "Explore",
+      messageCount: 30,
+      durationMinutes: 45,
+      inputTokens: 8000,
+      outputTokens: 4000,
+      costUsd: 0.80,
+    };
+    cacheSnapshot("task-456", snap1);
+    cacheSnapshot("task-456", snap2);
+    expect(getCachedSnapshot("task-456")).toEqual(snap2);
+  });
+
+  it("clearSnapshotCache empties all entries", () => {
+    cacheSnapshot("task-a", {
+      model: null, agentRole: null, messageCount: 0,
+      durationMinutes: null, inputTokens: 0, outputTokens: 0, costUsd: 0,
+    });
+    clearSnapshotCache();
+    expect(getCachedSnapshot("task-a")).toBeUndefined();
   });
 });
