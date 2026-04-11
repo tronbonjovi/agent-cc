@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Comprehensive JSONL session parser** — single-pass `parseSessionFile()` extracts messages, tool executions, cost/token totals, models, timestamps, and conversation structure from raw JSONL files. 16 typed interfaces in `shared/session-types.ts` define the full parsed schema.
+- **Session parse cache** — file-size-based `SessionParseCache` avoids re-parsing unchanged JSONL files. Singleton instance shared across scanner and analytics.
+- **Full JSONL schema types** — `shared/session-types.ts` with `ParsedSession`, `ParsedMessage`, `ToolExecution`, `FileHistorySnapshot`, and 12 supporting interfaces.
+
+### Changed
+- **Session scanner uses parsed cache** — `session-scanner.ts` now reads from `SessionParseCache` instead of doing its own JSONL parsing, eliminating a redundant full-file read per session.
+- **Session analytics consumes parsed cache** — `session-analytics.ts` reads from the same cache, eliminating a second redundant full-file read per session.
+
+### Added
 - **Library configuration management** — Library page is now a full config manager. Install, uninstall, edit, and remove skills, agents, and plugins directly from the UI. Three-state model: items move between External (GitHub) → Library (inactive on disk) → Installed (active in Claude Code).
 - **Discover tab** — search GitHub for community skills, agents, and plugins. Results show as cards with "Save to Library" action. Safety disclaimer with VirusTotal link.
 - **Structured discover sources** — Browse section with links to skill hubs (Claude Skill Hub, SkillsMP, SkillHub), plugin marketplaces (Anthropic Official/Community), and cross-type directories (Build with Claude). GitHub search is the universal fallback.
