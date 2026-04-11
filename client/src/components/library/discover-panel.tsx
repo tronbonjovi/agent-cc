@@ -5,7 +5,7 @@ import { AlertTriangle, Search, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EntityCard } from "@/components/library/entity-card";
-import { useDiscoverSearch, useSaveToLibrary } from "@/hooks/use-library";
+import { useDiscoverSearch, useDiscoverSources, useSaveToLibrary } from "@/hooks/use-library";
 
 // Exported for testing
 export const SAFETY_DISCLAIMER =
@@ -21,7 +21,10 @@ export function DiscoverPanel({ entityType }: DiscoverPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: results, isLoading } = useDiscoverSearch(entityType, searchTerm);
+  const { data: sources } = useDiscoverSources(entityType);
   const saveToLibrary = useSaveToLibrary();
+
+  const browseSources = sources?.filter((s) => s.type === "web") ?? [];
 
   const handleSearch = () => {
     const trimmed = inputValue.trim();
@@ -51,6 +54,30 @@ export function DiscoverPanel({ entityType }: DiscoverPanelProps) {
           </a>
         </div>
       </div>
+
+      {/* Browse sources */}
+      {browseSources.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Browse</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {browseSources.map((source) => (
+              <a
+                key={source.id}
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-md border border-border p-2 hover:bg-muted/30 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{source.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{source.description}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="flex items-center gap-2">

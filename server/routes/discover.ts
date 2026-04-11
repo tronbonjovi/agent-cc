@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import { runFullScan } from "../scanner/index";
+import { getSourcesForType } from "../discover/sources";
 
 export interface DiscoverResult {
   name: string;
@@ -74,6 +75,15 @@ export function ensureLibraryDir(type: string, itemName: string): string {
 }
 
 const router = Router();
+
+router.get("/api/discover/:type/sources", (req, res) => {
+  const { type } = req.params;
+  if (!VALID_TYPES.has(type)) {
+    return res.status(400).json({ message: `Invalid type: ${type}. Must be one of: skills, agents, plugins` });
+  }
+  const sources = getSourcesForType(type as "skills" | "agents" | "plugins");
+  res.json(sources);
+});
 
 router.get("/api/discover/:type/search", (req, res) => {
   const { type } = req.params;

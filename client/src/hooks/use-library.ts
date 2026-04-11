@@ -76,6 +76,14 @@ export function useRemoveItem() {
   });
 }
 
+/** Fetch discover sources for a given type */
+export function useDiscoverSources(type: "skills" | "agents" | "plugins") {
+  return useQuery<{ id: string; name: string; url: string; type: string; searchable: boolean; description: string }[]>({
+    queryKey: [`/api/discover/${type}/sources`],
+    staleTime: 300_000,
+  });
+}
+
 /** Search for items to discover (GitHub search) */
 export function useDiscoverSearch(type: "skills" | "agents" | "plugins", query: string) {
   return useQuery<{ name: string; description: string | null; url: string; stars: number; source: string }[]>({
