@@ -8,8 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Analytics overview design spec** — design for replacing Nerve Center with a card-grid dashboard: metrics bar (7d spend, sessions, health, cache hit), 5 summary cards (Costs, Sessions, Models, Files, Efficiency), collapsible cards with tab linking.
-- **Implementation plan for sessions/costs/analytics fixes** — 13 tasks across 3 milestones from post-implementation review: 6 sessions page fixes, 4 costs tab fixes, 3 analytics overview tasks. Roadmap files created for workflow-framework execution.
+- **Entity graph design spec** — force-directed entity graph visualization replacing the Nerve Center topology. d3-force physics simulation, SVG rendering with React, project/session/tool/model nodes, curved bezier edges, flow particle animations, hover subgraph highlighting, click drill-in (system → project sessions), drag repositioning, sidebar detail panel, mobile fallback.
+- **Implementation plan for sessions/costs/analytics fixes** — 13 tasks across 3 milestones from post-implementation review: 6 sessions page fixes, 4 costs tab fixes, 3 nerve center redesign tasks. Roadmap files created for workflow-framework execution.
+
+### Changed
+- **Analytics overview → nerve-center-redesign** — pivoted milestone from card-grid overview dashboard to force-directed entity graph. Full rename across roadmap files (milestone, task IDs, directory). Review gates added after task001 and task002 for planning partner sign-off.
 
 ### Added
 - **Costs deepening — token intelligence panel** — transformed the Costs tab from basic aggregates into a 6-section analytics panel. Token Anatomy donut chart categorizing usage (system prompt, conversation, tool execution, thinking, cache overhead). Model Intelligence sortable table with per-model cost and cache savings. Cache Efficiency metrics with hit rate, first-message vs steady-state comparison, ROI, and per-message cache curve. System Prompt Overhead section with trend indicator and Library config link. Session & Project Value rankings with clickable session navigation. Collapsible Historical Lookup preserving original daily spend view. 84 new tests.
