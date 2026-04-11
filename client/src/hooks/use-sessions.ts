@@ -403,3 +403,21 @@ export function useTokenAnatomy(days = 30) {
   });
 }
 
+export interface ModelIntelligenceRow {
+  model: string;
+  sessions: number;
+  inputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  outputTokens: number;
+  apiEquivCost: number;
+  cacheSavings: number;
+}
+
+export function useModelIntelligence(days = 30) {
+  return useQuery<ModelIntelligenceRow[]>({
+    queryKey: [`/api/analytics/costs/models?days=${days}`],
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
