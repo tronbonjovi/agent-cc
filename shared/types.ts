@@ -278,6 +278,33 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
+// --- Force-directed graph (entity graph visualization) ---
+
+export interface ForceGraphData {
+  nodes: ForceNode[];
+  edges: ForceEdge[];
+  stats: {
+    totalSessions: number;
+    totalCost: number;
+    totalEntities: number;
+  };
+}
+
+export interface ForceNode {
+  id: string;
+  type: EntityType | "session" | "cost" | "tool" | "agent";
+  label: string;
+  weight: number;       // 0-1, normalized by server. Drives node radius.
+  health: "ok" | "warning" | "error" | "unknown";
+  meta: Record<string, unknown>;  // Type-specific data for detail panel
+}
+
+export interface ForceEdge {
+  source: string;
+  target: string;
+  relation: string;     // "defines_mcp" | "has_skill" | "has_session" | etc.
+}
+
 export interface ScanStatus {
   scanning: boolean;
   lastScanAt: string | null;
