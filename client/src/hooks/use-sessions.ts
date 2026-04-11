@@ -438,3 +438,18 @@ export function useCacheEfficiency(days = 30) {
   });
 }
 
+export interface SessionProjectValueData {
+  byProject: { project: string; sessions: number; tokens: number; avgDepth: number; cost: number }[];
+  topExpensive: { sessionId: string; firstMessage: string; model: string; healthScore: string; cost: number }[];
+  topEfficient: { sessionId: string; firstMessage: string; messageCount: number; tokens: number; efficiency: number }[];
+  avgTokensPerTurn: number;
+  avgOutputInputRatio: number;
+}
+
+export function useSessionProjectValue(days = 30) {
+  return useQuery<SessionProjectValueData>({
+    queryKey: [`/api/analytics/costs/value?days=${days}`],
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
