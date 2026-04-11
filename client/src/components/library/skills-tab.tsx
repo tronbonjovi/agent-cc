@@ -123,6 +123,12 @@ export default function SkillsTab() {
     return actions;
   };
 
+  const handleRemove = (type: string, name: string) => {
+    if (window.confirm(`Remove "${name}" from your library? This cannot be undone.`)) {
+      removeItem.mutate({ type, id: name });
+    }
+  };
+
   const buildLibraryActions = (item: SkillEntity) => {
     return [
       {
@@ -132,7 +138,7 @@ export default function SkillsTab() {
       },
       {
         label: "Remove",
-        onClick: () => removeItem.mutate({ type: "skills", id: item.name }),
+        onClick: () => handleRemove("skills", item.name),
         variant: "destructive" as const,
       },
     ];

@@ -38,6 +38,12 @@ export default function PluginsTab() {
   const uninstallItem = useUninstallItem();
   const removeItem = useRemoveItem();
 
+  const handleRemove = (type: string, name: string) => {
+    if (window.confirm(`Remove "${name}" from your library? This cannot be undone.`)) {
+      removeItem.mutate({ type, id: name });
+    }
+  };
+
   const buildTags = (plugin: PluginEntity): string[] => {
     const tags: string[] = [];
     if (plugin.data.category) tags.push(CATEGORY_LABELS[plugin.data.category] || plugin.data.category);
@@ -174,7 +180,7 @@ export default function PluginsTab() {
                       },
                       {
                         label: "Remove",
-                        onClick: () => removeItem.mutate({ type: "plugins", id: item.name }),
+                        onClick: () => handleRemove("plugins", item.name),
                         variant: "destructive" as const,
                       },
                     ]}

@@ -455,6 +455,12 @@ function LibraryTab() {
   const installItem = useInstallItem();
   const removeItem = useRemoveItem();
 
+  const handleRemove = (type: string, name: string) => {
+    if (window.confirm(`Remove "${name}" from your library? This cannot be undone.`)) {
+      removeItem.mutate({ type, id: name });
+    }
+  };
+
   return (libraryItems && libraryItems.length > 0) ? (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
       {libraryItems.map((item) => (
@@ -473,7 +479,7 @@ function LibraryTab() {
             },
             {
               label: "Remove",
-              onClick: () => removeItem.mutate({ type: "agents", id: `${item.name}.md` }),
+              onClick: () => handleRemove("agents", `${item.name}.md`),
               variant: "destructive" as const,
             },
           ]}
