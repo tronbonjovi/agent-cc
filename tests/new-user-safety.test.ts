@@ -142,6 +142,46 @@ describe("Nerve center services are configurable", () => {
   });
 });
 
+describe("No bounce/scale animations on interactive elements", () => {
+  // Bounce/scale effects on buttons and collapsible headers are banned.
+  // They look cartoonish and were never requested.
+  const BANNED_ANIMATION_PATTERNS = [
+    { pattern: /button:active[^}]*scale\(/m, label: "global button active:scale" },
+    { pattern: /active:scale-/g, label: "Tailwind active:scale-" },
+    { pattern: /animate-bounce/g, label: "animate-bounce class" },
+  ];
+  // Only allow animate-bounce in update-indicator (download icon)
+  const ANIMATION_WHITELIST = ["update-indicator.tsx", "new-user-safety.test.ts"];
+
+  // Scan CSS files
+  const cssFiles = [path.join(ROOT, "client/src/index.css")];
+  for (const file of cssFiles) {
+    const relPath = path.relative(ROOT, file);
+    for (const { pattern, label } of BANNED_ANIMATION_PATTERNS) {
+      it(`${relPath} — no ${label}`, () => {
+        const content = fs.readFileSync(file, "utf-8");
+        pattern.lastIndex = 0;
+        expect(content.match(pattern), `Found ${label} in ${relPath}`).toBeNull();
+      });
+    }
+  }
+
+  // Scan all source files for Tailwind active:scale and animate-bounce
+  const sourceFiles = getSourceFiles(ROOT);
+  for (const file of sourceFiles) {
+    const basename = path.basename(file);
+    if (ANIMATION_WHITELIST.includes(basename)) continue;
+    const relPath = path.relative(ROOT, file).replace(/\\/g, "/");
+    it(`${relPath} — no bounce/scale animations`, () => {
+      const content = fs.readFileSync(file, "utf-8");
+      const hasActiveScale = /active:scale-/.test(content);
+      const hasBounce = /animate-bounce/.test(content);
+      expect(hasActiveScale, `Found active:scale- in ${relPath}`).toBe(false);
+      expect(hasBounce, `Found animate-bounce in ${relPath}`).toBe(false);
+    });
+  }
+});
+
 describe("Terminal open is cross-platform", () => {
   it("handles win32, darwin, and linux in session open route", () => {
     const content = fs.readFileSync(path.join(ROOT, "server/routes/sessions.ts"), "utf-8");

@@ -89,11 +89,8 @@ main {
   scroll-behavior: smooth;
 }
 
-/* Global micro-interactions */
-button:active:not(:disabled) {
-  transform: scale(0.96);
-  transition: transform 0.1s ease;
-}
+/* Global micro-interactions — intentionally empty.
+   Bounce/shrink effects on button press are banned (see safety tests). */
 
 /* Copy success pulse */
 @keyframes copy-pulse {
