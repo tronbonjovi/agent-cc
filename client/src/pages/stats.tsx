@@ -36,7 +36,7 @@ import {
   type PathwayState,
 } from "@/components/analytics/nerve-center";
 import ChartsTab from "@/components/analytics/charts-tab";
-import { SessionsPanel } from "@/pages/sessions";
+import { SessionsTab } from "@/components/analytics/sessions/SessionsTab";
 import { MessagesPanel } from "@/pages/message-history";
 
 // ---- Types ----
@@ -599,7 +599,7 @@ export default function Stats() {
         </TabsContent>
 
         <TabsContent value="sessions" className="mt-4">
-          <SessionsPanel />
+          <SessionsTab />
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4">

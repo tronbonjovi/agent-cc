@@ -1,10 +1,17 @@
 import { useState } from "react";
 import { useSessionDetail, useTogglePin, useDeleteSession, useSessionNames } from "@/hooks/use-sessions";
 import { SessionOverview } from "./SessionOverview";
+import { ToolTimeline } from "./ToolTimeline";
+import { TokenBreakdown } from "./TokenBreakdown";
+import { FileImpact } from "./FileImpact";
+import { HealthDetails } from "./HealthDetails";
+import { LifecycleEvents } from "./LifecycleEvents";
+import { LinkedTask } from "./LinkedTask";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pin, Trash2, ChevronDown, ChevronRight, GitBranch, Clock, FolderOpen } from "lucide-react";
 import type { ParsedSession } from "@shared/session-types";
+import type { LinkSignal } from "@shared/board-types";
 
 interface SessionDetailProps {
   sessionId: string;
@@ -19,6 +26,17 @@ interface SessionDetailProps {
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   durationMinutes?: number | null;
+  toolErrors?: number;
+  retries?: number;
+  maxTokensStops?: number;
+  totalToolCalls?: number;
+  /** Linked task info */
+  linkedTaskId?: string;
+  linkedTaskTitle?: string;
+  linkedMilestone?: string;
+  isManualLink?: boolean;
+  linkScore?: number;
+  linkSignals?: LinkSignal[];
   onDelete?: () => void;
 }
 
@@ -26,7 +44,9 @@ export function SessionDetail({
   sessionId, parsed, healthScore, healthReasons,
   costUsd, inputTokens, outputTokens,
   cacheReadTokens, cacheCreationTokens,
-  durationMinutes, onDelete,
+  durationMinutes, toolErrors, retries, maxTokensStops, totalToolCalls,
+  linkedTaskId, linkedTaskTitle, linkedMilestone, isManualLink, linkScore, linkSignals,
+  onDelete,
 }: SessionDetailProps) {
   const { data: session, isLoading } = useSessionDetail(sessionId);
   const { data: sessionNames } = useSessionNames();
@@ -146,50 +166,90 @@ export function SessionDetail({
           />
         )}
 
-        {/* Placeholder sections for tasks 004-005 */}
+        {/* Linked Task */}
+        <SectionHeader
+          title="Linked Task"
+          isOpen={openSections.has("linked-task")}
+          onToggle={() => toggleSection("linked-task")}
+        />
+        {openSections.has("linked-task") && (
+          <LinkedTask
+            taskId={linkedTaskId}
+            taskTitle={linkedTaskTitle}
+            milestone={linkedMilestone}
+            isManualLink={isManualLink}
+            linkScore={linkScore}
+            linkSignals={linkSignals}
+          />
+        )}
+
+        {/* Tool Timeline */}
         <SectionHeader
           title="Tool Timeline"
           isOpen={openSections.has("tools")}
           onToggle={() => toggleSection("tools")}
         />
-        {openSections.has("tools") && (
-          <div className="p-4 text-sm text-muted-foreground">Coming soon</div>
+        {openSections.has("tools") && parsed && (
+          <ToolTimeline tools={parsed.toolTimeline} sessionStartTs={parsed.meta.firstTs} />
+        )}
+        {openSections.has("tools") && !parsed && (
+          <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
         )}
 
+        {/* Token Breakdown */}
         <SectionHeader
           title="Token Breakdown"
           isOpen={openSections.has("tokens")}
           onToggle={() => toggleSection("tokens")}
         />
-        {openSections.has("tokens") && (
-          <div className="p-4 text-sm text-muted-foreground">Coming soon</div>
+        {openSections.has("tokens") && parsed && (
+          <TokenBreakdown assistantMessages={parsed.assistantMessages} userMessages={parsed.userMessages} />
+        )}
+        {openSections.has("tokens") && !parsed && (
+          <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
         )}
 
+        {/* File Impact */}
         <SectionHeader
           title="File Impact"
           isOpen={openSections.has("files")}
           onToggle={() => toggleSection("files")}
         />
-        {openSections.has("files") && (
-          <div className="p-4 text-sm text-muted-foreground">Coming soon</div>
+        {openSections.has("files") && parsed && (
+          <FileImpact tools={parsed.toolTimeline} />
+        )}
+        {openSections.has("files") && !parsed && (
+          <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
         )}
 
+        {/* Health Details */}
         <SectionHeader
           title="Health Details"
           isOpen={openSections.has("health")}
           onToggle={() => toggleSection("health")}
         />
         {openSections.has("health") && (
-          <div className="p-4 text-sm text-muted-foreground">Coming soon</div>
+          <HealthDetails
+            healthScore={healthScore ?? null}
+            healthReasons={healthReasons ?? []}
+            totalToolCalls={totalToolCalls ?? 0}
+            toolErrors={toolErrors ?? 0}
+            retries={retries ?? 0}
+            maxTokensStops={maxTokensStops ?? 0}
+          />
         )}
 
+        {/* Lifecycle Events */}
         <SectionHeader
           title="Lifecycle Events"
           isOpen={openSections.has("lifecycle")}
           onToggle={() => toggleSection("lifecycle")}
         />
-        {openSections.has("lifecycle") && (
-          <div className="p-4 text-sm text-muted-foreground">Coming soon</div>
+        {openSections.has("lifecycle") && parsed && (
+          <LifecycleEvents events={parsed.lifecycle} sessionStartTs={parsed.meta.firstTs} />
+        )}
+        {openSections.has("lifecycle") && !parsed && (
+          <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
         )}
       </div>
     </div>
