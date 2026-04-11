@@ -14,3 +14,6 @@ export { CostNerves } from "./CostNerves";
 
 export { SessionVitals } from "./SessionVitals";
 export type { SessionVitalsProps } from "./SessionVitals";
+
+export { ActivityReflexes } from "./ActivityReflexes";
+export type { ActivityReflexesProps } from "./ActivityReflexes";
