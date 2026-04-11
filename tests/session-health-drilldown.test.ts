@@ -63,8 +63,8 @@ describe("SessionHealthPanel drill-down table", () => {
   });
 
   it("navigates to session detail on row click", () => {
-    // Should use setLocation or navigate to /sessions?highlight=
-    expect(src).toMatch(/sessions\?highlight=/);
+    // Should use setLocation or navigate to analytics sessions tab with highlight
+    expect(src).toMatch(/analytics\?tab=sessions&highlight=/);
   });
 
   it("shows empty state when no unhealthy sessions", () => {

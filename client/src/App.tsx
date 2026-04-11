@@ -18,8 +18,6 @@ const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Projects = lazy(() => import("@/pages/projects"));
 const ProjectDetail = lazy(() => import("@/pages/project-detail"));
 const MarkdownEdit = lazy(() => import("@/pages/markdown-edit"));
-const ActivityPage = lazy(() => import("@/pages/activity"));
-const Sessions = lazy(() => import("@/pages/sessions"));
 const Live = lazy(() => import("@/pages/live"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const Stats = lazy(() => import("@/pages/stats"));
@@ -89,10 +87,10 @@ function Router() {
               <ErrorBoundary pageName="Markdown Editor"><MarkdownEdit /></ErrorBoundary>
             </Route>
 <Route path="/activity">
-              <ErrorBoundary pageName="Activity"><ActivityPage /></ErrorBoundary>
+              <Redirect to="/analytics?tab=nerve-center" />
             </Route>
             <Route path="/sessions">
-              <ErrorBoundary pageName="Sessions"><Sessions /></ErrorBoundary>
+              <Redirect to="/analytics?tab=sessions" />
             </Route>
             <Route path="/live">
               <ErrorBoundary pageName="Live View"><Live /></ErrorBoundary>

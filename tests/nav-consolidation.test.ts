@@ -9,7 +9,7 @@ const APP_PATH = path.resolve(__dirname, "../client/src/App.tsx");
 const layoutSource = fs.readFileSync(LAYOUT_PATH, "utf-8");
 const appSource = fs.readFileSync(APP_PATH, "utf-8");
 
-describe("Sidebar nav — flat 6-item navigation", () => {
+describe("Sidebar nav — flat 5-item navigation", () => {
   it("uses a flat navItems array, not sectioned navSections", () => {
     expect(layoutSource).toMatch(/const navItems/);
     expect(layoutSource).not.toMatch(/const navSections/);
@@ -23,11 +23,11 @@ describe("Sidebar nav — flat 6-item navigation", () => {
     expect(layoutSource).not.toMatch(/section-header/);
   });
 
-  // Exactly 6 nav items expected
+  // Exactly 5 nav items expected (Dashboard, Projects, Library, Analytics, Settings)
   const navItemPaths = [...layoutSource.matchAll(/path:\s*["'](\/[^"']*)["']/g)].map(m => m[1]);
 
-  it("has exactly 6 nav items", () => {
-    expect(navItemPaths).toHaveLength(6);
+  it("has exactly 5 nav items", () => {
+    expect(navItemPaths).toHaveLength(5);
   });
 
   it("contains Dashboard at /", () => {
@@ -42,10 +42,6 @@ describe("Sidebar nav — flat 6-item navigation", () => {
     expect(navItemPaths).toContain("/library");
   });
 
-  it("contains Sessions at /sessions", () => {
-    expect(navItemPaths).toContain("/sessions");
-  });
-
   it("contains Analytics at /analytics", () => {
     expect(navItemPaths).toContain("/analytics");
   });
@@ -55,6 +51,14 @@ describe("Sidebar nav — flat 6-item navigation", () => {
   });
 
   // Removed nav items
+  it("does NOT contain /sessions", () => {
+    expect(navItemPaths).not.toContain("/sessions");
+  });
+
+  it("does NOT contain /activity", () => {
+    expect(navItemPaths).not.toContain("/activity");
+  });
+
   it("does NOT contain /board", () => {
     expect(navItemPaths).not.toContain("/board");
   });
@@ -116,6 +120,35 @@ describe("Routes — removed pages", () => {
   it("does NOT have unused Prompts lazy import", () => {
     expect(appSource).not.toMatch(/const Prompts\s*=\s*lazy/);
   });
+
+  it("does NOT have unused Sessions lazy import", () => {
+    expect(appSource).not.toMatch(/const Sessions\s*=\s*lazy/);
+  });
+
+  it("does NOT have unused ActivityPage lazy import", () => {
+    expect(appSource).not.toMatch(/ActivityPage\s*=\s*lazy/);
+  });
+});
+
+describe("Route redirects — /sessions and /activity", () => {
+  it("/sessions route redirects to /analytics?tab=sessions", () => {
+    expect(appSource).toMatch(/Route\s+path=["']\/sessions["']/);
+    // Check the redirect target
+    const sessionsRouteBlock = appSource.match(
+      /Route\s+path=["']\/sessions["'][^]*?<\/Route>/
+    );
+    expect(sessionsRouteBlock).toBeTruthy();
+    expect(sessionsRouteBlock![0]).toMatch(/Redirect\s+to=["']\/analytics\?tab=sessions["']/);
+  });
+
+  it("/activity route redirects to /analytics?tab=nerve-center", () => {
+    expect(appSource).toMatch(/Route\s+path=["']\/activity["']/);
+    const activityRouteBlock = appSource.match(
+      /Route\s+path=["']\/activity["'][^]*?<\/Route>/
+    );
+    expect(activityRouteBlock).toBeTruthy();
+    expect(activityRouteBlock![0]).toMatch(/Redirect\s+to=["']\/analytics\?tab=nerve-center["']/);
+  });
 });
 
 describe("No broken links to old routes", () => {
@@ -154,6 +187,40 @@ describe("No broken links to old routes", () => {
       expect(hasLink, `Found /graph reference in ${relativePath}`).toBeNull();
     }
   });
+
+  it("no client files navigate to /sessions as a page route (API paths excluded)", () => {
+    // Files that legitimately redirect /sessions are excluded
+    const excludeFiles = ["sessions.tsx", "prompts.tsx"];
+    for (const file of clientFiles) {
+      const content = fs.readFileSync(file, "utf-8");
+      const relativePath = path.relative(clientDir, file);
+      if (excludeFiles.some(f => relativePath.endsWith(f))) continue;
+      // Match navigation patterns: href="/sessions", to="/sessions", setLocation("/sessions"), navigate("/sessions")
+      // But exclude API paths like /api/sessions
+      const lines = content.split("\n");
+      for (const line of lines) {
+        if (line.includes("/api/sessions")) continue; // API paths are fine
+        if (line.includes("Redirect to=") && line.includes("/analytics?tab=sessions")) continue; // redirect is fine
+        const hasNavLink = line.match(/(?:href|to|setLocation|navigate)\s*(?:=\s*|[(])\s*["'`]\/sessions(?:\?|["'`])/);
+        expect(hasNavLink, `Found /sessions nav link in ${relativePath}: ${line.trim()}`).toBeNull();
+      }
+    }
+  });
+
+  it("no client files navigate to /activity as a page route", () => {
+    const excludeFiles = ["activity.tsx"];
+    for (const file of clientFiles) {
+      const content = fs.readFileSync(file, "utf-8");
+      const relativePath = path.relative(clientDir, file);
+      if (excludeFiles.some(f => relativePath.endsWith(f))) continue;
+      const lines = content.split("\n");
+      for (const line of lines) {
+        if (line.includes("Redirect to=") && line.includes("/analytics?tab=nerve-center")) continue;
+        const hasNavLink = line.match(/(?:href|to|setLocation|navigate)\s*(?:=\s*|[(])\s*["'`]\/activity["'`]/);
+        expect(hasNavLink, `Found /activity nav link in ${relativePath}: ${line.trim()}`).toBeNull();
+      }
+    }
+  });
 });
 
 describe("Layout — unused icon imports cleaned up", () => {
@@ -188,5 +255,9 @@ describe("Layout — unused icon imports cleaned up", () => {
 
   it("imports BookOpen for Library", () => {
     expect(layoutSource).toMatch(/\bBookOpen\b/);
+  });
+
+  it("does not import MessageSquare icon (Sessions removed from nav)", () => {
+    expect(layoutSource).not.toMatch(/\bMessageSquare\b/);
   });
 });

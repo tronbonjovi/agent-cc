@@ -343,7 +343,7 @@ export function SessionHealthPanel() {
                     <tr
                       key={s.sessionId}
                       className="border-b border-border/30 hover:bg-accent/20 cursor-pointer transition-colors"
-                      onClick={() => setLocation(`/sessions?highlight=${s.sessionId}`)}
+                      onClick={() => setLocation(`/analytics?tab=sessions&highlight=${s.sessionId}`)}
                     >
                       <td className="px-2 py-2 font-mono text-muted-foreground">
                         <span className={`inline-block w-2 h-2 rounded-full mr-2 ${

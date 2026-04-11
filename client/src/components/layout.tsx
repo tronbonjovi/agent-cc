@@ -17,7 +17,6 @@ import {
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
-  MessageSquare,
   BarChart3,
   Kanban,
   BookOpen,
@@ -37,7 +36,6 @@ const navItems: NavItem[] = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard, countKey: null },
   { path: "/projects", label: "Projects", icon: Kanban, countKey: null },
   { path: "/library", label: "Library", icon: BookOpen, countKey: null },
-  { path: "/sessions", label: "Sessions", icon: MessageSquare, countKey: "session" as const },
   { path: "/analytics", label: "Analytics", icon: BarChart3, countKey: null },
   { path: "/settings", label: "Settings", icon: SlidersHorizontal, countKey: null },
 ];

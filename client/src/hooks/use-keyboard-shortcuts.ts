@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 
 const shortcuts: Record<string, string> = {
   d: "/",          // g+d → dashboard
-  s: "/sessions",  // g+s → sessions
+  s: "/analytics?tab=sessions",  // g+s → sessions (analytics tab)
   a: "/library?tab=agents",    // g+a → agents
   g: "/analytics?tab=graph",  // g+g → graph (analytics tab)
   l: "/",          // g+l → dashboard (live merged into dashboard)

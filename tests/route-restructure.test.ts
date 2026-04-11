@@ -80,13 +80,13 @@ describe("/stats redirects to /analytics", () => {
   });
 });
 
-// --- /activity redirects to /analytics?tab=activity ---
+// --- /activity redirects to /analytics?tab=nerve-center ---
 
-describe("/activity redirects to /analytics?tab=activity", () => {
+describe("/activity redirects to /analytics?tab=nerve-center", () => {
   const activitySource = fs.readFileSync(ACTIVITY_PATH, "utf-8");
 
-  it("redirects to /analytics?tab=activity (not /stats)", () => {
-    expect(activitySource).toContain("/analytics?tab=activity");
+  it("redirects to /analytics?tab=nerve-center (not /stats)", () => {
+    expect(activitySource).toContain("/analytics?tab=nerve-center");
     expect(activitySource).not.toContain("/stats");
   });
 });

@@ -290,7 +290,7 @@ export default function ProjectDetail() {
           {projectSessions.length > 20 && (
             <button
               className="text-sm text-blue-400 hover:text-blue-300 transition-colors w-full text-center py-2"
-              onClick={() => setLocation(`/sessions?project=${encodeURIComponent(projectFilter)}`)}
+              onClick={() => setLocation(`/analytics?tab=sessions&project=${encodeURIComponent(projectFilter)}`)}
             >
               View all {projectSessions.length} sessions →
             </button>
