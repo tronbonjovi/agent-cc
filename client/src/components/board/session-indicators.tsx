@@ -72,6 +72,28 @@ export function formatAgentRole(role: string | null): string {
     .join(" ");
 }
 
+// ── Health reason color mapping ──────────────────────────────────────────────
+
+const REASON_COLORS: Record<string, string> = {
+  "high error rate": "bg-red-500/10 text-red-400 border-red-500/20",
+  "context overflow": "bg-red-500/10 text-red-400 border-red-500/20",
+  "excessive retries": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "long idle gaps": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "high cost": "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "short session": "bg-slate-500/10 text-slate-400 border-slate-500/20",
+};
+
+const MUTED_FALLBACK = "bg-slate-500/10 text-slate-400 border-slate-500/20";
+
+export function HealthReasonTag({ reason }: { reason: string }) {
+  const colors = REASON_COLORS[reason] ?? MUTED_FALLBACK;
+  return (
+    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] leading-none border ${colors}`}>
+      {reason}
+    </span>
+  );
+}
+
 // ── React components ──────────────────────────────────────────────────────────
 
 interface SessionProps {

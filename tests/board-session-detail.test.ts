@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
 
+const indicatorsSource = readFileSync(
+  join(__dirname, "..", "client", "src", "components", "board", "session-indicators.tsx"),
+  "utf-8"
+);
+
 const boardTypesSource = readFileSync(
   join(__dirname, "..", "shared", "board-types.ts"),
   "utf-8"
@@ -43,6 +48,39 @@ describe("SessionEnrichment detail fields", () => {
       expect(body).toMatch(pattern);
     });
   }
+});
+
+describe("HealthReasonTag component", () => {
+  it("exports HealthReasonTag function", () => {
+    expect(indicatorsSource).toMatch(/export\s+function\s+HealthReasonTag/);
+  });
+
+  it('maps "high error rate" to red color scheme', () => {
+    expect(indicatorsSource).toMatch(/high error rate/);
+    expect(indicatorsSource).toMatch(/bg-red-500\/10\s+text-red-400\s+border-red-500\/20/);
+  });
+
+  it('maps "context overflow" to red color scheme', () => {
+    expect(indicatorsSource).toMatch(/context overflow/);
+  });
+
+  it('maps "excessive retries" to amber color scheme', () => {
+    expect(indicatorsSource).toMatch(/excessive retries/);
+    expect(indicatorsSource).toMatch(/bg-amber-500\/10\s+text-amber-400\s+border-amber-500\/20/);
+  });
+
+  it('maps "long idle gaps" to amber color scheme', () => {
+    expect(indicatorsSource).toMatch(/long idle gaps/);
+  });
+
+  it('maps "high cost" to amber color scheme', () => {
+    expect(indicatorsSource).toMatch(/high cost/);
+  });
+
+  it('maps "short session" to muted color scheme', () => {
+    expect(indicatorsSource).toMatch(/short session/);
+    expect(indicatorsSource).toMatch(/bg-slate-500\/10\s+text-slate-400\s+border-slate-500\/20/);
+  });
 });
 
 describe("LastSessionSnapshot detail fields", () => {
