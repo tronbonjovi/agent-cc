@@ -1090,4 +1090,423 @@ describe('parseSessionFile', () => {
       expect(parsed!.counts.fileSnapshots).toBe(1);
     });
   });
+
+  // =========================================================================
+  // Gap-fill tests — edge cases and code paths not covered by task 002
+  // =========================================================================
+
+  describe('stop_hook_summary edge cases', () => {
+    it('captures errors and preventedContinuation=true', () => {
+      const fp = writeSession('hook-errors', [
+        {
+          type: 'system',
+          subtype: 'stop_hook_summary',
+          timestamp: '2026-01-01T10:01:00Z',
+          hookCount: 1,
+          hookInfos: [{ command: 'bash lint.sh', durationMs: 150 }],
+          hookErrors: ['lint failed: 3 errors'],
+          preventedContinuation: true,
+          stopReason: 'hook_error',
+          sessionId: 's1',
+          uuid: 'sys1',
+          parentUuid: 'a1',
+          isSidechain: false,
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      const hook = parsed!.systemEvents.hookSummaries[0];
+      expect(hook.preventedContinuation).toBe(true);
+      expect(hook.errors).toEqual(['lint failed: 3 errors']);
+      expect(hook.stopReason).toBe('hook_error');
+    });
+  });
+
+  describe('queue-operation remove', () => {
+    it('extracts queue-remove lifecycle event', () => {
+      const fp = writeSession('queue-remove', [
+        {
+          type: 'queue-operation',
+          operation: 'remove',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.lifecycle).toHaveLength(1);
+      expect(parsed!.lifecycle[0].type).toBe('queue-remove');
+    });
+  });
+
+  describe('bridge_status content field', () => {
+    it('extracts content alongside url', () => {
+      const fp = writeSession('bridge-content', [
+        {
+          type: 'system',
+          subtype: 'bridge_status',
+          timestamp: '2026-01-01T10:01:00Z',
+          content: 'disconnected',
+          url: 'https://claude.ai/code/xyz',
+          sessionId: 's1',
+          uuid: 'sys1',
+          parentUuid: 'a1',
+          isSidechain: false,
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.systemEvents.bridgeEvents[0].content).toBe('disconnected');
+      expect(parsed!.systemEvents.bridgeEvents[0].url).toBe('https://claude.ai/code/xyz');
+    });
+  });
+
+  describe('multiple tool calls in one assistant message', () => {
+    it('creates separate ToolExecution entries for each tool_use', () => {
+      const fp = writeSession('multi-tool', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: 'Read two files' },
+        },
+        {
+          type: 'assistant',
+          timestamp: '2026-01-01T10:00:02Z',
+          sessionId: 's1',
+          uuid: 'a1',
+          parentUuid: 'u1',
+          isSidechain: false,
+          requestId: 'r1',
+          message: {
+            id: 'm1',
+            role: 'assistant',
+            model: 'claude-sonnet-4-20250514',
+            type: 'message',
+            stop_reason: 'tool_use',
+            content: [
+              { type: 'tool_use', id: 'tu-1', name: 'Read', input: { file_path: '/tmp/a.ts' } },
+              { type: 'tool_use', id: 'tu-2', name: 'Grep', input: { pattern: 'TODO' } },
+            ],
+            usage: { input_tokens: 100, output_tokens: 50 },
+          },
+        },
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:03Z',
+          sessionId: 's1',
+          uuid: 'u2',
+          parentUuid: 'a1',
+          isSidechain: false,
+          message: {
+            role: 'user',
+            content: [
+              { type: 'tool_result', tool_use_id: 'tu-1', content: 'file a' },
+              { type: 'tool_result', tool_use_id: 'tu-2', content: '5 matches' },
+            ],
+          },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.assistantMessages[0].toolCalls).toHaveLength(2);
+      expect(parsed!.toolTimeline).toHaveLength(2);
+      expect(parsed!.toolTimeline[0].name).toBe('Read');
+      expect(parsed!.toolTimeline[0].filePath).toBe('/tmp/a.ts');
+      expect(parsed!.toolTimeline[1].name).toBe('Grep');
+      expect(parsed!.toolTimeline[1].pattern).toBe('TODO');
+      expect(parsed!.counts.toolCalls).toBe(2);
+    });
+  });
+
+  describe('tool call with path input (not file_path)', () => {
+    it('extracts filePath from input.path fallback', () => {
+      const fp = writeSession('path-fallback', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: 'Search files' },
+        },
+        {
+          type: 'assistant',
+          timestamp: '2026-01-01T10:00:02Z',
+          sessionId: 's1',
+          uuid: 'a1',
+          parentUuid: 'u1',
+          isSidechain: false,
+          requestId: 'r1',
+          message: {
+            id: 'm1',
+            role: 'assistant',
+            model: 'claude-sonnet-4-20250514',
+            type: 'message',
+            stop_reason: 'tool_use',
+            content: [
+              { type: 'tool_use', id: 'tu-1', name: 'Glob', input: { path: '/tmp/src', pattern: '**/*.ts' } },
+            ],
+            usage: { input_tokens: 100, output_tokens: 50 },
+          },
+        },
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:03Z',
+          sessionId: 's1',
+          uuid: 'u2',
+          parentUuid: 'a1',
+          isSidechain: false,
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tu-1', content: '10 files' }],
+          },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.toolTimeline[0].filePath).toBe('/tmp/src');
+      expect(parsed!.toolTimeline[0].pattern).toBe('**/*.ts');
+    });
+  });
+
+  describe('user record isMeta flag', () => {
+    it('extracts isMeta from user records', () => {
+      const fp = writeSession('is-meta', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          isMeta: true,
+          message: { role: 'user', content: 'meta content' },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.userMessages[0].isMeta).toBe(true);
+    });
+  });
+
+  describe('unmatched tool call (no result)', () => {
+    it('does not create ToolExecution for tool_use without matching result', () => {
+      const fp = writeSession('unmatched-tool', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: 'Go' },
+        },
+        {
+          type: 'assistant',
+          timestamp: '2026-01-01T10:00:02Z',
+          sessionId: 's1',
+          uuid: 'a1',
+          parentUuid: 'u1',
+          isSidechain: false,
+          requestId: 'r1',
+          message: {
+            id: 'm1',
+            role: 'assistant',
+            model: 'claude-sonnet-4-20250514',
+            type: 'message',
+            stop_reason: 'tool_use',
+            content: [
+              { type: 'tool_use', id: 'tu-orphan', name: 'Bash', input: { command: 'echo hi' } },
+            ],
+            usage: { input_tokens: 100, output_tokens: 50 },
+          },
+        },
+        // No user record with tool_result for tu-orphan
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.assistantMessages[0].toolCalls).toHaveLength(1);
+      expect(parsed!.toolTimeline).toHaveLength(0);
+      expect(parsed!.counts.toolCalls).toBe(0);
+    });
+  });
+
+  describe('file-history-snapshot messageId', () => {
+    it('preserves the messageId value from the record', () => {
+      const fp = writeSession('fh-msgid', [
+        {
+          type: 'file-history-snapshot',
+          messageId: 'unique-msg-42',
+          isSnapshotUpdate: false,
+          snapshot: { files: {} },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.fileSnapshots[0].messageId).toBe('unique-msg-42');
+    });
+  });
+
+  describe('sidechain tool execution', () => {
+    it('propagates isSidechain to ToolExecution entries', () => {
+      const fp = writeSession('sidechain-tool', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: 'Go' },
+        },
+        {
+          type: 'assistant',
+          timestamp: '2026-01-01T10:00:02Z',
+          sessionId: 's1',
+          uuid: 'a1',
+          parentUuid: 'u1',
+          isSidechain: true,
+          requestId: 'r1',
+          message: {
+            id: 'm1',
+            role: 'assistant',
+            model: 'claude-sonnet-4-20250514',
+            type: 'message',
+            stop_reason: 'tool_use',
+            content: [
+              { type: 'tool_use', id: 'tu-sc', name: 'Read', input: { file_path: '/tmp/sc.ts' } },
+            ],
+            usage: { input_tokens: 100, output_tokens: 50 },
+          },
+        },
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:03Z',
+          sessionId: 's1',
+          uuid: 'u2',
+          parentUuid: 'a1',
+          isSidechain: true,
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tu-sc', content: 'ok' }],
+          },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.toolTimeline).toHaveLength(1);
+      expect(parsed!.toolTimeline[0].isSidechain).toBe(true);
+      expect(parsed!.counts.sidechainMessages).toBe(2);
+    });
+  });
+
+  describe('firstMessage filtering', () => {
+    it('skips local-command and command-name prefixed messages', () => {
+      const fp = writeSession('first-msg-filter', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: '<command-name>status</command-name>' },
+        },
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:01Z',
+          sessionId: 's1',
+          uuid: 'u2',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: '<local-command>/help</local-command>' },
+        },
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:02Z',
+          sessionId: 's1',
+          uuid: 'u3',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: 'This is the real first message' },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.meta.firstMessage).toBe('This is the real first message');
+    });
+  });
+
+  describe('user record with multiple tool results', () => {
+    it('extracts all tool results and counts errors correctly', () => {
+      const fp = writeSession('multi-results', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: 'Go' },
+        },
+        {
+          type: 'assistant',
+          timestamp: '2026-01-01T10:00:02Z',
+          sessionId: 's1',
+          uuid: 'a1',
+          parentUuid: 'u1',
+          isSidechain: false,
+          requestId: 'r1',
+          message: {
+            id: 'm1',
+            role: 'assistant',
+            model: 'claude-sonnet-4-20250514',
+            type: 'message',
+            stop_reason: 'tool_use',
+            content: [
+              { type: 'tool_use', id: 'tu-1', name: 'Read', input: { file_path: '/tmp/a.ts' } },
+              { type: 'tool_use', id: 'tu-2', name: 'Read', input: { file_path: '/tmp/b.ts' } },
+              { type: 'tool_use', id: 'tu-3', name: 'Read', input: { file_path: '/tmp/c.ts' } },
+            ],
+            usage: { input_tokens: 100, output_tokens: 50 },
+          },
+        },
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:03Z',
+          sessionId: 's1',
+          uuid: 'u2',
+          parentUuid: 'a1',
+          isSidechain: false,
+          toolUseResult: { durationMs: 10, success: true },
+          message: {
+            role: 'user',
+            content: [
+              { type: 'tool_result', tool_use_id: 'tu-1', content: 'ok' },
+              { type: 'tool_result', tool_use_id: 'tu-2', is_error: true, content: 'not found' },
+              { type: 'tool_result', tool_use_id: 'tu-3', content: 'ok' },
+            ],
+          },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      const toolUser = parsed!.userMessages[1];
+      expect(toolUser.toolResults).toHaveLength(3);
+      expect(toolUser.toolResults[0].isError).toBe(false);
+      expect(toolUser.toolResults[1].isError).toBe(true);
+      expect(toolUser.toolResults[2].isError).toBe(false);
+      // durationMs/success only applied to first tool result from toolUseResult
+      expect(toolUser.toolResults[0].durationMs).toBe(10);
+      expect(toolUser.toolResults[0].success).toBe(true);
+      expect(toolUser.toolResults[1].durationMs).toBeNull();
+      expect(parsed!.counts.toolErrors).toBe(1);
+      expect(parsed!.counts.toolCalls).toBe(3);
+    });
+  });
 });
