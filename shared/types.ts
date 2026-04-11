@@ -661,19 +661,6 @@ export interface ContinuationBrief {
   generatedAt: string;
 }
 
-// --- Decision Log ---
-export interface Decision {
-  id: string;
-  sessionId: string;
-  timestamp: string;
-  topic: string;
-  alternatives: string[];
-  chosen: string;
-  tradeOffs: string;
-  project: string;
-  tags: string[];
-}
-
 // --- Bash Knowledge Base ---
 export interface BashCommand {
   command: string;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useFileTimeline, useNerveCenter, useBashKnowledge, useBashSearch, useDecisions, useWeeklyDigest, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows } from "@/hooks/use-sessions";
+import { useCostAnalytics, useFileHeatmap, useHealthAnalytics, useStaleAnalytics, useFileTimeline, useNerveCenter, useBashKnowledge, useBashSearch, useWeeklyDigest, usePromptTemplates, useCreatePrompt, useDeletePrompt, useWorkflowConfig, useUpdateWorkflow, useRunWorkflows } from "@/hooks/use-sessions";
 import { useAppSettings } from "@/hooks/use-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import {
   DollarSign, FileText, Activity, Archive,
   Calendar, Settings,
   Plus, Play, BookOpen,
-  Server, TerminalSquare, Lightbulb,
+  Server, TerminalSquare,
   X, AlertTriangle, Check, Copy, Trash2, Loader2,
 } from "lucide-react";
 import { formatBytes, relativeTime } from "@/lib/utils";
@@ -506,40 +506,6 @@ function BashSearchResults({ query }: { query: string }) {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-export function DecisionLogPanel() {
-  const [decisionSearch, setDecisionSearch] = useState("");
-  const { data: decisions } = useDecisions(decisionSearch || undefined);
-
-  return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-medium flex items-center gap-2">
-        <Lightbulb className="h-4 w-4 text-yellow-400" /> Decision Log
-        <span className="text-[11px] text-muted-foreground font-normal">({decisions?.length || 0} decisions)</span>
-      </h2>
-      <Input placeholder="Search decisions..." value={decisionSearch} onChange={e => setDecisionSearch(e.target.value)} className="text-xs" />
-      {decisions && decisions.length > 0 && (
-        <div className="space-y-2 max-h-96 overflow-auto">
-          {decisions.slice(0, 20).map(d => (
-            <div key={d.id} className="rounded-xl border bg-card p-3 space-y-1">
-              <p className="text-sm font-medium">{d.topic}</p>
-              <p className="text-xs text-muted-foreground"><strong>Chosen:</strong> {d.chosen}</p>
-              {d.alternatives.length > 0 && <p className="text-xs text-muted-foreground/60">Alternatives: {d.alternatives.join(", ")}</p>}
-              {d.tradeOffs && <p className="text-xs text-muted-foreground/60">Trade-offs: {d.tradeOffs}</p>}
-              <div className="flex gap-1">
-                {d.tags.map(t => <Badge key={t} variant="outline" className="text-[9px] px-1 py-0">{t}</Badge>)}
-                <span className="text-[10px] text-muted-foreground/40 ml-auto">{d.timestamp.slice(0, 10)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {decisions && decisions.length === 0 && !decisionSearch && (
-        <p className="text-xs text-muted-foreground">No decisions recorded yet.</p>
-      )}
     </div>
   );
 }

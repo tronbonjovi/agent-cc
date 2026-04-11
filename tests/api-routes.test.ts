@@ -400,9 +400,15 @@ describe("removed summarize routes", () => {
   });
 });
 
-describe("removed decisions extract route", () => {
+describe("removed decisions routes", () => {
   it("POST /api/sessions/decisions/extract/:id returns 404 (route removed)", async () => {
     const res = await api("POST", "/api/sessions/decisions/extract/a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     expect(res.status).toBe(404);
+  });
+
+  it("GET /api/sessions/decisions has no dedicated route (falls through to :id handler)", async () => {
+    const res = await api("GET", "/api/sessions/decisions");
+    // "decisions" is not a valid session UUID, so the :id handler returns 400
+    expect(res.status).toBe(400);
   });
 });

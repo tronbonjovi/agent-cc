@@ -451,16 +451,6 @@ router.get("/api/sessions/continuations", async (_req: Request, res: Response) =
   res.json(await getContinuationBrief(sessions));
 });
 
-/** GET /api/sessions/decisions — List all decisions */
-router.get("/api/sessions/decisions", (req: Request, res: Response) => {
-  const q = qstr(req.query.q);
-  if (q) {
-    res.json(storage.searchDecisions(q));
-  } else {
-    res.json(storage.getDecisions());
-  }
-});
-
 /** GET /api/sessions/analytics/bash — Bash command knowledge base */
 router.get("/api/sessions/analytics/bash", (_req: Request, res: Response) => {
   const sessions = getCachedSessions();

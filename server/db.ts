@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision, TerminalPanelState, CostRecord, CostIndexState } from "@shared/types";
+import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, TerminalPanelState, CostRecord, CostIndexState } from "@shared/types";
 
 const dataDir = process.env.AGENT_CC_DATA
   ? path.resolve(process.env.AGENT_CC_DATA)
@@ -30,7 +30,6 @@ export interface DBData {
   sessionNotes: Record<string, SessionNote>;
   pinnedSessions: string[];
   sessionNames: Record<string, string>;
-  decisions: Decision[];
   markdownMeta: Record<string, { locked?: boolean; pinned?: boolean }>;
   terminalPanel: TerminalPanelState;
   costRecords: Record<string, CostRecord>;
@@ -77,7 +76,6 @@ function defaultData(): DBData {
     sessionNotes: {},
     pinnedSessions: [],
     sessionNames: {},
-    decisions: [],
     markdownMeta: {},
     terminalPanel: {
       height: 300,
@@ -114,7 +112,6 @@ try {
     if (!data.sessionNotes) data.sessionNotes = {};
     if (!data.pinnedSessions) data.pinnedSessions = [];
     if (!data.sessionNames) data.sessionNames = {};
-    if (!data.decisions) data.decisions = [];
     if (!data.markdownMeta) data.markdownMeta = {};
     if (!data.terminalPanel) data.terminalPanel = defaultData().terminalPanel;
     // Migrate old flat-tab format to groups

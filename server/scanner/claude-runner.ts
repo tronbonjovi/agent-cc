@@ -1,6 +1,6 @@
 /**
  * Shared utility for running `claude -p` as a subprocess.
- * Used by: session-summarizer, nl-query, decision-extractor, ai-suggest
+ * Used by: session-summarizer, nl-query, ai-suggest
  */
 import { spawn } from "child_process";
 

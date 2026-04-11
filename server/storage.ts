@@ -1,5 +1,5 @@
 import { getDB, save } from "./db";
-import type { Entity, EntityType, Relationship, MarkdownBackup, ScanStatus, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, Decision, TerminalPanelState } from "@shared/types";
+import type { Entity, EntityType, Relationship, MarkdownBackup, ScanStatus, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, TerminalPanelState } from "@shared/types";
 import { getCachedStats } from "./scanner/session-scanner";
 import { getCachedAgentStats } from "./scanner/agent-scanner";
 
@@ -344,38 +344,12 @@ export class Storage {
     save();
   }
 
-  // Decisions
-  getDecisions(): Decision[] {
-    return getDB().decisions;
-  }
-
-  addDecision(decision: Decision): void {
-    const db = getDB();
-    db.decisions.push(decision);
-    // Cap at 500 decisions (FIFO)
-    if (db.decisions.length > 500) {
-      db.decisions = db.decisions.slice(-500);
-    }
-    save();
-  }
-
-  searchDecisions(query: string): Decision[] {
-    const q = query.toLowerCase();
-    return getDB().decisions.filter(d =>
-      d.topic.toLowerCase().includes(q) ||
-      d.chosen.toLowerCase().includes(q) ||
-      d.tradeOffs.toLowerCase().includes(q) ||
-      d.tags.some(t => t.toLowerCase().includes(q))
-    );
-  }
-
   // Cleanup orphaned data when a session is deleted
   cleanupSessionData(sessionId: string): void {
     const db = getDB();
     delete db.sessionSummaries[sessionId];
     delete db.sessionNotes[sessionId];
     delete db.sessionNames[sessionId];
-    db.decisions = db.decisions.filter(d => d.sessionId !== sessionId);
     const pinIdx = db.pinnedSessions.indexOf(sessionId);
     if (pinIdx >= 0) db.pinnedSessions.splice(pinIdx, 1);
     save();

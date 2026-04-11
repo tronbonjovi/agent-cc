@@ -7,7 +7,7 @@ import type {
   SessionCostData, CommitLink, ContextLoaderResult,
   ProjectDashboardResult, SessionDiffsResult, PromptTemplate, WeeklyDigest, WorkflowConfig,
   SessionNote, FileTimelineResult, NLQueryResult,
-  ContinuationBrief, Decision, BashKnowledgeBase, BashSearchResult,
+  ContinuationBrief, BashKnowledgeBase, BashSearchResult,
   NerveCenterData,
 } from "@shared/types";
 
@@ -357,14 +357,6 @@ export function useContinuations() {
   return useQuery<ContinuationBrief>({
     queryKey: ["/api/sessions/continuations"],
     staleTime: 60 * 1000,
-  });
-}
-
-export function useDecisions(query?: string) {
-  const qs = query ? `?q=${encodeURIComponent(query)}` : "";
-  return useQuery<Decision[]>({
-    queryKey: [`/api/sessions/decisions${qs}`],
-    staleTime: 30 * 1000,
   });
 }
 

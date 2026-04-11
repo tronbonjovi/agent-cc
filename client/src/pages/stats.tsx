@@ -25,7 +25,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
-import { NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel, DecisionLogPanel, WorkflowConfigPanel, WeeklyDigestPanel } from "@/components/session-analytics-panel";
+import { NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel, WeeklyDigestPanel } from "@/components/session-analytics-panel";
 import ChartsTab from "@/components/analytics/charts-tab";
 
 // ---- Types ----
@@ -494,8 +494,6 @@ const NERVE_SUBTABS = [
   { id: "overview", label: "Overview" },
   { id: "files", label: "File Heatmap" },
   { id: "health", label: "Session Health" },
-  { id: "decisions", label: "Decisions" },
-  { id: "workflows", label: "Workflows" },
 ] as const;
 
 type NerveSubTabId = typeof NERVE_SUBTABS[number]["id"];
@@ -546,8 +544,6 @@ function NerveCenterWithSubtabs() {
 
       {nerveSubTab === "files" && <FileHeatmapPanel />}
       {nerveSubTab === "health" && <SessionHealthPanel />}
-      {nerveSubTab === "decisions" && <DecisionLogPanel />}
-      {nerveSubTab === "workflows" && <WorkflowConfigPanel />}
     </div>
   );
 }
