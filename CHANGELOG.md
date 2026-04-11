@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Nerve Center v2 — CNS topology visualization** — replaced stacked panel layout with a circuit-board topology: Scanner Brain at center, 5 organ modules (Cost Nerves, Session Vitals, File Sensors, Activity Reflexes, Service Synapses) connected by right-angle SVG circuit traces with junction dots. State-reactive coloring flows from organs to brain. Tiered pulse animations (idle/active/alert). Responsive stacked layout on mobile. 247 tests.
+- **Billing-mode-aware cost display** — Cost Nerves organ respects `billingMode` setting. Subscription mode (default): high usage = green (value), low usage = red (waste). API mode: high usage = red (cost pressure). Trend text adapts accordingly.
+
+### Fixed
+- **Slow server restarts** — initial JSONL scan (~846 files, 215MB) no longer blocks the server from accepting requests. Scan runs in background after listen. Deploy script uses health endpoint polling instead of kill -9 + 2s sleep.
+
+### Added
 - **Analytics 5-tab layout** — analytics page restructured from 4 tabs with nested subtabs to 5 flat tabs: Nerve Center, Costs, Charts, Sessions, Messages. Sessions and Messages content now lives under Analytics.
 - **Workflows in Settings** — WorkflowConfigPanel (auto-summarize, stale flags, cost alerts) relocated from Nerve Center subtabs to Settings page as a dedicated Workflows tab.
 - **Prompts in Library** — full-featured PromptsPanel relocated from Messages page to Library Prompts tab. Messages page is now full-width.
