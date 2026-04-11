@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Costs deepening — token intelligence panel** — transformed the Costs tab from basic aggregates into a 6-section analytics panel. Token Anatomy donut chart categorizing usage (system prompt, conversation, tool execution, thinking, cache overhead). Model Intelligence sortable table with per-model cost and cache savings. Cache Efficiency metrics with hit rate, first-message vs steady-state comparison, ROI, and per-message cache curve. System Prompt Overhead section with trend indicator and Library config link. Session & Project Value rankings with clickable session navigation. Collapsible Historical Lookup preserving original daily spend view. 84 new tests.
+
+### Added
 - **Sessions redesign — list-detail inspector layout** — replaced flat session card list with an email-client style list-detail split. Compact scannable rows with health dots, model badges, cost, and duration. 7 sort options, filter pills (health/status/project/model), keyboard navigation. Detail panel with 7 collapsible sections: overview metric grid, linked task with auto-link score transparency, tool timeline (filterable, color-coded durations), token breakdown (sparkline + per-message table), file impact (directory-grouped), health details (actionable metrics), lifecycle events. Auto-linking enhanced with 2 new scoring signals (command invocations, message content), directory-level file matching, session-duration-aware timing, and milestone minimum length safety.
 
 ### Added
