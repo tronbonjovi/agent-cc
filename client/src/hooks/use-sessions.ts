@@ -421,3 +421,20 @@ export function useModelIntelligence(days = 30) {
   });
 }
 
+export interface CacheEfficiencyData {
+  hitRate: number;
+  firstMessageAvgInput: number;
+  steadyStateAvgInput: number;
+  cacheCreationCost: number;
+  cacheReadSavings: number;
+  roi: number;
+  messageCurve: { index: number; cacheReadPct: number }[];
+}
+
+export function useCacheEfficiency(days = 30) {
+  return useQuery<CacheEfficiencyData>({
+    queryKey: [`/api/analytics/costs/cache?days=${days}`],
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
