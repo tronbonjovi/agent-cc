@@ -11,30 +11,31 @@ const PANEL_PATH = path.resolve(__dirname, "../client/src/components/session-ana
 describe("analytics tab restructure — stats.tsx", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("has exactly 4 main tabs: Nerve Center, Costs, Activity, Charts", () => {
+  it("has exactly 5 main tabs: Nerve Center, Costs, Charts, Sessions, Messages", () => {
     expect(src).toMatch(/TabsTrigger.*value="nerve-center"/);
     expect(src).toMatch(/TabsTrigger.*value="costs"/);
-    expect(src).toMatch(/TabsTrigger.*value="activity"/);
     expect(src).toMatch(/TabsTrigger.*value="charts"/);
+    expect(src).toMatch(/TabsTrigger.*value="sessions"/);
+    expect(src).toMatch(/TabsTrigger.*value="messages"/);
   });
 
-  it("does NOT have old tabs: Sessions, Usage, Graph, Discover", () => {
-    // TabsTrigger for these values should be gone
-    expect(src).not.toMatch(/TabsTrigger.*value="sessions"/);
+  it("does NOT have old tabs: Usage, Graph, Discover, Activity (activity merged into nerve center)", () => {
     expect(src).not.toMatch(/TabsTrigger.*value="usage"/);
     expect(src).not.toMatch(/TabsTrigger.*value="graph"/);
     expect(src).not.toMatch(/TabsTrigger.*value="discover"/);
+    expect(src).not.toMatch(/TabsTrigger.*value="activity"/);
   });
 
   it("defaults to nerve-center tab", () => {
     expect(src).toMatch(/\|\|\s*["']nerve-center["']/);
   });
 
-  it("has TabsContent for each of the 4 tabs", () => {
+  it("has TabsContent for each of the 5 tabs", () => {
     expect(src).toMatch(/TabsContent.*value="nerve-center"/);
     expect(src).toMatch(/TabsContent.*value="costs"/);
-    expect(src).toMatch(/TabsContent.*value="activity"/);
     expect(src).toMatch(/TabsContent.*value="charts"/);
+    expect(src).toMatch(/TabsContent.*value="sessions"/);
+    expect(src).toMatch(/TabsContent.*value="messages"/);
   });
 
   it("renders NerveCenterPanel in the nerve-center tab", () => {
@@ -45,7 +46,7 @@ describe("analytics tab restructure — stats.tsx", () => {
     expect(src).toMatch(/<CostsTab/);
   });
 
-  it("renders ActivityTab in the activity tab", () => {
+  it("renders ActivityTab as stacked section in nerve center", () => {
     expect(src).toMatch(/<ActivityTab/);
   });
 

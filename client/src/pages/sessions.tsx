@@ -66,6 +66,14 @@ function formatTokens(n: number): string {
 }
 
 export default function Sessions() {
+  return (
+    <PageContainer title="Sessions">
+      <SessionsPanel />
+    </PageContainer>
+  );
+}
+
+export function SessionsPanel() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState("lastTs:desc");
   const [hideEmpty, setHideEmpty] = useState(false);
@@ -170,7 +178,7 @@ export default function Sessions() {
   };
 
   return (
-    <PageContainer title="Sessions">
+    <>
       {/* Subheader + Search */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -445,7 +453,7 @@ export default function Sessions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PageContainer>
+    </>
   );
 }
 

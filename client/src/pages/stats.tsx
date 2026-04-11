@@ -27,6 +27,8 @@ import {
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
 import { NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel, WeeklyDigestPanel } from "@/components/session-analytics-panel";
 import ChartsTab from "@/components/analytics/charts-tab";
+import { SessionsPanel } from "@/pages/sessions";
+import { MessagesPanel } from "@/pages/message-history";
 
 // ---- Types ----
 
@@ -490,60 +492,38 @@ function ActivityTab() {
 
 // ---- Main Analytics Page ----
 
-const NERVE_SUBTABS = [
-  { id: "overview", label: "Overview" },
-  { id: "files", label: "File Heatmap" },
-  { id: "health", label: "Session Health" },
-] as const;
-
-type NerveSubTabId = typeof NERVE_SUBTABS[number]["id"];
-
-function NerveCenterWithSubtabs() {
-  const [nerveSubTab, setNerveSubTab] = useState<NerveSubTabId>("overview");
+function NerveCenterStacked() {
   const [digestOpen, setDigestOpen] = useState(false);
 
   return (
-    <div className="space-y-4">
-      {/* Secondary tab bar */}
-      <div className="flex gap-1 overflow-x-auto pb-2 border-b border-border/50 scrollbar-thin">
-        {NERVE_SUBTABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setNerveSubTab(tab.id)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${
-              nerveSubTab === tab.id
-                ? "bg-primary/20 text-primary border border-primary/30"
-                : "text-muted-foreground hover:bg-accent/30 hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="space-y-6">
+      {/* Overview */}
+      <NerveCenterPanel />
+
+      {/* Weekly Digest — collapsible section */}
+      <div className="rounded-xl border bg-card">
+        <button
+          onClick={() => setDigestOpen(!digestOpen)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/30 transition-colors rounded-xl"
+        >
+          <span>Weekly Digest</span>
+          <span className="text-xs text-muted-foreground">{digestOpen ? "collapse" : "expand"}</span>
+        </button>
+        {digestOpen && (
+          <div className="px-4 pb-4">
+            <WeeklyDigestPanel />
+          </div>
+        )}
       </div>
 
-      {nerveSubTab === "overview" && (
-        <div className="space-y-4">
-          <NerveCenterPanel />
-          {/* Weekly Digest — collapsible section */}
-          <div className="rounded-xl border bg-card">
-            <button
-              onClick={() => setDigestOpen(!digestOpen)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/30 transition-colors rounded-xl"
-            >
-              <span>Weekly Digest</span>
-              <span className="text-xs text-muted-foreground">{digestOpen ? "collapse" : "expand"}</span>
-            </button>
-            {digestOpen && (
-              <div className="px-4 pb-4">
-                <WeeklyDigestPanel />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* File Heatmap */}
+      <FileHeatmapPanel />
 
-      {nerveSubTab === "files" && <FileHeatmapPanel />}
-      {nerveSubTab === "health" && <SessionHealthPanel />}
+      {/* Session Health */}
+      <SessionHealthPanel />
+
+      {/* Activity changelog */}
+      <ActivityTab />
     </div>
   );
 }
@@ -554,7 +534,7 @@ export default function Stats() {
   return (
     <PageContainer title="Analytics">
       <p className="text-sm text-muted-foreground -mt-2">
-        Nerve center, costs, activity, and charts
+        Nerve center, costs, charts, sessions, and messages
       </p>
 
       <Tabs defaultValue={defaultTab}>
@@ -562,25 +542,30 @@ export default function Stats() {
           <TabsList>
             <TabsTrigger value="nerve-center" className="whitespace-nowrap">Nerve Center</TabsTrigger>
             <TabsTrigger value="costs" className="whitespace-nowrap">Costs</TabsTrigger>
-            <TabsTrigger value="activity" className="whitespace-nowrap">Activity</TabsTrigger>
             <TabsTrigger value="charts" className="whitespace-nowrap">Charts</TabsTrigger>
+            <TabsTrigger value="sessions" className="whitespace-nowrap">Sessions</TabsTrigger>
+            <TabsTrigger value="messages" className="whitespace-nowrap">Messages</TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="nerve-center" className="mt-4">
-          <NerveCenterWithSubtabs />
+          <NerveCenterStacked />
         </TabsContent>
 
         <TabsContent value="costs" className="mt-4">
           <CostsTab />
         </TabsContent>
 
-        <TabsContent value="activity" className="mt-4">
-          <ActivityTab />
-        </TabsContent>
-
         <TabsContent value="charts" className="mt-4">
           <ChartsTab />
+        </TabsContent>
+
+        <TabsContent value="sessions" className="mt-4">
+          <SessionsPanel />
+        </TabsContent>
+
+        <TabsContent value="messages" className="mt-4">
+          <MessagesPanel />
         </TabsContent>
       </Tabs>
     </PageContainer>

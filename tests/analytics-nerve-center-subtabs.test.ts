@@ -1,5 +1,5 @@
 // tests/analytics-nerve-center-subtabs.test.ts
-// Tests for nesting subtabs under the Nerve Center main tab
+// Updated: subtabs removed in task004, now tests stacked sections + relocated panels
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
@@ -7,13 +7,14 @@ import path from "path";
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
 const PANEL_PATH = path.resolve(__dirname, "../client/src/components/session-analytics-panel.tsx");
 
-describe("Nerve Center subtabs — stats.tsx", () => {
+describe("Nerve Center stacked sections — stats.tsx", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("has a secondary tab bar with 3 subtabs inside the nerve-center tab content", () => {
-    expect(src).toMatch(/Overview/);
-    expect(src).toMatch(/File Heatmap/);
-    expect(src).toMatch(/Session Health/);
+  it("does NOT have subtab infrastructure (NERVE_SUBTABS, NerveSubTabId, nerveSubTab)", () => {
+    expect(src).not.toMatch(/NERVE_SUBTABS/);
+    expect(src).not.toMatch(/NerveSubTabId/);
+    expect(src).not.toMatch(/nerveSubTab/);
+    expect(src).not.toMatch(/NerveCenterWithSubtabs/);
   });
 
   it("does not have Decisions or Workflows subtabs (removed/relocated)", () => {
@@ -21,17 +22,25 @@ describe("Nerve Center subtabs — stats.tsx", () => {
     expect(src).not.toMatch(/["']workflows["']/);
   });
 
-  it("defaults the subtab to overview", () => {
-    expect(src).toMatch(/useState.*["']overview["']/);
-  });
-
-  it("renders NerveCenterPanel in the overview subtab", () => {
+  it("renders NerveCenterPanel as stacked section", () => {
     expect(src).toMatch(/<NerveCenterPanel/);
   });
 
-  it("renders WeeklyDigestPanel in the overview subtab as collapsible", () => {
+  it("renders WeeklyDigestPanel as collapsible section", () => {
     expect(src).toMatch(/<WeeklyDigestPanel/);
     expect(src).toMatch(/Weekly Digest/);
+  });
+
+  it("renders FileHeatmapPanel as stacked section", () => {
+    expect(src).toMatch(/<FileHeatmapPanel/);
+  });
+
+  it("renders SessionHealthPanel as stacked section", () => {
+    expect(src).toMatch(/<SessionHealthPanel/);
+  });
+
+  it("renders ActivityTab as stacked section in nerve center", () => {
+    expect(src).toMatch(/<ActivityTab/);
   });
 
   it("imports individual panel components from session-analytics-panel", () => {
@@ -43,14 +52,6 @@ describe("Nerve Center subtabs — stats.tsx", () => {
   it("does not import DecisionLogPanel or WorkflowConfigPanel", () => {
     expect(src).not.toMatch(/DecisionLogPanel/);
     expect(src).not.toMatch(/WorkflowConfigPanel/);
-  });
-
-  it("renders FileHeatmapPanel in the files subtab", () => {
-    expect(src).toMatch(/nerveSubTab === "files".*&&.*<FileHeatmapPanel|nerveSubTab === "files"[\s\S]*?FileHeatmapPanel/);
-  });
-
-  it("renders SessionHealthPanel in the health subtab", () => {
-    expect(src).toMatch(/nerveSubTab === "health".*&&.*<SessionHealthPanel|nerveSubTab === "health"[\s\S]*?SessionHealthPanel/);
   });
 });
 

@@ -37,11 +37,12 @@ describe("analytics page (stats.tsx) has restructured tabs", () => {
     expect(nerveCenterIdx).toBeLessThan(costsIdx);
   });
 
-  it("has 4 tabs: Nerve Center, Costs, Activity, Charts", () => {
+  it("has 5 tabs: Nerve Center, Costs, Charts, Sessions, Messages", () => {
     expect(src).toMatch(/TabsTrigger.*value="nerve-center"/);
     expect(src).toMatch(/TabsTrigger.*value="costs"/);
-    expect(src).toMatch(/TabsTrigger.*value="activity"/);
     expect(src).toMatch(/TabsTrigger.*value="charts"/);
+    expect(src).toMatch(/TabsTrigger.*value="sessions"/);
+    expect(src).toMatch(/TabsTrigger.*value="messages"/);
   });
 
   it("has a TabsContent for nerve-center", () => {
