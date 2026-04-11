@@ -65,6 +65,7 @@ export function NervePathway({
       strokeWidth={stateWidths[state]}
       strokeLinecap="round"
       className="nerve-pulse transition-all duration-300"
+      data-state={state}
       aria-label={label}
     />
   );
