@@ -30,6 +30,7 @@ import {
   Rocket,
 } from "lucide-react";
 import { HealthThresholdsSettings } from "@/components/settings-health-thresholds";
+import { WorkflowConfigPanel } from "@/components/session-analytics-panel";
 
 // ---- Shared utilities ----
 
@@ -661,6 +662,7 @@ export default function Settings() {
           <TabsList>
             <TabsTrigger value="general" className="whitespace-nowrap">General</TabsTrigger>
             <TabsTrigger value="scan-paths" className="whitespace-nowrap">Scan Paths</TabsTrigger>
+            <TabsTrigger value="workflows" className="whitespace-nowrap">Workflows</TabsTrigger>
             <TabsTrigger value="config-files" className="whitespace-nowrap">
               Config Files ({configs?.length || 0})
             </TabsTrigger>
@@ -673,6 +675,10 @@ export default function Settings() {
 
         <TabsContent value="scan-paths" className="mt-4">
           <ScanPathsTab />
+        </TabsContent>
+
+        <TabsContent value="workflows" className="mt-4">
+          <WorkflowConfigPanel />
         </TabsContent>
 
         <TabsContent value="config-files" className="mt-4">

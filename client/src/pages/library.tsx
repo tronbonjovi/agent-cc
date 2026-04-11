@@ -9,7 +9,7 @@ import McpsTab from "@/components/library/mcps-tab";
 import AgentsTab from "@/components/library/agents-tab";
 import FileEditorTab from "@/components/library/file-editor-tab";
 import { DiscoverTab } from "@/components/discover-tab";
-import { PromptLibraryPanel } from "@/components/session-analytics-panel";
+import { PromptsPanel } from "@/pages/message-history";
 import { BashKnowledgePanel } from "@/components/session-analytics-panel";
 
 const TAB_ICONS: Record<LibraryTabId, React.ElementType> = {
@@ -77,7 +77,7 @@ export default function Library() {
       {activeTab === "agents" && <AgentsTab />}
       {activeTab === "editor" && <FileEditorTab />}
       {activeTab === "discover" && <DiscoverTab />}
-      {activeTab === "prompts" && <PromptLibraryPanel />}
+      {activeTab === "prompts" && <PromptsPanel />}
       {activeTab === "bash-kb" && <BashKnowledgePanel />}
     </PageContainer>
   );

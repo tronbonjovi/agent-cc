@@ -40,8 +40,8 @@ describe("library.tsx — imports and renders new tabs", () => {
     expect(src).toMatch(/import.*DiscoverTab.*from/);
   });
 
-  it("imports PromptLibraryPanel", () => {
-    expect(src).toMatch(/import.*PromptLibraryPanel.*from/);
+  it("imports PromptsPanel from message-history", () => {
+    expect(src).toMatch(/import.*PromptsPanel.*from.*message-history/);
   });
 
   it("imports BashKnowledgePanel", () => {
@@ -57,7 +57,6 @@ describe("library.tsx — imports and renders new tabs", () => {
   });
 
   it("has bash-kb icon in TAB_ICONS", () => {
-    // bash-kb needs quoting because of the hyphen
     expect(src).toMatch(/["']bash-kb["']:\s*\w+/);
   });
 
@@ -65,8 +64,8 @@ describe("library.tsx — imports and renders new tabs", () => {
     expect(src).toMatch(/<DiscoverTab/);
   });
 
-  it("renders PromptLibraryPanel component", () => {
-    expect(src).toMatch(/<PromptLibraryPanel/);
+  it("renders PromptsPanel component for prompts tab", () => {
+    expect(src).toMatch(/<PromptsPanel/);
   });
 
   it("renders BashKnowledgePanel component", () => {
@@ -74,12 +73,8 @@ describe("library.tsx — imports and renders new tabs", () => {
   });
 });
 
-describe("PromptLibraryPanel and BashKnowledgePanel are exported", () => {
+describe("BashKnowledgePanel is exported from session-analytics-panel", () => {
   const src = fs.readFileSync(ANALYTICS_PANEL_PATH, "utf-8");
-
-  it("exports PromptLibraryPanel", () => {
-    expect(src).toMatch(/export\s+function\s+PromptLibraryPanel/);
-  });
 
   it("exports BashKnowledgePanel", () => {
     expect(src).toMatch(/export\s+function\s+BashKnowledgePanel/);

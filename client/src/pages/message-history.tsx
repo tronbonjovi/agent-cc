@@ -73,21 +73,13 @@ export default function MessageHistory() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gradient">Messages</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Session history and prompt templates
+          Session history
         </p>
       </div>
 
-      {/* Split layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6" style={{ height: "calc(100vh - 160px)" }}>
-        {/* Left: Message History — 3 cols */}
-        <div className="lg:col-span-3 flex flex-col min-h-0">
-          <MessagesPanel />
-        </div>
-
-        {/* Right: Prompts — 2 cols */}
-        <div className="lg:col-span-2 flex flex-col min-h-0">
-          <PromptsPanel />
-        </div>
+      {/* Full-width message history */}
+      <div style={{ height: "calc(100vh - 160px)" }}>
+        <MessagesPanel />
       </div>
     </div>
   );
