@@ -1,10 +1,11 @@
-import fs from "fs";
 import type {
   SessionData, SessionCostData, CostAnalytics,
   FileHeatmapEntry, FileHeatmapResult,
   SessionHealth, HealthAnalytics, StaleAnalytics,
 } from "@shared/types";
 import { getPricing, computeCost } from "./pricing";
+import { sessionParseCache } from "./session-cache";
+import type { ParsedSession } from "@shared/session-types";
 
 // Alias for backward compat within this file
 const calcCost = computeCost;
@@ -89,8 +90,12 @@ interface RawAnalytics {
   totalTokens: number;
 }
 
-/** Scan a single session JSONL for cost, file ops, and health data */
+/** Scan a single session for cost, file ops, and health data (via parsed cache) */
 function analyzeSession(session: SessionData): RawAnalytics | null {
+  // Get the comprehensive parsed data from cache
+  const parsed = sessionParseCache.getOrParse(session.filePath, session.projectKey);
+  if (!parsed) return null;
+
   const modelBreakdown: Record<string, { input: number; output: number; cacheRead: number; cacheCreation: number; cost: number }> = {};
   const modelsSet = new Set<string>();
   const fileOps = new Map<string, { read: number; write: number; edit: number; lastTs: string }>();
@@ -105,107 +110,58 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
   let totalCacheCreation = 0;
   const messageTimestamps: string[] = [];
 
-  try {
-    const content = fs.readFileSync(session.filePath, "utf-8");
-    let pos = 0;
+  // Process assistant messages
+  for (const msg of parsed.assistantMessages) {
+    if (msg.timestamp) messageTimestamps.push(msg.timestamp);
 
-    while (pos < content.length) {
-      const nextNewline = content.indexOf("\n", pos);
-      const lineEnd = nextNewline === -1 ? content.length : nextNewline;
-      const trimmed = content.slice(pos, lineEnd).trim();
-      pos = lineEnd + 1;
-      if (!trimmed) continue;
+    const u = msg.usage;
+    const model = msg.model || "unknown";
+    modelsSet.add(model);
 
-      try {
-        const record = JSON.parse(trimmed);
-        const ts = record.timestamp || "";
+    totalInput += u.inputTokens;
+    totalOutput += u.outputTokens;
+    totalCacheRead += u.cacheReadTokens;
+    totalCacheCreation += u.cacheCreationTokens;
 
-        // Collect timestamps for idle gap detection
-        if (ts && (record.type === "user" || record.type === "assistant")) {
-          messageTimestamps.push(ts);
+    if (!modelBreakdown[model]) {
+      modelBreakdown[model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cost: 0 };
+    }
+    modelBreakdown[model].input += u.inputTokens;
+    modelBreakdown[model].output += u.outputTokens;
+    modelBreakdown[model].cacheRead += u.cacheReadTokens;
+    modelBreakdown[model].cacheCreation += u.cacheCreationTokens;
+  }
+
+  // Process user messages for timestamps
+  for (const msg of parsed.userMessages) {
+    if (msg.timestamp) messageTimestamps.push(msg.timestamp);
+  }
+
+  // Process tool timeline for file ops, errors, and retries
+  for (const exec of parsed.toolTimeline) {
+    totalToolCalls++;
+    if (exec.isError) toolErrors++;
+
+    const toolName = exec.name.toLowerCase();
+    const fp = exec.filePath;
+    if (fp && (toolName === "read" || toolName === "write" || toolName === "edit" || toolName === "glob")) {
+      const existing = fileOps.get(fp) || { read: 0, write: 0, edit: 0, lastTs: "" };
+      if (toolName === "read") existing.read++;
+      else if (toolName === "write") existing.write++;
+      else if (toolName === "edit") existing.edit++;
+      if (exec.timestamp > existing.lastTs) existing.lastTs = exec.timestamp;
+      fileOps.set(fp, existing);
+
+      // Detect retries: same file edited within 60 seconds
+      if (toolName === "edit" || toolName === "write") {
+        const now = new Date(exec.timestamp).getTime();
+        if (fp === lastEditFile && now - lastEditTs < 60000) {
+          retries++;
         }
-
-        if (record.type === "assistant") {
-          const msg = record.message;
-          if (!msg || typeof msg !== "object") continue;
-
-          // Token usage
-          const usage = msg.usage;
-          if (usage) {
-            const model = msg.model || "unknown";
-            modelsSet.add(model);
-            const inp = usage.input_tokens || 0;
-            const out = usage.output_tokens || 0;
-            const cr = usage.cache_read_input_tokens || 0;
-            const cc = usage.cache_creation_input_tokens || 0;
-
-            totalInput += inp;
-            totalOutput += out;
-            totalCacheRead += cr;
-            totalCacheCreation += cc;
-
-            if (!modelBreakdown[model]) {
-              modelBreakdown[model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cost: 0 };
-            }
-            modelBreakdown[model].input += inp;
-            modelBreakdown[model].output += out;
-            modelBreakdown[model].cacheRead += cr;
-            modelBreakdown[model].cacheCreation += cc;
-          }
-
-          // Tool use blocks — extract file paths and tool names
-          const msgContent = msg.content;
-          if (Array.isArray(msgContent)) {
-            for (const item of msgContent) {
-              if (item == null || typeof item !== "object") continue;
-              if (item.type === "tool_use") {
-                totalToolCalls++;
-                const toolName = (item.name || "").toLowerCase();
-                const input = item.input as Record<string, unknown> | undefined;
-                if (input) {
-                  const fp = (input.file_path || input.path || "") as string;
-                  if (fp && (toolName === "read" || toolName === "write" || toolName === "edit" || toolName === "glob")) {
-                    const existing = fileOps.get(fp) || { read: 0, write: 0, edit: 0, lastTs: "" };
-                    if (toolName === "read") existing.read++;
-                    else if (toolName === "write") existing.write++;
-                    else if (toolName === "edit") existing.edit++;
-                    if (ts > existing.lastTs) existing.lastTs = ts;
-                    fileOps.set(fp, existing);
-
-                    // Detect retries: same file edited within 60 seconds
-                    if (toolName === "edit" || toolName === "write") {
-                      const now = new Date(ts).getTime();
-                      if (fp === lastEditFile && now - lastEditTs < 60000) {
-                        retries++;
-                      }
-                      lastEditFile = fp;
-                      lastEditTs = now;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } else if (record.type === "user") {
-          // Check for tool_result errors
-          const msg = record.message;
-          if (!msg || typeof msg !== "object") continue;
-          const msgContent = msg.content;
-          if (Array.isArray(msgContent)) {
-            for (const item of msgContent) {
-              if (item == null || typeof item !== "object") continue;
-              if (item.type === "tool_result" && item.is_error) {
-                toolErrors++;
-              }
-            }
-          }
-        }
-      } catch {
-        // Malformed line
+        lastEditFile = fp;
+        lastEditTs = now;
       }
     }
-  } catch {
-    return null;
   }
 
   // Calculate costs per model
