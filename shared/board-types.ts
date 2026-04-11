@@ -12,6 +12,15 @@ export interface LastSessionSnapshot {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
+  // Session detail (expandable section)
+  healthReasons: string[];
+  totalToolCalls: number;
+  retries: number;
+  cacheHitRate: number | null;
+  maxTokensStops: number;
+  webRequests: number;
+  sidechainCount: number;
+  turnCount: number;
 }
 
 export interface BoardTask {
@@ -53,6 +62,15 @@ export interface SessionEnrichment {
   toolErrors: number;
   durationMinutes: number | null;
   agentRole: string | null;
+  // Session detail (expandable section)
+  healthReasons: string[];
+  totalToolCalls: number;
+  retries: number;
+  cacheHitRate: number | null;
+  maxTokensStops: number;
+  webRequests: number;
+  sidechainCount: number;
+  turnCount: number;
 }
 
 export interface ProjectMeta {
