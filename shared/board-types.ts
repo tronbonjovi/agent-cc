@@ -48,6 +48,18 @@ export interface BoardTask {
   updatedAt: string;
 }
 
+export interface LinkSignal {
+  name: string;
+  weight: number;
+  matched: boolean;
+}
+
+export interface AutoLinkResult {
+  sessionId: string;
+  score: number;
+  signals: LinkSignal[];
+}
+
 export interface SessionEnrichment {
   sessionId: string;
   isActive: boolean;
@@ -71,6 +83,9 @@ export interface SessionEnrichment {
   webRequests: number;
   sidechainCount: number;
   turnCount: number;
+  // Auto-link transparency
+  linkScore?: number;
+  linkSignals?: LinkSignal[];
 }
 
 export interface ProjectMeta {
