@@ -1,5 +1,9 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { execSync } from "child_process";
+import path from "path";
+import fs from "fs";
+import os from "os";
+import { runFullScan } from "../scanner/index";
 
 export interface DiscoverResult {
   name: string;
@@ -59,6 +63,16 @@ function searchGitHub(query: string, limit: number = 20): DiscoverResult[] {
   }
 }
 
+/**
+ * Create the library directory for a given type and item name.
+ * Uses os.homedir() at call time so tests can override HOME.
+ */
+export function ensureLibraryDir(type: string, itemName: string): string {
+  const dir = path.join(os.homedir(), ".claude", "library", type, itemName);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
 const router = Router();
 
 router.get("/api/discover/:type/search", (req, res) => {
@@ -75,6 +89,58 @@ router.get("/api/discover/:type/search", (req, res) => {
   const query = buildGitHubQuery(type, q);
   const results = searchGitHub(query);
   res.json(results);
+});
+
+// POST /api/library/:type/save — download from GitHub to library
+router.post("/api/library/:type/save", async (req: Request, res: Response) => {
+  const type = req.params.type as string;
+  if (!VALID_TYPES.has(type)) {
+    return res.status(400).json({ message: `Invalid type: ${type}. Must be one of: skills, agents, plugins` });
+  }
+
+  const { repoUrl, path: repoPath, name } = req.body as {
+    repoUrl: string;
+    path?: string;
+    name: string;
+  };
+
+  if (!repoUrl || !name) {
+    return res.status(400).json({ message: "repoUrl and name are required" });
+  }
+
+  try {
+    const targetDir = ensureLibraryDir(type, name);
+
+    if (repoPath) {
+      // Download specific directory/file from repo
+      const repoSlug = repoUrl.replace("https://github.com/", "");
+      const cmd = `gh api repos/${repoSlug}/contents/${repoPath} --jq '.[].download_url // .download_url'`;
+      const urls = execSync(cmd, { timeout: 15_000, encoding: "utf-8" })
+        .trim()
+        .split("\n")
+        .filter(Boolean);
+
+      for (const url of urls) {
+        const fileName = path.basename(url);
+        const content = execSync(`curl -sL "${url}"`, { timeout: 15_000, encoding: "utf-8" });
+        fs.writeFileSync(path.join(targetDir, fileName), content);
+      }
+    } else {
+      // Clone full repo into library dir
+      const repoSlug = repoUrl.replace("https://github.com/", "");
+      execSync(`gh repo clone ${repoSlug} "${targetDir}" -- --depth 1`, {
+        timeout: 30_000,
+      });
+      // Remove .git directory — no version tracking needed in library
+      fs.rmSync(path.join(targetDir, ".git"), { recursive: true, force: true });
+    }
+
+    runFullScan().catch(() => {});
+    res.json({ message: `Saved "${name}" to library` });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Download failed";
+    res.status(500).json({ message: msg });
+  }
 });
 
 export default router;
