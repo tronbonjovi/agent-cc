@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Kanban card session detail accordion** — expandable inline panel on board cards showing health reason tags, tool call stats, retries, cache hit rate, max token stops, web requests, sidechains, and turn count.
+- **Auto session-task linking** — tasks without a manual `sessionId` are automatically matched to sessions using behavioral signals: git branch name, file path overlap with `touches:` labels, and timing correlation. Best match above 0.4 threshold is linked.
+- **HealthReasonTag component** — color-coded pills for health reasons: red (high error rate, context overflow), amber (excessive retries, long idle gaps, high cost), muted (short session).
+
+### Added
 - **Comprehensive JSONL session parser** — single-pass `parseSessionFile()` extracts messages, tool executions, cost/token totals, models, timestamps, and conversation structure from raw JSONL files. 16 typed interfaces in `shared/session-types.ts` define the full parsed schema.
 - **Session parse cache** — file-size-based `SessionParseCache` avoids re-parsing unchanged JSONL files. Singleton instance shared across scanner and analytics.
 - **Full JSONL schema types** — `shared/session-types.ts` with `ParsedSession`, `ParsedMessage`, `ToolExecution`, `FileHistorySnapshot`, and 12 supporting interfaces.
