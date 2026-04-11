@@ -1510,6 +1510,94 @@ describe('parseSessionFile', () => {
       expect(parsed!.counts.toolCalls).toBe(3);
     });
   });
+
+  describe('edge cases', () => {
+    it('handles session with only system records (no user/assistant)', () => {
+      const fp = writeSession('system-only', [
+        {
+          type: 'system',
+          subtype: 'turn_duration',
+          timestamp: '2026-01-01T10:00:00Z',
+          durationMs: 1000,
+          messageCount: 0,
+          sessionId: 's1',
+          uuid: 'sys1',
+          parentUuid: '',
+          isSidechain: false,
+        },
+        {
+          type: 'permission-mode',
+          permissionMode: 'default',
+          sessionId: 's1',
+          timestamp: '2026-01-01T10:00:01Z',
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.counts.assistantMessages).toBe(0);
+      expect(parsed!.counts.userMessages).toBe(0);
+      expect(parsed!.counts.systemEvents).toBe(1);
+      expect(parsed!.lifecycle).toHaveLength(1);
+      expect(parsed!.meta.firstMessage).toBe('');
+    });
+
+    it('handles very large user textPreview by truncating to 300 chars', () => {
+      const longText = 'x'.repeat(500);
+      const fp = writeSession('long-user-text', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: longText },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.userMessages[0].textPreview.length).toBeLessThanOrEqual(300);
+    });
+
+    it('handles records with missing optional fields gracefully', () => {
+      const fp = writeSession('minimal-assistant', [
+        {
+          type: 'assistant',
+          timestamp: '2026-01-01T10:00:00Z',
+          message: {
+            content: [{ type: 'text', text: 'hi' }],
+            usage: {},
+          },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed).not.toBeNull();
+      const msg = parsed!.assistantMessages[0];
+      expect(msg.model).toBe('');
+      expect(msg.stopReason).toBe('');
+      expect(msg.usage.inputTokens).toBe(0);
+      expect(msg.uuid).toBe('');
+    });
+
+    it('derives sessionId from filename', () => {
+      const fp = writeSession('abc-def-123', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: 'hi' },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      expect(parsed!.meta.sessionId).toBe('abc-def-123');
+    });
+  });
 });
 
 describe('SessionParseCache integration', () => {
