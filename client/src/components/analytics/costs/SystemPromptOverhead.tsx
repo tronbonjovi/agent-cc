@@ -118,19 +118,15 @@ export function SystemPromptOverhead() {
   if (error) {
     return (
       <div className="rounded-xl border bg-card p-4">
-        <p className="text-sm text-destructive">Failed to load system prompt overhead</p>
+        <p className="text-sm text-destructive">Failed to load context overhead</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Settings2 className="h-4 w-4 text-indigo-400" />
-          <h3 className="text-sm font-medium">System Prompt Overhead</h3>
-        </div>
+    <div className="space-y-4">
+      {/* Day selector */}
+      <div className="flex justify-end">
         <div className="flex gap-1">
           {DAY_OPTIONS.map(d => (
             <button
@@ -173,8 +169,9 @@ export function SystemPromptOverhead() {
 
       {/* Explanatory text */}
       <p className="text-xs text-muted-foreground leading-relaxed">
-        System prompt overhead is the tokens consumed by your autoloaded skills, plugins,
-        CLAUDE.md files, and memory. Reducing loaded plugins lowers this overhead.
+        Estimated tokens consumed by recurring context each turn — system prompt, CLAUDE.md instructions,
+        plugin/skill definitions, memory files, and project configuration. Calculated from the input token
+        spike on the first message of each session compared to subsequent messages.
       </p>
 
       {/* Library link */}

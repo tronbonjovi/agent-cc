@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSessionDetail, useTogglePin, useDeleteSession, useSessionNames } from "@/hooks/use-sessions";
 import { SessionOverview } from "./SessionOverview";
 import { ToolTimeline } from "./ToolTimeline";
@@ -9,7 +9,7 @@ import { LifecycleEvents } from "./LifecycleEvents";
 import { LinkedTask } from "./LinkedTask";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pin, Trash2, ChevronDown, ChevronRight, GitBranch, Clock, FolderOpen } from "lucide-react";
+import { Pin, Trash2, ChevronRight, GitBranch, Clock, FolderOpen } from "lucide-react";
 import type { ParsedSession } from "@shared/session-types";
 import type { LinkSignal } from "@shared/board-types";
 
@@ -53,6 +53,10 @@ export function SessionDetail({
   const togglePin = useTogglePin();
   const deleteSession = useDeleteSession();
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(["overview"]));
+  const [localPinned, setLocalPinned] = useState<boolean | null>(null);
+  const isPinned = localPinned ?? session?.isPinned ?? false;
+
+  useEffect(() => { setLocalPinned(null); }, [sessionId]);
 
   const toggleSection = (name: string) => {
     setOpenSections(prev => {
@@ -108,10 +112,13 @@ export function SessionDetail({
           <div className="flex items-center gap-1 shrink-0">
             <Button
               variant="ghost" size="sm"
-              onClick={() => togglePin.mutate(session.id)}
-              className={session.isPinned ? "text-amber-500" : ""}
+              onClick={() => {
+                setLocalPinned(prev => !(prev ?? session.isPinned ?? false));
+                togglePin.mutate(session.id);
+              }}
+              className={isPinned ? "text-amber-500" : ""}
             >
-              <Pin className="h-3.5 w-3.5" />
+              <Pin className={`h-3.5 w-3.5 ${isPinned ? "fill-current" : ""}`} />
             </Button>
             <Button
               variant="ghost" size="sm"
@@ -170,20 +177,24 @@ export function SessionDetail({
         )}
 
         {/* Linked Task */}
-        <SectionHeader
-          title="Linked Task"
-          isOpen={openSections.has("linked-task")}
-          onToggle={() => toggleSection("linked-task")}
-        />
-        {openSections.has("linked-task") && (
-          <LinkedTask
-            taskId={linkedTaskId}
-            taskTitle={linkedTaskTitle}
-            milestone={linkedMilestone}
-            isManualLink={isManualLink}
-            linkScore={linkScore}
-            linkSignals={linkSignals}
-          />
+        {linkedTaskId && (
+          <>
+            <SectionHeader
+              title="Linked Task"
+              isOpen={openSections.has("linked-task")}
+              onToggle={() => toggleSection("linked-task")}
+            />
+            {openSections.has("linked-task") && (
+              <LinkedTask
+                taskId={linkedTaskId}
+                taskTitle={linkedTaskTitle}
+                milestone={linkedMilestone}
+                isManualLink={isManualLink}
+                linkScore={linkScore}
+                linkSignals={linkSignals}
+              />
+            )}
+          </>
         )}
 
         {/* Tool Timeline */}
@@ -263,10 +274,10 @@ function SectionHeader({ title, isOpen, onToggle }: { title: string; isOpen: boo
   return (
     <button
       onClick={onToggle}
-      className="flex items-center gap-2 w-full px-4 py-2 text-sm font-medium border-b border-border/20 hover:bg-muted/30 transition-colors"
+      className="flex items-center gap-2 w-full px-4 py-2 text-sm font-medium border-b border-border/20 hover:bg-muted/30 transition-colors active:bg-muted/40"
     >
-      {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-      {title}
+      <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`} />
+      <span>{title}</span>
     </button>
   );
 }

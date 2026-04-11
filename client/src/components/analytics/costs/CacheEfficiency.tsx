@@ -67,13 +67,9 @@ export function CacheEfficiency() {
   const isEmpty = data.hitRate === 0 && data.cacheCreationCost === 0 && data.messageCurve.length === 0;
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Database className="h-4 w-4 text-green-400" />
-          <h3 className="text-sm font-medium">Cache Efficiency</h3>
-        </div>
+    <div className="space-y-4">
+      {/* Day selector */}
+      <div className="flex justify-end">
         <div className="flex gap-1">
           {([7, 30, 90] as const).map(d => (
             <button

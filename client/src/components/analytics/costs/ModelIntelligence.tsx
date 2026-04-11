@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useModelIntelligence, type ModelIntelligenceRow } from "@/hooks/use-sessions";
 import { Cpu, ArrowUpDown } from "lucide-react";
+import { shortModel } from "@/lib/utils";
 
 // ---- Utilities ----
 
@@ -101,19 +102,15 @@ export function ModelIntelligence() {
   }
 
   function formatCell(value: string | number, format: "text" | "tokens" | "usd") {
-    if (format === "text") return value;
+    if (format === "text") return shortModel(value as string);
     if (format === "usd") return formatUsd(value as number);
     return formatTokens(value as number);
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Cpu className="h-4 w-4 text-cyan-400" />
-          <h3 className="text-sm font-medium">Model Intelligence</h3>
-        </div>
+    <div className="space-y-4">
+      {/* Day selector */}
+      <div className="flex justify-end">
         <div className="flex gap-1">
           {([7, 30, 90] as const).map(d => (
             <button

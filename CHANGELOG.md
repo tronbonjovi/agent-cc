@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Sessions page UX fixes** — resizable list-detail divider (reuses existing `useResizeHandle` hook), pin icon now toggles visually with optimistic state, overview panel wired to show duration/cost/health from enrichment data, Linked Task section hidden when no data, expand/collapse chevron smoothly rotates instead of bouncing, lifecycle events display human-friendly labels with readable time formatting.
+- **Costs tab UX fixes** — all 5 cost sections now collapsible with smooth chevron animation, "System Prompt Overhead" renamed to "Context Overhead" with accurate description, model names shortened and `<synthetic>` normalized to "unknown", expensive session links navigate to correct analytics page instead of dashboard.
+
 ### Added
 - **Entity graph design spec** — force-directed entity graph visualization replacing the Nerve Center topology. d3-force physics simulation, SVG rendering with React, project/session/tool/model nodes, curved bezier edges, flow particle animations, hover subgraph highlighting, click drill-in (system → project sessions), drag repositioning, sidebar detail panel, mobile fallback.
 - **Implementation plan for sessions/costs/analytics fixes** — 13 tasks across 3 milestones from post-implementation review: 6 sessions page fixes, 4 costs tab fixes, 3 nerve center redesign tasks. Roadmap files created for workflow-framework execution.

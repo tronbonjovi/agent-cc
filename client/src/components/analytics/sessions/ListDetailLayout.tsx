@@ -1,5 +1,6 @@
 import { type ReactNode } from "react";
 import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
+import { useResizeHandle } from "@/hooks/use-resize-handle";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
@@ -34,6 +35,7 @@ export function getLayoutMode(
 export function ListDetailLayout({ list, detail, emptyDetail, onBack }: ListDetailLayoutProps) {
   const bp = useBreakpoint();
   const mobile = isMobile(bp);
+  const resize = useResizeHandle({ initialWidth: 350, minWidth: 280, maxWidth: 500, side: "right" });
 
   if (mobile) {
     // Mobile: show detail as overlay when selected, otherwise show list
@@ -60,15 +62,18 @@ export function ListDetailLayout({ list, detail, emptyDetail, onBack }: ListDeta
     );
   }
 
-  // Desktop: side-by-side split
+  // Desktop: side-by-side split with resizable divider
   return (
     <div className="flex h-full overflow-hidden">
-      {/* List panel — ~35% width */}
-      <div className="w-[35%] min-w-[280px] border-r border-border/40 overflow-y-auto">
+      {/* List panel — resizable width */}
+      <div style={{ width: resize.width }} className="min-w-[280px] border-r border-border/40 overflow-y-auto shrink-0">
         {list}
       </div>
 
-      {/* Detail panel — ~65% width */}
+      {/* Resize handle */}
+      <div data-testid="resize-handle" onMouseDown={resize.onMouseDown} className="w-1 cursor-col-resize hover:bg-accent/50 transition-colors shrink-0" />
+
+      {/* Detail panel — fills remaining space */}
       <div className="flex-1 overflow-y-auto">
         {detail !== null ? detail : (
           emptyDetail ?? (

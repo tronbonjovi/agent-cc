@@ -93,13 +93,9 @@ export function TokenAnatomy() {
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Layers className="h-4 w-4 text-cyan-400" />
-          <h3 className="text-sm font-medium">Token Anatomy</h3>
-        </div>
+    <div className="space-y-4">
+      {/* Day selector */}
+      <div className="flex justify-end">
         <div className="flex gap-1">
           {([7, 30, 90] as const).map(d => (
             <button
@@ -183,3 +179,4 @@ export function TokenAnatomy() {
     </div>
   );
 }
+

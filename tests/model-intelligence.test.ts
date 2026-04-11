@@ -232,5 +232,56 @@ describe("model-intelligence", () => {
       expect(result[0].outputTokens).toBe(1500);
       expect(result[0].sessions).toBe(2);
     });
+
+    it("groups messages with model: undefined under 'unknown'", () => {
+      const base1 = makeAssistantRecord({ usage: { inputTokens: 500, outputTokens: 200 } });
+      const base2 = makeAssistantRecord({ usage: { inputTokens: 300, outputTokens: 100 } });
+      // Override model to undefined after construction to bypass ?? default
+      const msg1 = { ...base1, model: undefined as unknown as string };
+      const msg2 = { ...base2, model: undefined as unknown as string };
+      const session = makeSession([msg1, msg2]);
+      const result = computeModelIntelligence([session]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].model).toBe("unknown");
+      expect(result[0].inputTokens).toBe(800);
+      expect(result[0].outputTokens).toBe(300);
+    });
+
+    it("groups messages with model: '<synthetic>' under 'unknown'", () => {
+      const msgs = [
+        makeAssistantRecord({
+          model: "<synthetic>",
+          usage: { inputTokens: 400, outputTokens: 150 },
+        }),
+        makeAssistantRecord({
+          model: "<synthetic>",
+          usage: { inputTokens: 600, outputTokens: 250 },
+        }),
+      ];
+      const session = makeSession(msgs);
+      const result = computeModelIntelligence([session]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].model).toBe("unknown");
+      expect(result[0].inputTokens).toBe(1000);
+      expect(result[0].outputTokens).toBe(400);
+    });
+
+    it("merges undefined and <synthetic> models into the same 'unknown' bucket", () => {
+      const base = makeAssistantRecord({ usage: { inputTokens: 100, outputTokens: 50 } });
+      const undefinedMsg = { ...base, model: undefined as unknown as string };
+      const syntheticMsg = makeAssistantRecord({
+        model: "<synthetic>",
+        usage: { inputTokens: 200, outputTokens: 100 },
+      });
+      const session = makeSession([undefinedMsg, syntheticMsg]);
+      const result = computeModelIntelligence([session]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].model).toBe("unknown");
+      expect(result[0].inputTokens).toBe(300);
+      expect(result[0].outputTokens).toBe(150);
+    });
   });
 });

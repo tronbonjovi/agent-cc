@@ -77,12 +77,19 @@ export function SessionsTab() {
             projects={projects}
           />
         }
-        detail={selectedId ? (
-          <SessionDetail
-            sessionId={selectedId}
-            onDelete={handleBack}
-          />
-        ) : null}
+        detail={selectedId ? (() => {
+          const selectedSession = enriched.find(s => s.id === selectedId);
+          return (
+            <SessionDetail
+              sessionId={selectedId}
+              durationMinutes={selectedSession?.durationMinutes}
+              costUsd={selectedSession?.costUsd}
+              healthScore={selectedSession?.healthScore}
+              healthReasons={selectedSession?.healthReasons}
+              onDelete={handleBack}
+            />
+          );
+        })() : null}
         onBack={handleBack}
       />
     </div>

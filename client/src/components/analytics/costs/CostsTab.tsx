@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, DollarSign, History } from "lucide-react";
+import { ChevronRight, DollarSign, History, PieChart, Bot, Zap, FileText } from "lucide-react";
 import { useCostAnalytics } from "@/hooks/use-sessions";
 import { useAppSettings } from "@/hooks/use-settings";
 import { TokenAnatomy } from "./TokenAnatomy";
@@ -7,6 +7,32 @@ import { ModelIntelligence } from "./ModelIntelligence";
 import { CacheEfficiency } from "./CacheEfficiency";
 import { SystemPromptOverhead } from "./SystemPromptOverhead";
 import { SessionProjectValue } from "./SessionProjectValue";
+
+// ---- Collapsible Section Wrapper ----
+
+function CollapsibleSection({ title, icon, defaultOpen = true, children }: {
+  title: string;
+  icon: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border bg-card">
+      <button
+        onClick={() => setOpen(prev => !prev)}
+        className="w-full flex items-center gap-2 p-4 text-left hover:bg-accent/30 transition-colors rounded-xl"
+      >
+        {icon}
+        <span className="text-sm font-medium flex-1">{title}</span>
+        <ChevronRight
+          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+        />
+      </button>
+      {open && <div className="px-4 pb-4">{children}</div>}
+    </div>
+  );
+}
 
 // ---- Utilities (duplicated from stats.tsx for self-containment) ----
 
@@ -119,11 +145,21 @@ function HistoricalLookup() {
 export default function CostsTab() {
   return (
     <div className="space-y-6">
-      <TokenAnatomy />
-      <ModelIntelligence />
-      <CacheEfficiency />
-      <SystemPromptOverhead />
-      <SessionProjectValue />
+      <CollapsibleSection title="Token Anatomy" icon={<PieChart className="h-4 w-4 text-cyan-400" />}>
+        <TokenAnatomy />
+      </CollapsibleSection>
+      <CollapsibleSection title="Model Intelligence" icon={<Bot className="h-4 w-4 text-cyan-400" />}>
+        <ModelIntelligence />
+      </CollapsibleSection>
+      <CollapsibleSection title="Cache Efficiency" icon={<Zap className="h-4 w-4 text-green-400" />}>
+        <CacheEfficiency />
+      </CollapsibleSection>
+      <CollapsibleSection title="Context Overhead" icon={<FileText className="h-4 w-4 text-indigo-400" />}>
+        <SystemPromptOverhead />
+      </CollapsibleSection>
+      <CollapsibleSection title="Session & Project Value" icon={<DollarSign className="h-4 w-4 text-green-400" />}>
+        <SessionProjectValue />
+      </CollapsibleSection>
       <HistoricalLookup />
     </div>
   );

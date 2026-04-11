@@ -80,6 +80,7 @@ export function applySorting<T extends SortableSession>(sessions: T[], sort: str
 
 export interface EnrichedSession extends SessionData {
   healthScore: "good" | "fair" | "poor" | null;
+  healthReasons?: string[];
   model: string | null;
   costUsd: number;
   durationMinutes: number | null;

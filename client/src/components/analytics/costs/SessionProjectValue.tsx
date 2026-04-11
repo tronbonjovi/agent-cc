@@ -99,7 +99,7 @@ export function SessionProjectValue() {
   }
 
   function navigateToSession(sessionId: string) {
-    setLocation(`/?tab=sessions&id=${sessionId}`);
+    setLocation(`/analytics?tab=sessions&id=${sessionId}`);
   }
 
   if (isLoading || !data) return <LoadingSkeleton />;
@@ -122,12 +122,9 @@ export function SessionProjectValue() {
   return (
     <div className="space-y-4">
       {/* ---- Project Breakdown ---- */}
-      <div className="rounded-xl border bg-card p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FolderKanban className="h-4 w-4 text-green-400" />
-            <h3 className="text-sm font-medium">Project Breakdown</h3>
-          </div>
+      <div className="space-y-4">
+        {/* Day selector */}
+        <div className="flex justify-end">
           <div className="flex gap-1">
             {([7, 30, 90] as const).map(d => (
               <button
@@ -202,11 +199,8 @@ export function SessionProjectValue() {
       </div>
 
       {/* ---- Most Expensive Sessions ---- */}
-      <div className="rounded-xl border bg-card p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-green-400" />
-          <h3 className="text-sm font-medium">Most Expensive Sessions</h3>
-        </div>
+      <div className="space-y-3 pt-3 border-t border-border/30">
+        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Most Expensive Sessions</h4>
 
         {data.topExpensive.length === 0 ? (
           <div className="h-20 flex items-center justify-center text-muted-foreground text-sm">
@@ -234,11 +228,8 @@ export function SessionProjectValue() {
       </div>
 
       {/* ---- Most Efficient Sessions ---- */}
-      <div className="rounded-xl border bg-card p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Zap className="h-4 w-4 text-green-400" />
-          <h3 className="text-sm font-medium">Most Efficient Sessions</h3>
-        </div>
+      <div className="space-y-3 pt-3 border-t border-border/30">
+        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Most Efficient Sessions</h4>
 
         {data.topEfficient.length === 0 ? (
           <div className="h-20 flex items-center justify-center text-muted-foreground text-sm">

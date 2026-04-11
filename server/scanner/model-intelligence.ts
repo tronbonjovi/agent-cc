@@ -34,7 +34,8 @@ export function computeModelIntelligence(sessions: ParsedSession[]): ModelIntell
     const sessionId = session.meta.sessionId;
 
     for (const msg of session.assistantMessages) {
-      const model = msg.model || "unknown";
+      const rawModel = msg.model || "unknown";
+      const model = rawModel === "<synthetic>" ? "unknown" : rawModel;
       let acc = byModel.get(model);
       if (!acc) {
         acc = {
