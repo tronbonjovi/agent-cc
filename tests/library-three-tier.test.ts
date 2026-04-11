@@ -1,5 +1,5 @@
 // tests/library-three-tier.test.ts
-// Tests for three-tier layout pattern (Installed / Saved / Marketplace) in library tabs
+// Tests for three-tier layout pattern (Installed / Library / Discover) in library tabs
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
@@ -17,7 +17,40 @@ function readSrc(p: string): string {
 
 // ---- Shared: three-tier section tests ----
 
+// Tabs that use the new Library/Discover naming
 function describeTierSections(tabName: string, tabPath: string) {
+  describe(`${tabName} tab — three-tier sections`, () => {
+    const src = readSrc(tabPath);
+
+    it("renders an Installed section heading", () => {
+      expect(src).toMatch(/Installed/);
+    });
+
+    it("renders a Library section heading", () => {
+      expect(src).toMatch(/Library/);
+    });
+
+    it("renders a Discover section heading", () => {
+      expect(src).toMatch(/Discover/);
+    });
+
+    it("imports EntityCard from the shared component", () => {
+      expect(src).toMatch(/EntityCard/);
+      expect(src).toMatch(/entity-card/);
+    });
+
+    it("renders EntityCard components", () => {
+      expect(src).toMatch(/<EntityCard/);
+    });
+
+    it("shows an empty message when a tier has no items", () => {
+      expect(src).toMatch(/No (library|installed|items)/i);
+    });
+  });
+}
+
+// MCPs still use old Saved/Marketplace naming (not in scope for library config management)
+function describeLegacyTierSections(tabName: string, tabPath: string) {
   describe(`${tabName} tab — three-tier sections`, () => {
     const src = readSrc(tabPath);
 
@@ -43,7 +76,6 @@ function describeTierSections(tabName: string, tabPath: string) {
     });
 
     it("shows an empty message when a tier has no items", () => {
-      // Should have at least one "No saved" or "No installed" type message
       expect(src).toMatch(/No (saved|installed)/i);
     });
   });
@@ -51,7 +83,7 @@ function describeTierSections(tabName: string, tabPath: string) {
 
 describeTierSections("Skills", SKILLS_TAB_PATH);
 describeTierSections("Plugins", PLUGINS_TAB_PATH);
-describeTierSections("MCP Servers", MCPS_TAB_PATH);
+describeLegacyTierSections("MCP Servers", MCPS_TAB_PATH);
 describeTierSections("Agents", AGENTS_TAB_PATH);
 
 // ---- Skills-specific tests ----
@@ -146,15 +178,15 @@ describe("Agents tab — EntityCard integration", () => {
 
 // ---- Marketplace placeholder tests ----
 
-describe("Marketplace placeholder sections", () => {
-  it("Skills tab shows marketplace coming soon", () => {
+describe("Discover tab sections", () => {
+  it("Skills tab has Discover panel", () => {
     const src = readSrc(SKILLS_TAB_PATH);
-    expect(src).toMatch(/[Mm]arketplace.*coming soon|coming soon/i);
+    expect(src).toMatch(/DiscoverPanel|discover/i);
   });
 
-  it("Plugins tab shows marketplace coming soon", () => {
+  it("Plugins tab has Discover panel", () => {
     const src = readSrc(PLUGINS_TAB_PATH);
-    expect(src).toMatch(/[Mm]arketplace.*coming soon|coming soon/i);
+    expect(src).toMatch(/DiscoverPanel|discover/i);
   });
 
   it("MCP Servers tab has marketplace section with mcp.so reference", () => {
@@ -162,9 +194,9 @@ describe("Marketplace placeholder sections", () => {
     expect(src).toMatch(/mcp\.so|[Mm]arketplace/);
   });
 
-  it("Agents tab shows marketplace coming soon", () => {
+  it("Agents tab has Discover panel", () => {
     const src = readSrc(AGENTS_TAB_PATH);
-    expect(src).toMatch(/[Mm]arketplace.*coming soon|coming soon/i);
+    expect(src).toMatch(/DiscoverPanel|discover/i);
   });
 });
 

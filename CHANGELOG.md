@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Library configuration management** — Library page is now a full config manager. Install, uninstall, edit, and remove skills, agents, and plugins directly from the UI. Three-state model: items move between External (GitHub) → Library (inactive on disk) → Installed (active in Claude Code).
+- **Discover tab** — search GitHub for community skills, agents, and plugins. Results show as cards with "Save to Library" action. Safety disclaimer with VirusTotal link.
+- **Structured discover sources** — Browse section with links to skill hubs (Claude Skill Hub, SkillsMP, SkillHub), plugin marketplaces (Anthropic Official/Community), and cross-type directories (Build with Claude). GitHub search is the universal fallback.
+- **Library scanner** — new scanner reads `~/.claude/library/` for uninstalled items and includes them in entity queries.
+- **Library file operations API** — backend routes for install (library → active), uninstall (active → library), remove (permanent delete), and list operations.
+
+### Changed
+- **Library subtabs renamed** — "Saved" → "Library", "Marketplace" → "Discover" across Skills, Agents, and Plugins tabs. MCPs retain the old naming (out of scope — different config model).
+- **Remove confirmation** — permanently removing items from the Library now requires confirmation dialog.
+
+### Added (prior)
 - **Fixed shell layout system** — app layout changed from scroll wrapper to fixed viewport box. Pages now own their scrolling — either as a single scroll area (Library, Sessions, Analytics, Settings) or as independently scrollable panels (Board, Dashboard). Nav sidebar and terminal panel stay fixed at all times.
 - **Dashboard panel layout** — status bar pins at top while active sessions scroll independently below. Sessions area centered at 85% width (1400px cap).
 - **Board independent panel scrolling** — all three zones (projects, kanban columns, completed milestones) now scroll independently within the viewport.

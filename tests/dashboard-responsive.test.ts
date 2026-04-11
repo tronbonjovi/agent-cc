@@ -55,18 +55,12 @@ describe("Dashboard responsive layout", () => {
       expect(dashboardSource).toContain("grid-cols-1");
     });
 
-    it("has md:grid-cols-2 for medium viewports", () => {
-      expect(dashboardSource).toContain("md:grid-cols-2");
-    });
-
-    it("has lg:grid-cols-3 for large viewports", () => {
-      // Note: the old test prohibited lg:grid-cols-3 in a side-panel context.
-      // This is different — it's the session cards grid, which is correct.
-      expect(dashboardSource).toContain("lg:grid-cols-3");
-    });
-
-    it("has xl:grid-cols-4 for extra-large viewports", () => {
-      expect(dashboardSource).toContain("xl:grid-cols-4");
+    it("uses single-column layout (full-width session bars)", () => {
+      // Session cards are full-width bars, not multi-column grid
+      expect(dashboardSource).toContain("grid-cols-1");
+      expect(dashboardSource).not.toContain("md:grid-cols-2");
+      expect(dashboardSource).not.toContain("lg:grid-cols-3");
+      expect(dashboardSource).not.toContain("xl:grid-cols-4");
     });
   });
 
