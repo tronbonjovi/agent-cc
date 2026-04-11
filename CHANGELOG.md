@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Empty milestone display bug** — stale "analytics overhaul 0/0" no longer appears on project cards. Removed superseded milestone directory and fixed `activeMilestones()` filter to exclude milestones with zero tasks.
+
+### Added
+- **Analytics V2 roadmap** — 6 new milestones (39 tasks) for analytics overhaul: foundation restructure, Nerve Center CNS topology, costs deepening, charts enrichment, sessions redesign, messages redesign. Design specs in `docs/superpowers/specs/`.
+
 ### Added
 - **Kanban card session detail accordion** — expandable inline panel on board cards showing health reason tags, tool call stats, retries, cache hit rate, max token stops, web requests, sidechains, and turn count.
 - **Auto session-task linking** — tasks without a manual `sessionId` are automatically matched to sessions using behavioral signals: git branch name, file path overlap with `touches:` labels, and timing correlation. Best match above 0.4 threshold is linked.

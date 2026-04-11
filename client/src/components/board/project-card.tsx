@@ -63,7 +63,7 @@ export interface ProjectCardProps {
 
 /** Filter milestones that are not yet complete */
 export function activeMilestones(milestones: ProjectMilestoneData[]): ProjectMilestoneData[] {
-  return milestones.filter(m => m.totalTasks === 0 || m.doneTasks < m.totalTasks);
+  return milestones.filter(m => m.totalTasks > 0 && m.doneTasks < m.totalTasks);
 }
 
 export function ProjectCard({ project, onClick }: ProjectCardProps) {
