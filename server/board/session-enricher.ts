@@ -33,6 +33,8 @@ import { getCachedExecutions } from "../scanner/agent-scanner";
 import { sessionParseCache } from "../scanner/session-cache";
 import type { SessionData } from "@shared/types";
 import type { SessionEnrichment, LastSessionSnapshot } from "@shared/board-types";
+import type { TaskItem } from "@shared/task-types";
+import type { ParsedSession } from "@shared/session-types";
 
 /**
  * In-memory cache of session snapshots keyed by task ID.
@@ -178,6 +180,100 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
     sidechainCount,
     turnCount,
   };
+}
+
+/**
+ * Score parsed sessions against a task and return the best-matching sessionId.
+ *
+ * Signals (additive):
+ *  - Git branch contains task ID  (weight 0.5)
+ *  - Git branch contains milestone name (weight 0.2)
+ *  - File path overlap between session toolTimeline and task touches: labels (weight 0.3)
+ *  - Session started within 10 minutes of task.updated (weight 0.2)
+ *
+ * Returns the sessionId with the highest score above the 0.4 threshold,
+ * or null if nothing qualifies. Tie-break: most recent session (latest lastTs).
+ */
+export function autoLinkSession(
+  task: TaskItem,
+  parsedSessions: Map<string, ParsedSession>,
+): string | null {
+  const THRESHOLD = 0.4;
+  const taskIdLower = task.id.toLowerCase();
+
+  // Extract touches: paths from labels
+  const touchPaths = (task.labels ?? [])
+    .filter(l => l.startsWith("touches:"))
+    .map(l => l.slice("touches:".length));
+
+  const milestoneName = task.parent ?? "";
+
+  let bestId: string | null = null;
+  let bestScore = 0;
+  let bestLastTs = "";
+
+  const sessionIds = Array.from(parsedSessions.keys());
+  for (let i = 0; i < sessionIds.length; i++) {
+    const sessionId = sessionIds[i];
+    const parsed = parsedSessions.get(sessionId)!;
+    let score = 0;
+    const branch = parsed.meta.gitBranch.toLowerCase();
+
+    // Signal 1: branch contains task ID (0.5)
+    if (branch.includes(taskIdLower)) {
+      score += 0.5;
+    }
+
+    // Signal 2: branch contains milestone name (0.2)
+    if (milestoneName && branch.includes(milestoneName.toLowerCase())) {
+      score += 0.2;
+    }
+
+    // Signal 3: file path overlap (0.3)
+    if (touchPaths.length > 0) {
+      const sessionFilePaths: string[] = [];
+      for (let j = 0; j < parsed.toolTimeline.length; j++) {
+        const fp = parsed.toolTimeline[j].filePath;
+        if (fp !== null && sessionFilePaths.indexOf(fp) === -1) {
+          sessionFilePaths.push(fp);
+        }
+      }
+      let matched = 0;
+      for (const tp of touchPaths) {
+        for (const sf of sessionFilePaths) {
+          if (sf === tp || sf.endsWith("/" + tp) || tp.endsWith("/" + sf)) {
+            matched++;
+            break;
+          }
+        }
+      }
+      score += 0.3 * (matched / touchPaths.length);
+    }
+
+    // Signal 4: timing correlation (0.2)
+    if (task.updated && parsed.meta.firstTs) {
+      const taskUpdated = new Date(task.updated).getTime();
+      const sessionStart = new Date(parsed.meta.firstTs).getTime();
+      const diffMs = Math.abs(sessionStart - taskUpdated);
+      if (diffMs <= 10 * 60 * 1000) {
+        score += 0.2;
+      }
+    }
+
+    if (score < THRESHOLD) continue;
+
+    const lastTs = parsed.meta.lastTs ?? "";
+    if (
+      score > bestScore ||
+      (score === bestScore && lastTs > bestLastTs)
+    ) {
+      bestScore = score;
+      bestId = sessionId;
+      bestLastTs = lastTs;
+    }
+  }
+
+  return bestId;
 }
 
 /**
