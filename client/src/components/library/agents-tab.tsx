@@ -6,6 +6,7 @@ import {
   useAgentStats,
   useCreateAgentDefinition,
 } from "@/hooks/use-agents";
+import { useLibraryItems, useInstallItem, useUninstallItem, useRemoveItem } from "@/hooks/use-library";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,7 @@ function getModelColor(model: string | null): string {
   return "border-cyan-500/30 text-cyan-400";
 }
 
-type SubTab = "installed" | "saved" | "marketplace";
+type SubTab = "installed" | "library" | "discover";
 
 export default function AgentsTab() {
   const [subTab, setSubTab] = useState<SubTab>("installed");
@@ -100,9 +101,9 @@ export default function AgentsTab() {
         ))}
       </div>
 
-      {/* Sub-tabs: Installed | Saved | Marketplace */}
+      {/* Sub-tabs: Installed | Library | Discover */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(["installed", "saved", "marketplace"] as const).map(t => (
+        {(["installed", "library", "discover"] as const).map(t => (
           <button
             key={t}
             onClick={() => setSubTab(t)}
@@ -112,7 +113,7 @@ export default function AgentsTab() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t === "installed" ? "Installed" : t === "saved" ? "Saved" : "Marketplace"}
+            {t === "installed" ? "Installed" : t === "library" ? "Library" : "Discover"}
           </button>
         ))}
       </div>
@@ -122,8 +123,8 @@ export default function AgentsTab() {
 
       {/* Tab content */}
       {subTab === "installed" && <InstalledTab />}
-      {subTab === "saved" && <SavedTab />}
-      {subTab === "marketplace" && <MarketplaceTab />}
+      {subTab === "library" && <LibraryTab />}
+      {subTab === "discover" && <DiscoverTab />}
     </div>
   );
 }
@@ -303,6 +304,7 @@ function InstalledTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const createAgent = useCreateAgentDefinition();
+  const uninstallItem = useUninstallItem();
   const [form, setForm] = useState({ name: "", description: "", model: "sonnet", color: "", tools: "", content: "" });
 
   const handleCreate = () => {
@@ -388,6 +390,13 @@ function InstalledTab() {
                         description={def.description}
                         status="installed"
                         tags={buildAgentTags(def)}
+                        actions={[
+                          {
+                            label: "Uninstall",
+                            onClick: () => uninstallItem.mutate({ type: "agents", id: `${def.name}.md` }),
+                            variant: "ghost" as const,
+                          },
+                        ]}
                         onClick={() => toggleGroup(`detail:${def.id}`)}
                       />
                     ))}
@@ -441,19 +450,47 @@ function InstalledTab() {
   );
 }
 
-function SavedTab() {
-  // No API concept of saved-but-inactive agents currently
-  return (
-    <p className="text-sm text-muted-foreground/60">No saved agents — all discovered agents are currently active</p>
+function LibraryTab() {
+  const { data: libraryItems } = useLibraryItems("agents");
+  const installItem = useInstallItem();
+  const removeItem = useRemoveItem();
+
+  return (libraryItems && libraryItems.length > 0) ? (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
+      {libraryItems.map((item) => (
+        <EntityCard
+          key={item.id}
+          icon={<Bot className="h-4 w-4 text-cyan-400" />}
+          name={item.name}
+          description={item.description ?? undefined}
+          status="saved"
+          tags={["library"]}
+          actions={[
+            {
+              label: "Install",
+              onClick: () => installItem.mutate({ type: "agents", id: `${item.name}.md` }),
+              variant: "default" as const,
+            },
+            {
+              label: "Remove",
+              onClick: () => removeItem.mutate({ type: "agents", id: `${item.name}.md` }),
+              variant: "destructive" as const,
+            },
+          ]}
+        />
+      ))}
+    </div>
+  ) : (
+    <p className="text-sm text-muted-foreground/60">No items in your library — uninstall agents or save from Discover</p>
   );
 }
 
-function MarketplaceTab() {
+function DiscoverTab() {
   return (
     <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
       <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-      <p className="text-sm text-muted-foreground">Marketplace coming soon</p>
-      <p className="text-xs text-muted-foreground/60 mt-1">Browse and install community agent definitions</p>
+      <p className="text-sm text-muted-foreground">Search coming soon</p>
+      <p className="text-xs text-muted-foreground/60 mt-1">Discover and install community agent definitions</p>
     </div>
   );
 }

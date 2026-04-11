@@ -1,4 +1,5 @@
 import { useEntities, useRescan } from "@/hooks/use-entities";
+import { useLibraryItems, useInstallItem, useUninstallItem, useRemoveItem } from "@/hooks/use-library";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -9,7 +10,7 @@ import { EntityCard } from "@/components/library/entity-card";
 import type { EntityCardStatus } from "@/components/library/entity-card";
 import type { SkillEntity, MarkdownEntity } from "@shared/types";
 
-type SubTab = "installed" | "saved" | "marketplace";
+type SubTab = "installed" | "library" | "discover";
 
 function formatPreview(content: string): string {
   const lines = content.split("\n");
@@ -53,10 +54,12 @@ export default function SkillsTab() {
       return a.name.localeCompare(b.name);
     });
 
-  // Three-tier split: all discovered skills are "installed" (active on disk)
-  // No API distinction for saved-but-inactive skills currently
+  // All discovered skills from the scanner are "installed" (active on disk)
   const installed = filtered;
-  const saved: SkillEntity[] = [];
+  const { data: libraryItems } = useLibraryItems<SkillEntity>("skills");
+  const installItem = useInstallItem();
+  const uninstallItem = useUninstallItem();
+  const removeItem = useRemoveItem();
 
   const invocableCount = filtered.filter((s) => s.data.userInvocable).length;
 
@@ -92,6 +95,11 @@ export default function SkillsTab() {
 
   const buildActions = (skill: SkillEntity) => {
     const actions = [];
+    actions.push({
+      label: "Uninstall",
+      onClick: () => uninstallItem.mutate({ type: "skills", id: skill.name }),
+      variant: "ghost" as const,
+    });
     const mdId = findMarkdownId(skill.path);
     if (mdId) {
       actions.push({
@@ -113,6 +121,21 @@ export default function SkillsTab() {
       variant: "ghost" as const,
     });
     return actions;
+  };
+
+  const buildLibraryActions = (item: SkillEntity) => {
+    return [
+      {
+        label: "Install",
+        onClick: () => installItem.mutate({ type: "skills", id: item.name }),
+        variant: "default" as const,
+      },
+      {
+        label: "Remove",
+        onClick: () => removeItem.mutate({ type: "skills", id: item.name }),
+        variant: "destructive" as const,
+      },
+    ];
   };
 
   const renderSkillCard = (skill: SkillEntity, status: EntityCardStatus) => {
@@ -151,7 +174,7 @@ export default function SkillsTab() {
 
       {/* Sub-tabs */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(["installed", "saved", "marketplace"] as const).map(t => (
+        {(["installed", "library", "discover"] as const).map(t => (
           <button
             key={t}
             onClick={() => setSubTab(t)}
@@ -161,7 +184,7 @@ export default function SkillsTab() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t === "installed" ? "Installed" : t === "saved" ? "Saved" : "Marketplace"}
+            {t === "installed" ? "Installed" : t === "library" ? "Library" : "Discover"}
           </button>
         ))}
       </div>
@@ -198,21 +221,31 @@ export default function SkillsTab() {
             )
           )}
 
-          {subTab === "saved" && (
-            saved.length > 0 ? (
+          {subTab === "library" && (
+            (libraryItems && libraryItems.length > 0) ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
-                {saved.map((skill) => renderSkillCard(skill, "saved"))}
+                {libraryItems.map((item) => (
+                  <EntityCard
+                    key={item.id}
+                    icon={<Wand2 className="h-4 w-4 text-entity-skill" />}
+                    name={item.name}
+                    description={item.description ?? undefined}
+                    status="saved"
+                    tags={["library"]}
+                    actions={buildLibraryActions(item)}
+                  />
+                ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground/60">No saved skills — all discovered skills are currently active</p>
+              <p className="text-sm text-muted-foreground/60">No items in your library — uninstall skills or save from Discover</p>
             )
           )}
 
-          {subTab === "marketplace" && (
+          {subTab === "discover" && (
             <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
               <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Marketplace coming soon</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Browse and install community skills</p>
+              <p className="text-sm text-muted-foreground">Search coming soon</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Discover and install community skills</p>
             </div>
           )}
         </>

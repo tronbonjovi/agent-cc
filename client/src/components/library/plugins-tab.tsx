@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useEntities, useRescan } from "@/hooks/use-entities";
+import { useLibraryItems, useInstallItem, useUninstallItem, useRemoveItem } from "@/hooks/use-library";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { EntityCard } from "@/components/library/entity-card";
 import type { EntityCardStatus } from "@/components/library/entity-card";
 import type { PluginEntity } from "@shared/types";
 
-type SubTab = "installed" | "saved" | "marketplace";
+type SubTab = "installed" | "library" | "discover";
 
 const CATEGORY_LABELS: Record<string, string> = {
   "dev-tools": "Developer Tools",
@@ -31,9 +32,11 @@ export default function PluginsTab() {
   const active = (plugins || []).filter((p) => !p.tags.includes("marketplace") && !p.data.blocked);
 
   // Three-tier: active = installed, blocked = still installed but degraded
-  // No API distinction for saved-but-inactive plugins
   const installed = [...active, ...blocked];
-  const saved: PluginEntity[] = [];
+  const { data: libraryItems } = useLibraryItems<PluginEntity>("plugins");
+  const installItem = useInstallItem();
+  const uninstallItem = useUninstallItem();
+  const removeItem = useRemoveItem();
 
   const buildTags = (plugin: PluginEntity): string[] => {
     const tags: string[] = [];
@@ -82,7 +85,7 @@ export default function PluginsTab() {
 
       {/* Sub-tabs */}
       <div className="flex items-center gap-1 border-b border-border">
-        {(["installed", "saved", "marketplace"] as const).map(t => (
+        {(["installed", "library", "discover"] as const).map(t => (
           <button
             key={t}
             onClick={() => setSubTab(t)}
@@ -92,7 +95,7 @@ export default function PluginsTab() {
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t === "installed" ? "Installed" : t === "saved" ? "Saved" : "Marketplace"}
+            {t === "installed" ? "Installed" : t === "library" ? "Library" : "Discover"}
           </button>
         ))}
       </div>
@@ -118,6 +121,13 @@ export default function PluginsTab() {
                       status={getStatus(plugin)}
                       health={getHealth(plugin)}
                       tags={buildTags(plugin)}
+                      actions={[
+                        {
+                          label: "Uninstall",
+                          onClick: () => uninstallItem.mutate({ type: "plugins", id: plugin.name }),
+                          variant: "ghost" as const,
+                        },
+                      ]}
                     />
                   ))}
                 </div>
@@ -145,27 +155,38 @@ export default function PluginsTab() {
             </>
           )}
 
-          {subTab === "saved" && (
-            saved.length > 0 ? (
+          {subTab === "library" && (
+            (libraryItems && libraryItems.length > 0) ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-card">
-                {saved.map((plugin) => (
+                {libraryItems.map((item) => (
                   <EntityCard
-                    key={plugin.id}
+                    key={item.id}
                     icon={<Puzzle className="h-4 w-4 text-entity-plugin" />}
-                    name={plugin.name}
-                    description={plugin.description ?? undefined}
+                    name={item.name}
+                    description={item.description ?? undefined}
                     status="saved"
-                    tags={buildTags(plugin)}
-                    actions={[{ label: "Enable", onClick: () => {} }]}
+                    tags={["library"]}
+                    actions={[
+                      {
+                        label: "Install",
+                        onClick: () => installItem.mutate({ type: "plugins", id: item.name }),
+                        variant: "default" as const,
+                      },
+                      {
+                        label: "Remove",
+                        onClick: () => removeItem.mutate({ type: "plugins", id: item.name }),
+                        variant: "destructive" as const,
+                      },
+                    ]}
                   />
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground/60">No saved plugins — all discovered plugins are currently active</p>
+              <p className="text-sm text-muted-foreground/60">No items in your library — uninstall plugins or save from Discover</p>
             )
           )}
 
-          {subTab === "marketplace" && (
+          {subTab === "discover" && (
             <div className="space-y-4">
               {marketplaces.length > 0 && (
                 <div className="space-y-2">
@@ -189,8 +210,8 @@ export default function PluginsTab() {
               )}
               <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
                 <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Community plugin discovery coming soon</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Browse and install plugins from community repositories</p>
+                <p className="text-sm text-muted-foreground">Search coming soon</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Discover and install community plugins</p>
               </div>
             </div>
           )}
