@@ -14,12 +14,18 @@ vi.mock("../server/scanner/agent-scanner", () => ({
   getCachedExecutions: vi.fn(),
 }));
 
+vi.mock("../server/scanner/session-cache", () => ({
+  sessionParseCache: { getById: vi.fn() },
+}));
+
 import { enrichTaskSession, buildSessionSnapshot, cacheSnapshot, getCachedSnapshot, clearSnapshotCache } from "../server/board/session-enricher";
 import { getCachedSessions } from "../server/scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../server/scanner/session-analytics";
 import { getCachedExecutions } from "../server/scanner/agent-scanner";
+import { sessionParseCache } from "../server/scanner/session-cache";
 
 const mockGetCachedSessions = vi.mocked(getCachedSessions);
+const mockGetById = vi.mocked(sessionParseCache.getById);
 const mockGetSessionCost = vi.mocked(getSessionCost);
 const mockGetSessionHealth = vi.mocked(getSessionHealth);
 const mockGetCachedExecutions = vi.mocked(getCachedExecutions);
@@ -48,6 +54,95 @@ const makeCost = (overrides = {}) => ({
   models: ["claude-sonnet-4-5"],
   modelBreakdown: {
     "claude-sonnet-4-5": { input: 5000, output: 2000, cacheRead: 0, cacheCreation: 0, cost: 0.042 },
+  },
+  ...overrides,
+});
+
+const makeParsedSession = (overrides: Record<string, any> = {}) => ({
+  meta: {
+    sessionId: "sess-abc123",
+    slug: "test-session",
+    firstMessage: "Hello",
+    firstTs: "2026-04-01T10:00:00.000Z",
+    lastTs: "2026-04-01T10:30:00.000Z",
+    sizeBytes: 2048,
+    filePath: "/tmp/fake.jsonl",
+    projectKey: "my-project",
+    cwd: "/home/user/project",
+    version: "1.0.0",
+    gitBranch: "main",
+    entrypoint: "cli",
+  },
+  assistantMessages: [
+    {
+      uuid: "msg-1",
+      parentUuid: "root",
+      timestamp: "2026-04-01T10:05:00.000Z",
+      requestId: "req-1",
+      isSidechain: false,
+      model: "claude-sonnet-4-5",
+      stopReason: "end_turn",
+      usage: {
+        inputTokens: 2000,
+        outputTokens: 800,
+        cacheReadTokens: 1500,
+        cacheCreationTokens: 500,
+        serviceTier: "default",
+        inferenceGeo: "us",
+        speed: "normal",
+        serverToolUse: { webSearchRequests: 2, webFetchRequests: 3 },
+      },
+      toolCalls: [],
+      hasThinking: false,
+      textPreview: "Here is the result...",
+    },
+    {
+      uuid: "msg-2",
+      parentUuid: "msg-1",
+      timestamp: "2026-04-01T10:15:00.000Z",
+      requestId: "req-2",
+      isSidechain: false,
+      model: "claude-sonnet-4-5",
+      stopReason: "max_tokens",
+      usage: {
+        inputTokens: 3000,
+        outputTokens: 1200,
+        cacheReadTokens: 2000,
+        cacheCreationTokens: 800,
+        serviceTier: "default",
+        inferenceGeo: "us",
+        speed: "normal",
+        serverToolUse: { webSearchRequests: 1, webFetchRequests: 0 },
+      },
+      toolCalls: [],
+      hasThinking: false,
+      textPreview: "Continuing...",
+    },
+  ],
+  userMessages: [],
+  systemEvents: {
+    turnDurations: [
+      { timestamp: "2026-04-01T10:05:00.000Z", durationMs: 5000, messageCount: 2, parentUuid: "root" },
+      { timestamp: "2026-04-01T10:10:00.000Z", durationMs: 8000, messageCount: 3, parentUuid: "msg-1" },
+      { timestamp: "2026-04-01T10:15:00.000Z", durationMs: 3000, messageCount: 1, parentUuid: "msg-2" },
+    ],
+    hookSummaries: [],
+    localCommands: [],
+    bridgeEvents: [],
+  },
+  toolTimeline: [],
+  fileSnapshots: [],
+  lifecycle: [],
+  conversationTree: [],
+  counts: {
+    totalRecords: 30,
+    assistantMessages: 2,
+    userMessages: 5,
+    systemEvents: 3,
+    toolCalls: 15,
+    toolErrors: 2,
+    fileSnapshots: 0,
+    sidechainMessages: 4,
   },
   ...overrides,
 });
@@ -258,6 +353,87 @@ describe("enrichTaskSession", () => {
     const result = enrichTaskSession("sess-abc123");
     expect(result!.agentRole).toBeNull();
   });
+
+  it("populates new detail fields from parsed session cache", () => {
+    const session = makeSession();
+    const cost = makeCost({
+      cacheReadTokens: 3500,
+      cacheCreationTokens: 1300,
+    });
+    const health = makeHealth({
+      healthReasons: ["High tool error rate"],
+      totalToolCalls: 30,
+      retries: 3,
+    });
+    const parsed = makeParsedSession();
+
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(parsed as any);
+
+    const result = enrichTaskSession("sess-abc123");
+
+    expect(result).not.toBeNull();
+    // healthReasons from health data
+    expect(result!.healthReasons).toEqual(["High tool error rate"]);
+    // totalToolCalls from health data
+    expect(result!.totalToolCalls).toBe(30);
+    // retries from health data
+    expect(result!.retries).toBe(3);
+    // cacheHitRate = cacheReadTokens / (cacheReadTokens + cacheCreationTokens) = 3500 / 4800
+    expect(result!.cacheHitRate).toBeCloseTo(3500 / 4800, 5);
+    // maxTokensStops = count of assistant messages with stopReason === "max_tokens"
+    expect(result!.maxTokensStops).toBe(1);
+    // webRequests = sum of (webSearchRequests + webFetchRequests) across all assistant messages = (2+3) + (1+0) = 6
+    expect(result!.webRequests).toBe(6);
+    // sidechainCount = parsed.counts.sidechainMessages
+    expect(result!.sidechainCount).toBe(4);
+    // turnCount = parsed.systemEvents.turnDurations.length
+    expect(result!.turnCount).toBe(3);
+  });
+
+  it("returns zero/empty for detail fields when parsed session not found", () => {
+    const session = makeSession();
+    const cost = makeCost();
+    const health = makeHealth();
+
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(null);
+
+    const result = enrichTaskSession("sess-abc123");
+
+    expect(result).not.toBeNull();
+    expect(result!.healthReasons).toEqual([]);
+    expect(result!.totalToolCalls).toBe(30);
+    expect(result!.retries).toBe(1);
+    expect(result!.cacheHitRate).toBeNull();
+    expect(result!.maxTokensStops).toBe(0);
+    expect(result!.webRequests).toBe(0);
+    expect(result!.sidechainCount).toBe(0);
+    expect(result!.turnCount).toBe(0);
+  });
+
+  it("computes cacheHitRate as null when no cache tokens exist", () => {
+    const session = makeSession();
+    const cost = makeCost({
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+    });
+    const health = makeHealth();
+    const parsed = makeParsedSession();
+
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(parsed as any);
+
+    const result = enrichTaskSession("sess-abc123");
+
+    expect(result!.cacheHitRate).toBeNull();
+  });
 });
 
 describe("buildSessionSnapshot", () => {
@@ -276,6 +452,14 @@ describe("buildSessionSnapshot", () => {
       toolErrors: 1,
       durationMinutes: 30,
       agentRole: "Explore",
+      healthReasons: ["High cost"],
+      totalToolCalls: 50,
+      retries: 2,
+      cacheHitRate: 0.75,
+      maxTokensStops: 1,
+      webRequests: 5,
+      sidechainCount: 3,
+      turnCount: 10,
     };
 
     const snap = buildSessionSnapshot(enrichment);
@@ -286,6 +470,14 @@ describe("buildSessionSnapshot", () => {
     expect(snap.inputTokens).toBe(5000);
     expect(snap.outputTokens).toBe(2000);
     expect(snap.costUsd).toBe(0.42);
+    expect(snap.healthReasons).toEqual(["High cost"]);
+    expect(snap.totalToolCalls).toBe(50);
+    expect(snap.retries).toBe(2);
+    expect(snap.cacheHitRate).toBe(0.75);
+    expect(snap.maxTokensStops).toBe(1);
+    expect(snap.webRequests).toBe(5);
+    expect(snap.sidechainCount).toBe(3);
+    expect(snap.turnCount).toBe(10);
   });
 
   it("preserves null values from enrichment", () => {
@@ -303,12 +495,21 @@ describe("buildSessionSnapshot", () => {
       toolErrors: 0,
       durationMinutes: null,
       agentRole: null,
+      healthReasons: [],
+      totalToolCalls: 0,
+      retries: 0,
+      cacheHitRate: null,
+      maxTokensStops: 0,
+      webRequests: 0,
+      sidechainCount: 0,
+      turnCount: 0,
     };
 
     const snap = buildSessionSnapshot(enrichment);
     expect(snap.model).toBeNull();
     expect(snap.agentRole).toBeNull();
     expect(snap.durationMinutes).toBeNull();
+    expect(snap.cacheHitRate).toBeNull();
   });
 });
 

@@ -30,6 +30,7 @@
 import { getCachedSessions } from "../scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../scanner/session-analytics";
 import { getCachedExecutions } from "../scanner/agent-scanner";
+import { sessionParseCache } from "../scanner/session-cache";
 import type { SessionData } from "@shared/types";
 import type { SessionEnrichment, LastSessionSnapshot } from "@shared/board-types";
 
@@ -50,6 +51,14 @@ export function buildSessionSnapshot(enrichment: SessionEnrichment): LastSession
     inputTokens: enrichment.inputTokens,
     outputTokens: enrichment.outputTokens,
     costUsd: enrichment.costUsd,
+    healthReasons: enrichment.healthReasons,
+    totalToolCalls: enrichment.totalToolCalls,
+    retries: enrichment.retries,
+    cacheHitRate: enrichment.cacheHitRate,
+    maxTokensStops: enrichment.maxTokensStops,
+    webRequests: enrichment.webRequests,
+    sidechainCount: enrichment.sidechainCount,
+    turnCount: enrichment.turnCount,
   };
 }
 
@@ -113,6 +122,39 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
   // to show what the session is currently doing.
   const agentRole = getMostRecentAgentRole(sessionId);
 
+  // Detail fields from parsed session cache and health data
+  const parsed = sessionParseCache.getById(sessionId);
+
+  const healthReasons = health?.healthReasons ?? [];
+  const totalToolCalls = health?.totalToolCalls ?? 0;
+  const retries = health?.retries ?? 0;
+
+  // Cache hit rate from cost data
+  const cacheRead = cost?.cacheReadTokens ?? 0;
+  const cacheCreation = cost?.cacheCreationTokens ?? 0;
+  const cacheTotal = cacheRead + cacheCreation;
+  const cacheHitRate = cacheTotal > 0 ? cacheRead / cacheTotal : null;
+
+  // Fields from parsed session (safe defaults when null)
+  let maxTokensStops = 0;
+  let webRequests = 0;
+  let sidechainCount = 0;
+  let turnCount = 0;
+
+  if (parsed) {
+    maxTokensStops = parsed.assistantMessages.filter(
+      m => m.stopReason === "max_tokens"
+    ).length;
+
+    webRequests = parsed.assistantMessages.reduce((sum, m) => {
+      const stu = m.usage.serverToolUse;
+      return sum + (stu.webSearchRequests ?? 0) + (stu.webFetchRequests ?? 0);
+    }, 0);
+
+    sidechainCount = parsed.counts.sidechainMessages;
+    turnCount = parsed.systemEvents.turnDurations.length;
+  }
+
   return {
     sessionId,
     isActive: session.isActive,
@@ -127,6 +169,14 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
     toolErrors: health?.toolErrors ?? 0,
     durationMinutes,
     agentRole,
+    healthReasons,
+    totalToolCalls,
+    retries,
+    cacheHitRate,
+    maxTokensStops,
+    webRequests,
+    sidechainCount,
+    turnCount,
   };
 }
 
