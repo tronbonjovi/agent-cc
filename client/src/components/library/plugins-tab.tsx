@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Puzzle, Store, ShieldAlert, ShieldCheck, Server, ShoppingBag, RefreshCw, Settings } from "lucide-react";
+import { DiscoverPanel } from "@/components/library/discover-panel";
 import { EntityCard } from "@/components/library/entity-card";
 import type { EntityCardStatus } from "@/components/library/entity-card";
 import type { PluginEntity } from "@shared/types";
@@ -214,11 +215,7 @@ export default function PluginsTab() {
                   </div>
                 </div>
               )}
-              <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
-                <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Search coming soon</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Discover and install community plugins</p>
-              </div>
+              <DiscoverPanel entityType="plugins" />
             </div>
           )}
         </>

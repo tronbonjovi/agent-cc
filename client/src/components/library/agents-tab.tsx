@@ -35,6 +35,7 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { DiscoverPanel } from "@/components/library/discover-panel";
 import { EntityCard } from "@/components/library/entity-card";
 import { formatBytes, relativeTime, shortModel, getTypeColor } from "@/lib/utils";
 import type { AgentDefinition, AgentExecution } from "@shared/types";
@@ -492,13 +493,7 @@ function LibraryTab() {
 }
 
 function DiscoverTab() {
-  return (
-    <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
-      <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-      <p className="text-sm text-muted-foreground">Search coming soon</p>
-      <p className="text-xs text-muted-foreground/60 mt-1">Discover and install community agent definitions</p>
-    </div>
-  );
+  return <DiscoverPanel entityType="agents" />;
 }
 
 function HistoryTab() {

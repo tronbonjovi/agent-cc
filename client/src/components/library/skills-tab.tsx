@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, Wand2, Terminal, ChevronDown, ChevronRight, Copy, Check, Edit3, FolderOpen, RefreshCw, Settings, ShoppingBag } from "lucide-react";
+import { Search, Wand2, Terminal, ChevronDown, ChevronRight, Copy, Check, Edit3, FolderOpen, RefreshCw, Settings } from "lucide-react";
+import { DiscoverPanel } from "@/components/library/discover-panel";
 import { ListSkeleton } from "@/components/skeleton";
 import { EntityCard } from "@/components/library/entity-card";
 import type { EntityCardStatus } from "@/components/library/entity-card";
@@ -247,13 +248,7 @@ export default function SkillsTab() {
             )
           )}
 
-          {subTab === "discover" && (
-            <div className="rounded-lg border border-dashed border-muted-foreground/20 p-6 text-center">
-              <ShoppingBag className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Search coming soon</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Discover and install community skills</p>
-            </div>
-          )}
+          {subTab === "discover" && <DiscoverPanel entityType="skills" />}
         </>
       )}
     </div>
