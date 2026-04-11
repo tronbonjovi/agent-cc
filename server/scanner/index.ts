@@ -9,6 +9,7 @@ import { scanConfigs } from "./config-scanner";
 import { scanAllSessions } from "./session-scanner";
 import { scanAgentDefinitions, scanAgentExecutions } from "./agent-scanner";
 import { scanDockerCompose } from "./importers/docker-compose";
+import { scanLibrary } from "./library-scanner";
 import { scanGraphConfig } from "./graph-config-scanner";
 import { scanApiConfig } from "./api-config-scanner";
 import { indexCosts } from "./cost-indexer";
@@ -73,8 +74,11 @@ export async function runFullScan(): Promise<void> {
     // Cost indexing — incremental parse of session JSONL files
     indexCosts();
 
+    // Library scanner — reads uninstalled items from ~/.claude/library/
+    const libraryItems = scanLibrary();
+
     // Build new entity map atomically (no delete-then-reinsert gap)
-    const allEntities: Entity[] = [...mcps, ...skills, ...plugins, ...projects, ...markdowns, ...configs];
+    const allEntities: Entity[] = [...mcps, ...skills, ...plugins, ...projects, ...markdowns, ...configs, ...libraryItems];
     const newEntities: Record<string, Entity> = {};
     for (const entity of allEntities) {
       newEntities[entity.id] = entity;

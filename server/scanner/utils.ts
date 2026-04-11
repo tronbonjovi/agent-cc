@@ -12,6 +12,7 @@ export function normPath(...args: string[]): string {
 
 export const HOME = os.homedir().replace(/\\/g, "/");
 export const CLAUDE_DIR = normPath(HOME, ".claude");
+export const LIBRARY_DIR = normPath(CLAUDE_DIR, "library");
 
 export function entityId(filePath: string): string {
   const normalized = filePath.replace(/\\/g, "/").toLowerCase();
