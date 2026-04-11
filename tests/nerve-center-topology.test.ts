@@ -153,23 +153,22 @@ describe("nerve-center topology — NervePathway", () => {
 
   // -- SVG rendering --
 
-  it("renders an SVG line or path element", () => {
-    expect(src).toMatch(/<line|<path/i);
+  it("renders SVG polyline or path elements", () => {
+    expect(src).toMatch(/<polyline|<path/i);
   });
 
-  it("accepts start and end coordinates", () => {
-    // Should have x1/y1/x2/y2 or from/to point props
-    expect(src).toMatch(/x1|from|start/);
-    expect(src).toMatch(/x2|to|end/);
+  it("accepts points array for circuit trace waypoints", () => {
+    expect(src).toMatch(/points/);
   });
 
   // -- State-based styling --
 
   it("applies different colors based on state", () => {
-    // Should have conditional color logic tied to state
-    expect(src).toMatch(/state.*===.*idle|idle.*color|stroke.*idle/i);
-    expect(src).toMatch(/state.*===.*active|active.*color|stroke.*active/i);
-    expect(src).toMatch(/state.*===.*alert|alert.*color|stroke.*alert/i);
+    // Should have color records keyed by state
+    expect(src).toMatch(/idle/i);
+    expect(src).toMatch(/active/i);
+    expect(src).toMatch(/alert/i);
+    expect(src).toMatch(/stateColors/i);
   });
 
   // -- Animation class --

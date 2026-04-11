@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { TrendingUp, TrendingDown, Minus, DollarSign, Flame } from "lucide-react";
 import { useNerveCenter } from "@/hooks/use-sessions";
+import { useAppSettings } from "@/hooks/use-settings";
 import type { PathwayState } from "./NervePathway";
 
 // ---- Types ----
@@ -27,12 +28,18 @@ interface CostNervesProps {
 
 // ---- Helpers ----
 
-/** Determine state color based on pacing percentage.
- *  - green: at or below average (pacingPct <= 100)
- *  - amber: above average up to 130%
- *  - red: significantly over average (> 130%)
+/** Determine state color based on pacing percentage and billing mode.
+ *  API/pay-as-you-go: high spend = bad (red)
+ *  Subscription: high spend = good (green) — getting value for money
  */
-function getSpendState(pacingPct: number): "green" | "amber" | "red" {
+function getSpendState(pacingPct: number, isSubscription: boolean): "green" | "amber" | "red" {
+  if (isSubscription) {
+    // Subscription: high usage = value, low usage = waste
+    if (pacingPct >= 100) return "green";
+    if (pacingPct >= 50) return "amber";
+    return "red";
+  }
+  // API: high usage = cost pressure
   if (pacingPct <= 100) return "green";
   if (pacingPct <= 130) return "amber";
   return "red";
@@ -75,6 +82,9 @@ const STATE_TEXT: Record<"green" | "amber" | "red", string> = {
  */
 export function CostNerves({ onStateChange }: CostNervesProps): ReactElement {
   const [, setLocation] = useLocation();
+  const { data: settings } = useAppSettings();
+  const billingMode = settings?.billingMode || "auto";
+  const isSub = billingMode === "subscription" || billingMode === "auto";
 
   // Nerve center data (weekly spend pacing from session analytics)
   const { data: ncData, isLoading: ncLoading } = useNerveCenter();
@@ -98,7 +108,7 @@ export function CostNerves({ onStateChange }: CostNervesProps): ReactElement {
   );
 
   const pacingPct = lastWeek > 0 ? Math.round((thisWeek / lastWeek) * 100) : 100;
-  const spendState = useMemo(() => getSpendState(pacingPct), [pacingPct]);
+  const spendState = useMemo(() => getSpendState(pacingPct, isSub), [pacingPct, isSub]);
 
   // Report state to parent topology
   useEffect(() => {
@@ -126,11 +136,17 @@ export function CostNerves({ onStateChange }: CostNervesProps): ReactElement {
   // ---- Trend indicator ----
 
   const absPct = Math.abs(changePct);
-  const trendText = changePct > 0
-    ? `${absPct}% above average`
-    : changePct < 0
-      ? `${absPct}% below average`
-      : "On pace";
+  const trendText = isSub
+    ? (changePct > 0
+        ? `${absPct}% more value this week`
+        : changePct < 0
+          ? `${absPct}% less usage this week`
+          : "Steady usage")
+    : (changePct > 0
+        ? `${absPct}% above average`
+        : changePct < 0
+          ? `${absPct}% below average`
+          : "On pace");
 
   const TrendIcon = changePct > 0 ? TrendingUp : changePct < 0 ? TrendingDown : Minus;
 
@@ -164,7 +180,9 @@ export function CostNerves({ onStateChange }: CostNervesProps): ReactElement {
       <div className="text-lg font-bold tabular-nums">
         ${thisWeek.toFixed(2)}
       </div>
-      <div className="text-[10px] text-muted-foreground mb-1.5">This week</div>
+      <div className="text-[10px] text-muted-foreground mb-1.5">
+        {isSub ? "API-equivalent value this week" : "This week"}
+      </div>
 
       {/* Pacing indicator */}
       <div className={`flex items-center gap-1 text-xs ${STATE_TEXT[spendState]}`}>
