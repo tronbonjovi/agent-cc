@@ -38,24 +38,25 @@ describe("analytics tab restructure — stats.tsx", () => {
     expect(src).toMatch(/TabsContent.*value="messages"/);
   });
 
-  it("renders NerveCenterPanel in the nerve-center tab", () => {
-    expect(src).toMatch(/<NerveCenterPanel/);
+  it("renders TopologyLayout in the nerve-center tab (replaced NerveCenterPanel)", () => {
+    expect(src).toMatch(/<TopologyLayout/);
   });
 
   it("renders CostsTab in the costs tab", () => {
     expect(src).toMatch(/<CostsTab/);
   });
 
-  it("renders ActivityTab as stacked section in nerve center", () => {
-    expect(src).toMatch(/<ActivityTab/);
+  it("renders ActivityReflexes as organ in nerve center topology", () => {
+    expect(src).toMatch(/<ActivityReflexes/);
   });
 
   it("Charts tab renders ChartsTab component", () => {
     expect(src).toMatch(/<ChartsTab/);
   });
 
-  it("imports NerveCenterPanel from session-analytics-panel", () => {
-    expect(src).toMatch(/import.*NerveCenterPanel.*from.*session-analytics-panel/);
+  it("imports topology components from nerve-center barrel", () => {
+    expect(src).toMatch(/TopologyLayout/);
+    expect(src).toMatch(/nerve-center/);
   });
 
   it("has updated subtitle reflecting new tabs", () => {

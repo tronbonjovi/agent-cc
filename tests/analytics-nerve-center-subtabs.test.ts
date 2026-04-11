@@ -7,7 +7,7 @@ import path from "path";
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
 const PANEL_PATH = path.resolve(__dirname, "../client/src/components/session-analytics-panel.tsx");
 
-describe("Nerve Center stacked sections — stats.tsx", () => {
+describe("Nerve Center topology — stats.tsx", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
   it("does NOT have subtab infrastructure (NERVE_SUBTABS, NerveSubTabId, nerveSubTab)", () => {
@@ -22,31 +22,27 @@ describe("Nerve Center stacked sections — stats.tsx", () => {
     expect(src).not.toMatch(/["']workflows["']/);
   });
 
-  it("renders NerveCenterPanel as stacked section", () => {
-    expect(src).toMatch(/<NerveCenterPanel/);
+  it("renders TopologyLayout with brain + 5 organs (replaced stacked panels)", () => {
+    expect(src).toMatch(/<TopologyLayout/);
+    expect(src).toMatch(/<ScannerBrain/);
+    expect(src).toMatch(/<CostNerves/);
+    expect(src).toMatch(/<SessionVitals/);
+    expect(src).toMatch(/<FileSensors/);
+    expect(src).toMatch(/<ActivityReflexes/);
+    expect(src).toMatch(/<ServiceSynapses/);
   });
 
-  it("renders WeeklyDigestPanel as collapsible section", () => {
-    expect(src).toMatch(/<WeeklyDigestPanel/);
-    expect(src).toMatch(/Weekly Digest/);
+  it("no longer renders old stacked panels (NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel)", () => {
+    expect(src).not.toMatch(/<NerveCenterPanel/);
+    expect(src).not.toMatch(/<FileHeatmapPanel/);
+    expect(src).not.toMatch(/<SessionHealthPanel/);
+    expect(src).not.toMatch(/<WeeklyDigestPanel/);
   });
 
-  it("renders FileHeatmapPanel as stacked section", () => {
-    expect(src).toMatch(/<FileHeatmapPanel/);
-  });
-
-  it("renders SessionHealthPanel as stacked section", () => {
-    expect(src).toMatch(/<SessionHealthPanel/);
-  });
-
-  it("renders ActivityTab as stacked section in nerve center", () => {
-    expect(src).toMatch(/<ActivityTab/);
-  });
-
-  it("imports individual panel components from session-analytics-panel", () => {
-    expect(src).toMatch(/import.*FileHeatmapPanel.*from.*session-analytics-panel/);
-    expect(src).toMatch(/import.*SessionHealthPanel.*from.*session-analytics-panel/);
-    expect(src).toMatch(/import.*WeeklyDigestPanel.*from.*session-analytics-panel/);
+  it("imports topology components from nerve-center barrel", () => {
+    expect(src).toMatch(/TopologyLayout/);
+    expect(src).toMatch(/ScannerBrain/);
+    expect(src).toMatch(/nerve-center/);
   });
 
   it("does not import DecisionLogPanel or WorkflowConfigPanel", () => {

@@ -489,6 +489,34 @@ pre code {
   92.1%    { opacity: 0; }
 }
 
+/* Nerve pathway pulse animation — state-driven intensity */
+@keyframes nerve-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Idle: gentle, slow pulse */
+.nerve-pulse {
+  animation: nerve-pulse 3s ease-in-out infinite;
+}
+
+/* Active: faster, more visible pulse */
+.nerve-pulse[data-state="active"],
+.nerve-pulse.nerve-active {
+  animation: nerve-pulse 1.5s ease-in-out infinite;
+}
+
+/* Alert: rapid, urgent pulse */
+.nerve-pulse[data-state="alert"],
+.nerve-pulse.nerve-alert {
+  animation: nerve-pulse 0.8s ease-in-out infinite;
+}
+
+/* Minimal animation mode: disable nerve pulses */
+:root[data-animation="minimal"] .nerve-pulse {
+  animation: none !important;
+}
+
 /* Enhanced live pulse via pseudo-element */
 .live-pulse {
   position: relative;

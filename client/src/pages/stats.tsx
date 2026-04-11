@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useScanStatus, useRescan } from "@/hooks/use-entities";
-import { useCostAnalytics } from "@/hooks/use-sessions";
+import { useCostAnalytics, useNerveCenter } from "@/hooks/use-sessions";
 import { useAppSettings } from "@/hooks/use-settings";
 import {
   BarChart3,
@@ -25,7 +25,16 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
-import { NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel, WeeklyDigestPanel } from "@/components/session-analytics-panel";
+import {
+  TopologyLayout,
+  ScannerBrain,
+  CostNerves,
+  SessionVitals,
+  FileSensors,
+  ActivityReflexes,
+  ServiceSynapses,
+  type PathwayState,
+} from "@/components/analytics/nerve-center";
 import ChartsTab from "@/components/analytics/charts-tab";
 import { SessionsPanel } from "@/pages/sessions";
 import { MessagesPanel } from "@/pages/message-history";
@@ -492,39 +501,68 @@ function ActivityTab() {
 
 // ---- Main Analytics Page ----
 
-function NerveCenterStacked() {
-  const [digestOpen, setDigestOpen] = useState(false);
+/**
+ * Derive ScannerBrain system state from the worst organ pathway state.
+ * - Any organ at 'alert' -> brain is 'stressed'
+ * - Any organ at 'active' (but none alert) -> brain is 'busy'
+ * - All organs idle -> brain is 'calm'
+ */
+function deriveSystemState(
+  organStates: PathwayState[],
+): "calm" | "busy" | "stressed" {
+  if (organStates.some((s) => s === "alert")) return "stressed";
+  if (organStates.some((s) => s === "active")) return "busy";
+  return "calm";
+}
+
+function NerveCenterTopology() {
+  // Track each organ's pathway state independently
+  const [costState, setCostState] = useState<PathwayState>("idle");
+  const [sessionState, setSessionState] = useState<PathwayState>("idle");
+  const [fileState, setFileState] = useState<PathwayState>("idle");
+  const [activityState, setActivityState] = useState<PathwayState>("idle");
+  const [serviceState, setServiceState] = useState<PathwayState>("idle");
+
+  // Fetch nerve center data for ServiceSynapses service list
+  const { data: nerveCenter } = useNerveCenter();
+  const services = nerveCenter?.services ?? [];
+
+  // Derive brain state from worst organ
+  const systemState = deriveSystemState([
+    costState, sessionState, fileState, activityState, serviceState,
+  ]);
 
   return (
-    <div className="space-y-6">
-      {/* Overview */}
-      <NerveCenterPanel />
-
-      {/* Weekly Digest — collapsible section */}
-      <div className="rounded-xl border bg-card">
-        <button
-          onClick={() => setDigestOpen(!digestOpen)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/30 transition-colors rounded-xl"
-        >
-          <span>Weekly Digest</span>
-          <span className="text-xs text-muted-foreground">{digestOpen ? "collapse" : "expand"}</span>
-        </button>
-        {digestOpen && (
-          <div className="px-4 pb-4">
-            <WeeklyDigestPanel />
-          </div>
-        )}
-      </div>
-
-      {/* File Heatmap */}
-      <FileHeatmapPanel />
-
-      {/* Session Health */}
-      <SessionHealthPanel />
-
-      {/* Activity changelog */}
-      <ActivityTab />
-    </div>
+    <TopologyLayout
+      brain={<ScannerBrain systemState={systemState} />}
+      organs={[
+        {
+          position: "top",
+          node: <CostNerves onStateChange={setCostState} />,
+          pathwayState: costState,
+        },
+        {
+          position: "top-left",
+          node: <SessionVitals onStateChange={setSessionState} />,
+          pathwayState: sessionState,
+        },
+        {
+          position: "top-right",
+          node: <FileSensors onStateChange={setFileState} />,
+          pathwayState: fileState,
+        },
+        {
+          position: "bottom-left",
+          node: <ActivityReflexes onStateChange={setActivityState} />,
+          pathwayState: activityState,
+        },
+        {
+          position: "bottom-right",
+          node: <ServiceSynapses services={services} onStateChange={setServiceState} />,
+          pathwayState: serviceState,
+        },
+      ]}
+    />
   );
 }
 
@@ -549,7 +587,7 @@ export default function Stats() {
         </div>
 
         <TabsContent value="nerve-center" className="mt-4">
-          <NerveCenterStacked />
+          <NerveCenterTopology />
         </TabsContent>
 
         <TabsContent value="costs" className="mt-4">

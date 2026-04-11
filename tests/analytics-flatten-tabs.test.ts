@@ -66,34 +66,35 @@ describe("analytics flatten — no subtab infrastructure", () => {
   });
 });
 
-describe("analytics flatten — Nerve Center stacked sections", () => {
+describe("analytics flatten — Nerve Center topology visualization", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("renders NerveCenterPanel (overview)", () => {
-    expect(src).toMatch(/<NerveCenterPanel/);
+  it("renders TopologyLayout (replaced stacked panels)", () => {
+    expect(src).toMatch(/<TopologyLayout/);
   });
 
-  it("renders FileHeatmapPanel as stacked section", () => {
-    expect(src).toMatch(/<FileHeatmapPanel/);
+  it("renders ScannerBrain as central brain node", () => {
+    expect(src).toMatch(/<ScannerBrain/);
   });
 
-  it("renders SessionHealthPanel as stacked section", () => {
-    expect(src).toMatch(/<SessionHealthPanel/);
+  it("renders all 5 organ modules: CostNerves, SessionVitals, FileSensors, ActivityReflexes, ServiceSynapses", () => {
+    expect(src).toMatch(/<CostNerves/);
+    expect(src).toMatch(/<SessionVitals/);
+    expect(src).toMatch(/<FileSensors/);
+    expect(src).toMatch(/<ActivityReflexes/);
+    expect(src).toMatch(/<ServiceSynapses/);
   });
 
-  it("renders WeeklyDigestPanel", () => {
-    expect(src).toMatch(/<WeeklyDigestPanel/);
+  it("imports topology components from nerve-center barrel", () => {
+    expect(src).toMatch(/TopologyLayout/);
+    expect(src).toMatch(/ScannerBrain/);
+    expect(src).toMatch(/nerve-center/);
   });
 
-  it("renders ActivityTab as stacked section in nerve center", () => {
-    expect(src).toMatch(/<ActivityTab/);
-  });
-
-  it("imports all panel components from session-analytics-panel", () => {
-    expect(src).toMatch(/import.*NerveCenterPanel.*from.*session-analytics-panel/);
-    expect(src).toMatch(/import.*FileHeatmapPanel.*from.*session-analytics-panel/);
-    expect(src).toMatch(/import.*SessionHealthPanel.*from.*session-analytics-panel/);
-    expect(src).toMatch(/import.*WeeklyDigestPanel.*from.*session-analytics-panel/);
+  it("no longer uses old stacked panels (NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel)", () => {
+    expect(src).not.toMatch(/<NerveCenterPanel/);
+    expect(src).not.toMatch(/<FileHeatmapPanel/);
+    expect(src).not.toMatch(/<SessionHealthPanel/);
   });
 });
 
