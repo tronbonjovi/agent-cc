@@ -6,6 +6,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Bot, User, MessageSquare, Clock, Activity, DollarSign, Cpu } from "lucide-react";
+import { SessionDetailAccordion } from "./session-detail-accordion";
 import {
   StatusLight,
   ModelBadge,
@@ -150,7 +151,12 @@ export function BoardTaskCard({ task, onClick }: BoardTaskCardProps) {
         </div>
       )}
 
-      {/* Row 5: Assignee + flag */}
+      {/* Row 5: Session detail accordion (from session or snapshot) */}
+      {(task.session || snap) && (
+        <SessionDetailAccordion data={(task.session ?? snap)!} />
+      )}
+
+      {/* Row 6: Assignee + flag */}
       {(task.assignee || task.flagged) && (
         <div className="flex items-center gap-2 mt-1.5 min-h-0">
           {task.assignee && (

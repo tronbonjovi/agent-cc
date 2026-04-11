@@ -123,6 +123,27 @@ describe("SessionDetailAccordion component", () => {
   });
 });
 
+describe("BoardTaskCard accordion integration", () => {
+  const cardSource = readFileSync(
+    join(__dirname, "..", "client", "src", "components", "board", "board-task-card.tsx"),
+    "utf-8"
+  );
+
+  it("imports SessionDetailAccordion from session-detail-accordion", () => {
+    expect(cardSource).toMatch(
+      /import\s+.*SessionDetailAccordion.*from\s+["']\.\/session-detail-accordion["']/
+    );
+  });
+
+  it("renders SessionDetailAccordion in JSX", () => {
+    expect(cardSource).toMatch(/<SessionDetailAccordion\s/);
+  });
+
+  it("passes data prop to SessionDetailAccordion", () => {
+    expect(cardSource).toMatch(/data=\{/);
+  });
+});
+
 describe("LastSessionSnapshot detail fields", () => {
   const body = extractInterfaceBody(boardTypesSource, "LastSessionSnapshot");
 
