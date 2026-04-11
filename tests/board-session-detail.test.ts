@@ -83,6 +83,46 @@ describe("HealthReasonTag component", () => {
   });
 });
 
+describe("SessionDetailAccordion component", () => {
+  const accordionSource = readFileSync(
+    join(__dirname, "..", "client", "src", "components", "board", "session-detail-accordion.tsx"),
+    "utf-8"
+  );
+
+  it("exports SessionDetailAccordion function", () => {
+    expect(accordionSource).toMatch(/export\s+function\s+SessionDetailAccordion/);
+  });
+
+  it("imports HealthReasonTag from session-indicators", () => {
+    expect(accordionSource).toMatch(/import\s+.*HealthReasonTag.*from\s+["']\.\/session-indicators["']/);
+  });
+
+  it('contains "Session details" toggle text', () => {
+    expect(accordionSource).toContain("Session details");
+  });
+
+  const statLabels = [
+    "Tool calls",
+    "Errors",
+    "Retries",
+    "Cache hit",
+    "Max tokens",
+    "Web requests",
+    "Sidechains",
+    "Turns",
+  ];
+
+  for (const label of statLabels) {
+    it(`contains stat label "${label}"`, () => {
+      expect(accordionSource).toContain(label);
+    });
+  }
+
+  it("uses useState with false initial value", () => {
+    expect(accordionSource).toMatch(/useState\(\s*false\s*\)/);
+  });
+});
+
 describe("LastSessionSnapshot detail fields", () => {
   const body = extractInterfaceBody(boardTypesSource, "LastSessionSnapshot");
 
