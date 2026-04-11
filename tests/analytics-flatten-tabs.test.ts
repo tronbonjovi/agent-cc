@@ -101,12 +101,12 @@ describe("analytics flatten — Nerve Center topology visualization", () => {
 describe("analytics flatten — Sessions tab", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("imports SessionsPanel from sessions page", () => {
-    expect(src).toMatch(/import.*SessionsPanel.*from.*sessions/);
+  it("imports SessionsTab from sessions components", () => {
+    expect(src).toMatch(/import.*SessionsTab.*from.*sessions/);
   });
 
-  it("renders SessionsPanel in sessions tab content", () => {
-    expect(src).toMatch(/<SessionsPanel/);
+  it("renders SessionsTab in sessions tab content", () => {
+    expect(src).toMatch(/<SessionsTab/);
   });
 });
 

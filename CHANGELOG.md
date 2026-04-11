@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Sessions redesign — list-detail inspector layout** — replaced flat session card list with an email-client style list-detail split. Compact scannable rows with health dots, model badges, cost, and duration. 7 sort options, filter pills (health/status/project/model), keyboard navigation. Detail panel with 7 collapsible sections: overview metric grid, linked task with auto-link score transparency, tool timeline (filterable, color-coded durations), token breakdown (sparkline + per-message table), file impact (directory-grouped), health details (actionable metrics), lifecycle events. Auto-linking enhanced with 2 new scoring signals (command invocations, message content), directory-level file matching, session-duration-aware timing, and milestone minimum length safety.
+
+### Added
 - **Nerve Center v2 — CNS topology visualization** — replaced stacked panel layout with a circuit-board topology: Scanner Brain at center, 5 organ modules (Cost Nerves, Session Vitals, File Sensors, Activity Reflexes, Service Synapses) connected by right-angle SVG circuit traces with junction dots. State-reactive coloring flows from organs to brain. Tiered pulse animations (idle/active/alert). Responsive stacked layout on mobile. 247 tests.
 - **Billing-mode-aware cost display** — Cost Nerves organ respects `billingMode` setting. Subscription mode (default): high usage = green (value), low usage = red (waste). API mode: high usage = red (cost pressure). Trend text adapts accordingly.
 
