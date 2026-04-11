@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy Agent CC: build, kill old process, restart service
+# Deploy Agent CC: build, restart service, verify
 set -e
 
 cd "$(dirname "$0")/.."
@@ -7,24 +7,22 @@ cd "$(dirname "$0")/.."
 echo "Building..."
 npm run build --silent
 
-echo "Stopping old process..."
-# Kill node process directly — avoids systemd SIGTERM timeout
-PID=$(pgrep -f "node dist/index.cjs" 2>/dev/null || true)
-if [ -n "$PID" ]; then
-  sudo kill -9 $PID 2>/dev/null || true
+echo "Restarting service..."
+sudo systemctl restart agent-cc
+
+# Poll health endpoint — server should respond within seconds now that scan is backgrounded
+echo "Waiting for server..."
+for i in $(seq 1 15); do
+  if curl -sf http://127.0.0.1:5100/health > /dev/null 2>&1; then
+    echo "✓ Agent CC is running"
+    exit 0
+  fi
   sleep 1
-fi
+done
 
-# Reset failed state if needed
-sudo systemctl reset-failed agent-cc 2>/dev/null || true
-
-echo "Starting service..."
-sudo systemctl start agent-cc
-
-sleep 2
-
+# Fallback: check systemd status
 if systemctl is-active --quiet agent-cc; then
-  echo "✓ Agent CC is running"
+  echo "✓ Agent CC is running (service active, health endpoint not yet ready)"
 else
   echo "✗ Failed to start — check: journalctl -u agent-cc -n 20"
   exit 1

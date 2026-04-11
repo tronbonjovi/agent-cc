@@ -128,8 +128,15 @@ if (cliArgs.includes("--report")) {
       log(`${storage.getAppSettings().appName} serving on port ${port}`);
     });
 
-    // Run initial scan and start watcher
-    await runFullScan();
-    startWatcher();
+    // Run initial scan in background — don't block the server from handling requests
+    runFullScan()
+      .then(() => {
+        log("Initial scan complete");
+        startWatcher();
+      })
+      .catch((err) => {
+        console.error("Initial scan failed:", err);
+        startWatcher(); // start watcher anyway so future changes are tracked
+      });
   })();
 }
