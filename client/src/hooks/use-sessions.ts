@@ -382,3 +382,24 @@ export function useNerveCenter() {
   });
 }
 
+export interface TokenAnatomyCategory {
+  tokens: number;
+  cost: number;
+}
+
+export interface TokenAnatomyData {
+  systemPrompt: TokenAnatomyCategory;
+  conversation: TokenAnatomyCategory;
+  toolExecution: TokenAnatomyCategory;
+  thinking: TokenAnatomyCategory;
+  cacheOverhead: TokenAnatomyCategory;
+  total: TokenAnatomyCategory;
+}
+
+export function useTokenAnatomy(days = 30) {
+  return useQuery<TokenAnatomyData>({
+    queryKey: [`/api/analytics/costs/anatomy?days=${days}`],
+    staleTime: 5 * 60 * 1000,
+  });
+}
+

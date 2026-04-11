@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { getCostSummary, getSessionCostDetail } from "../scanner/cost-indexer";
+import { computeTokenAnatomy } from "../scanner/token-anatomy";
+import { sessionParseCache } from "../scanner/session-cache";
 
 const router = Router();
 
@@ -25,6 +27,29 @@ router.get("/api/analytics/costs/session/:id", (req, res) => {
   } catch (err) {
     console.error("[cost-analytics] Session detail failed:", (err as Error).message);
     res.status(500).json({ message: "Failed to get session cost detail", error: (err as Error).message });
+  }
+});
+
+/** GET /api/analytics/costs/anatomy?days=30 — Token usage categorized by destination */
+router.get("/api/analytics/costs/anatomy", (_req, res) => {
+  try {
+    const rawDays = parseInt(_req.query.days as string, 10);
+    const days = [7, 30, 90].includes(rawDays) ? rawDays : 30;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString();
+
+    const allSessions = sessionParseCache.getAll();
+    const filtered = Array.from(allSessions.values()).filter(s => {
+      const ts = s.meta.lastTs || s.meta.firstTs;
+      return ts && ts >= cutoffStr;
+    });
+
+    const anatomy = computeTokenAnatomy(filtered);
+    res.json(anatomy);
+  } catch (err) {
+    console.error("[cost-analytics] Anatomy failed:", (err as Error).message);
+    res.status(500).json({ message: "Failed to compute token anatomy", error: (err as Error).message });
   }
 });
 
