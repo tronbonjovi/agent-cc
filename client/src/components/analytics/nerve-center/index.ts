@@ -17,3 +17,6 @@ export type { SessionVitalsProps } from "./SessionVitals";
 
 export { ActivityReflexes } from "./ActivityReflexes";
 export type { ActivityReflexesProps } from "./ActivityReflexes";
+
+export { ScannerBrain } from "./ScannerBrain";
+export type { ScannerBrainProps, SystemState } from "./ScannerBrain";
