@@ -21,6 +21,7 @@ import type {
   ConversationNode,
 } from '../shared/session-types';
 import { parseSessionFile } from '../server/scanner/session-parser';
+import { sessionParseCache } from '../server/scanner/session-cache';
 
 // Helper: build a JSONL file from record objects
 function buildJSONL(records: Record<string, unknown>[]): string {
@@ -1508,5 +1509,68 @@ describe('parseSessionFile', () => {
       expect(parsed!.counts.toolErrors).toBe(1);
       expect(parsed!.counts.toolCalls).toBe(3);
     });
+  });
+});
+
+describe('SessionParseCache integration', () => {
+  afterAll(() => sessionParseCache.invalidateAll());
+
+  it('singleton is importable and has expected API', () => {
+    expect(typeof sessionParseCache.getOrParse).toBe('function');
+    expect(typeof sessionParseCache.invalidateAll).toBe('function');
+    expect(typeof sessionParseCache.getById).toBe('function');
+    expect(typeof sessionParseCache.invalidate).toBe('function');
+    expect(typeof sessionParseCache.size).toBe('number');
+  });
+
+  it('parses a test file through the singleton and caches it', () => {
+    sessionParseCache.invalidateAll();
+    expect(sessionParseCache.size).toBe(0);
+
+    const fp = writeSession('cache-integration', [
+      {
+        parentUuid: null,
+        type: 'human',
+        uuid: 'u1',
+        message: { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+        timestamp: '2026-04-11T10:00:00Z',
+        sessionId: 'cache-test-session',
+      },
+      {
+        parentUuid: 'u1',
+        type: 'assistant',
+        uuid: 'a1',
+        message: {
+          role: 'assistant',
+          model: 'claude-sonnet-4-20250514',
+          content: [{ type: 'text', text: 'hi back' }],
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+        costUSD: 0.001,
+        durationMs: 100,
+        timestamp: '2026-04-11T10:00:01Z',
+        sessionId: 'cache-test-session',
+      },
+    ]);
+
+    const result = sessionParseCache.getOrParse(fp, 'test-project');
+    expect(result).not.toBeNull();
+    expect(result!.meta.sessionId).toBe('cache-integration');
+    expect(sessionParseCache.size).toBe(1);
+
+    // Second call should return cached result
+    const cached = sessionParseCache.getOrParse(fp, 'test-project');
+    expect(cached).toBe(result); // same reference — from cache
+
+    // getById should find it
+    const byId = sessionParseCache.getById('cache-integration');
+    expect(byId).toBe(result);
+  });
+
+  it('invalidateAll clears the cache', () => {
+    expect(sessionParseCache.size).toBeGreaterThan(0);
+    sessionParseCache.invalidateAll();
+    expect(sessionParseCache.size).toBe(0);
   });
 });

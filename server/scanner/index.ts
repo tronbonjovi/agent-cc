@@ -13,6 +13,7 @@ import { scanLibrary } from "./library-scanner";
 import { scanGraphConfig } from "./graph-config-scanner";
 import { scanApiConfig } from "./api-config-scanner";
 import { indexCosts } from "./cost-indexer";
+import { sessionParseCache } from "./session-cache";
 import { entityId, clearProjectDirsCache, encodeProjectKey } from "./utils";
 import { buildRelationships } from "./relationships";
 import { getDB, save } from "../db";
@@ -56,6 +57,7 @@ export async function runFullScan(): Promise<void> {
   try {
     const start = Date.now();
     clearProjectDirsCache();
+    sessionParseCache.invalidateAll();
     notifyClients("scan-start", { version: scanVersion + 1 });
 
     // Run all scanners
@@ -226,6 +228,7 @@ export async function runPartialScan(
       storage.replaceEntitiesByType(standard.type, entities);
       console.log(`[scanner] Partial ${category} scan: ${entities.length} entities, ${Date.now() - start}ms`);
     } else if (category === "sessions") {
+      sessionParseCache.invalidateAll();
       scanAllSessions();
       console.log(`[scanner] Partial sessions scan: ${Date.now() - start}ms`);
     } else if (category === "agents") {
