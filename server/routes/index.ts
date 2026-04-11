@@ -19,6 +19,7 @@ import exportRouter from "./export";
 import costAnalyticsRouter from "./cost-analytics";
 import apisRouter from "./apis";
 import discoverRouter from "./discover";
+import libraryRouter from "./library";
 
 import terminalRouter from "./terminal";
 import { createBoardRouter } from "./board";
@@ -81,6 +82,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.use(costAnalyticsRouter);
   app.use(apisRouter);
   app.use(discoverRouter);
+  app.use(libraryRouter);
 
   app.use(terminalRouter);
   app.use(createBoardRouter(boardEvents));
