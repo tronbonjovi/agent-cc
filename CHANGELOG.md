@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Analytics 5-tab layout** — analytics page restructured from 4 tabs with nested subtabs to 5 flat tabs: Nerve Center, Costs, Charts, Sessions, Messages. Sessions and Messages content now lives under Analytics.
+- **Workflows in Settings** — WorkflowConfigPanel (auto-summarize, stale flags, cost alerts) relocated from Nerve Center subtabs to Settings page as a dedicated Workflows tab.
+- **Prompts in Library** — full-featured PromptsPanel relocated from Messages page to Library Prompts tab. Messages page is now full-width.
+
+### Changed
+- **Nav sidebar reduced to 5 items** — Dashboard, Projects, Library, Analytics, Settings. Sessions and Activity removed (content absorbed into Analytics tabs).
+- **Route redirects** — `/sessions` redirects to `/analytics?tab=sessions`, `/activity` redirects to `/analytics?tab=nerve-center`.
+
+### Removed
+- **Decisions feature** — DecisionLogPanel, `/api/decisions` endpoint, Decision type, storage methods, and decision-extractor.ts removed entirely.
+
 ### Fixed
 - **Empty milestone display bug** — stale "analytics overhaul 0/0" no longer appears on project cards. Removed superseded milestone directory and fixed `activeMilestones()` filter to exclude milestones with zero tasks.
 
