@@ -7,15 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useScanStatus, useRescan } from "@/hooks/use-entities";
-import { useCostAnalytics, useNerveCenter } from "@/hooks/use-sessions";
-import { useAppSettings } from "@/hooks/use-settings";
+import { useNerveCenter } from "@/hooks/use-sessions";
 import {
   BarChart3,
   Bot,
   MessageSquare,
   HardDrive,
   FolderOpen,
-  DollarSign,
   Activity,
   FileText,
   FolderPlus,
@@ -36,6 +34,7 @@ import {
   type PathwayState,
 } from "@/components/analytics/nerve-center";
 import ChartsTab from "@/components/analytics/charts-tab";
+import CostsTab from "@/components/analytics/costs/CostsTab";
 import { SessionsTab } from "@/components/analytics/sessions/SessionsTab";
 import { MessagesPanel } from "@/pages/message-history";
 
@@ -232,7 +231,7 @@ function UsageTab() {
                     className="flex items-center w-full text-sm hover:bg-accent/30 px-2 py-2 rounded-md transition-colors text-left group"
                     onClick={() => setLocation("/projects")}
                   >
-                    <span className="flex-1 truncate text-muted-foreground group-hover:text-foreground transition-colors">{project.name}</span>
+                    <span className="flex-1 min-w-0 truncate text-muted-foreground group-hover:text-foreground transition-colors">{project.name}</span>
                     <span className="w-20 text-right font-mono tabular-nums text-xs">{project.sessions}</span>
                     <span className="w-20 text-right font-mono tabular-nums text-xs text-muted-foreground">{formatBytes(project.size)}</span>
                   </button>
@@ -256,119 +255,6 @@ function UsageTab() {
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
-}
-
-// ---- Tab: Costs ----
-
-function CostsTab() {
-  const { data: costs, isLoading } = useCostAnalytics();
-  const { data: settings } = useAppSettings();
-  const billingMode = settings?.billingMode || "auto";
-  const isSub = billingMode === "subscription" || billingMode === "auto";
-
-  if (isLoading || !costs) return <LoadingSkeleton title="cost data" />;
-
-  return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-medium flex items-center gap-2">
-        <DollarSign className="h-4 w-4 text-green-400" /> {isSub ? "Usage Analytics" : "Cost Analytics"}
-        <span className="text-[11px] text-muted-foreground font-normal">({costs.totalSessions} sessions scanned in {costs.durationMs}ms){isSub ? " — Subscription plan" : ""}</span>
-      </h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">{isSub ? "Total Tokens" : "Total Cost"}</p>
-          <p className="text-2xl font-bold font-mono mt-1 text-green-400">{isSub ? formatTokens(costs.totalInputTokens + costs.totalOutputTokens) : formatUsd(costs.totalCostUsd)}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Input Tokens</p>
-          <p className="text-2xl font-bold font-mono mt-1">{formatTokens(costs.totalInputTokens)}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Output Tokens</p>
-          <p className="text-2xl font-bold font-mono mt-1">{formatTokens(costs.totalOutputTokens)}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium">Sessions</p>
-          <p className="text-2xl font-bold font-mono mt-1">{costs.totalSessions}</p>
-        </div>
-      </div>
-
-      {/* By model */}
-      <div className="rounded-xl border bg-card p-4">
-        <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Cost by Model</p>
-        <div className="space-y-1.5">
-          {Object.entries(costs.byModel).sort((a, b) => b[1].cost - a[1].cost).map(([model, data]) => (
-            <div key={model} className="flex items-center justify-between text-xs">
-              <span className="font-mono text-muted-foreground">{model}</span>
-              <div className="flex items-center gap-4">
-                <span className="text-muted-foreground/60">{formatTokens(data.tokens)} tokens</span>
-                <span className="text-muted-foreground/60">{data.sessions} sessions</span>
-                <span className="font-mono font-medium text-green-400 w-20 text-right">{formatUsd(data.cost)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* By day (last 14 days) */}
-      {costs.byDay.length > 0 && (
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Daily Spend (last 14 days)</p>
-          <div className="space-y-1">
-            {costs.byDay.slice(-14).map(d => {
-              const maxCost = Math.max(...costs.byDay.slice(-14).map(x => x.cost));
-              const pct = maxCost > 0 ? (d.cost / maxCost) * 100 : 0;
-              return (
-                <div key={d.date} className="flex items-center gap-2 text-xs">
-                  <span className="font-mono text-muted-foreground/60 w-20 flex-shrink-0">{d.date.slice(5)}</span>
-                  <div className="flex-1 h-4 bg-muted/30 rounded overflow-hidden">
-                    <div className="h-full bg-green-500/30 rounded" style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="font-mono text-green-400 w-16 text-right flex-shrink-0">{formatUsd(d.cost)}</span>
-                  <span className="text-muted-foreground/50 w-10 text-right flex-shrink-0">{d.sessions}s</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Top sessions by cost */}
-      {costs.topSessions.length > 0 && (
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Most Expensive Sessions</p>
-          <div className="space-y-1">
-            {costs.topSessions.slice(0, 10).map((s, i) => (
-              <div key={s.sessionId} className="flex items-center gap-2 text-xs">
-                <span className="text-muted-foreground/50 w-5 text-right">#{i + 1}</span>
-                <span className="text-muted-foreground truncate flex-1">{s.firstMessage || "(no message)"}</span>
-                <span className="text-muted-foreground/50">{formatTokens(s.tokens)}</span>
-                <span className="font-mono text-green-400 w-16 text-right font-medium">{formatUsd(s.cost)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* By project */}
-      {Object.keys(costs.byProject).length > 0 && (
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60 font-medium mb-2">Cost by Project</p>
-          <div className="space-y-1">
-            {Object.entries(costs.byProject).sort((a, b) => b[1].cost - a[1].cost).slice(0, 10).map(([proj, data]) => (
-              <div key={proj} className="flex items-center justify-between text-xs">
-                <span className="font-mono text-muted-foreground truncate min-w-0 max-w-[300px]">{proj}</span>
-                <div className="flex items-center gap-4">
-                  <span className="text-muted-foreground/50">{data.sessions} sessions</span>
-                  <span className="font-mono text-green-400 w-16 text-right font-medium">{formatUsd(data.cost)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
