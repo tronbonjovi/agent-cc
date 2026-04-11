@@ -2,6 +2,7 @@ import { CLAUDE_DIR, dirExists, fileExists, readHead, readTailTs, extractText, n
 import path from "path";
 import fs from "fs";
 import type { SessionData, SessionStats } from "@shared/types";
+import { sessionParseCache } from "./session-cache";
 
 // Per-project aggregate (backward compat for scanner/index.ts)
 export interface ProjectSessionAgg {
@@ -141,77 +142,69 @@ function parseSession(
   try {
     const basename = path.basename(filePath, ".jsonl");
     const stat = fs.statSync(filePath);
-    const records = readHead(filePath, 25);
-    const lastTs = readTailTs(filePath);
 
-    // Extract slug and firstTs from records
-    let slug = "";
-    let firstTs: string | null = null;
-    let cwd = "";
-    let version = "";
-    let gitBranch = "";
-    for (const r of records) {
-      if (!slug && r.slug) slug = r.slug;
-      if (!firstTs && r.timestamp) firstTs = r.timestamp;
-      if (!cwd && r.cwd) cwd = r.cwd;
-      if (!version && r.version) version = r.version;
-      if (!gitBranch && r.gitBranch) gitBranch = r.gitBranch;
-      if (slug && firstTs && cwd && version && gitBranch) break;
-    }
+    // Use the comprehensive parser for full extraction
+    const parsed = sessionParseCache.getOrParse(filePath, projectKey);
 
-    // Count messages
-    const messageCount = records.filter(r => r.type === "user" || r.type === "assistant").length;
-
-    // First message: try history index first
-    let firstMessage = "";
-    const historyEntries = historyIndex.get(basename) || [];
-    if (historyEntries.length > 0) {
-      const sorted = [...historyEntries].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-      for (const entry of sorted) {
-        const display = (entry.display || "").trim();
-        if (display && !display.startsWith("/")) {
-          firstMessage = display;
-          break;
-        }
-      }
-      if (!firstMessage && sorted.length > 0) {
-        firstMessage = (sorted[0].display || "").trim();
-      }
-    }
-
-    // Fall back to session file content
-    if (!firstMessage) {
-      for (const r of records) {
-        if (r.type === "user") {
-          const msg = r.message;
-          if (msg && typeof msg === "object" && msg.role === "user") {
-            const content = extractText(msg.content || "");
-            if (content && !content.startsWith("<local-command") && !content.startsWith("<command-name") && !content.includes("[Request interrupted")) {
-              firstMessage = content;
-              break;
-            }
+    if (parsed) {
+      // Derive firstMessage: prefer history index (matches current behavior)
+      let firstMessage = "";
+      const historyEntries = historyIndex.get(basename) || [];
+      if (historyEntries.length > 0) {
+        const sorted = [...historyEntries].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        for (const entry of sorted) {
+          const display = (entry.display || "").trim();
+          if (display && !display.startsWith("/")) {
+            firstMessage = display;
+            break;
           }
         }
+        if (!firstMessage && sorted.length > 0) {
+          firstMessage = (sorted[0].display || "").trim();
+        }
       }
+      // Fall back to parser's firstMessage
+      if (!firstMessage) {
+        firstMessage = parsed.meta.firstMessage;
+      }
+
+      const messageCount = parsed.counts.assistantMessages + parsed.counts.userMessages;
+      const isEmpty = !firstMessage || messageCount < 3;
+
+      return {
+        id: basename,
+        slug: parsed.meta.slug,
+        firstMessage: firstMessage.replace(/^---\n[\s\S]*?\n---\n*/, "").replace(/\n/g, " ").trim(),
+        firstTs: parsed.meta.firstTs,
+        lastTs: parsed.meta.lastTs,
+        messageCount,
+        sizeBytes: stat.size,
+        isEmpty,
+        isActive: activeSessions.has(basename),
+        filePath: filePath.replace(/\\/g, "/"),
+        projectKey,
+        cwd: parsed.meta.cwd,
+        version: parsed.meta.version,
+        gitBranch: parsed.meta.gitBranch,
+      };
     }
 
-    const isEmpty = !firstMessage || records.length < 3;
-
+    // Fallback: if parser returned null (empty file), use minimal approach
     return {
       id: basename,
-      slug,
-      firstMessage: firstMessage.replace(/^---\n[\s\S]*?\n---\n*/, "").replace(/\n/g, " ").trim(),
-      firstTs,
-      lastTs,
-      messageCount,
+      slug: "",
+      firstMessage: "",
+      firstTs: null,
+      lastTs: null,
+      messageCount: 0,
       sizeBytes: stat.size,
-      isEmpty,
+      isEmpty: true,
       isActive: activeSessions.has(basename),
       filePath: filePath.replace(/\\/g, "/"),
       projectKey,
-      cwd,
-      version,
-      gitBranch,
+      cwd: "",
+      version: "",
+      gitBranch: "",
     };
   } catch {
     return null;
