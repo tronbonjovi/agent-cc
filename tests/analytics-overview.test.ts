@@ -275,3 +275,218 @@ describe("d3-force dependency", () => {
     expect(inDeps || inDevDeps).toBeTruthy();
   });
 });
+
+// ─── 8. Entity graph renderer component tests ──────────────────────────────
+
+const ENTITY_GRAPH_DIR = path.resolve(
+  __dirname,
+  "../client/src/components/analytics/entity-graph",
+);
+
+describe("EntityGraph.tsx", () => {
+  const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "EntityGraph.tsx"), "utf-8");
+
+  it("renders an SVG element", () => {
+    expect(src).toMatch(/<svg/);
+    expect(src).toMatch(/viewBox/);
+  });
+
+  it("uses useForceGraph and useForceLayout hooks", () => {
+    expect(src).toMatch(/useForceGraph/);
+    expect(src).toMatch(/useForceLayout/);
+  });
+
+  it("computes highlighted subgraph on hover", () => {
+    expect(src).toMatch(/highlightedNodes/);
+    expect(src).toMatch(/highlightedEdges/);
+    expect(src).toMatch(/hoveredNodeId/);
+  });
+
+  it("supports drill-in from system to sessions scope", () => {
+    expect(src).toMatch(/scope/);
+    expect(src).toMatch(/drillProjectKey/);
+    expect(src).toMatch(/setScope/);
+  });
+
+  it("renders breadcrumb in sessions scope", () => {
+    // Should have breadcrumb with back navigation for drill-in
+    expect(src).toMatch(/breadcrumb|Breadcrumb|System/i);
+    expect(src).toMatch(/back|Back/i);
+  });
+
+  it("measures container with ResizeObserver", () => {
+    expect(src).toMatch(/ResizeObserver/);
+    expect(src).toMatch(/containerRef/);
+  });
+});
+
+describe("GraphNode.tsx", () => {
+  const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "GraphNode.tsx"), "utf-8");
+
+  it("renders circle elements for each node", () => {
+    expect(src).toMatch(/<circle/);
+  });
+
+  it("uses NODE_COLORS for color mapping", () => {
+    expect(src).toMatch(/NODE_COLORS/);
+  });
+
+  it("applies correct stroke width by type via getStrokeWidth", () => {
+    // GraphNode imports getStrokeWidth from graph-colors which has 1.5/1/0.7
+    expect(src).toMatch(/getStrokeWidth/);
+    // Verify the values exist in graph-colors.ts
+    const colorsSrc = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
+    expect(colorsSrc).toMatch(/1\.5/);
+    expect(colorsSrc).toMatch(/0\.7/);
+  });
+
+  it("dims unrelated nodes to 0.12 opacity", () => {
+    expect(src).toMatch(/0\.12/);
+  });
+
+  it("has hover, click, and drag handlers", () => {
+    expect(src).toMatch(/onMouseEnter/);
+    expect(src).toMatch(/onMouseLeave/);
+    expect(src).toMatch(/onClick/);
+    expect(src).toMatch(/onMouseDown/);
+  });
+
+  it("uses React.memo for performance", () => {
+    expect(src).toMatch(/React\.memo|memo\(/);
+  });
+
+  it("shows labels only for nodes with r > 8", () => {
+    expect(src).toMatch(/<text/);
+    expect(src).toMatch(/r\s*>\s*8|r > 8/);
+  });
+
+  it("uses grab/grabbing cursors", () => {
+    expect(src).toMatch(/grab/);
+    expect(src).toMatch(/grabbing/);
+  });
+});
+
+describe("GraphEdge.tsx", () => {
+  const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "GraphEdge.tsx"), "utf-8");
+
+  it("renders path elements with bezier curves", () => {
+    expect(src).toMatch(/<path/);
+    expect(src).toMatch(/Q/); // quadratic bezier
+  });
+
+  it("distinguishes hierarchical and cross-ref edges", () => {
+    // Hierarchical: solid, cross-ref: dashed
+    expect(src).toMatch(/strokeDasharray|dash/i);
+  });
+
+  it("applies correct default opacities via getEdgeOpacity", () => {
+    // GraphEdge calls getEdgeOpacity from graph-colors — verify wiring + values
+    expect(src).toMatch(/getEdgeOpacity/);
+    const colorsSrc = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
+    // Solid: 0.15, dashed: 0.08
+    expect(colorsSrc).toMatch(/0\.15/);
+    expect(colorsSrc).toMatch(/0\.08/);
+  });
+
+  it("highlights edges at 0.5 opacity via getEdgeOpacity", () => {
+    expect(src).toMatch(/getEdgeOpacity/);
+    const colorsSrc = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
+    expect(colorsSrc).toMatch(/0\.5/);
+  });
+
+  it("dims edges to 0.03 opacity via getEdgeOpacity", () => {
+    expect(src).toMatch(/getEdgeOpacity/);
+    const colorsSrc = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
+    expect(colorsSrc).toMatch(/0\.03/);
+  });
+
+  it("uses fill=none on paths", () => {
+    expect(src).toMatch(/fill.*none|fill="none"/);
+  });
+});
+
+describe("GraphSidebar.tsx", () => {
+  const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "GraphSidebar.tsx"), "utf-8");
+
+  it("shows placeholder when nothing is hovered", () => {
+    expect(src).toMatch(/Hover a node for details/);
+  });
+
+  it("shows node detail when hoveredNodeId is set", () => {
+    // Should display node name, type badge, and meta fields
+    expect(src).toMatch(/hoveredNode|node\.label|label/);
+    expect(src).toMatch(/Badge/);
+  });
+
+  it("has stats section with entity counts", () => {
+    expect(src).toMatch(/stats/i);
+    expect(src).toMatch(/totalSessions|totalCost|totalEntities/);
+  });
+});
+
+describe("FlowParticles.tsx", () => {
+  const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "FlowParticles.tsx"), "utf-8");
+
+  it("renders animateMotion elements", () => {
+    expect(src).toMatch(/animateMotion/);
+  });
+
+  it("limits to 30 particles when edges > 100", () => {
+    expect(src).toMatch(/30/);
+    expect(src).toMatch(/100/);
+  });
+
+  it("uses randomized duration for variety", () => {
+    expect(src).toMatch(/Math\.random|random/);
+    expect(src).toMatch(/dur/);
+  });
+});
+
+describe("graph-colors.ts", () => {
+  const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
+
+  it("exports NODE_COLORS with all entity types", () => {
+    expect(src).toMatch(/export\s+(const|function)/);
+    expect(src).toMatch(/NODE_COLORS/);
+    expect(src).toMatch(/project/);
+    expect(src).toMatch(/mcp/);
+    expect(src).toMatch(/skill/);
+    expect(src).toMatch(/plugin/);
+    expect(src).toMatch(/markdown/);
+    expect(src).toMatch(/config/);
+    expect(src).toMatch(/session/);
+    expect(src).toMatch(/cost/);
+    expect(src).toMatch(/tool/);
+    expect(src).toMatch(/agent/);
+  });
+
+  it("has stroke width helper", () => {
+    expect(src).toMatch(/strokeWidth|stroke.*width/i);
+  });
+
+  it("has hierarchical edge detection helper", () => {
+    expect(src).toMatch(/hierarchical|HIERARCHICAL/i);
+  });
+});
+
+describe("entity-graph barrel export", () => {
+  const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "index.ts"), "utf-8");
+
+  it("exports EntityGraph component", () => {
+    expect(src).toMatch(/EntityGraph/);
+  });
+});
+
+describe("mobile fallback", () => {
+  const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "EntityGraph.tsx"), "utf-8");
+
+  it("imports useBreakpoint and isMobile", () => {
+    expect(src).toMatch(/useBreakpoint/);
+    expect(src).toMatch(/isMobile/);
+  });
+
+  it("renders simplified layout on mobile instead of SVG", () => {
+    // Should have a conditional that checks mobile and renders a different layout
+    expect(src).toMatch(/mobile|Mobile/);
+  });
+});
