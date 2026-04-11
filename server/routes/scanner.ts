@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { storage } from "../storage";
-import { runFullScan, isScanning, getScanVersion, getLastScanDuration, addSSEClient } from "../scanner/index";
+import { runFullScan, isScanning, getScanVersion, getLastScanDuration, getParseCacheSize, addSSEClient } from "../scanner/index";
 
 const router = Router();
 
@@ -24,6 +24,7 @@ router.get("/api/scanner/status", (_req: Request, res: Response) => {
     ...status,
     scanVersion: getScanVersion(),
     lastScanDuration: getLastScanDuration(),
+    parseCacheSize: getParseCacheSize(),
   });
 });
 

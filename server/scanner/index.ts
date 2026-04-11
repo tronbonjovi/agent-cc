@@ -38,6 +38,11 @@ export function getLastScanDuration(): number {
   return lastScanDuration;
 }
 
+/** Return the number of entries in the session parse cache. */
+export function getParseCacheSize(): number {
+  return sessionParseCache.size;
+}
+
 export function addSSEClient(send: (data: string) => void): () => void {
   sseClients.add(send);
   return () => sseClients.delete(send);
