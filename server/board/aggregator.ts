@@ -117,7 +117,7 @@ export function mapTaskToBoard(
     : undefined;
 
   const linkedSessionId = task.sessionId;
-  const enrichment = enrichTaskSession(linkedSessionId, sessions);
+  const enrichment = enrichTaskSession(linkedSessionId, sessions, task);
 
   // Build/update lastSession snapshot: active session > cached snapshot
   let lastSession: import("@shared/board-types").LastSessionSnapshot | undefined;

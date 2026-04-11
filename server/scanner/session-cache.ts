@@ -56,6 +56,15 @@ export class SessionParseCache {
     this.entries.delete(filePath);
   }
 
+  /** Return all cached parsed sessions as a Map keyed by sessionId. */
+  getAll(): Map<string, ParsedSession> {
+    const result = new Map<string, ParsedSession>();
+    Array.from(this.entries).forEach(([, entry]) => {
+      result.set(entry.parsed.meta.sessionId, entry.parsed);
+    });
+    return result;
+  }
+
   /** Number of cached sessions. */
   get size(): number {
     return this.entries.size;

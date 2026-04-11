@@ -15,10 +15,10 @@ vi.mock("../server/scanner/agent-scanner", () => ({
 }));
 
 vi.mock("../server/scanner/session-cache", () => ({
-  sessionParseCache: { getById: vi.fn() },
+  sessionParseCache: { getById: vi.fn(), getAll: vi.fn() },
 }));
 
-import { enrichTaskSession, buildSessionSnapshot, cacheSnapshot, getCachedSnapshot, clearSnapshotCache } from "../server/board/session-enricher";
+import { enrichTaskSession, autoLinkSession, buildSessionSnapshot, cacheSnapshot, getCachedSnapshot, clearSnapshotCache } from "../server/board/session-enricher";
 import { getCachedSessions } from "../server/scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../server/scanner/session-analytics";
 import { getCachedExecutions } from "../server/scanner/agent-scanner";
@@ -29,6 +29,7 @@ const mockGetById = vi.mocked(sessionParseCache.getById);
 const mockGetSessionCost = vi.mocked(getSessionCost);
 const mockGetSessionHealth = vi.mocked(getSessionHealth);
 const mockGetCachedExecutions = vi.mocked(getCachedExecutions);
+const mockGetAll = vi.mocked(sessionParseCache.getAll);
 
 const makeSession = (overrides = {}) => ({
   id: "sess-abc123",
@@ -414,6 +415,54 @@ describe("enrichTaskSession", () => {
     expect(result!.webRequests).toBe(0);
     expect(result!.sidechainCount).toBe(0);
     expect(result!.turnCount).toBe(0);
+  });
+
+  it("auto-links session when no manual sessionId and branch matches task ID", () => {
+    const session = makeSession({ id: "sess-autolinked" });
+    const cost = makeCost({ sessionId: "sess-autolinked" });
+    const health = makeHealth({ sessionId: "sess-autolinked" });
+    const parsed = makeParsedSession({
+      meta: {
+        sessionId: "sess-autolinked",
+        slug: "auto-link-session",
+        firstMessage: "Working on task",
+        firstTs: "2026-04-01T10:00:00.000Z",
+        lastTs: "2026-04-01T10:30:00.000Z",
+        sizeBytes: 2048,
+        filePath: "/tmp/autolink.jsonl",
+        projectKey: "my-project",
+        cwd: "/home/user/project",
+        version: "1.0.0",
+        gitBranch: "feat/card-enrichment-task004",
+        entrypoint: "cli",
+      },
+    });
+
+    const task = {
+      id: "card-enrichment-task004",
+      title: "Wire auto-link",
+      status: "in_progress",
+      type: "task" as const,
+      created: "2026-04-01",
+      updated: "2026-04-01",
+      labels: [],
+    };
+
+    // sessionParseCache.getAll returns all parsed sessions for auto-link
+    const parsedMap = new Map([["sess-autolinked", parsed]]);
+    mockGetAll.mockReturnValue(parsedMap as any);
+
+    // Session lookup for enrichment
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(parsed as any);
+
+    // No manual sessionId, but task provided — should auto-link
+    const result = enrichTaskSession(undefined, [session] as any, task as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.sessionId).toBe("sess-autolinked");
   });
 
   it("computes cacheHitRate as null when no cache tokens exist", () => {

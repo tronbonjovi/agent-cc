@@ -85,7 +85,14 @@ export function clearSnapshotCache(): void {
  * when called in a loop (e.g., from the aggregator).
  * Returns null if no sessionId or session not found.
  */
-export function enrichTaskSession(sessionId: string | undefined, sessions?: SessionData[]): SessionEnrichment | null {
+export function enrichTaskSession(sessionId: string | undefined, sessions?: SessionData[], task?: TaskItem): SessionEnrichment | null {
+  // Auto-link fallback: when no manual sessionId, try to find one by matching signals
+  if (!sessionId && task) {
+    const allParsed = sessionParseCache.getAll();
+    const autoLinkedId = autoLinkSession(task, allParsed);
+    if (autoLinkedId) sessionId = autoLinkedId;
+  }
+
   if (!sessionId) return null;
 
   const allSessions = sessions ?? getCachedSessions();
