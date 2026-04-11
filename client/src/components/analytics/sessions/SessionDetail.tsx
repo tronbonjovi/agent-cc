@@ -71,6 +71,9 @@ export function SessionDetail({
     );
   }
 
+  // Prefer prop, fall back to API response
+  const resolvedParsed = parsed ?? session.parsed ?? null;
+
   const displayName = sessionNames?.[session.id] || session.firstMessage || session.slug || session.id.slice(0, 8);
 
   // Time range
@@ -154,7 +157,7 @@ export function SessionDetail({
         />
         {openSections.has("overview") && (
           <SessionOverview
-            parsed={parsed ?? null}
+            parsed={resolvedParsed}
             costUsd={costUsd}
             inputTokens={inputTokens}
             outputTokens={outputTokens}
@@ -189,10 +192,10 @@ export function SessionDetail({
           isOpen={openSections.has("tools")}
           onToggle={() => toggleSection("tools")}
         />
-        {openSections.has("tools") && parsed && (
-          <ToolTimeline tools={parsed.toolTimeline} sessionStartTs={parsed.meta.firstTs} />
+        {openSections.has("tools") && resolvedParsed && (
+          <ToolTimeline tools={resolvedParsed.toolTimeline} sessionStartTs={resolvedParsed.meta.firstTs} />
         )}
-        {openSections.has("tools") && !parsed && (
+        {openSections.has("tools") && !resolvedParsed && (
           <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
         )}
 
@@ -202,10 +205,10 @@ export function SessionDetail({
           isOpen={openSections.has("tokens")}
           onToggle={() => toggleSection("tokens")}
         />
-        {openSections.has("tokens") && parsed && (
-          <TokenBreakdown assistantMessages={parsed.assistantMessages} userMessages={parsed.userMessages} />
+        {openSections.has("tokens") && resolvedParsed && (
+          <TokenBreakdown assistantMessages={resolvedParsed.assistantMessages} userMessages={resolvedParsed.userMessages} />
         )}
-        {openSections.has("tokens") && !parsed && (
+        {openSections.has("tokens") && !resolvedParsed && (
           <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
         )}
 
@@ -215,10 +218,10 @@ export function SessionDetail({
           isOpen={openSections.has("files")}
           onToggle={() => toggleSection("files")}
         />
-        {openSections.has("files") && parsed && (
-          <FileImpact tools={parsed.toolTimeline} />
+        {openSections.has("files") && resolvedParsed && (
+          <FileImpact tools={resolvedParsed.toolTimeline} />
         )}
-        {openSections.has("files") && !parsed && (
+        {openSections.has("files") && !resolvedParsed && (
           <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
         )}
 
@@ -245,10 +248,10 @@ export function SessionDetail({
           isOpen={openSections.has("lifecycle")}
           onToggle={() => toggleSection("lifecycle")}
         />
-        {openSections.has("lifecycle") && parsed && (
-          <LifecycleEvents events={parsed.lifecycle} sessionStartTs={parsed.meta.firstTs} />
+        {openSections.has("lifecycle") && resolvedParsed && (
+          <LifecycleEvents events={resolvedParsed.lifecycle} sessionStartTs={resolvedParsed.meta.firstTs} />
         )}
-        {openSections.has("lifecycle") && !parsed && (
+        {openSections.has("lifecycle") && !resolvedParsed && (
           <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
         )}
       </div>

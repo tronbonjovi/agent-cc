@@ -19,6 +19,7 @@ import { runNLQuery } from "../scanner/nl-query";
 import { getContinuationBrief } from "../scanner/continuation-detector";
 import { getBashKnowledgeBase, searchBashCommands } from "../scanner/bash-knowledge";
 import { getNerveCenterData } from "../scanner/nerve-center";
+import { sessionParseCache } from "../scanner/session-cache";
 import { storage } from "../storage";
 import crypto from "crypto";
 
@@ -487,8 +488,9 @@ router.get("/api/sessions/:id", async (req: Request, res: Response) => {
   if (!safePath) return res.status(403).json({ message: "Session file path outside allowed directory" });
 
   const records = readMessageTimeline(safePath);
+  const parsed = sessionParseCache.getById(session.id);
 
-  res.json({ ...session, records });
+  res.json({ ...session, records, parsed: parsed ?? null });
 });
 
 /** Find the JSONL file for a session across all project dirs */

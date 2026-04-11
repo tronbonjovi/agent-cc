@@ -10,6 +10,7 @@ import type {
   ContinuationBrief, BashKnowledgeBase, BashSearchResult,
   NerveCenterData,
 } from "@shared/types";
+import type { ParsedSession } from "@shared/session-types";
 
 export function useSessions(params?: { q?: string; sort?: string; order?: string; hideEmpty?: boolean; activeOnly?: boolean; project?: string }) {
   const p = new URLSearchParams();
@@ -26,7 +27,7 @@ export function useSessions(params?: { q?: string; sort?: string; order?: string
 }
 
 export function useSessionDetail(id: string | undefined) {
-  return useQuery<SessionData & { records: { type: string; role?: string; timestamp: string; contentPreview: string }[] }>({
+  return useQuery<SessionData & { records: { type: string; role?: string; timestamp: string; contentPreview: string }[]; parsed: ParsedSession | null }>({
     queryKey: [`/api/sessions/${id}`],
     enabled: !!id,
   });
