@@ -154,11 +154,14 @@ function buildEntityMeta(entity: Entity): Record<string, unknown> {
   switch (entity.type) {
     case "project": {
       const data = (entity as ProjectEntity).data;
+      // Session scanner uses encoded path keys (e.g. -home-tron-dev-projects-agent-cc)
+      // Entity scanner uses basenames (e.g. agent-cc). Derive session key from entity path.
+      const sessionKey = entity.path ? entity.path.replace(/\//g, "-") : data.projectKey;
       return {
         sessionCount: data.sessionCount,
         techStack: data.techStack || [],
         hasClaudeMd: data.hasClaudeMd,
-        projectKey: data.projectKey,
+        projectKey: sessionKey,
       };
     }
     case "mcp":

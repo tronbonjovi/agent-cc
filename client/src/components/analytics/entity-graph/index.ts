@@ -7,4 +7,4 @@ export { GraphSidebar } from "./GraphSidebar";
 export type { GraphSidebarProps } from "./GraphSidebar";
 export { FlowParticles } from "./FlowParticles";
 export type { FlowParticlesProps } from "./FlowParticles";
-export { NODE_COLORS, getStrokeWidth, isHierarchical, getEdgeOpacity, getEdgeStrokeWidth } from "./graph-colors";
+export { NODE_COLORS, EDGE_COLOR, getEdgeOpacity } from "./graph-colors";

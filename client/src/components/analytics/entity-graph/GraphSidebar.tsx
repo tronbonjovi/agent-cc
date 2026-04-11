@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 import type { PositionedNode } from "@/hooks/use-force-layout";
 import type { ForceGraphData } from "@shared/types";
 import { NODE_COLORS } from "./graph-colors";
@@ -8,9 +9,10 @@ import { NODE_COLORS } from "./graph-colors";
 // ── Types ──────────────────────────────────────────────────────────────
 
 interface GraphSidebarProps {
-  hoveredNode: PositionedNode | null;
+  selectedNode: PositionedNode | null;
   data: ForceGraphData | undefined;
   connectionCount: number;
+  onDismiss: () => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -22,7 +24,7 @@ function formatCost(n: number): string {
   return "$0.00";
 }
 
-/** Render type-specific metadata fields for the hover detail. */
+/** Render type-specific metadata fields for the detail panel. */
 function MetaFields({ node }: { node: PositionedNode }) {
   const meta = node.meta ?? {};
 
@@ -112,11 +114,10 @@ function MetaFields({ node }: { node: PositionedNode }) {
 // ── Component ──────────────────────────────────────────────────────────
 
 /**
- * Sidebar overlay for the entity graph. Shows hover detail and system stats.
- * Positioned absolute right inside the graph container.
+ * Sidebar overlay for the entity graph. Shows click-pinned node detail and stats.
+ * Click a node to pin its details; click X to dismiss.
  */
-function GraphSidebar({ hoveredNode, data, connectionCount }: GraphSidebarProps) {
-  // Count entities by type for the stats section
+function GraphSidebar({ selectedNode, data, connectionCount, onDismiss }: GraphSidebarProps) {
   const typeCounts = useMemo(() => {
     if (!data?.nodes) return {};
     const counts: Record<string, number> = {};
@@ -128,35 +129,43 @@ function GraphSidebar({ hoveredNode, data, connectionCount }: GraphSidebarProps)
 
   return (
     <div className="absolute right-0 top-0 bottom-0 w-56 flex flex-col gap-3 p-3 pointer-events-none">
-      {/* ── Hover detail card ── */}
+      {/* ── Detail card (click-to-pin) ── */}
       <Card className="pointer-events-auto">
-        <CardHeader className="p-3 pb-1">
+        <CardHeader className="p-3 pb-1 flex flex-row items-center justify-between">
           <CardTitle className="text-xs font-medium text-muted-foreground">Details</CardTitle>
+          {selectedNode && (
+            <button
+              onClick={onDismiss}
+              className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </CardHeader>
         <CardContent className="p-3 pt-1">
-          {hoveredNode ? (
+          {selectedNode ? (
             <div className="space-y-2">
               <div className="flex items-start gap-2">
                 <div
                   className="mt-0.5 w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: NODE_COLORS[hoveredNode.type] }}
+                  style={{ backgroundColor: NODE_COLORS[selectedNode.type] }}
                 />
                 <div className="min-w-0">
                   <div className="font-semibold text-sm leading-tight truncate">
-                    {hoveredNode.label}
+                    {selectedNode.label}
                   </div>
                   <Badge variant="outline" className="text-[9px] px-1 py-0 mt-1">
-                    {hoveredNode.type}
+                    {selectedNode.type}
                   </Badge>
                 </div>
               </div>
-              <MetaFields node={hoveredNode} />
+              <MetaFields node={selectedNode} />
               <div className="text-[10px] text-muted-foreground/60 pt-1 border-t border-border/30">
                 {connectionCount} connection{connectionCount !== 1 ? "s" : ""}
               </div>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground/50">Hover a node for details</p>
+            <p className="text-xs text-muted-foreground/50">Click a node for details</p>
           )}
         </CardContent>
       </Card>
@@ -181,7 +190,6 @@ function GraphSidebar({ hoveredNode, data, connectionCount }: GraphSidebarProps)
               <span className="font-mono tabular-nums">{formatCost(data.stats.totalCost)}</span>
             </div>
 
-            {/* Entity counts by type */}
             <div className="pt-1.5 mt-1.5 border-t border-border/30 space-y-1">
               {Object.entries(typeCounts)
                 .sort(([, a], [, b]) => b - a)

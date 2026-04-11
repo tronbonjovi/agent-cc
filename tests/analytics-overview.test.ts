@@ -331,17 +331,14 @@ describe("GraphNode.tsx", () => {
     expect(src).toMatch(/NODE_COLORS/);
   });
 
-  it("applies correct stroke width by type via getStrokeWidth", () => {
-    // GraphNode imports getStrokeWidth from graph-colors which has 1.5/1/0.7
-    expect(src).toMatch(/getStrokeWidth/);
-    // Verify the values exist in graph-colors.ts
-    const colorsSrc = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
-    expect(colorsSrc).toMatch(/1\.5/);
-    expect(colorsSrc).toMatch(/0\.7/);
+  it("renders solid-fill circles using NODE_COLORS", () => {
+    // GraphNode uses fill={color} with NODE_COLORS, no stroke-based sizing
+    expect(src).toMatch(/fill=\{color\}/);
+    expect(src).toMatch(/NODE_COLORS/);
   });
 
-  it("dims unrelated nodes to 0.12 opacity", () => {
-    expect(src).toMatch(/0\.12/);
+  it("dims unrelated nodes to 0.3 opacity", () => {
+    expect(src).toMatch(/0\.3/);
   });
 
   it("has hover, click, and drag handlers", () => {
@@ -355,9 +352,10 @@ describe("GraphNode.tsx", () => {
     expect(src).toMatch(/React\.memo|memo\(/);
   });
 
-  it("shows labels only for nodes with r > 8", () => {
+  it("uses zoom-driven label visibility", () => {
     expect(src).toMatch(/<text/);
-    expect(src).toMatch(/r\s*>\s*8|r > 8/);
+    expect(src).toMatch(/zoomScale/);
+    expect(src).toMatch(/r\s*>\s*10|r > 10/);
   });
 
   it("uses grab/grabbing cursors", () => {
@@ -374,30 +372,20 @@ describe("GraphEdge.tsx", () => {
     expect(src).toMatch(/Q/); // quadratic bezier
   });
 
-  it("distinguishes hierarchical and cross-ref edges", () => {
-    // Hierarchical: solid, cross-ref: dashed
-    expect(src).toMatch(/strokeDasharray|dash/i);
+  it("uses solid edges with uniform neutral color", () => {
+    // All edges solid — no dashed/dotted
+    expect(src).not.toMatch(/strokeDasharray/);
+    expect(src).toMatch(/EDGE_COLOR/);
+    expect(src).toMatch(/strokeWidth.*0\.8|strokeWidth={0\.8}/);
   });
 
-  it("applies correct default opacities via getEdgeOpacity", () => {
-    // GraphEdge calls getEdgeOpacity from graph-colors — verify wiring + values
+  it("applies correct opacities via getEdgeOpacity", () => {
     expect(src).toMatch(/getEdgeOpacity/);
     const colorsSrc = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
-    // Solid: 0.15, dashed: 0.08
+    // Default: 0.4, highlighted: 0.7, dimmed: 0.15
+    expect(colorsSrc).toMatch(/0\.4/);
+    expect(colorsSrc).toMatch(/0\.7/);
     expect(colorsSrc).toMatch(/0\.15/);
-    expect(colorsSrc).toMatch(/0\.08/);
-  });
-
-  it("highlights edges at 0.5 opacity via getEdgeOpacity", () => {
-    expect(src).toMatch(/getEdgeOpacity/);
-    const colorsSrc = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
-    expect(colorsSrc).toMatch(/0\.5/);
-  });
-
-  it("dims edges to 0.03 opacity via getEdgeOpacity", () => {
-    expect(src).toMatch(/getEdgeOpacity/);
-    const colorsSrc = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "graph-colors.ts"), "utf-8");
-    expect(colorsSrc).toMatch(/0\.03/);
   });
 
   it("uses fill=none on paths", () => {
@@ -408,8 +396,8 @@ describe("GraphEdge.tsx", () => {
 describe("GraphSidebar.tsx", () => {
   const src = fs.readFileSync(path.join(ENTITY_GRAPH_DIR, "GraphSidebar.tsx"), "utf-8");
 
-  it("shows placeholder when nothing is hovered", () => {
-    expect(src).toMatch(/Hover a node for details/);
+  it("shows placeholder when nothing is selected", () => {
+    expect(src).toMatch(/Click a node for details/);
   });
 
   it("shows node detail when hoveredNodeId is set", () => {
@@ -431,9 +419,8 @@ describe("FlowParticles.tsx", () => {
     expect(src).toMatch(/animateMotion/);
   });
 
-  it("limits to 30 particles when edges > 100", () => {
-    expect(src).toMatch(/30/);
-    expect(src).toMatch(/100/);
+  it("limits to 30 particles", () => {
+    expect(src).toMatch(/MAX_PARTICLES.*30|30/);
   });
 
   it("uses randomized duration for variety", () => {
@@ -460,12 +447,15 @@ describe("graph-colors.ts", () => {
     expect(src).toMatch(/agent/);
   });
 
-  it("has stroke width helper", () => {
-    expect(src).toMatch(/strokeWidth|stroke.*width/i);
+  it("exports EDGE_COLOR for neutral edge styling", () => {
+    expect(src).toMatch(/EDGE_COLOR/);
+    expect(src).toMatch(/--border/);
   });
 
-  it("has hierarchical edge detection helper", () => {
-    expect(src).toMatch(/hierarchical|HIERARCHICAL/i);
+  it("exports getEdgeOpacity with default, highlight, dim states", () => {
+    expect(src).toMatch(/getEdgeOpacity/);
+    expect(src).toMatch(/isHighlighted/);
+    expect(src).toMatch(/isDimmed/);
   });
 });
 

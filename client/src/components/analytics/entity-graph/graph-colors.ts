@@ -14,47 +14,20 @@ export const NODE_COLORS: Record<string, string> = {
   agent:    "hsl(var(--chart-4))",
 };
 
-/** Stroke width by node type — larger nodes get thicker strokes. */
-export function getStrokeWidth(type: string): number {
-  if (type === "project") return 1.5;
-  if (type === "session" || type === "mcp" || type === "skill") return 1;
-  return 0.7;
-}
-
-/** Relations that represent parent-child / hierarchical connections. */
-const HIERARCHICAL_RELATIONS = new Set([
-  "defines_mcp",
-  "has_skill",
-  "has_claude_md",
-  "has_memory",
-  "has_session",
-  "tool_call",
-  "cost",
-  "agent_exec",
-]);
-
-/** Returns true for relations that are hierarchical (solid edge style). */
-export function isHierarchical(relation: string): boolean {
-  return HIERARCHICAL_RELATIONS.has(relation);
-}
+/** Neutral edge color — edges provide structure, nodes provide color. */
+export const EDGE_COLOR = "hsl(var(--border))";
 
 /**
  * Compute edge opacity based on highlight state.
- * - Default: 0.15 for hierarchical (solid), 0.08 for cross-ref (dashed)
- * - Highlighted (endpoint is hovered): 0.5
- * - Dimmed (another node is hovered): 0.03
+ * - Default: 0.4 (always visible)
+ * - Highlighted (endpoint is hovered): 0.7
+ * - Dimmed (another node is hovered): 0.15
  */
 export function getEdgeOpacity(
-  relation: string,
   isHighlighted: boolean,
   isDimmed: boolean,
 ): number {
-  if (isHighlighted) return 0.5;
-  if (isDimmed) return 0.03;
-  return isHierarchical(relation) ? 0.15 : 0.08;
-}
-
-/** Edge stroke width: hierarchical = 0.8px, cross-ref = 0.5px. */
-export function getEdgeStrokeWidth(relation: string): number {
-  return isHierarchical(relation) ? 0.8 : 0.5;
+  if (isHighlighted) return 0.7;
+  if (isDimmed) return 0.15;
+  return 0.4;
 }

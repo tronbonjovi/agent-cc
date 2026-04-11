@@ -62,7 +62,7 @@ export function useForceLayout(
   edges: ForceEdge[],
   options: UseForceLayoutOptions,
 ): UseForceLayoutResult {
-  const { width, height, minRadius = 6, maxRadius = 40 } = options;
+  const { width, height, minRadius = 3, maxRadius = 16 } = options;
 
   const [positioned, setPositioned] = useState<PositionedNode[]>([]);
   const [links, setLinks] = useState<PositionedEdge[]>([]);
@@ -84,16 +84,21 @@ export function useForceLayout(
       return;
     }
 
-    // Preserve existing node positions for continuity on data change
+    // Check if node set changed significantly (scope switch) — if so, scatter fresh
     const existing = prevNodesRef.current;
+    const newIds = new Set(nodes.map((n) => n.id));
+    const overlap = Array.from(existing.keys()).filter((id) => newIds.has(id)).length;
+    if (existing.size > 0 && overlap < newIds.size * 0.5) {
+      existing.clear();
+    }
 
     const simNodes: PositionedNode[] = nodes.map((node) => {
       const r = minRadius + node.weight * (maxRadius - minRadius);
       const prev = existing.get(node.id);
       return {
         ...node,
-        x: prev?.x ?? width / 2 + (Math.random() - 0.5) * 100,
-        y: prev?.y ?? height / 2 + (Math.random() - 0.5) * 100,
+        x: prev?.x ?? Math.random() * width,
+        y: prev?.y ?? Math.random() * height,
         r,
       };
     });
