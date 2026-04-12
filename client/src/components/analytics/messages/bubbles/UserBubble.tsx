@@ -43,8 +43,16 @@ export function UserBubble({ message }: UserBubbleProps) {
   return (
     <div
       data-message-type="user_text"
-      className="group relative px-4 py-3 bg-primary/5 border-l-2 border-l-primary/40 rounded-r"
+      className="group relative px-4 py-3 bg-blue-500/10 border-l-4 border-l-blue-500 rounded-r"
     >
+      {/* Role label — always present so at-a-glance sender identification
+          works without relying on subtle background cues. */}
+      <div className="mb-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">
+          User
+        </span>
+      </div>
+
       {/* Body — when search is active, render a plain-text highlighted
           view so matches carry visible <mark> spans. When idle, render
           full markdown with GFM. */}

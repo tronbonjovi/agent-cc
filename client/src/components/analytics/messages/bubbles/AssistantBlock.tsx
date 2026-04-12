@@ -92,23 +92,26 @@ export function AssistantBlock({ message, previousModel }: AssistantBlockProps) 
   return (
     <div
       data-message-type="assistant_text"
-      className="group relative px-4 py-3 bg-muted/40 border-l-2 border-l-muted-foreground/30 rounded-r"
+      className="group relative px-4 py-3 bg-violet-500/10 border-l-4 border-l-violet-500 rounded-r"
     >
-      {/* Badge row — optional, muted, shows model switches and stop reason. */}
-      {(showStopReason || showModelBadge) && (
-        <div className="flex items-center gap-2 mb-2 text-[10px]">
-          {showModelBadge && (
-            <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-              {shortModel(message.model)}
-            </span>
-          )}
-          {showStopReason && (
-            <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-mono">
-              {message.stopReason}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Header row — always-present role label, plus optional model/stop
+          reason badges. The label gives at-a-glance sender identification;
+          the badges surface model switches and non-end_turn stop reasons. */}
+      <div className="flex items-center gap-2 mb-2 text-[10px]">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-violet-400">
+          Claude
+        </span>
+        {showModelBadge && (
+          <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
+            {shortModel(message.model)}
+          </span>
+        )}
+        {showStopReason && (
+          <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-mono">
+            {message.stopReason}
+          </span>
+        )}
+      </div>
 
       {/* Body — markdown with GFM + custom code renderers when idle.
           When search is active, switch to a highlighted plain-text render
