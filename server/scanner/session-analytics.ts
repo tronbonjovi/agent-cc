@@ -5,7 +5,7 @@ import type {
 } from "@shared/types";
 import { getPricing, computeCost } from "./pricing";
 import { sessionParseCache } from "./session-cache";
-import type { ParsedSession } from "@shared/session-types";
+import type { ParsedSession, AssistantTurnNode, ToolCallNode } from "@shared/session-types";
 
 // Alias for backward compat within this file
 const calcCost = computeCost;
@@ -90,58 +90,38 @@ interface RawAnalytics {
   totalTokens: number;
 }
 
-/** Scan a single session for cost, file ops, and health data (via parsed cache) */
+/**
+ * Scan a single session for cost, file ops, and health data.
+ *
+ * Two code paths:
+ *
+ * 1. **Tree path (preferred):** when `sessionParseCache.getTreeById()` returns
+ *    a populated `SessionTree`, cost / tokens / per-model breakdown / tool
+ *    counts come from the tree so subagent activity is included. The flat
+ *    `parsed.toolTimeline` is still walked for file-ops + retry detection
+ *    because file-heatmap aggregation only cares about parent-session
+ *    file activity (subagent file ops are intentionally out of scope here).
+ *
+ * 2. **Flat fallback:** when no tree is cached we warn once and run the
+ *    legacy parent-only aggregation. Preserves graceful degradation for any
+ *    code path that primes the parsed cache without going through
+ *    `parseSessionAndBuildTree`.
+ */
 function analyzeSession(session: SessionData): RawAnalytics | null {
-  // Get the comprehensive parsed data from cache
+  // Get the comprehensive parsed data from cache (still needed for file ops
+  // + retry detection regardless of which aggregation path runs).
   const parsed = sessionParseCache.getOrParse(session.filePath, session.projectKey);
   if (!parsed) return null;
 
-  const modelBreakdown: Record<string, { input: number; output: number; cacheRead: number; cacheCreation: number; cost: number }> = {};
-  const modelsSet = new Set<string>();
+  const tree = sessionParseCache.getTreeById(parsed.meta.sessionId);
+
+  // --- File ops & retry detection (shared by both paths) ---
   const fileOps = new Map<string, { read: number; write: number; edit: number; lastTs: string }>();
-  let toolErrors = 0;
-  let retries = 0;
-  let totalToolCalls = 0;
   let lastEditFile = "";
   let lastEditTs = 0;
-  let totalInput = 0;
-  let totalOutput = 0;
-  let totalCacheRead = 0;
-  let totalCacheCreation = 0;
-  const messageTimestamps: string[] = [];
+  let retries = 0;
 
-  // Process assistant messages
-  for (const msg of parsed.assistantMessages) {
-    if (msg.timestamp) messageTimestamps.push(msg.timestamp);
-
-    const u = msg.usage;
-    const model = msg.model || "unknown";
-    modelsSet.add(model);
-
-    totalInput += u.inputTokens;
-    totalOutput += u.outputTokens;
-    totalCacheRead += u.cacheReadTokens;
-    totalCacheCreation += u.cacheCreationTokens;
-
-    if (!modelBreakdown[model]) {
-      modelBreakdown[model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cost: 0 };
-    }
-    modelBreakdown[model].input += u.inputTokens;
-    modelBreakdown[model].output += u.outputTokens;
-    modelBreakdown[model].cacheRead += u.cacheReadTokens;
-    modelBreakdown[model].cacheCreation += u.cacheCreationTokens;
-  }
-
-  // Process user messages for timestamps
-  for (const msg of parsed.userMessages) {
-    if (msg.timestamp) messageTimestamps.push(msg.timestamp);
-  }
-
-  // Process tool timeline for file ops, errors, and retries
   for (const exec of parsed.toolTimeline) {
-    totalToolCalls++;
-    if (exec.isError) toolErrors++;
-
     const toolName = exec.name.toLowerCase();
     const fp = exec.filePath;
     if (fp && (toolName === "read" || toolName === "write" || toolName === "edit" || toolName === "glob")) {
@@ -152,7 +132,6 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
       if (exec.timestamp > existing.lastTs) existing.lastTs = exec.timestamp;
       fileOps.set(fp, existing);
 
-      // Detect retries: same file edited within 60 seconds
       if (toolName === "edit" || toolName === "write") {
         const now = new Date(exec.timestamp).getTime();
         if (fp === lastEditFile && now - lastEditTs < 60000) {
@@ -164,12 +143,94 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
     }
   }
 
-  // Calculate costs per model
+  // --- Aggregate cost / tokens / model breakdown / health counts ---
+  const modelBreakdown: Record<string, { input: number; output: number; cacheRead: number; cacheCreation: number; cost: number }> = {};
+  const modelsSet = new Set<string>();
+  const messageTimestamps: string[] = [];
+  let totalInput = 0;
+  let totalOutput = 0;
+  let totalCacheRead = 0;
+  let totalCacheCreation = 0;
   let totalCost = 0;
-  for (const [model, data] of Object.entries(modelBreakdown)) {
-    const pricing = getPricing(model);
-    data.cost = calcCost(pricing, data.input, data.output, data.cacheRead, data.cacheCreation);
-    totalCost += data.cost;
+  let toolErrors = 0;
+  let totalToolCalls = 0;
+
+  if (tree) {
+    // Tree path: walk every assistant-turn / tool-call node so subagent
+    // activity is rolled into the breakdown and totals.
+    Array.from(tree.nodesById.values()).forEach((node) => {
+      if (node.kind === "assistant-turn") {
+        const turn = node as AssistantTurnNode;
+        if (turn.timestamp) messageTimestamps.push(turn.timestamp);
+
+        const model = turn.model || "unknown";
+        modelsSet.add(model);
+
+        if (!modelBreakdown[model]) {
+          modelBreakdown[model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cost: 0 };
+        }
+        modelBreakdown[model].input += turn.usage.inputTokens;
+        modelBreakdown[model].output += turn.usage.outputTokens;
+        modelBreakdown[model].cacheRead += turn.usage.cacheReadTokens;
+        modelBreakdown[model].cacheCreation += turn.usage.cacheCreationTokens;
+        modelBreakdown[model].cost += turn.selfCost.costUsd;
+      } else if (node.kind === "tool-call") {
+        const call = node as ToolCallNode;
+        totalToolCalls++;
+        if (call.isError) toolErrors++;
+      } else if (node.kind === "user-turn") {
+        if (node.timestamp) messageTimestamps.push(node.timestamp);
+      }
+    });
+
+    totalInput = tree.totals.inputTokens;
+    totalOutput = tree.totals.outputTokens;
+    totalCacheRead = tree.totals.cacheReadTokens;
+    totalCacheCreation = tree.totals.cacheCreationTokens;
+    totalCost = tree.totals.costUsd;
+  } else {
+    // Fallback: legacy flat aggregation over parent-session arrays only.
+    console.warn(
+      `[${parsed.meta.sessionId}] session-analytics: tree missing, falling back to flat arrays`,
+    );
+
+    for (const msg of parsed.assistantMessages) {
+      if (msg.timestamp) messageTimestamps.push(msg.timestamp);
+
+      const u = msg.usage;
+      const model = msg.model || "unknown";
+      modelsSet.add(model);
+
+      totalInput += u.inputTokens;
+      totalOutput += u.outputTokens;
+      totalCacheRead += u.cacheReadTokens;
+      totalCacheCreation += u.cacheCreationTokens;
+
+      if (!modelBreakdown[model]) {
+        modelBreakdown[model] = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, cost: 0 };
+      }
+      modelBreakdown[model].input += u.inputTokens;
+      modelBreakdown[model].output += u.outputTokens;
+      modelBreakdown[model].cacheRead += u.cacheReadTokens;
+      modelBreakdown[model].cacheCreation += u.cacheCreationTokens;
+    }
+
+    for (const msg of parsed.userMessages) {
+      if (msg.timestamp) messageTimestamps.push(msg.timestamp);
+    }
+
+    for (const exec of parsed.toolTimeline) {
+      totalToolCalls++;
+      if (exec.isError) toolErrors++;
+    }
+
+    // Legacy path costs are computed per-model from pricing tables; the tree
+    // path already carries selfCost so we only do this in the fallback.
+    for (const [model, data] of Object.entries(modelBreakdown)) {
+      const pricing = getPricing(model);
+      data.cost = calcCost(pricing, data.input, data.output, data.cacheRead, data.cacheCreation);
+      totalCost += data.cost;
+    }
   }
 
   // Health score
