@@ -78,12 +78,44 @@ describe("TokenBreakdown", () => {
   });
 
   it("buildTokenRows computes cumulative totals", async () => {
+    // Wave2 task003 reshaped buildTokenRows to take (assistantMessages, userMessages)
+    // — the same signature its sibling buildTokenRowsFromTree uses. Cumulative
+    // math is unchanged: running sum of inputTokens + outputTokens.
     const { buildTokenRows } = await import("../client/src/components/analytics/sessions/TokenBreakdown");
-    const messages = [
-      { role: "user" as const, inputTokens: 100, outputTokens: 0, cacheReadTokens: 50, cacheCreationTokens: 10, model: "claude" },
-      { role: "assistant" as const, inputTokens: 200, outputTokens: 150, cacheReadTokens: 100, cacheCreationTokens: 20, model: "claude" },
+    const baseUsage = {
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      serviceTier: "standard",
+      inferenceGeo: "us",
+      speed: "fast",
+      serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
+    };
+    const baseMsg = {
+      parentUuid: "",
+      requestId: "",
+      isSidechain: false,
+      stopReason: "end_turn",
+      toolCalls: [],
+      hasThinking: false,
+      textPreview: "",
+    };
+    const assistantMessages = [
+      {
+        ...baseMsg,
+        uuid: "u1",
+        timestamp: "2026-04-12T00:00:01.000Z",
+        model: "claude",
+        usage: { inputTokens: 100, outputTokens: 0, ...baseUsage },
+      },
+      {
+        ...baseMsg,
+        uuid: "u2",
+        timestamp: "2026-04-12T00:00:02.000Z",
+        model: "claude",
+        usage: { inputTokens: 200, outputTokens: 150, ...baseUsage },
+      },
     ];
-    const rows = buildTokenRows(messages);
+    const rows = buildTokenRows(assistantMessages, []);
     expect(rows).toHaveLength(2);
     expect(rows[0].cumulativeTotal).toBe(100);
     expect(rows[1].cumulativeTotal).toBe(450); // 100 + 200 + 150
