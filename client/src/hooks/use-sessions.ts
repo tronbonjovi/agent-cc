@@ -10,7 +10,7 @@ import type {
   ContinuationBrief, BashKnowledgeBase, BashSearchResult,
   NerveCenterData,
 } from "@shared/types";
-import type { ParsedSession } from "@shared/session-types";
+import type { ParsedSession, SerializedSessionTreeForClient } from "@shared/session-types";
 
 export function useSessions(params?: { q?: string; sort?: string; order?: string; hideEmpty?: boolean; activeOnly?: boolean; project?: string }) {
   const p = new URLSearchParams();
@@ -26,9 +26,36 @@ export function useSessions(params?: { q?: string; sort?: string; order?: string
   });
 }
 
-export function useSessionDetail(id: string | undefined) {
-  return useQuery<SessionData & { records: { type: string; role?: string; timestamp: string; contentPreview: string }[]; parsed: ParsedSession | null }>({
-    queryKey: [`/api/sessions/${id}`],
+/**
+ * Session detail response shape.
+ *
+ * Three-state contract for `tree` (mirrors `docs/scanner-capabilities.md`):
+ *   - field absent → caller did not request the tree
+ *   - `null` → caller requested the tree but the scanner has not built one
+ *     yet (or the session is unknown to the cache)
+ *   - object → tree is available; comes over the wire as
+ *     `SerializedSessionTreeForClient` (Map fields converted to plain objects
+ *     by `serializeSessionTree` in `server/routes/sessions.ts`)
+ */
+export type SessionDetailResponse = SessionData & {
+  records: { type: string; role?: string; timestamp: string; contentPreview: string }[];
+  parsed: ParsedSession | null;
+  tree?: SerializedSessionTreeForClient | null;
+};
+
+export function useSessionDetail(
+  id: string | undefined,
+  options?: { includeTree?: boolean },
+) {
+  const includeTree = options?.includeTree === true;
+  // Append `?include=tree` only when explicitly requested so the existing
+  // query cache key (and the existing wire response) stays unchanged for
+  // every caller that does not opt in.
+  const url = includeTree
+    ? `/api/sessions/${id}?include=tree`
+    : `/api/sessions/${id}`;
+  return useQuery<SessionDetailResponse>({
+    queryKey: [url],
     enabled: !!id,
   });
 }
