@@ -1,31 +1,4 @@
 // server/board/session-enricher.ts
-//
-// Cost Granularity Investigation (card-overhaul-task001)
-// ──────────────────────────────────────────────────────
-// Finding: Cost data is SESSION-LEVEL only. Here's why:
-//
-// 1. Claude Code stores subagent JSONL files at:
-//      <project>/<session-uuid>/subagents/agent-<id>.jsonl
-//    Each subagent file has its own `usage` blocks (input/output tokens, model).
-//
-// 2. However, the `sessionId` written into task frontmatter by workflow-framework
-//    is always the PARENT session UUID, not a subagent ID. Multiple tasks often
-//    share the same parent session.
-//
-// 3. The session scanner (session-scanner.ts) only reads top-level .jsonl files
-//    in project directories — it does not recurse into subagent subdirectories.
-//
-// 4. session-analytics.ts computes cost by reading the parent session's JSONL,
-//    which contains only the orchestrator's usage, NOT the subagent usage. The
-//    subagent usage lives in separate files under the subagents/ directory.
-//
-// 5. To get per-task cost, we would need:
-//    (a) workflow-framework to write `agentId` into task frontmatter
-//    (b) scanner to read subagent JSONL files and index them by agentId
-//    This is a cross-project change that doesn't exist today.
-//
-// Decision: Display cost with a "(session)" qualifier label and tooltip to
-// set expectations that the cost covers the full session, not just one task.
 
 import { getCachedSessions } from "../scanner/session-scanner";
 import { getSessionCost, getSessionHealth } from "../scanner/session-analytics";
@@ -134,9 +107,23 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
 
   // Detail fields from parsed session cache and health data
   const parsed = sessionParseCache.getById(sessionId);
+  // Hierarchical totals from the SessionTree built by the scanner. When the
+  // tree is present we use its rolled-up values for cost / tool / turn counts
+  // so subagent activity is reflected on the board card. When it's missing,
+  // we fall back to the original flat-array path below — graceful degradation
+  // beats showing zeros after a partial scan.
+  const tree = sessionParseCache.getTreeById(sessionId);
+  if (!tree) {
+    console.warn(
+      `[session-enricher] tree missing, falling back to flat arrays — sessionId=${sessionId} (session-enricher: tree missing, falling back to flat arrays)`,
+    );
+  }
 
   const healthReasons = health?.healthReasons ?? [];
-  const totalToolCalls = health?.totalToolCalls ?? 0;
+  // Tree wins for tool counts + errors. The flat-array fallback uses the
+  // health analytics figure, which sums only parent-session events.
+  const totalToolCalls = tree ? tree.totals.toolCalls : (health?.totalToolCalls ?? 0);
+  const toolErrors = tree ? tree.totals.toolErrors : (health?.toolErrors ?? 0);
   const retries = health?.retries ?? 0;
 
   // Cache hit rate from cost data
@@ -149,7 +136,9 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
   let maxTokensStops = 0;
   let webRequests = 0;
   let sidechainCount = 0;
-  let turnCount = 0;
+  // Turn count: tree's assistantTurns rollup includes subagent assistant turns;
+  // flat fallback keeps the existing turnDurations.length behavior.
+  let turnCount = tree ? tree.totals.assistantTurns : 0;
 
   if (parsed) {
     maxTokensStops = parsed.assistantMessages.filter(
@@ -162,8 +151,14 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
     }, 0);
 
     sidechainCount = parsed.counts.sidechainMessages;
-    turnCount = parsed.systemEvents.turnDurations.length;
+    if (!tree) {
+      turnCount = parsed.systemEvents.turnDurations.length;
+    }
   }
+
+  // Cost: tree rollup includes subagent spend; flat fallback uses session-level
+  // estimatedCostUsd which is parent-only (the gap that motivated this migration).
+  const costUsd = tree ? tree.totals.costUsd : (cost?.estimatedCostUsd ?? 0);
 
   return {
     sessionId,
@@ -172,11 +167,11 @@ export function enrichTaskSession(sessionId: string | undefined, sessions?: Sess
     lastActivity: null,
     lastActivityTs: session.lastTs,
     messageCount: session.messageCount,
-    costUsd: cost?.estimatedCostUsd ?? 0,
+    costUsd,
     inputTokens: cost?.inputTokens ?? 0,
     outputTokens: cost?.outputTokens ?? 0,
     healthScore: health?.healthScore ?? null,
-    toolErrors: health?.toolErrors ?? 0,
+    toolErrors,
     durationMinutes,
     agentRole,
     healthReasons,

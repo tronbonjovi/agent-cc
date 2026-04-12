@@ -1,5 +1,5 @@
 // tests/board-session-enricher.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("../server/scanner/session-scanner", () => ({
   getCachedSessions: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("../server/scanner/agent-scanner", () => ({
 }));
 
 vi.mock("../server/scanner/session-cache", () => ({
-  sessionParseCache: { getById: vi.fn(), getAll: vi.fn() },
+  sessionParseCache: { getById: vi.fn(), getAll: vi.fn(), getTreeById: vi.fn() },
 }));
 
 import { enrichTaskSession, autoLinkSession, buildSessionSnapshot, cacheSnapshot, getCachedSnapshot, clearSnapshotCache } from "../server/board/session-enricher";
@@ -30,6 +30,44 @@ const mockGetSessionCost = vi.mocked(getSessionCost);
 const mockGetSessionHealth = vi.mocked(getSessionHealth);
 const mockGetCachedExecutions = vi.mocked(getCachedExecutions);
 const mockGetAll = vi.mocked(sessionParseCache.getAll);
+const mockGetTreeById = vi.mocked(sessionParseCache.getTreeById);
+
+// Helper: build a minimal SessionTree-shaped object whose `totals` field is
+// the only thing the enricher reads. The rest of the tree contract (root,
+// nodesById, subagentsByAgentId, warnings) is irrelevant to this consumer,
+// but typed casts keep TypeScript happy.
+const makeTree = (totals: Partial<{
+  assistantTurns: number;
+  userTurns: number;
+  toolCalls: number;
+  toolErrors: number;
+  subagents: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  costUsd: number;
+  durationMs: number;
+}> = {}) => ({
+  root: {} as any,
+  nodesById: new Map(),
+  subagentsByAgentId: new Map(),
+  warnings: [],
+  totals: {
+    assistantTurns: 0,
+    userTurns: 0,
+    toolCalls: 0,
+    toolErrors: 0,
+    subagents: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    costUsd: 0,
+    durationMs: 0,
+    ...totals,
+  },
+});
 
 const makeSession = (overrides = {}) => ({
   id: "sess-abc123",
@@ -158,10 +196,23 @@ const makeHealth = (overrides = {}) => ({
 });
 
 describe("enrichTaskSession", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: no agent executions (tests that need them override this)
     mockGetCachedExecutions.mockReturnValue([]);
+    // Default: tree absent — existing tests exercise the flat-array fallback.
+    // Tests that want tree-derived values opt in by mocking it explicitly.
+    mockGetTreeById.mockReturnValue(null);
+    // Silence the fallback warn in the default case so the test log stays
+    // clean. The dedicated "falls back gracefully" test creates its own
+    // local spy to assert against it.
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
   });
 
   it("returns null when no sessionId provided", () => {
@@ -463,6 +514,159 @@ describe("enrichTaskSession", () => {
 
     expect(result).not.toBeNull();
     expect(result!.sessionId).toBe("sess-autolinked");
+  });
+
+  it("uses tree.totals.costUsd for costUsd when tree is present", () => {
+    const session = makeSession();
+    const cost = makeCost({ estimatedCostUsd: 0.05 });
+    const health = makeHealth();
+    const parsed = makeParsedSession();
+    const tree = makeTree({ costUsd: 0.42, toolCalls: 99, toolErrors: 7, assistantTurns: 12 });
+
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(parsed as any);
+    mockGetTreeById.mockReturnValue(tree as any);
+
+    const result = enrichTaskSession("sess-abc123");
+
+    expect(result).not.toBeNull();
+    // Cost comes from the tree, not from estimatedCostUsd
+    expect(result!.costUsd).toBe(0.42);
+    // And it's strictly greater than the parent-only flat cost we mocked
+    expect(result!.costUsd).toBeGreaterThan(cost.estimatedCostUsd);
+  });
+
+  it("uses tree.totals.toolCalls and toolErrors when tree is present", () => {
+    const session = makeSession();
+    const cost = makeCost();
+    const health = makeHealth({ totalToolCalls: 30, toolErrors: 2 });
+    const parsed = makeParsedSession(); // parsed.counts.toolCalls = 15
+    const tree = makeTree({ toolCalls: 88, toolErrors: 9, assistantTurns: 5 });
+
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(parsed as any);
+    mockGetTreeById.mockReturnValue(tree as any);
+
+    const result = enrichTaskSession("sess-abc123");
+
+    expect(result).not.toBeNull();
+    expect(result!.totalToolCalls).toBe(88);
+    expect(result!.totalToolCalls).toBeGreaterThan(parsed.counts.toolCalls);
+    expect(result!.toolErrors).toBe(9);
+  });
+
+  it("uses tree.totals.assistantTurns for turnCount when tree is present", () => {
+    const session = makeSession();
+    const cost = makeCost();
+    const health = makeHealth();
+    const parsed = makeParsedSession(); // parsed.counts.assistantMessages = 2, turnDurations.length = 3
+    const tree = makeTree({ assistantTurns: 17, toolCalls: 1, toolErrors: 0 });
+
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(parsed as any);
+    mockGetTreeById.mockReturnValue(tree as any);
+
+    const result = enrichTaskSession("sess-abc123");
+
+    expect(result).not.toBeNull();
+    expect(result!.turnCount).toBe(17);
+    expect(result!.turnCount).toBeGreaterThan(parsed.counts.assistantMessages);
+  });
+
+  it("falls back gracefully when tree is null and warns once", () => {
+    const session = makeSession();
+    const cost = makeCost();
+    const health = makeHealth({ totalToolCalls: 30, toolErrors: 2 });
+    const parsed = makeParsedSession();
+
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(parsed as any);
+    mockGetTreeById.mockReturnValue(null);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let result;
+    let capturedCalls: any[][] = [];
+    try {
+      result = enrichTaskSession("sess-abc123");
+      // Snapshot the recorded calls before restoring the spy.
+      capturedCalls = warnSpy.mock.calls.map((c) => [...c]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+
+    expect(result).not.toBeNull();
+    // Flat-path values come through unchanged
+    expect(result!.costUsd).toBe(cost.estimatedCostUsd);
+    expect(result!.totalToolCalls).toBe(30);
+    expect(result!.toolErrors).toBe(2);
+    expect(result!.turnCount).toBe(parsed.systemEvents.turnDurations.length);
+
+    // And we surfaced the fallback once for this session
+    expect(capturedCalls.length).toBeGreaterThan(0);
+    const calls = capturedCalls.flat().join(" ");
+    expect(calls).toContain("session-enricher: tree missing, falling back to flat arrays");
+    expect(calls).toContain("sess-abc123");
+  });
+
+  it("auto-link behavior is unaffected by the tree migration", () => {
+    // Same scenario as the auto-link-by-branch test above, but with a tree
+    // mocked in. The auto-link signal computation must produce the same
+    // sessionId regardless of whether tree.totals are populated.
+    const session = makeSession({ id: "sess-autolinked" });
+    const cost = makeCost({ sessionId: "sess-autolinked" });
+    const health = makeHealth({ sessionId: "sess-autolinked" });
+    const parsed = makeParsedSession({
+      meta: {
+        sessionId: "sess-autolinked",
+        slug: "auto-link-session",
+        firstMessage: "Working on task",
+        firstTs: "2026-04-01T10:00:00.000Z",
+        lastTs: "2026-04-01T10:30:00.000Z",
+        sizeBytes: 2048,
+        filePath: "/tmp/autolink.jsonl",
+        projectKey: "my-project",
+        cwd: "/home/user/project",
+        version: "1.0.0",
+        gitBranch: "feat/card-enrichment-task004",
+        entrypoint: "cli",
+      },
+    });
+    const tree = makeTree({ costUsd: 9.99, toolCalls: 50, toolErrors: 0, assistantTurns: 4 });
+
+    const task = {
+      id: "card-enrichment-task004",
+      title: "Wire auto-link",
+      status: "in_progress",
+      type: "task" as const,
+      created: "2026-04-01",
+      updated: "2026-04-01",
+      labels: [],
+    };
+
+    const parsedMap = new Map([["sess-autolinked", parsed]]);
+    mockGetAll.mockReturnValue(parsedMap as any);
+
+    mockGetCachedSessions.mockReturnValue([session] as any);
+    mockGetSessionCost.mockReturnValue(cost as any);
+    mockGetSessionHealth.mockReturnValue(health as any);
+    mockGetById.mockReturnValue(parsed as any);
+    mockGetTreeById.mockReturnValue(tree as any);
+
+    const result = enrichTaskSession(undefined, [session] as any, task as any);
+
+    expect(result).not.toBeNull();
+    expect(result!.sessionId).toBe("sess-autolinked");
+    // Tree values still wired through alongside the auto-link result
+    expect(result!.costUsd).toBe(9.99);
+    expect(result!.totalToolCalls).toBe(50);
   });
 
   it("computes cacheHitRate as null when no cache tokens exist", () => {
