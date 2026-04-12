@@ -164,11 +164,13 @@ function passesTypeFilter(msg: TimelineMessage, filters: FilterState): boolean {
 }
 
 /**
- * True if `msg` passes the full filter state, including cross-cutting
- * sidechain gating. Does NOT apply the `errorsOnly` surrounding-context
- * enrichment — that's per-set, not per-message. Callers that need to
- * know "is this message in the post-filter set?" (e.g. the search
- * surfacing indicator) should use `isMessageInFilteredSet`.
+ * True if `msg` passes the per-message filter gate. Does NOT apply the
+ * `errorsOnly` surrounding-context enrichment — that's per-set, not
+ * per-message. Callers that need to know "is this message in the full
+ * post-filter visible set?" must consult the `filterMessages` result
+ * directly (e.g. via the `filteredRawIdxSet` memo in the component),
+ * because errorsOnly surrounding-context rows enter the set via the
+ * outer walk and the per-message gate cannot see them.
  */
 function isMessageVisible(msg: TimelineMessage, filters: FilterState): boolean {
   // Sidechain precedence: hide sidechain messages first, before the
@@ -189,10 +191,12 @@ function isMessageVisible(msg: TimelineMessage, filters: FilterState): boolean {
 }
 
 /**
- * Public "is this message in the post-filter set?" predicate used by the
- * search surfacing indicator: when a search match lives in a filter-hidden
- * message we still want to render it, but the bubble should flag that it
- * normally wouldn't be visible. Exported for testing.
+ * Per-message filter gate, exported for tests. Answers "would this
+ * specific message pass the per-type filters and sidechain gate?" but
+ * NOT "is it in the final rendered set" — errorsOnly surrounding-
+ * context rows only enter the rendered set via `filterMessages`'s
+ * outer walk, not via this predicate. The component uses the
+ * `filteredRawIdxSet` memo for the authoritative visible-set check.
  */
 export function isMessageInFilteredSet(
   msg: TimelineMessage,
@@ -668,6 +672,18 @@ export function ConversationViewer({
     }));
   }, [rawMessages, filters]);
 
+  // Authoritative "is this raw index in the post-filter set?" lookup.
+  // Used by both visibleWithRawIdx (union with search matches) and
+  // surfacedRawIndices (hidden-by-filter search badge). Must reflect the
+  // full `filterMessages` output — the per-message `isMessageVisible`
+  // predicate does NOT, because errorsOnly surrounding-context rows
+  // (paired tool_call + preceding assistant turn) only enter the set
+  // via the outer walk, not via the per-message gate.
+  const filteredRawIdxSet = useMemo(
+    () => new Set(filteredWithRawIdx.map((v) => v.rawIndex)),
+    [filteredWithRawIdx],
+  );
+
   // ---------- task006 search state ----------
   // The user toggles the search bar open via the magnifier button in the
   // header or by pressing `/` or Ctrl+F inside the viewer. When closed
@@ -696,10 +712,9 @@ export function ConversationViewer({
   // that own a match and weren't already visible. Rendered in raw-index
   // order so surfacing a hidden message doesn't scramble the timeline.
   const visibleWithRawIdx = useMemo(() => {
-    const visibleIdxSet = new Set(filteredWithRawIdx.map((v) => v.rawIndex));
     const extraIndices: number[] = [];
     Array.from(matchedRawIndices).forEach((idx) => {
-      if (!visibleIdxSet.has(idx)) extraIndices.push(idx);
+      if (!filteredRawIdxSet.has(idx)) extraIndices.push(idx);
     });
     if (extraIndices.length === 0) return filteredWithRawIdx;
     // Merge + re-sort by raw index so surfacing a filter-hidden message
@@ -713,7 +728,7 @@ export function ConversationViewer({
     ];
     merged.sort((a, b) => a.rawIndex - b.rawIndex);
     return merged;
-  }, [filteredWithRawIdx, matchedRawIndices, rawMessages]);
+  }, [filteredWithRawIdx, filteredRawIdxSet, matchedRawIndices, rawMessages]);
 
   // Group the *filtered* stream for rendering. Grouping after filtering
   // means hiding a tool_call inside a subagent run doesn't split the
@@ -1042,14 +1057,20 @@ export function ConversationViewer({
   // would otherwise be hidden by the current filter state. Used to tag
   // their bubble wrappers with a "hidden by filter" indicator so the
   // reader knows why they're seeing them.
+  //
+  // Must use filteredRawIdxSet (the authoritative post-filter raw-index
+  // set) rather than the per-message isMessageInFilteredSet predicate,
+  // because in errorsOnly mode the visible set includes surrounding
+  // context rows (paired tool_call + preceding assistant turn) that
+  // the per-message gate cannot recognize.
   const surfacedRawIndices = useMemo(() => {
     const set = new Set<number>();
     if (matchedRawIndices.size === 0) return set;
     Array.from(matchedRawIndices).forEach((idx) => {
-      if (!isMessageInFilteredSet(rawMessages[idx], filters)) set.add(idx);
+      if (!filteredRawIdxSet.has(idx)) set.add(idx);
     });
     return set;
-  }, [matchedRawIndices, rawMessages, filters]);
+  }, [matchedRawIndices, filteredRawIdxSet]);
 
   // Render ----------------------------------------------------------------
 
