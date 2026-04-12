@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Session hierarchy design spec** — Option B design for modeling sessions as trees: keep `ParsedSession` flat and add a new `SessionTree` type built alongside. Covers the `SessionTreeNode` data model (5 kinds with prefixed ids), subagent discovery (`<session>/subagents/agent-*.jsonl` with `.meta.json` siblings), three-tier linkage priority (`agentid-in-result` → `timestamp-match` → `orphan`), the required `ToolExecution.issuedByAssistantUuid` additive fix, cost rollup semantics (`selfCost` vs. `rollupCost`), edge cases, and testing strategy. Out of scope: UI, cost route changes, graph integration. Ready for `/build-roadmap` task scoping.
 - **Nerve Center redesign — force-directed entity graph** — replaced the CNS topology layout with a d3-force entity graph showing all entities as nodes (projects, sessions, MCPs, skills, plugins, markdown, configs), hierarchical and cross-reference edges, hover subgraph highlighting, click drill-in (system → project sessions), drag repositioning, and a sidebar detail panel. Position cache preserves layout across drill-in so children appear near the clicked parent instead of scattering. Performance: `requestAnimationFrame` render loop collapses many d3 ticks into one React render per frame, with in-place position cache mutation to avoid per-tick allocations. System view shows 296 nodes / 561 edges; per-project sessions view shows ~1000 nodes.
 
 ### Removed
