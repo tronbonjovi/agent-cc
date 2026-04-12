@@ -70,7 +70,9 @@ const sessionFlat: SessionData = {
   gitBranch: "main",
 };
 
-const allSessions: SessionData[] = [sessionWithTree, sessionFlat];
+const baseSessions: SessionData[] = [sessionWithTree, sessionFlat];
+// Mutable session list so individual tests can swap in custom fixtures.
+let activeSessions: SessionData[] = baseSessions;
 
 const emptyParsed = (sessionId: string, ts: string): ParsedSession => ({
   meta: {
@@ -306,7 +308,7 @@ let treeByPath: Record<string, SessionTree | null> = {};
 // --- Mocks ------------------------------------------------------------------
 
 vi.mock("../server/scanner/session-scanner", () => ({
-  getCachedSessions: () => allSessions,
+  getCachedSessions: () => activeSessions,
 }));
 
 vi.mock("../server/scanner/session-cache", () => ({
@@ -380,6 +382,7 @@ beforeEach(() => {
     "/tmp/tree.jsonl": buildTree(),
     "/tmp/flat.jsonl": null,
   };
+  activeSessions = baseSessions;
 });
 
 async function getJSON(path: string) {
@@ -651,6 +654,276 @@ describe("?models= filter (regression)", () => {
       "/api/charts/tokens-over-time?models=claude-nonexistent",
     );
     expect(noneBody).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// task007: /api/charts/subagent-costs
+// ---------------------------------------------------------------------------
+//
+// Tree-fixture helper for the subagent-costs endpoint. Builds a SessionTree
+// with N subagents (each with its own agentType + rollupCost) attached to
+// a parent session whose root.selfCost / root.rollupCost are explicit.
+// Reuses the same shape as buildTree() but parameterized so individual tests
+// can craft scenarios (2 distinct types, no subagents, custom delegation ratio).
+
+interface SubagentSpec {
+  agentId: string;
+  agentType: string;
+  rollupCostUsd: number;
+}
+
+function buildTreeWithSubagents(opts: {
+  sessionId: string;
+  slug: string;
+  filePath: string;
+  ts: string;
+  parentSelfCostUsd: number;
+  rootRollupCostUsd: number;
+  subagents: SubagentSpec[];
+}): SessionTree {
+  const root: SessionRootNode = {
+    kind: "session-root",
+    id: "sess:" + opts.sessionId,
+    parentId: null,
+    sessionId: opts.sessionId,
+    slug: opts.slug,
+    firstMessage: opts.slug,
+    firstTs: opts.ts,
+    lastTs: opts.ts,
+    filePath: opts.filePath,
+    projectKey: "test-project",
+    gitBranch: "main",
+    timestamp: opts.ts,
+    children: [],
+    selfCost: {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      costUsd: opts.parentSelfCostUsd,
+      durationMs: 0,
+    },
+    rollupCost: {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      costUsd: opts.rootRollupCostUsd,
+      durationMs: 0,
+    },
+  };
+
+  const subagentNodes = new Map<string, SessionTreeNode>();
+  const allNodes = new Map<string, SessionTreeNode>([[root.id, root]]);
+  for (const spec of opts.subagents) {
+    const subAgent: SubagentRootNode = {
+      kind: "subagent-root",
+      id: "sub:" + spec.agentId,
+      parentId: root.id,
+      agentId: spec.agentId,
+      agentType: spec.agentType,
+      description: "",
+      prompt: "",
+      sessionId: opts.sessionId,
+      filePath: "/tmp/" + spec.agentId + ".jsonl",
+      dispatchedByTurnId: null,
+      dispatchedByToolCallId: null,
+      linkage: { method: "agentid-in-result", confidence: "high" },
+      timestamp: opts.ts,
+      children: [],
+      selfCost: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        costUsd: 0,
+        durationMs: 0,
+      },
+      rollupCost: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        costUsd: spec.rollupCostUsd,
+        durationMs: 0,
+      },
+    };
+    subagentNodes.set(spec.agentId, subAgent);
+    allNodes.set(subAgent.id, subAgent);
+    root.children.push(subAgent);
+  }
+
+  return {
+    root,
+    nodesById: allNodes,
+    subagentsByAgentId: subagentNodes,
+    totals: {
+      assistantTurns: 0,
+      userTurns: 0,
+      toolCalls: 0,
+      toolErrors: 0,
+      subagents: opts.subagents.length,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      costUsd: opts.rootRollupCostUsd,
+      durationMs: 0,
+    },
+    warnings: [],
+  };
+}
+
+describe("GET /api/charts/subagent-costs", () => {
+  it("aggregates 2 subagents of different types from a single session", async () => {
+    treeByPath["/tmp/tree.jsonl"] = buildTreeWithSubagents({
+      sessionId: SESSION_TREE_ID,
+      slug: "tree-session",
+      filePath: "/tmp/tree.jsonl",
+      ts: day(1),
+      parentSelfCostUsd: 0.04,
+      rootRollupCostUsd: 0.10, // 0.04 parent + 0.03 + 0.03 subagents
+      subagents: [
+        { agentId: "agent-a", agentType: "Explore", rollupCostUsd: 0.03 },
+        { agentId: "agent-b", agentType: "Plan", rollupCostUsd: 0.03 },
+      ],
+    });
+    // Flat session has no tree → contributes nothing
+    treeByPath["/tmp/flat.jsonl"] = null;
+
+    const { status, body } = await getJSON("/api/charts/subagent-costs");
+    expect(status).toBe(200);
+    expect(body).toHaveProperty("byAgentType");
+    expect(body).toHaveProperty("totals");
+    expect(body).toHaveProperty("mostDelegationHeavy");
+
+    expect(body.byAgentType.length).toBe(2);
+    const types = body.byAgentType.map((r: { agentType: string }) => r.agentType);
+    expect(types).toContain("Explore");
+    expect(types).toContain("Plan");
+    const explore = body.byAgentType.find(
+      (r: { agentType: string }) => r.agentType === "Explore",
+    );
+    expect(explore.totalCostUsd).toBeCloseTo(0.03, 6);
+    expect(explore.invocationCount).toBe(1);
+    expect(explore.sessionCount).toBe(1);
+    expect(explore.topSessions.length).toBe(1);
+    expect(explore.topSessions[0].sessionId).toBe(SESSION_TREE_ID);
+    expect(explore.topSessions[0].costUsd).toBeCloseTo(0.03, 6);
+  });
+
+  it("sessions without subagents (or no tree) contribute nothing", async () => {
+    // Tree session with NO subagents
+    treeByPath["/tmp/tree.jsonl"] = buildTreeWithSubagents({
+      sessionId: SESSION_TREE_ID,
+      slug: "tree-session",
+      filePath: "/tmp/tree.jsonl",
+      ts: day(1),
+      parentSelfCostUsd: 0.05,
+      rootRollupCostUsd: 0.05,
+      subagents: [],
+    });
+    // Flat session also has no tree
+    treeByPath["/tmp/flat.jsonl"] = null;
+
+    const { status, body } = await getJSON("/api/charts/subagent-costs");
+    expect(status).toBe(200);
+    expect(body.byAgentType).toEqual([]);
+    expect(body.totals.totalSubagentCostUsd).toBeCloseTo(0, 6);
+    expect(body.totals.delegationPercentage).toBe(0);
+  });
+
+  it("computes totals.delegationPercentage as (subagent rollup) / (tree rollup) * 100", async () => {
+    // Parent self = 0.04, root rollup = 0.10 → delegation = 0.06 → 60%
+    treeByPath["/tmp/tree.jsonl"] = buildTreeWithSubagents({
+      sessionId: SESSION_TREE_ID,
+      slug: "tree-session",
+      filePath: "/tmp/tree.jsonl",
+      ts: day(1),
+      parentSelfCostUsd: 0.04,
+      rootRollupCostUsd: 0.10,
+      subagents: [
+        { agentId: "agent-a", agentType: "Explore", rollupCostUsd: 0.06 },
+      ],
+    });
+    treeByPath["/tmp/flat.jsonl"] = null;
+
+    const { body } = await getJSON("/api/charts/subagent-costs");
+    expect(body.totals.totalSubagentCostUsd).toBeCloseTo(0.06, 6);
+    expect(body.totals.parentOnlyCostUsd).toBeCloseTo(0.04, 6);
+    expect(body.totals.delegationPercentage).toBeCloseTo(60, 6);
+  });
+
+  it("mostDelegationHeavy is sorted by ratio descending and capped at 10", async () => {
+    // Build 12 distinct sessions with varying delegation ratios so we can
+    // confirm the cap at 10 + descending sort. Each session needs its own
+    // SessionData entry, parsed entry, and tree entry.
+    const extraSessions: SessionData[] = [];
+    const newParsedByPath: Record<string, ParsedSession | null> = {};
+    const newTreeByPath: Record<string, SessionTree | null> = {};
+    for (let i = 0; i < 12; i++) {
+      const id = `sess-${i.toString().padStart(2, "0")}`;
+      const fp = `/tmp/sess-${i}.jsonl`;
+      // ratios: i=0 → 0%, i=11 → 91.6%
+      const parentSelf = 1 - i / 12;
+      const rollup = 1;
+      extraSessions.push({
+        id,
+        slug: `slug-${i}`,
+        firstMessage: id,
+        firstTs: day(1),
+        lastTs: day(1),
+        messageCount: 1,
+        sizeBytes: 100,
+        isEmpty: false,
+        isActive: false,
+        filePath: fp,
+        projectKey: "test-project",
+        cwd: "/tmp",
+        version: "1.0",
+        gitBranch: "main",
+      });
+      newParsedByPath[fp] = emptyParsed(id, day(1));
+      newTreeByPath[fp] = buildTreeWithSubagents({
+        sessionId: id,
+        slug: `slug-${i}`,
+        filePath: fp,
+        ts: day(1),
+        parentSelfCostUsd: parentSelf,
+        rootRollupCostUsd: rollup,
+        subagents:
+          i === 0
+            ? [] // i=0 has no delegation at all
+            : [{ agentId: `a-${i}`, agentType: "Explore", rollupCostUsd: rollup - parentSelf }],
+      });
+    }
+
+    // Swap module-level mock state for this test only — beforeEach resets it.
+    parsedByPath = newParsedByPath;
+    treeByPath = newTreeByPath;
+    activeSessions = extraSessions;
+
+    const { body } = await getJSON("/api/charts/subagent-costs");
+    expect(body.mostDelegationHeavy.length).toBeLessThanOrEqual(10);
+    // Verify descending sort
+    for (let i = 1; i < body.mostDelegationHeavy.length; i++) {
+      expect(body.mostDelegationHeavy[i - 1].delegationRatio).toBeGreaterThanOrEqual(
+        body.mostDelegationHeavy[i].delegationRatio,
+      );
+    }
+  });
+
+  it("skips null-tree sessions without crashing", async () => {
+    // Both sessions have no tree
+    treeByPath["/tmp/tree.jsonl"] = null;
+    treeByPath["/tmp/flat.jsonl"] = null;
+
+    const { status, body } = await getJSON("/api/charts/subagent-costs");
+    expect(status).toBe(200);
+    expect(body.byAgentType).toEqual([]);
+    expect(body.totals.delegationPercentage).toBe(0);
+    expect(body.mostDelegationHeavy).toEqual([]);
   });
 });
 

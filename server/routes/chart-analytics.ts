@@ -37,6 +37,7 @@ import type {
   SessionTreeNode,
   AssistantTurnNode,
   ToolCallNode,
+  SubagentRootNode,
 } from "@shared/session-types";
 
 const router = Router();
@@ -795,6 +796,191 @@ router.get("/api/charts/activity", (req, res) => {
   } catch (err) {
     console.error("[chart-analytics] activity failed:", (err as Error).message);
     res.status(500).json({ message: "Failed to compute activity chart", error: (err as Error).message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 10. subagent-costs — per-agent-type spend + delegation ratios (task007)
+// ---------------------------------------------------------------------------
+//
+// Walks each in-range session's SessionTree, iterates `subagentsByAgentId`,
+// and aggregates `rollupCost.costUsd` keyed by `agentType`. Also computes a
+// per-session delegation ratio (subagent share of total session cost) so the
+// chart can surface "most-delegation-heavy" sessions.
+//
+// Sessions without a tree are silently skipped — graceful degradation.
+// Subagents with a missing/empty `agentType` are bucketed under "unknown"
+// with a console.warn for diagnosability.
+
+interface SubagentTopSession {
+  sessionId: string;
+  slug: string;
+  costUsd: number;
+  delegationRatio: number;
+}
+
+interface SubagentByAgentType {
+  agentType: string;
+  totalCostUsd: number;
+  invocationCount: number;
+  sessionCount: number;
+  topSessions: SubagentTopSession[];
+}
+
+interface SubagentCostsResponse {
+  byAgentType: SubagentByAgentType[];
+  totals: {
+    totalSubagentCostUsd: number;
+    parentOnlyCostUsd: number;
+    delegationPercentage: number;
+  };
+  mostDelegationHeavy: Array<{
+    sessionId: string;
+    slug: string;
+    delegationRatio: number;
+    costUsd: number;
+  }>;
+}
+
+router.get("/api/charts/subagent-costs", (req, res) => {
+  try {
+    const filters = parseFilters(req);
+    const sessions = loadSessions(filters);
+
+    // Per-agent-type accumulator. We collect per-session contributions first
+    // so we can compute topSessions (top 5 by cost) at the end.
+    interface AgentTypeAccum {
+      totalCostUsd: number;
+      invocationCount: number;
+      parentSessions: Map<string, number>; // sessionId → cost contributed
+    }
+    const byType = new Map<string, AgentTypeAccum>();
+
+    // For totals + mostDelegationHeavy
+    let sumTreeRollup = 0;
+    let sumParentSelf = 0;
+    const sessionDelegation: Array<{
+      sessionId: string;
+      slug: string;
+      delegationRatio: number;
+      costUsd: number;
+    }> = [];
+
+    for (const r of sessions) {
+      const tree = r.tree;
+      if (!tree) continue; // skip null-tree sessions silently
+
+      const rollup = tree.root.rollupCost.costUsd || 0;
+      const self = tree.root.selfCost.costUsd || 0;
+      sumTreeRollup += rollup;
+      sumParentSelf += self;
+
+      // delegationRatio guard: rollup of 0 → 0 (avoid divide-by-zero)
+      const delegationRatio = rollup > 0 ? (rollup - self) / rollup : 0;
+      sessionDelegation.push({
+        sessionId: r.session.id,
+        slug: r.session.slug,
+        delegationRatio,
+        costUsd: rollup,
+      });
+
+      // Walk subagents
+      const subagentNodes = Array.from(tree.subagentsByAgentId.values());
+      for (const node of subagentNodes) {
+        if (node.kind !== "subagent-root") continue;
+        const sub = node as SubagentRootNode;
+        let agentType = sub.agentType;
+        if (!agentType) {
+          console.warn(
+            `[chart-analytics] subagent-costs: missing agentType for agentId=${sub.agentId} in session=${r.session.id} — bucketing as "unknown"`,
+          );
+          agentType = "unknown";
+        }
+
+        const subCost = sub.rollupCost.costUsd || 0;
+        let entry = byType.get(agentType);
+        if (!entry) {
+          entry = {
+            totalCostUsd: 0,
+            invocationCount: 0,
+            parentSessions: new Map(),
+          };
+          byType.set(agentType, entry);
+        }
+        entry.totalCostUsd += subCost;
+        entry.invocationCount += 1;
+        entry.parentSessions.set(
+          r.session.id,
+          (entry.parentSessions.get(r.session.id) || 0) + subCost,
+        );
+      }
+    }
+
+    // Build slug lookup for topSessions / mostDelegationHeavy
+    const slugBySessionId = new Map<string, string>();
+    for (const r of sessions) {
+      slugBySessionId.set(r.session.id, r.session.slug);
+    }
+
+    // Build per-session delegation ratio lookup so topSessions can include it
+    const ratioBySessionId = new Map<string, number>();
+    for (const sd of sessionDelegation) {
+      ratioBySessionId.set(sd.sessionId, sd.delegationRatio);
+    }
+
+    const byAgentType: SubagentByAgentType[] = Array.from(byType.entries())
+      .map(([agentType, entry]) => {
+        // Top 5 parent sessions by cost contributed for this agent type
+        const topSessions: SubagentTopSession[] = Array.from(
+          entry.parentSessions.entries(),
+        )
+          .map(([sessionId, costUsd]) => ({
+            sessionId,
+            slug: slugBySessionId.get(sessionId) || sessionId,
+            costUsd,
+            delegationRatio: ratioBySessionId.get(sessionId) || 0,
+          }))
+          .sort((a, b) => b.costUsd - a.costUsd)
+          .slice(0, 5);
+
+        return {
+          agentType,
+          totalCostUsd: entry.totalCostUsd,
+          invocationCount: entry.invocationCount,
+          sessionCount: entry.parentSessions.size,
+          topSessions,
+        };
+      })
+      .sort((a, b) => b.totalCostUsd - a.totalCostUsd);
+
+    const totalSubagentCostUsd = sumTreeRollup - sumParentSelf;
+    const delegationPercentage =
+      sumTreeRollup > 0 ? (totalSubagentCostUsd / sumTreeRollup) * 100 : 0;
+
+    // mostDelegationHeavy: top 10 sessions by delegationRatio descending.
+    // Includes ratio=1 sessions (parent did nothing but dispatch).
+    const mostDelegationHeavy = sessionDelegation
+      .slice()
+      .sort((a, b) => b.delegationRatio - a.delegationRatio)
+      .slice(0, 10);
+
+    const response: SubagentCostsResponse = {
+      byAgentType,
+      totals: {
+        totalSubagentCostUsd,
+        parentOnlyCostUsd: sumParentSelf,
+        delegationPercentage,
+      },
+      mostDelegationHeavy,
+    };
+
+    res.json(response);
+  } catch (err) {
+    console.error("[chart-analytics] subagent-costs failed:", (err as Error).message);
+    res.status(500).json({
+      message: "Failed to compute subagent-costs",
+      error: (err as Error).message,
+    });
   }
 });
 
