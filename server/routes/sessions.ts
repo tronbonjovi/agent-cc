@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { getCachedSessions, getCachedStats, removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
-import { CLAUDE_DIR, encodeProjectKey, dirExists, readMessageTimeline, extractMessageText, extractToolNames } from "../scanner/utils";
+import { CLAUDE_DIR, encodeProjectKey, dirExists, readMessageTimeline } from "../scanner/utils";
 import { SessionIdSchema, SessionListSchema, IdsArraySchema, DeepSearchSchema, validate, qstr, validateSafePath } from "./validation";
 import { TRASH_DIR, MAX_SESSIONS_RESPONSE } from "../config";
 import { deepSearch } from "../scanner/deep-search";
@@ -20,7 +20,8 @@ import { getContinuationBrief } from "../scanner/continuation-detector";
 import { getBashKnowledgeBase, searchBashCommands } from "../scanner/bash-knowledge";
 import { getNerveCenterData } from "../scanner/nerve-center";
 import { sessionParseCache } from "../scanner/session-cache";
-import type { SessionTree, SessionTreeNode, SubagentRootNode } from "@shared/session-types";
+import { parseSessionMessages, enrichMessagesWithTree } from "../scanner/session-parser";
+import type { SessionTree, SessionTreeNode, SubagentRootNode, TimelineMessageType } from "@shared/session-types";
 import { storage } from "../storage";
 import crypto from "crypto";
 
@@ -565,83 +566,48 @@ function findSessionJsonl(sessionId: string): string | null {
   return null;
 }
 
-interface SessionMessage {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
-  model?: string;
-  tokenCount?: number;
-  hasToolUse?: boolean;
-  toolNames?: string[];
-}
+/**
+ * Valid values for `?types=` — narrows the timeline to a subset of the
+ * seven kinds. Unknown names are silently ignored (forgiving API).
+ */
+const TIMELINE_MESSAGE_TYPES: ReadonlySet<TimelineMessageType> = new Set<TimelineMessageType>([
+  "user_text",
+  "assistant_text",
+  "thinking",
+  "tool_call",
+  "tool_result",
+  "system_event",
+  "skill_invocation",
+]);
 
-// extractMessageText and extractToolNames imported from ../scanner/utils
-
-/** Parse an entire session JSONL file into conversation messages */
-function parseSessionMessages(filePath: string, offset: number, limit: number): { messages: SessionMessage[]; totalMessages: number } {
-  const allMessages: SessionMessage[] = [];
-  const MAX_MESSAGES = 2000; // Safety cap to prevent OOM
-
-  try {
-    // Read entire file then iterate lines (large files capped at MAX_MESSAGES)
-    const content = fs.readFileSync(filePath, "utf-8");
-    let pos = 0;
-
-    while (pos < content.length && allMessages.length < MAX_MESSAGES) {
-      const nextNewline = content.indexOf("\n", pos);
-      const lineEnd = nextNewline === -1 ? content.length : nextNewline;
-      const trimmed = content.slice(pos, lineEnd).trim();
-      pos = lineEnd + 1;
-
-      if (!trimmed) continue;
-      try {
-        const record = JSON.parse(trimmed);
-
-        if (record.type === "user") {
-          const msg = record.message;
-          if (!msg || typeof msg !== "object") continue;
-          const text = extractMessageText(msg.content, true);
-          if (!text) continue;
-          allMessages.push({
-            role: "user",
-            content: text.slice(0, 500),
-            timestamp: record.timestamp || "",
-          });
-        } else if (record.type === "assistant") {
-          const msg = record.message;
-          if (!msg || typeof msg !== "object") continue;
-          const text = extractMessageText(msg.content, false);
-          const toolNames = extractToolNames(msg.content);
-
-          const message: SessionMessage = {
-            role: "assistant",
-            content: text.slice(0, 500),
-            timestamp: record.timestamp || "",
-          };
-
-          if (msg.model) message.model = msg.model;
-          if (msg.usage?.input_tokens) message.tokenCount = msg.usage.input_tokens;
-          if (toolNames.length > 0) {
-            message.hasToolUse = true;
-            message.toolNames = toolNames;
-          }
-
-          allMessages.push(message);
-        }
-      } catch {
-        // Malformed JSON line — skip
-      }
-    }
-  } catch {
-    // File unreadable
+function parseTypesFilter(raw: unknown): Set<TimelineMessageType> | undefined {
+  if (typeof raw !== "string" || raw.length === 0) return undefined;
+  const picked = new Set<TimelineMessageType>();
+  for (const part of raw.split(",")) {
+    const t = part.trim() as TimelineMessageType;
+    if (TIMELINE_MESSAGE_TYPES.has(t)) picked.add(t);
   }
-
-  const totalMessages = allMessages.length;
-  const sliced = allMessages.slice(offset, offset + limit);
-  return { messages: sliced, totalMessages };
+  return picked.size > 0 ? picked : undefined;
 }
 
-/** GET /api/sessions/:id/messages — Conversation message history */
+/**
+ * GET /api/sessions/:id/messages — Typed, paginated conversation timeline.
+ *
+ * Query params:
+ *  - `offset`, `limit` — pagination (limit clamped to 1..500)
+ *  - `types` — comma-separated list of message types to include (see
+ *    `TimelineMessageType`). Empty / missing means "all seven."
+ *  - `include=tree` — opt-in enrichment. When present, each message gains
+ *    a `treeNodeId` + `subagentContext` field computed from the cached
+ *    `SessionTree`, and the response carries `meta.treeStatus`. When
+ *    absent, the response is byte-identical to the unenriched shape.
+ *
+ * Tree enrichment mutates the message objects in place with two new keys.
+ * The flattener leaves those keys undefined; adding them costs a single
+ * pass and lets the frontend group messages by subagent without a second
+ * API call. Missing/unbuilt tree → `meta.treeStatus: 'unavailable'` and
+ * every message receives `treeNodeId: null`.
+ */
 router.get("/api/sessions/:id/messages", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
@@ -656,11 +622,25 @@ router.get("/api/sessions/:id/messages", async (req: Request, res: Response) => 
   const safePath = await validateSafePath(jsonlPath);
   if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
 
-  // Pagination
+  // Pagination — keep defaults generous so a small UI can fetch in one shot.
   const offset = Math.max(0, parseInt(qstr(req.query.offset) || "0", 10) || 0);
-  const limit = Math.min(200, Math.max(1, parseInt(qstr(req.query.limit) || "200", 10) || 200));
+  const limit = Math.min(500, Math.max(1, parseInt(qstr(req.query.limit) || "200", 10) || 200));
 
-  const { messages, totalMessages } = parseSessionMessages(safePath, offset, limit);
+  const typesFilter = parseTypesFilter(qstr(req.query.types));
+  const { messages, totalMessages } = parseSessionMessages(safePath, offset, limit, typesFilter);
+
+  const wantTree = includesSection(qstr(req.query.include), "tree");
+  if (wantTree) {
+    const tree = sessionParseCache.getTreeByPath(safePath);
+    const { status } = enrichMessagesWithTree(messages, tree);
+    res.json({
+      sessionId,
+      totalMessages,
+      messages,
+      meta: { treeStatus: status },
+    });
+    return;
+  }
 
   res.json({
     sessionId,

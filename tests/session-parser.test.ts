@@ -20,8 +20,23 @@ import type {
   LifecycleEvent,
   ConversationNode,
 } from '../shared/session-types';
-import { parseSessionFile } from '../server/scanner/session-parser';
+import {
+  parseSessionFile,
+  parseSessionMessages,
+  enrichMessagesWithTree,
+} from '../server/scanner/session-parser';
 import { sessionParseCache } from '../server/scanner/session-cache';
+import type {
+  SessionTree,
+  SessionTreeNode,
+  TimelineMessage,
+  TimelineMessageType,
+  SubagentRootNode,
+  SessionRootNode,
+  AssistantTurnNode,
+  UserTurnNode,
+  ToolCallNode,
+} from '../shared/session-types';
 
 // Helper: build a JSONL file from record objects
 function buildJSONL(records: Record<string, unknown>[]): string {
@@ -1927,5 +1942,626 @@ describe('ToolExecution.issuedByAssistantUuid linkage', () => {
     const byCallId = new Map(parsed!.toolTimeline.map((e) => [e.callId, e]));
     expect(byCallId.get('tu-one')!.issuedByAssistantUuid).toBe('asst-one');
     expect(byCallId.get('tu-two')!.issuedByAssistantUuid).toBe('asst-two');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseSessionMessages — typed message timeline
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a fixture session containing every one of the seven TimelineMessage
+ * kinds so one parse call can exercise the full emit matrix. Reused across
+ * multiple it-blocks so each test can assert against a stable dataset.
+ */
+function buildSevenKindFixture(): string {
+  return writeSession('seven-kinds', [
+    // 1. system_event (permission-mode) — record-type dispatch
+    {
+      type: 'permission-mode',
+      permissionMode: 'default',
+      timestamp: '2026-04-12T00:00:00.000Z',
+    },
+    // 2. skill_invocation — local_command system record
+    {
+      type: 'system',
+      subtype: 'local_command',
+      timestamp: '2026-04-12T00:00:00.100Z',
+      content:
+        '<command-name>brainstorm</command-name><command-args>new feature</command-args>',
+    },
+    // 3. user_text
+    {
+      type: 'user',
+      uuid: 'u-1',
+      parentUuid: '',
+      timestamp: '2026-04-12T00:00:01.000Z',
+      isSidechain: false,
+      message: {
+        role: 'user',
+        content: 'hello please help me explore this repo',
+      },
+    },
+    // 4. assistant_text + thinking + tool_call (one record emits three messages)
+    {
+      type: 'assistant',
+      uuid: 'a-1',
+      parentUuid: 'u-1',
+      timestamp: '2026-04-12T00:00:02.000Z',
+      isSidechain: false,
+      requestId: 'req-1',
+      message: {
+        id: 'msg-1',
+        role: 'assistant',
+        model: 'claude-opus-4-6',
+        type: 'message',
+        stop_reason: 'tool_use',
+        content: [
+          { type: 'thinking', thinking: 'let me think about this' },
+          { type: 'text', text: 'I will read the README first.' },
+          {
+            type: 'tool_use',
+            id: 'tool-call-1',
+            name: 'Read',
+            input: { file_path: '/demo/README.md' },
+          },
+        ],
+        usage: {
+          input_tokens: 500,
+          output_tokens: 120,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+          service_tier: 'standard',
+          server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        },
+      },
+    },
+    // 5. tool_result
+    {
+      type: 'user',
+      uuid: 'u-2',
+      parentUuid: 'a-1',
+      timestamp: '2026-04-12T00:00:03.000Z',
+      isSidechain: false,
+      message: {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-call-1',
+            content: [{ type: 'text', text: 'readme body here' }],
+            is_error: false,
+          },
+        ],
+      },
+      toolUseResult: { durationMs: 12, success: true },
+    },
+    // 6. second assistant_text to verify pagination boundaries
+    {
+      type: 'assistant',
+      uuid: 'a-2',
+      parentUuid: 'u-2',
+      timestamp: '2026-04-12T00:00:04.000Z',
+      isSidechain: false,
+      requestId: 'req-2',
+      message: {
+        id: 'msg-2',
+        role: 'assistant',
+        model: 'claude-opus-4-6',
+        type: 'message',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'done reading' }],
+        usage: {
+          input_tokens: 200,
+          output_tokens: 50,
+          service_tier: 'standard',
+          server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        },
+      },
+    },
+  ]);
+}
+
+describe('parseSessionMessages — seven typed message kinds', () => {
+  it('emits every message type for a fixture containing all seven kinds', () => {
+    const fp = buildSevenKindFixture();
+    const { messages, totalMessages } = parseSessionMessages(fp, 0, 500);
+    // Shape assertions — chronological order, no surprises
+    expect(totalMessages).toBeGreaterThan(0);
+    expect(messages.length).toBe(totalMessages);
+
+    const byType = new Map<TimelineMessageType, TimelineMessage[]>();
+    for (const m of messages) {
+      const bucket = byType.get(m.type) ?? [];
+      bucket.push(m);
+      byType.set(m.type, bucket);
+    }
+
+    // All seven kinds present
+    expect(byType.has('user_text')).toBe(true);
+    expect(byType.has('assistant_text')).toBe(true);
+    expect(byType.has('thinking')).toBe(true);
+    expect(byType.has('tool_call')).toBe(true);
+    expect(byType.has('tool_result')).toBe(true);
+    expect(byType.has('system_event')).toBe(true);
+    expect(byType.has('skill_invocation')).toBe(true);
+
+    // user_text carries uuid + text
+    const userText = byType.get('user_text')![0];
+    if (userText.type !== 'user_text') throw new Error('narrow fail');
+    expect(userText.uuid).toBe('u-1');
+    expect(userText.text).toContain('hello');
+
+    // assistant_text carries model + usage
+    const asstText = byType.get('assistant_text')![0];
+    if (asstText.type !== 'assistant_text') throw new Error('narrow fail');
+    expect(asstText.uuid).toBe('a-1');
+    expect(asstText.model).toBe('claude-opus-4-6');
+    expect(asstText.usage.inputTokens).toBe(500);
+    expect(asstText.text).toContain('README');
+
+    // thinking carries text
+    const thinking = byType.get('thinking')![0];
+    if (thinking.type !== 'thinking') throw new Error('narrow fail');
+    expect(thinking.uuid).toBe('a-1');
+    expect(thinking.text).toContain('think');
+
+    // tool_call carries callId + name + input
+    const tool = byType.get('tool_call')![0];
+    if (tool.type !== 'tool_call') throw new Error('narrow fail');
+    expect(tool.callId).toBe('tool-call-1');
+    expect(tool.name).toBe('Read');
+    expect(tool.input.file_path).toBe('/demo/README.md');
+
+    // tool_result carries toolUseId + content
+    const result = byType.get('tool_result')![0];
+    if (result.type !== 'tool_result') throw new Error('narrow fail');
+    expect(result.toolUseId).toBe('tool-call-1');
+    expect(result.content).toContain('readme');
+    expect(result.isError).toBe(false);
+
+    // system_event carries subtype + summary
+    const sys = byType.get('system_event')![0];
+    if (sys.type !== 'system_event') throw new Error('narrow fail');
+    expect(sys.subtype).toBe('permission-change');
+
+    // skill_invocation carries commandName + commandArgs
+    const skill = byType.get('skill_invocation')![0];
+    if (skill.type !== 'skill_invocation') throw new Error('narrow fail');
+    expect(skill.commandName).toBe('brainstorm');
+    expect(skill.commandArgs).toBe('new feature');
+  });
+
+  it('toolUseId links tool_call to tool_result via matching ids', () => {
+    const fp = buildSevenKindFixture();
+    const { messages } = parseSessionMessages(fp, 0, 500);
+    const toolCall = messages.find((m) => m.type === 'tool_call');
+    const toolResult = messages.find((m) => m.type === 'tool_result');
+    expect(toolCall).toBeDefined();
+    expect(toolResult).toBeDefined();
+    if (toolCall?.type !== 'tool_call' || toolResult?.type !== 'tool_result') {
+      throw new Error('expected tool_call + tool_result');
+    }
+    expect(toolCall.callId).toBe(toolResult.toolUseId);
+  });
+
+  it('pagination: offset=2, limit=3 slices correctly and reports totalMessages', () => {
+    const fp = buildSevenKindFixture();
+    const all = parseSessionMessages(fp, 0, 500);
+    const sliced = parseSessionMessages(fp, 2, 3);
+    expect(sliced.totalMessages).toBe(all.totalMessages);
+    expect(sliced.messages.length).toBe(Math.min(3, Math.max(0, all.totalMessages - 2)));
+    // Each sliced message should match positional index 2..4
+    for (let i = 0; i < sliced.messages.length; i++) {
+      expect(sliced.messages[i]).toEqual(all.messages[i + 2]);
+    }
+  });
+
+  it('types filter narrows to requested kinds only, and is applied before pagination', () => {
+    const fp = buildSevenKindFixture();
+    const filter = new Set<TimelineMessageType>(['user_text', 'assistant_text']);
+    const { messages } = parseSessionMessages(fp, 0, 500, filter);
+    expect(messages.length).toBeGreaterThan(0);
+    for (const m of messages) {
+      expect(['user_text', 'assistant_text']).toContain(m.type);
+    }
+  });
+
+  it('empty JSONL returns zero messages without crashing', () => {
+    const fp = writeSession('empty', []);
+    const { messages, totalMessages } = parseSessionMessages(fp, 0, 500);
+    expect(messages).toEqual([]);
+    expect(totalMessages).toBe(0);
+  });
+
+  it('missing file returns zero messages without throwing', () => {
+    const { messages, totalMessages } = parseSessionMessages(
+      path.join(tmpDir, 'does-not-exist.jsonl'),
+      0,
+      500,
+    );
+    expect(messages).toEqual([]);
+    expect(totalMessages).toBe(0);
+  });
+
+  it('strips <system-reminder> and <command-name> wrappers from user_text', () => {
+    const fp = writeSession('strip-xml', [
+      {
+        type: 'user',
+        uuid: 'u-1',
+        timestamp: '2026-04-12T00:00:00Z',
+        message: {
+          role: 'user',
+          content:
+            '<system-reminder>noise</system-reminder>real user question here',
+        },
+      },
+    ]);
+    const { messages } = parseSessionMessages(fp, 0, 500);
+    const userText = messages.find((m) => m.type === 'user_text');
+    expect(userText).toBeDefined();
+    if (userText?.type !== 'user_text') throw new Error('narrow fail');
+    expect(userText.text).toBe('real user question here');
+    expect(userText.text).not.toContain('system-reminder');
+  });
+
+  it('does NOT emit treeNodeId or subagentContext when enrichment is not called', () => {
+    const fp = buildSevenKindFixture();
+    const { messages } = parseSessionMessages(fp, 0, 500);
+    for (const m of messages) {
+      expect(m.treeNodeId).toBeUndefined();
+      expect(m.subagentContext).toBeUndefined();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enrichMessagesWithTree — attaches treeNodeId + subagentContext
+// ---------------------------------------------------------------------------
+
+/** Zero-cost stub for testing — no real pricing needed. */
+function zeroCost() {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    costUsd: 0,
+    durationMs: 0,
+  };
+}
+
+/**
+ * Hand-rolled minimal SessionTree for enrichment tests. Shape:
+ *
+ *   session-root
+ *   ├── asst:a-1 (parent assistant turn)
+ *   │   └── tool:tool-call-1 (Agent dispatch)
+ *   │       └── agent:agentXX (subagent root)
+ *   │           └── asst:sub-a-1 (nested assistant — lives under subagent)
+ *   └── user:u-1 (plain user turn directly under root)
+ */
+function buildMinimalTree(): SessionTree {
+  const root: SessionRootNode = {
+    kind: 'session-root',
+    id: 'session:test-session',
+    parentId: null,
+    children: [],
+    timestamp: '2026-04-12T00:00:00Z',
+    selfCost: zeroCost(),
+    rollupCost: zeroCost(),
+    sessionId: 'test-session',
+    slug: 'test',
+    firstMessage: '',
+    firstTs: '2026-04-12T00:00:00Z',
+    lastTs: '2026-04-12T00:01:00Z',
+    filePath: '/tmp/test.jsonl',
+    projectKey: 'test',
+    gitBranch: 'main',
+  };
+  const asst1: AssistantTurnNode = {
+    kind: 'assistant-turn',
+    id: 'asst:a-1',
+    parentId: root.id,
+    children: [],
+    timestamp: '2026-04-12T00:00:01Z',
+    selfCost: zeroCost(),
+    rollupCost: zeroCost(),
+    uuid: 'a-1',
+    model: 'claude-opus-4-6',
+    stopReason: 'tool_use',
+    usage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      serviceTier: '',
+      inferenceGeo: '',
+      speed: '',
+      serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
+    },
+    textPreview: '',
+    hasThinking: false,
+    isSidechain: false,
+  };
+  const tool1: ToolCallNode = {
+    kind: 'tool-call',
+    id: 'tool:tool-call-1',
+    parentId: asst1.id,
+    children: [],
+    timestamp: '2026-04-12T00:00:02Z',
+    selfCost: zeroCost(),
+    rollupCost: zeroCost(),
+    callId: 'tool-call-1',
+    name: 'Agent',
+    filePath: null,
+    command: null,
+    pattern: null,
+    durationMs: 100,
+    isError: false,
+    isSidechain: false,
+  };
+  const agent: SubagentRootNode = {
+    kind: 'subagent-root',
+    id: 'agent:agentXXXXXXXXXXXX',
+    parentId: tool1.id,
+    children: [],
+    timestamp: '2026-04-12T00:00:03Z',
+    selfCost: zeroCost(),
+    rollupCost: zeroCost(),
+    agentId: 'agentXXXXXXXXXXXX',
+    agentType: 'Explore',
+    description: 'do the exploration',
+    prompt: 'explore the repo',
+    sessionId: 'test-session',
+    filePath: '/tmp/sub.jsonl',
+    dispatchedByTurnId: asst1.id,
+    dispatchedByToolCallId: tool1.id,
+    linkage: { method: 'agentid-in-result', confidence: 'high' },
+  };
+  // Nested assistant turn inside the subagent — its ancestor chain should
+  // resolve to the subagent root when enrichment walks upward.
+  const subAsst: AssistantTurnNode = {
+    kind: 'assistant-turn',
+    id: 'asst:sub-a-1',
+    parentId: agent.id,
+    children: [],
+    timestamp: '2026-04-12T00:00:04Z',
+    selfCost: zeroCost(),
+    rollupCost: zeroCost(),
+    uuid: 'sub-a-1',
+    model: 'claude-opus-4-6',
+    stopReason: 'end_turn',
+    usage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      serviceTier: '',
+      inferenceGeo: '',
+      speed: '',
+      serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
+    },
+    textPreview: '',
+    hasThinking: false,
+    isSidechain: false,
+  };
+  const user1: UserTurnNode = {
+    kind: 'user-turn',
+    id: 'user:u-1',
+    parentId: root.id,
+    children: [],
+    timestamp: '2026-04-12T00:00:00Z',
+    selfCost: zeroCost(),
+    rollupCost: zeroCost(),
+    uuid: 'u-1',
+    textPreview: '',
+    isMeta: false,
+    isSidechain: false,
+  };
+
+  // Wire children
+  root.children = [asst1, user1];
+  asst1.children = [tool1];
+  tool1.children = [agent];
+  agent.children = [subAsst];
+
+  const nodesById = new Map<string, SessionTreeNode>([
+    [root.id, root],
+    [asst1.id, asst1],
+    [tool1.id, tool1],
+    [agent.id, agent],
+    [subAsst.id, subAsst],
+    [user1.id, user1],
+  ]);
+  const subagentsByAgentId = new Map<string, SessionTreeNode>([[agent.agentId, agent]]);
+
+  return {
+    root,
+    nodesById,
+    subagentsByAgentId,
+    totals: {
+      assistantTurns: 2,
+      userTurns: 1,
+      toolCalls: 1,
+      toolErrors: 0,
+      subagents: 1,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      costUsd: 0,
+      durationMs: 100,
+    },
+    warnings: [],
+  };
+}
+
+describe('enrichMessagesWithTree — attaches tree linkage to messages', () => {
+  it('attaches treeNodeId to messages that map to a real node', () => {
+    const tree = buildMinimalTree();
+    const messages: TimelineMessage[] = [
+      {
+        type: 'user_text',
+        uuid: 'u-1',
+        timestamp: '2026-04-12T00:00:00Z',
+        text: 'hi',
+        isMeta: false,
+      },
+      {
+        type: 'assistant_text',
+        uuid: 'a-1',
+        timestamp: '2026-04-12T00:00:01Z',
+        model: 'claude-opus-4-6',
+        text: 'sure',
+        stopReason: 'tool_use',
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          serviceTier: '',
+          inferenceGeo: '',
+          speed: '',
+          serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
+        },
+      },
+      {
+        type: 'tool_call',
+        uuid: 'a-1',
+        timestamp: '2026-04-12T00:00:02Z',
+        callId: 'tool-call-1',
+        name: 'Agent',
+        input: {},
+      },
+    ];
+    const { status } = enrichMessagesWithTree(messages, tree);
+    expect(status).toBe('ok');
+    expect(messages[0].treeNodeId).toBe('user:u-1');
+    expect(messages[1].treeNodeId).toBe('asst:a-1');
+    expect(messages[2].treeNodeId).toBe('tool:tool-call-1');
+  });
+
+  it('attaches subagentContext when the message lives under a subagent-root', () => {
+    const tree = buildMinimalTree();
+    const messages: TimelineMessage[] = [
+      // This assistant turn sits inside the subagent — its ancestor chain
+      // passes through agent:agentXXXXXXXXXXXX, so enrichment should
+      // populate subagentContext.
+      {
+        type: 'assistant_text',
+        uuid: 'sub-a-1',
+        timestamp: '2026-04-12T00:00:04Z',
+        model: 'claude-opus-4-6',
+        text: 'subagent text',
+        stopReason: 'end_turn',
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          serviceTier: '',
+          inferenceGeo: '',
+          speed: '',
+          serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
+        },
+      },
+    ];
+    enrichMessagesWithTree(messages, tree);
+    expect(messages[0].treeNodeId).toBe('asst:sub-a-1');
+    expect(messages[0].subagentContext).not.toBeNull();
+    expect(messages[0].subagentContext?.agentId).toBe('agentXXXXXXXXXXXX');
+    expect(messages[0].subagentContext?.agentType).toBe('Explore');
+    expect(messages[0].subagentContext?.description).toBe('do the exploration');
+  });
+
+  it('leaves subagentContext null when the message sits directly under session-root', () => {
+    const tree = buildMinimalTree();
+    const messages: TimelineMessage[] = [
+      {
+        type: 'user_text',
+        uuid: 'u-1',
+        timestamp: '2026-04-12T00:00:00Z',
+        text: 'hi',
+        isMeta: false,
+      },
+    ];
+    enrichMessagesWithTree(messages, tree);
+    expect(messages[0].treeNodeId).toBe('user:u-1');
+    expect(messages[0].subagentContext).toBeNull();
+  });
+
+  it('tree=null — every message gets treeNodeId: null and status unavailable', () => {
+    const messages: TimelineMessage[] = [
+      {
+        type: 'user_text',
+        uuid: 'u-1',
+        timestamp: '2026-04-12T00:00:00Z',
+        text: 'hi',
+        isMeta: false,
+      },
+      {
+        type: 'system_event',
+        timestamp: '2026-04-12T00:00:00Z',
+        subtype: 'permission-change',
+        summary: 'default',
+      },
+    ];
+    const { status } = enrichMessagesWithTree(messages, null);
+    expect(status).toBe('unavailable');
+    for (const m of messages) {
+      expect(m.treeNodeId).toBeNull();
+      expect(m.subagentContext).toBeNull();
+    }
+  });
+
+  it('system_event / skill_invocation always get treeNodeId: null (no tree mapping)', () => {
+    const tree = buildMinimalTree();
+    const messages: TimelineMessage[] = [
+      {
+        type: 'system_event',
+        timestamp: '2026-04-12T00:00:00Z',
+        subtype: 'permission-change',
+        summary: 'default',
+      },
+      {
+        type: 'skill_invocation',
+        timestamp: '2026-04-12T00:00:00Z',
+        commandName: 'brainstorm',
+        commandArgs: '',
+      },
+    ];
+    enrichMessagesWithTree(messages, tree);
+    expect(messages[0].treeNodeId).toBeNull();
+    expect(messages[1].treeNodeId).toBeNull();
+    expect(messages[0].subagentContext).toBeNull();
+    expect(messages[1].subagentContext).toBeNull();
+  });
+
+  it('unknown uuid — treeNodeId: null, no crash', () => {
+    const tree = buildMinimalTree();
+    const messages: TimelineMessage[] = [
+      {
+        type: 'assistant_text',
+        uuid: 'non-existent-uuid',
+        timestamp: '2026-04-12T00:00:00Z',
+        model: 'claude-opus-4-6',
+        text: 'orphan',
+        stopReason: 'end_turn',
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          serviceTier: '',
+          inferenceGeo: '',
+          speed: '',
+          serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
+        },
+      },
+    ];
+    enrichMessagesWithTree(messages, tree);
+    expect(messages[0].treeNodeId).toBeNull();
+    expect(messages[0].subagentContext).toBeNull();
   });
 });

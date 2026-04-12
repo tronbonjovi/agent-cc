@@ -430,3 +430,129 @@ export interface SessionTree {
   /** Diagnostics from the build pass. Empty array means clean build. */
   warnings: SessionTreeWarning[];
 }
+
+// ---------------------------------------------------------------------------
+// Message timeline (typed, paginated view for `/api/sessions/:id/messages`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Seven typed records emitted by `parseSessionMessages()` and served by
+ * `GET /api/sessions/:id/messages`. Each variant is a chronological atomic
+ * event rendered in the session message view — one JSONL record can produce
+ * multiple variants (an assistant record with a text block + a tool_use
+ * yields both an `assistant_text` and a `tool_call`).
+ *
+ * Optional `treeNodeId` and `subagentContext` are only populated when the
+ * caller passes `?include=tree`. They let the frontend group messages by
+ * subagent without walking the tree itself.
+ */
+export type TimelineMessageType =
+  | 'user_text'
+  | 'assistant_text'
+  | 'thinking'
+  | 'tool_call'
+  | 'tool_result'
+  | 'system_event'
+  | 'skill_invocation';
+
+/**
+ * Subagent linkage attached to messages that live under a `subagent-root`
+ * when the tree enrichment is requested. Mirrors a subset of
+ * `SubagentRootNode` — only the fields a UI header actually renders.
+ */
+export interface TimelineSubagentContext {
+  agentId: string;
+  agentType: string;
+  description: string;
+}
+
+/** Common fields on every timeline message. */
+interface TimelineMessageBase {
+  timestamp: string;
+  isSidechain?: boolean;
+  /** Present only when the response was enriched with `?include=tree`. */
+  treeNodeId?: string | null;
+  /** Present only when the response was enriched with `?include=tree`. */
+  subagentContext?: TimelineSubagentContext | null;
+}
+
+export interface UserTextMessage extends TimelineMessageBase {
+  type: 'user_text';
+  uuid: string;
+  text: string;
+  /** True for records Claude Code emits as meta (hooks, command echoes). */
+  isMeta: boolean;
+}
+
+export interface AssistantTextMessage extends TimelineMessageBase {
+  type: 'assistant_text';
+  uuid: string;
+  model: string;
+  text: string;
+  stopReason: string;
+  usage: TokenUsage;
+}
+
+export interface ThinkingMessage extends TimelineMessageBase {
+  type: 'thinking';
+  uuid: string;
+  text: string;
+}
+
+export interface ToolCallMessage extends TimelineMessageBase {
+  type: 'tool_call';
+  uuid: string;
+  callId: string;
+  name: string;
+  /** Raw `input` object from the tool_use block. Kept free-form by design. */
+  input: Record<string, unknown>;
+}
+
+export interface ToolResultMessage extends TimelineMessageBase {
+  type: 'tool_result';
+  uuid: string;
+  toolUseId: string;
+  /** Extracted plain text from the result content (or "" when empty). */
+  content: string;
+  isError: boolean;
+}
+
+export interface SystemEventMessage extends TimelineMessageBase {
+  type: 'system_event';
+  /** JSONL `system` subtype: `turn_duration`, `stop_hook_summary`, etc. */
+  subtype: string;
+  /** Short single-line description of the event. */
+  summary: string;
+}
+
+export interface SkillInvocationMessage extends TimelineMessageBase {
+  type: 'skill_invocation';
+  /** Slash command name (e.g. `brainstorm`, `work-task`). */
+  commandName: string;
+  /** Raw args string from the command-args XML block (or "" when absent). */
+  commandArgs: string;
+}
+
+export type TimelineMessage =
+  | UserTextMessage
+  | AssistantTextMessage
+  | ThinkingMessage
+  | ToolCallMessage
+  | ToolResultMessage
+  | SystemEventMessage
+  | SkillInvocationMessage;
+
+/**
+ * Response envelope for `GET /api/sessions/:id/messages`. `meta.treeStatus`
+ * is only present when `?include=tree` was requested; absent otherwise so
+ * un-enriched responses stay byte-compatible with pre-tree clients.
+ */
+export interface MessageTimelineResponse {
+  sessionId: string;
+  totalMessages: number;
+  messages: TimelineMessage[];
+  meta?: {
+    /** Only present when `?include=tree` was requested. */
+    treeStatus?: 'ok' | 'unavailable';
+  };
+}
