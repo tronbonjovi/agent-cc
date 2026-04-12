@@ -1,6 +1,6 @@
 // client/src/components/analytics/messages/ConversationViewer.tsx
 //
-// Messages tab — conversation viewer (messages-redesign task004).
+// Messages tab — conversation viewer (messages-redesign task004 + task006).
 //
 // This component owns the message stream for one session:
 //   - fetches `GET /api/sessions/:id/messages?include=tree`
@@ -19,11 +19,15 @@
 //   - preserves scroll position across filter changes by anchoring to the
 //     nearest visible message (walks back, then forward, then gives up)
 //   - falls back to an empty state when every filter hides every message
+//   - (task006) in-conversation search: highlights matches, navigates them,
+//     auto-expands collapsed bubbles, surfaces filter-hidden messages that
+//     contain matches. Threading done via React context so bubbles opt in
+//     by calling `useSearchHighlight()` instead of every caller plumbing a
+//     `searchHighlight` prop through the dispatcher.
 //
-// Out of scope (task005 / task006):
+// Out of scope:
 //   - the filter bar UI itself — we accept a FilterState prop and the
 //     parent MessagesTab owns toggling it
-//   - in-conversation search / highlight
 //   - session picking (SessionSidebar handles that)
 //
 // Design notes:
@@ -45,15 +49,28 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Loader2, AlertCircle } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, AlertCircle, Search } from "lucide-react";
 import type {
   MessageTimelineResponse,
   TimelineMessage,
   TimelineSubagentContext,
 } from "@shared/session-types";
 import { renderMessage, SidechainGroup } from "./bubbles";
+import { ConversationSearch } from "./ConversationSearch";
+import {
+  SearchHighlightContext,
+  type SearchHighlightValue,
+} from "./search-highlight";
+
+// Re-export the search highlight hook + helper so the test file and any
+// downstream callers can import them from the viewer module directly,
+// matching the task004 convention of exposing pure helpers via the
+// viewer's barrel.
+export { useSearchHighlight, highlightText } from "./search-highlight";
+export type { SearchHighlightValue } from "./search-highlight";
 
 // ---------------------------------------------------------------------------
 // Filter state — shape consumed by task005's filter bar.
@@ -106,36 +123,24 @@ export const DEFAULT_FILTERS: FilterState = {
 // ---------------------------------------------------------------------------
 
 /**
- * True if `msg` passes the current filter state.
+ * True if `msg` is a sidechain record the `sidechains=false` filter would
+ * hide — either `isSidechain` is set or a `subagentContext` is attached.
+ * Both signals can stand alone: the scanner sometimes stamps only one.
+ */
+function isSidechainMessage(msg: TimelineMessage): boolean {
+  return msg.isSidechain === true || msg.subagentContext != null;
+}
+
+/**
+ * True if `msg` passes the per-type toggles. The cross-cutting `errorsOnly`
+ * and `sidechains` filters are NOT applied here — they live in
+ * `filterMessages` because `errorsOnly` needs surrounding-context logic
+ * that a one-message-at-a-time predicate can't express (see step 5).
  *
  * Exhaustive over TimelineMessage.type — a never-guard default forces a
  * compile error when a new variant lands.
- *
- * Two cross-cutting filters layer on top of the per-type toggles:
- *   - `errorsOnly`: when true, only `tool_result` messages with `isError`
- *     are kept. Every other type is hidden regardless of its own toggle.
- *     Used by the "Errors" mode preset to drive a debugging view.
- *   - `sidechains`: when explicitly false, messages flagged `isSidechain`
- *     or carrying a `subagentContext` (i.e. anything inside a subagent
- *     run) are hidden. Default (`undefined` / `true`) keeps them visible
- *     so the existing 7-key FilterState literals from task004 still
- *     behave the same.
  */
-function isMessageVisible(msg: TimelineMessage, filters: FilterState): boolean {
-  // Errors-only mode: short-circuit before per-type checks. Any message
-  // that isn't an errored tool_result is hidden — matches the contract's
-  // "Errors Only — show only messages with tool errors" wording.
-  if (filters.errorsOnly === true) {
-    if (msg.type !== "tool_result") return false;
-    return msg.isError === true;
-  }
-
-  // Sidechain visibility gate (orthogonal to per-type toggles).
-  if (filters.sidechains === false) {
-    if (msg.isSidechain === true) return false;
-    if (msg.subagentContext != null) return false;
-  }
-
+function passesTypeFilter(msg: TimelineMessage, filters: FilterState): boolean {
   switch (msg.type) {
     case "user_text":
       return filters.userText;
@@ -159,8 +164,60 @@ function isMessageVisible(msg: TimelineMessage, filters: FilterState): boolean {
 }
 
 /**
+ * True if `msg` passes the full filter state, including cross-cutting
+ * sidechain gating. Does NOT apply the `errorsOnly` surrounding-context
+ * enrichment — that's per-set, not per-message. Callers that need to
+ * know "is this message in the post-filter set?" (e.g. the search
+ * surfacing indicator) should use `isMessageInFilteredSet`.
+ */
+function isMessageVisible(msg: TimelineMessage, filters: FilterState): boolean {
+  // Sidechain precedence: hide sidechain messages first, before the
+  // errorsOnly check. This is the documented "hide sidechains wins over
+  // show errors" rule from step 5 of the task006 contract.
+  if (filters.sidechains === false && isSidechainMessage(msg)) {
+    return false;
+  }
+
+  // Errors-only mode: short-circuit after the sidechain gate so sidechain
+  // errors stay hidden. Any non-errored-tool_result is hidden.
+  if (filters.errorsOnly === true) {
+    if (msg.type !== "tool_result") return false;
+    return msg.isError === true;
+  }
+
+  return passesTypeFilter(msg, filters);
+}
+
+/**
+ * Public "is this message in the post-filter set?" predicate used by the
+ * search surfacing indicator: when a search match lives in a filter-hidden
+ * message we still want to render it, but the bubble should flag that it
+ * normally wouldn't be visible. Exported for testing.
+ */
+export function isMessageInFilteredSet(
+  msg: TimelineMessage,
+  filters: FilterState,
+): boolean {
+  return isMessageVisible(msg, filters);
+}
+
+/**
  * Filter the raw message stream down to the subset matching `filters`.
  * Order is preserved.
+ *
+ * Step 5 of task006: when `filters.errorsOnly === true`, each errored
+ * tool_result is surfaced together with its surrounding context —
+ *   (a) the errored tool_result itself,
+ *   (b) its paired tool_call (matched by `callId === toolUseId`),
+ *   (c) the nearest preceding assistant_text (the turn that issued the call).
+ * Assistant turns and tool_calls are deduplicated: one assistant turn
+ * issuing multiple errored calls appears exactly once in the output, and
+ * a tool_call can't duplicate itself. The assembled set is returned in
+ * chronological order (stable sort over raw indices).
+ *
+ * The `sidechains=false` precedence is handled before the error scan:
+ * sidechain records never make it into the assembled set, so sidechain
+ * errors stay hidden in errorsOnly + sidechains=false mode.
  *
  * Exported for testing.
  */
@@ -168,7 +225,66 @@ export function filterMessages(
   messages: TimelineMessage[],
   filters: FilterState,
 ): TimelineMessage[] {
-  return messages.filter((m) => isMessageVisible(m, filters));
+  // Fast path: errorsOnly off → straightforward per-message gate.
+  if (filters.errorsOnly !== true) {
+    return messages.filter((m) => isMessageVisible(m, filters));
+  }
+
+  // errorsOnly path: walk the stream, find each errored tool_result, then
+  // include its paired tool_call + preceding assistant turn. Collect into
+  // a Set<number> of raw indices so dedup is automatic. Then materialize
+  // the result in ascending-index order.
+  const keep = new Set<number>();
+  const hideSidechains = filters.sidechains === false;
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    if (msg.type !== "tool_result") continue;
+    if (msg.isError !== true) continue;
+    // Sidechain precedence — skip errors inside subagent runs when
+    // sidechains are hidden.
+    if (hideSidechains && isSidechainMessage(msg)) continue;
+
+    keep.add(i);
+
+    // Walk backwards to find the paired tool_call (same callId) and the
+    // nearest assistant_text before that call. Stops on the first match
+    // for each so a single pass over indices < i is enough.
+    const pairId = msg.toolUseId;
+    let toolCallIdx = -1;
+    let assistantIdx = -1;
+
+    for (let j = i - 1; j >= 0; j--) {
+      const prev = messages[j];
+      // Skip sidechain records in the walk when hidden — they can't be
+      // surfaced as context for a top-level error.
+      if (hideSidechains && isSidechainMessage(prev)) continue;
+
+      if (toolCallIdx === -1 && prev.type === "tool_call" && prev.callId === pairId) {
+        toolCallIdx = j;
+        continue; // keep walking — we still need the assistant turn
+      }
+      if (
+        toolCallIdx !== -1 &&
+        assistantIdx === -1 &&
+        prev.type === "assistant_text"
+      ) {
+        assistantIdx = j;
+        break;
+      }
+      // Edge case: no tool_call pairs the result but an earlier
+      // assistant_text exists. We only surface the assistant when we
+      // found a tool_call — the contract is "the turn that issued the
+      // tool_call," so without a tool_call there's nothing to anchor to.
+    }
+
+    if (toolCallIdx >= 0) keep.add(toolCallIdx);
+    if (assistantIdx >= 0) keep.add(assistantIdx);
+  }
+
+  // Materialize in chronological (raw-index) order.
+  const sortedIndices = Array.from(keep).sort((a, b) => a - b);
+  return sortedIndices.map((idx) => messages[idx]);
 }
 
 /**
@@ -347,6 +463,131 @@ export function findAnchorAfterFilterChange(
 }
 
 // ---------------------------------------------------------------------------
+// Search helpers (task006)
+// ---------------------------------------------------------------------------
+
+/**
+ * One search hit. `rawIndex` points into the raw message array so the
+ * viewer can scroll/surface the owning bubble; `start` and `end` are
+ * character offsets into the message's searchable text (from
+ * `getMessageSearchText`). `globalIndex` is the match's position in the
+ * full ordered match list (0-based) — used as the DOM anchor for the
+ * current-match scroll target.
+ */
+export interface SearchMatch {
+  rawIndex: number;
+  start: number;
+  end: number;
+  globalIndex: number;
+}
+
+/**
+ * Extract the searchable text body from a TimelineMessage. Different
+ * variants have different text fields; this centralizes the mapping so
+ * both `findMatches` and the bubble-level highlight hook read the same
+ * string. Exhaustive over TimelineMessage.type.
+ *
+ * For tool_call, we serialize the `name` + the stringified `input` so
+ * searches can hit params like file paths, commands, queries, etc.
+ * (the fallback renderer picks the first string-valued input field for
+ * its compact summary, but findMatches scans the whole input object).
+ *
+ * Exported for testing.
+ */
+export function getMessageSearchText(msg: TimelineMessage): string {
+  switch (msg.type) {
+    case "user_text":
+      return msg.text;
+    case "assistant_text":
+      return msg.text;
+    case "thinking":
+      return msg.text;
+    case "tool_call": {
+      // Include the tool name so "Read" or "Bash" query terms match, then
+      // serialize the input object so command strings, paths, queries,
+      // patterns etc. are all searchable.
+      return `${msg.name} ${JSON.stringify(msg.input)}`;
+    }
+    case "tool_result":
+      return msg.content;
+    case "system_event":
+      return msg.summary;
+    case "skill_invocation":
+      return `/${msg.commandName} ${msg.commandArgs}`;
+    default: {
+      const _exhaustive: never = msg;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * Scan every message for all occurrences of `query` and return a flat
+ * list of matches in document order (raw-index ascending, then span
+ * position within a message). Case-insensitive — users expect
+ * Ctrl+F-style behavior, not regex.
+ *
+ * Empty / whitespace-only queries return an empty list so the UI doesn't
+ * highlight everything when the search field is cleared.
+ *
+ * Exported for testing.
+ */
+export function findMatches(
+  messages: TimelineMessage[],
+  query: string,
+): SearchMatch[] {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return [];
+  const needle = trimmed.toLowerCase();
+  const matches: SearchMatch[] = [];
+  let globalIndex = 0;
+  for (let i = 0; i < messages.length; i++) {
+    const body = getMessageSearchText(messages[i]).toLowerCase();
+    if (body.length === 0) continue;
+    let from = 0;
+    while (from <= body.length - needle.length) {
+      const hit = body.indexOf(needle, from);
+      if (hit < 0) break;
+      matches.push({
+        rawIndex: i,
+        start: hit,
+        end: hit + needle.length,
+        globalIndex: globalIndex++,
+      });
+      from = hit + needle.length;
+    }
+  }
+  return matches;
+}
+
+/**
+ * Advance or retreat the current-match pointer with wrap-around. Empty
+ * match lists clamp to 0. Single-match lists always return 0.
+ *
+ * Exported for testing.
+ */
+export function navigateMatches(
+  total: number,
+  currentIndex: number,
+  direction: "next" | "prev",
+): number {
+  if (total <= 0) return 0;
+  if (total === 1) return 0;
+  if (direction === "next") {
+    return (currentIndex + 1) % total;
+  }
+  // prev with wrap-around
+  return (currentIndex - 1 + total) % total;
+}
+
+// ---------------------------------------------------------------------------
+// Search highlight threading — context, hook, and highlightText helper
+// live in `./search-highlight.tsx` so bubble components can import them
+// without forming a circular dependency through `./bubbles/dispatcher`.
+// Re-exports above make the surface identical to pre-task006 callers.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -414,11 +655,65 @@ export function ConversationViewer({
           "unavailable";
 
   // Filtered subset, keeping raw-index mapping for the ref scroll target.
-  const visibleWithRawIdx = useMemo(() => {
-    return rawMessages
-      .map((msg, rawIndex) => ({ msg, rawIndex }))
-      .filter(({ msg }) => isMessageVisible(msg, filters));
+  // For errorsOnly mode, filterMessages returns a reordered / surrounding-
+  // context set rather than a strict per-message subset, so we run
+  // filterMessages once and then look up each result's raw index.
+  const filteredWithRawIdx = useMemo(() => {
+    const filtered = filterMessages(rawMessages, filters);
+    // Preserve raw-index mapping by using identity (filterMessages returns
+    // a subset that points into rawMessages so each element is ===).
+    return filtered.map((msg) => ({
+      msg,
+      rawIndex: rawMessages.indexOf(msg),
+    }));
   }, [rawMessages, filters]);
+
+  // ---------- task006 search state ----------
+  // The user toggles the search bar open via the magnifier button in the
+  // header or by pressing `/` or Ctrl+F inside the viewer. When closed
+  // query is "" and no surfacing happens.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // All matches across the full (unfiltered) stream. Search scope is
+  // intentionally "full content regardless of filter" per task006 step 4.
+  const matches = useMemo(() => {
+    if (!searchOpen || searchQuery.trim().length === 0) return [];
+    return findMatches(rawMessages, searchQuery);
+  }, [searchOpen, searchQuery, rawMessages]);
+
+  // Set of raw indices that own at least one match. Used to decide
+  // whether a filter-hidden message should be temporarily surfaced.
+  const matchedRawIndices = useMemo(() => {
+    const set = new Set<number>();
+    for (const m of matches) set.add(m.rawIndex);
+    return set;
+  }, [matches]);
+
+  // Effective visible list: union of the filter result + any raw indices
+  // that own a match and weren't already visible. Rendered in raw-index
+  // order so surfacing a hidden message doesn't scramble the timeline.
+  const visibleWithRawIdx = useMemo(() => {
+    const visibleIdxSet = new Set(filteredWithRawIdx.map((v) => v.rawIndex));
+    const extraIndices: number[] = [];
+    Array.from(matchedRawIndices).forEach((idx) => {
+      if (!visibleIdxSet.has(idx)) extraIndices.push(idx);
+    });
+    if (extraIndices.length === 0) return filteredWithRawIdx;
+    // Merge + re-sort by raw index so surfacing a filter-hidden message
+    // lands it in the correct chronological slot.
+    const merged = [
+      ...filteredWithRawIdx,
+      ...extraIndices.map((rawIndex) => ({
+        msg: rawMessages[rawIndex],
+        rawIndex,
+      })),
+    ];
+    merged.sort((a, b) => a.rawIndex - b.rawIndex);
+    return merged;
+  }, [filteredWithRawIdx, matchedRawIndices, rawMessages]);
 
   // Group the *filtered* stream for rendering. Grouping after filtering
   // means hiding a tool_call inside a subagent run doesn't split the
@@ -431,6 +726,87 @@ export function ConversationViewer({
       ),
     [visibleWithRawIdx, treeStatus],
   );
+
+  // Reset current match index whenever matches change (new query, new
+  // data) — keep it in range if matches shrank.
+  useEffect(() => {
+    if (matches.length === 0) {
+      setCurrentMatchIndex(0);
+      return;
+    }
+    setCurrentMatchIndex((idx) => (idx >= matches.length ? 0 : idx));
+  }, [matches]);
+
+  // Current match — the highlighted "active" hit.
+  const currentMatch = matches[currentMatchIndex];
+
+  // Map from rawIndex → starting global match offset. Built from the
+  // matches list. Lets bubbles resolve their own offset without knowing
+  // their raw position.
+  const rawIndexToGlobalOffset = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const m of matches) {
+      if (!map.has(m.rawIndex)) map.set(m.rawIndex, m.globalIndex);
+    }
+    return map;
+  }, [matches]);
+
+  // Search highlight context value — rebuilt when query or current match
+  // changes. Bubbles consume this via `useSearchHighlight` to decide
+  // whether to wrap matched spans.
+  const searchHighlightValue = useMemo<SearchHighlightValue | null>(() => {
+    if (!searchOpen) return null;
+    const trimmed = searchQuery.trim();
+    if (trimmed.length === 0) return null;
+    return {
+      query: trimmed,
+      needle: trimmed.toLowerCase(),
+      currentRawIndex: currentMatch?.rawIndex ?? -1,
+      currentGlobalIndex: currentMatch?.globalIndex ?? -1,
+      buildAnchorId: (globalIndex: number) =>
+        `conv-search-match-${globalIndex}`,
+      getGlobalOffsetFor: (msg: TimelineMessage) => {
+        const rawIdx = rawMessages.indexOf(msg);
+        if (rawIdx < 0) return -1;
+        return rawIndexToGlobalOffset.get(rawIdx) ?? -1;
+      },
+    };
+  }, [searchOpen, searchQuery, currentMatch, rawMessages, rawIndexToGlobalOffset]);
+
+  // Auto-expand + scroll on current-match change. We lean on the
+  // existing querySelector pattern from task004's Enter keyboard handler:
+  // the collapsed disclosure buttons (ThinkingBlock, ToolCallBlock,
+  // ToolResultBlock, SidechainGroup) all expose `aria-expanded="false"`
+  // when collapsed. Clicking that button flips the bubble's internal
+  // state; after a frame we scroll the actual match anchor into view.
+  useEffect(() => {
+    if (!currentMatch) return;
+    const el = messageRefs.current.get(currentMatch.rawIndex);
+    if (!el) return;
+    // Expand every collapsed disclosure inside the bubble so nested
+    // content (e.g. a tool_call inside a sidechain) is accessible.
+    const collapsed = el.querySelectorAll<HTMLButtonElement>(
+      'button[aria-expanded="false"]',
+    );
+    collapsed.forEach((btn) => btn.click());
+
+    // Wait one rAF so React commits the expanded state, then scroll the
+    // exact match anchor (if rendered) into view. Fall back to scrolling
+    // the whole bubble when the span isn't rendered yet (first paint
+    // race; the next effect run will handle it).
+    const raf = requestAnimationFrame(() => {
+      const anchorId = `conv-search-match-${currentMatch.globalIndex}`;
+      const anchor = el.querySelector<HTMLElement>(
+        `[data-match-anchor="${anchorId}"]`,
+      );
+      if (anchor && typeof anchor.scrollIntoView === "function") {
+        anchor.scrollIntoView({ block: "center" });
+      } else if (typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ block: "nearest" });
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [currentMatch]);
 
   // Keyboard focus: which visible message is "current"? Drives both the
   // position indicator and arrow-key navigation. We index into
@@ -509,11 +885,33 @@ export function ConversationViewer({
   // SidechainGroup) can react if they own the focused message. For now we
   // implement the scroll half — individual bubble expand/collapse is a
   // follow-up once we wire the viewer in task005 and can observe real usage.
+  //
+  // task006: `/` opens the search bar. Ctrl+F also opens it (intercepts the
+  // browser find-in-page because Ctrl+F is the obvious mental model).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if ((e.target as HTMLElement | null)?.isContentEditable) return;
+      const inEditor =
+        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      const ceditable = (e.target as HTMLElement | null)?.isContentEditable;
+
+      // Search toggle shortcut — `/` or Ctrl+F. Only fires when the focus
+      // is not already inside an input, so typing `/` in the search field
+      // works normally.
+      if (
+        !inEditor &&
+        !ceditable &&
+        (e.key === "/" || ((e.ctrlKey || e.metaKey) && e.key === "f"))
+      ) {
+        e.preventDefault();
+        setSearchOpen(true);
+        // Focus the search input on next tick (the input mounts when
+        // searchOpen flips to true).
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+        return;
+      }
+
+      if (inEditor || ceditable) return;
       if (visibleWithRawIdx.length === 0) return;
 
       if (e.key === "ArrowDown") {
@@ -603,6 +1001,56 @@ export function ConversationViewer({
     }
   }, [visibleWithRawIdx]);
 
+  // Search navigation callbacks. Navigating past the last match wraps to
+  // the first; before the first wraps to the last. The current-match
+  // effect handles auto-expand + scroll, so these handlers only move
+  // the index.
+  const handleSearchNext = useCallback(() => {
+    if (matches.length === 0) return;
+    setCurrentMatchIndex((idx) =>
+      navigateMatches(matches.length, idx, "next"),
+    );
+  }, [matches]);
+
+  const handleSearchPrev = useCallback(() => {
+    if (matches.length === 0) return;
+    setCurrentMatchIndex((idx) =>
+      navigateMatches(matches.length, idx, "prev"),
+    );
+  }, [matches]);
+
+  const handleSearchClear = useCallback(() => {
+    setSearchQuery("");
+    setCurrentMatchIndex(0);
+    setSearchOpen(false);
+  }, []);
+
+  const toggleSearchOpen = useCallback(() => {
+    setSearchOpen((open) => {
+      const next = !open;
+      if (next) {
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      } else {
+        setSearchQuery("");
+        setCurrentMatchIndex(0);
+      }
+      return next;
+    });
+  }, []);
+
+  // Set of raw indices that are "surfaced by search" — i.e. matched but
+  // would otherwise be hidden by the current filter state. Used to tag
+  // their bubble wrappers with a "hidden by filter" indicator so the
+  // reader knows why they're seeing them.
+  const surfacedRawIndices = useMemo(() => {
+    const set = new Set<number>();
+    if (matchedRawIndices.size === 0) return set;
+    Array.from(matchedRawIndices).forEach((idx) => {
+      if (!isMessageInFilteredSet(rawMessages[idx], filters)) set.add(idx);
+    });
+    return set;
+  }, [matchedRawIndices, rawMessages, filters]);
+
   // Render ----------------------------------------------------------------
 
   if (!sessionId) {
@@ -639,10 +1087,42 @@ export function ConversationViewer({
     );
   }
 
+  // Header bar — search toggle + active search component. Shared across
+  // the filter-empty and the normal render paths so the user can open
+  // search even when no messages match the current filter state.
+  const header: ReactNode = (
+    <div className="flex items-center justify-end gap-2 px-3 py-1.5 border-b border-border/30 bg-background">
+      {searchOpen ? (
+        <ConversationSearch
+          ref={searchInputRef}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          totalMatches={matches.length}
+          currentIndex={matches.length === 0 ? -1 : currentMatchIndex}
+          onNext={handleSearchNext}
+          onPrev={handleSearchPrev}
+          onClear={handleSearchClear}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={toggleSearchOpen}
+          data-action="open-search"
+          aria-label="Open search"
+          title="Search conversation (/)"
+          className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+        >
+          <Search className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+
   if (visibleWithRawIdx.length === 0) {
     return (
       <div className="relative flex flex-col h-full">
         {treeStatus === "unavailable" && <UnavailableBanner />}
+        {header}
         <div className="flex items-center justify-center flex-1 text-sm text-muted-foreground">
           No messages match the current filters.
         </div>
@@ -656,92 +1136,102 @@ export function ConversationViewer({
   let previousModel: string | undefined;
 
   return (
-    <div className="relative flex flex-col h-full">
-      {treeStatus === "unavailable" && <UnavailableBanner />}
+    <SearchHighlightContext.Provider value={searchHighlightValue}>
+      <div className="relative flex flex-col h-full">
+        {treeStatus === "unavailable" && <UnavailableBanner />}
+        {header}
 
-      {/* Scrollable message list */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-3 py-3"
-        data-testid="conversation-scroll-region"
-      >
-        <div className="flex flex-col gap-2 max-w-4xl mx-auto">
-          {groups.map((group, groupIdx) => {
-            if (group.kind === "sidechain") {
-              // SidechainGroup renders its own wrapper — we need the first
-              // member's raw index so keyboard nav / scroll-into-view can
-              // still target "this group" by its top message.
-              const firstMember = group.members[0];
-              const rawIndex = rawMessages.indexOf(firstMember);
+        {/* Scrollable message list */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-3 py-3"
+          data-testid="conversation-scroll-region"
+        >
+          <div className="flex flex-col gap-2 max-w-4xl mx-auto">
+            {groups.map((group, groupIdx) => {
+              if (group.kind === "sidechain") {
+                // SidechainGroup renders its own wrapper — we need the first
+                // member's raw index so keyboard nav / scroll-into-view can
+                // still target "this group" by its top message.
+                const firstMember = group.members[0];
+                const rawIndex = rawMessages.indexOf(firstMember);
+                return (
+                  <div
+                    key={`group-${groupIdx}`}
+                    ref={registerMessageRef(rawIndex)}
+                    data-raw-index={rawIndex}
+                  >
+                    <SidechainGroup
+                      subagentContext={group.subagentContext}
+                      children={group.members}
+                    />
+                  </div>
+                );
+              }
+              // single
+              const msg = group.message;
+              const rawIndex = rawMessages.indexOf(msg);
+              const node = renderMessage(msg, { previousModel });
+              if (msg.type === "assistant_text") previousModel = msg.model;
+              const key =
+                "uuid" in msg && typeof msg.uuid === "string"
+                  ? msg.uuid
+                  : `msg-${groupIdx}`;
+              const surfacedBySearch = surfacedRawIndices.has(rawIndex);
               return (
                 <div
-                  key={`group-${groupIdx}`}
+                  key={key}
                   ref={registerMessageRef(rawIndex)}
                   data-raw-index={rawIndex}
+                  data-surfaced-by-search={surfacedBySearch ? "true" : undefined}
                 >
-                  <SidechainGroup
-                    subagentContext={group.subagentContext}
-                    children={group.members}
-                  />
+                  {surfacedBySearch && (
+                    <div className="mb-1 px-2 py-0.5 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded inline-block font-mono">
+                      Hidden by filter — shown due to search
+                    </div>
+                  )}
+                  <Fragment>{node}</Fragment>
                 </div>
               );
-            }
-            // single
-            const msg = group.message;
-            const rawIndex = rawMessages.indexOf(msg);
-            const node = renderMessage(msg, { previousModel });
-            if (msg.type === "assistant_text") previousModel = msg.model;
-            const key =
-              "uuid" in msg && typeof msg.uuid === "string"
-                ? msg.uuid
-                : `msg-${groupIdx}`;
-            return (
-              <div
-                key={key}
-                ref={registerMessageRef(rawIndex)}
-                data-raw-index={rawIndex}
-              >
-                <Fragment>{node}</Fragment>
-              </div>
-            );
-          })}
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* Floating scroll controls + position indicator — only show when
-          the conversation is long enough to actually scroll. */}
-      {!(scrollProgress.atTop && scrollProgress.atBottom) && (
-        <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2 pointer-events-none">
-          <div className="px-2 py-1 rounded bg-background/90 border border-border/40 text-[11px] text-muted-foreground font-mono pointer-events-auto">
-            {`Message ${position.index} of ${position.total}`}
+        {/* Floating scroll controls + position indicator — only show when
+            the conversation is long enough to actually scroll. */}
+        {!(scrollProgress.atTop && scrollProgress.atBottom) && (
+          <div className="absolute bottom-3 right-3 flex flex-col items-end gap-2 pointer-events-none">
+            <div className="px-2 py-1 rounded bg-background/90 border border-border/40 text-[11px] text-muted-foreground font-mono pointer-events-auto">
+              {`Message ${position.index} of ${position.total}`}
+            </div>
+            <div className="flex flex-col gap-1 pointer-events-auto">
+              {!scrollProgress.atTop && (
+                <button
+                  type="button"
+                  onClick={() => jumpTo("top")}
+                  data-jump="top"
+                  aria-label="Jump to top"
+                  className="h-8 w-8 flex items-center justify-center rounded-full bg-background/90 border border-border/40 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+              )}
+              {!scrollProgress.atBottom && (
+                <button
+                  type="button"
+                  onClick={() => jumpTo("bottom")}
+                  data-jump="bottom"
+                  aria-label="Jump to bottom"
+                  className="h-8 w-8 flex items-center justify-center rounded-full bg-background/90 border border-border/40 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col gap-1 pointer-events-auto">
-            {!scrollProgress.atTop && (
-              <button
-                type="button"
-                onClick={() => jumpTo("top")}
-                data-jump="top"
-                aria-label="Jump to top"
-                className="h-8 w-8 flex items-center justify-center rounded-full bg-background/90 border border-border/40 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowUp className="h-4 w-4" />
-              </button>
-            )}
-            {!scrollProgress.atBottom && (
-              <button
-                type="button"
-                onClick={() => jumpTo("bottom")}
-                data-jump="bottom"
-                aria-label="Jump to bottom"
-                className="h-8 w-8 flex items-center justify-center rounded-full bg-background/90 border border-border/40 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowDown className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </SearchHighlightContext.Provider>
   );
 }
 

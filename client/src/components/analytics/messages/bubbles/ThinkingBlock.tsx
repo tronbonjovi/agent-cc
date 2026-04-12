@@ -22,6 +22,7 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { ThinkingMessage } from "@shared/session-types";
+import { highlightText, useSearchHighlight } from "../search-highlight";
 
 export interface ThinkingBlockProps {
   message: ThinkingMessage;
@@ -36,6 +37,7 @@ function formatCharLength(text: string): string {
 export function ThinkingBlock({ message }: ThinkingBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const charLabel = formatCharLength(message.text);
+  const highlight = useSearchHighlight();
 
   return (
     <div
@@ -59,7 +61,13 @@ export function ThinkingBlock({ message }: ThinkingBlockProps) {
 
       {expanded && (
         <pre className="mt-2 ml-4 whitespace-pre-wrap text-xs text-muted-foreground italic font-sans">
-          {message.text}
+          {highlight
+            ? highlightText(
+                message.text,
+                highlight,
+                highlight.getGlobalOffsetFor(message),
+              )
+            : message.text}
         </pre>
       )}
     </div>

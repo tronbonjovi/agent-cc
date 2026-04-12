@@ -23,6 +23,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { relativeTime, shortModel } from "@/lib/utils";
 import type { AssistantTextMessage } from "@shared/session-types";
+import { highlightText, useSearchHighlight } from "../search-highlight";
 
 export interface AssistantBlockProps {
   message: AssistantTextMessage;
@@ -75,6 +76,8 @@ const markdownComponents = {
 };
 
 export function AssistantBlock({ message, previousModel }: AssistantBlockProps) {
+  const highlight = useSearchHighlight();
+
   // Stop-reason pill: anything other than end_turn is worth flagging.
   // end_turn is the normal completion path; max_tokens/tool_use/stop_sequence
   // are unusual and worth a visual marker.
@@ -107,12 +110,25 @@ export function AssistantBlock({ message, previousModel }: AssistantBlockProps) 
         </div>
       )}
 
-      {/* Body — markdown with GFM + custom code renderers. */}
-      <div className="text-sm leading-relaxed prose prose-sm prose-invert max-w-none">
-        <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-          {message.text}
-        </Markdown>
-      </div>
+      {/* Body — markdown with GFM + custom code renderers when idle.
+          When search is active, switch to a highlighted plain-text render
+          so matches carry visible <mark> spans. Contract permits this
+          tradeoff (task006 step 2, "highlighted in the body text"). */}
+      {highlight ? (
+        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          {highlightText(
+            message.text,
+            highlight,
+            highlight.getGlobalOffsetFor(message),
+          )}
+        </div>
+      ) : (
+        <div className="text-sm leading-relaxed prose prose-sm prose-invert max-w-none">
+          <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {message.text}
+          </Markdown>
+        </div>
+      )}
 
       {/* Corner timestamp on hover, matching UserBubble's convention. */}
       <div

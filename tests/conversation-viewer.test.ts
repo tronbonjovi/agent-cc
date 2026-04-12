@@ -512,3 +512,226 @@ describe("findAnchorAfterFilterChange", () => {
     expect(findAnchorAfterFilterChange(msgs, 0, filters)).toBe(-1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// task006 step 6 — filter coverage gap for task005's errorsOnly / sidechains
+// paths, plus step 5 — surrounding-context enrichment for errored tool_results.
+// ---------------------------------------------------------------------------
+
+describe("filterMessages — sidechains hidden", () => {
+  it("hides messages with isSidechain: true when sidechains=false", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    const msgs = [
+      userMsg("u1", "2026-01-01T00:00:00Z"),
+      asstMsg("a1", "2026-01-01T00:00:01Z", { isSidechain: true }),
+      userMsg("u2", "2026-01-01T00:00:02Z"),
+    ];
+    const filters = { ...DEFAULT_FILTERS, sidechains: false };
+    const result = filterMessages(msgs, filters);
+    expect(result.map((m) => ("uuid" in m ? m.uuid : ""))).toEqual(["u1", "u2"]);
+  });
+
+  it("hides messages carrying a subagentContext when sidechains=false", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    const ctx = { agentId: "agent-A", agentType: "general", description: "w" };
+    const msgs = [
+      userMsg("u1", "2026-01-01T00:00:00Z"),
+      asstMsg("a1", "2026-01-01T00:00:01Z", { subagentContext: ctx }),
+      userMsg("u2", "2026-01-01T00:00:02Z"),
+    ];
+    const filters = { ...DEFAULT_FILTERS, sidechains: false };
+    const result = filterMessages(msgs, filters);
+    expect(result.map((m) => ("uuid" in m ? m.uuid : ""))).toEqual(["u1", "u2"]);
+  });
+
+  it("keeps sidechains visible when sidechains flag is undefined (backward compat)", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    const msgs = [
+      userMsg("u1", "2026-01-01T00:00:00Z"),
+      asstMsg("a1", "2026-01-01T00:00:01Z", { isSidechain: true }),
+    ];
+    // Strip the sidechains field entirely to simulate a legacy 7-key literal.
+    const filters = { ...DEFAULT_FILTERS };
+    delete (filters as Record<string, unknown>).sidechains;
+    const result = filterMessages(msgs, filters);
+    expect(result).toHaveLength(2);
+  });
+});
+
+describe("filterMessages — errorsOnly with surrounding context (step 5)", () => {
+  it("returns the errored tool_result, its paired tool_call, and the preceding assistant turn", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    // Conversation:
+    //   u1 → a1 (normal) → tc1 (ok) → tr1 (ok) → a2 (issues bad call)
+    //   → tc-bad → tr-bad (ERROR) → a3 (summary)
+    // errorsOnly: true should surface [a2, tc-bad, tr-bad] in chronological order.
+    const msgs = [
+      userMsg("u1", "2026-01-01T00:00:00Z"),
+      asstMsg("a1", "2026-01-01T00:00:01Z"),
+      toolCallMsg("tc1", "2026-01-01T00:00:02Z"),
+      toolResultMsg("tr1", "2026-01-01T00:00:03Z"),
+      asstMsg("a2", "2026-01-01T00:00:04Z"),
+      toolCallMsg("bad", "2026-01-01T00:00:05Z"),
+      toolResultMsg("bad", "2026-01-01T00:00:06Z", { isError: true }),
+      asstMsg("a3", "2026-01-01T00:00:07Z"),
+    ];
+    const filters = { ...DEFAULT_FILTERS, errorsOnly: true };
+    const result = filterMessages(msgs, filters);
+    expect(result.map((m) => ("uuid" in m ? m.uuid : ""))).toEqual([
+      "a2",
+      "bad",
+      "bad",
+    ]);
+    // Chronological order preserved (no timestamp reversal).
+    expect(result[0].timestamp < result[1].timestamp).toBe(true);
+    expect(result[1].timestamp < result[2].timestamp).toBe(true);
+  });
+
+  it("deduplicates an assistant turn that issued multiple errored tool_calls", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    // a1 issues tc1 AND tc2, both errored. The assistant turn must appear
+    // exactly once, followed by its two tool_call / tool_result pairs in
+    // chronological order.
+    const msgs = [
+      asstMsg("a1", "2026-01-01T00:00:00Z"),
+      toolCallMsg("c1", "2026-01-01T00:00:01Z"),
+      toolResultMsg("c1", "2026-01-01T00:00:02Z", { isError: true }),
+      toolCallMsg("c2", "2026-01-01T00:00:03Z"),
+      toolResultMsg("c2", "2026-01-01T00:00:04Z", { isError: true }),
+    ];
+    const filters = { ...DEFAULT_FILTERS, errorsOnly: true };
+    const result = filterMessages(msgs, filters);
+    // Expected order: [a1, tc1, tr1, tc2, tr2] — 5 items total, a1 only once.
+    expect(result).toHaveLength(5);
+    const uuids = result.map((m) => ("uuid" in m ? m.uuid : ""));
+    expect(uuids).toEqual(["a1", "c1", "c1", "c2", "c2"]);
+    // Exactly one assistant_text in the output (the dedup case).
+    expect(result.filter((m) => m.type === "assistant_text")).toHaveLength(1);
+  });
+
+  it("tolerates an errored tool_result with no preceding assistant turn", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    // Only the errored tool_result, no matching tool_call or assistant turn
+    // precedes it. Must not throw — just returns what it can find.
+    const msgs = [
+      userMsg("u1", "2026-01-01T00:00:00Z"),
+      toolResultMsg("orphan", "2026-01-01T00:00:01Z", { isError: true }),
+    ];
+    const filters = { ...DEFAULT_FILTERS, errorsOnly: true };
+    const result = filterMessages(msgs, filters);
+    // Just the bare errored tool_result — no context to surface.
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("tool_result");
+  });
+
+  it("tolerates an errored tool_result whose tool_call has no preceding assistant turn", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    // tool_call exists, but no assistant_text precedes it.
+    const msgs = [
+      toolCallMsg("tc", "2026-01-01T00:00:00Z"),
+      toolResultMsg("tc", "2026-01-01T00:00:01Z", { isError: true }),
+    ];
+    const filters = { ...DEFAULT_FILTERS, errorsOnly: true };
+    const result = filterMessages(msgs, filters);
+    expect(result).toHaveLength(2);
+    expect(result[0].type).toBe("tool_call");
+    expect(result[1].type).toBe("tool_result");
+  });
+
+  it("ignores non-errored tool_results (errorsOnly is still a debug view)", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    const msgs = [
+      asstMsg("a1", "2026-01-01T00:00:00Z"),
+      toolCallMsg("ok", "2026-01-01T00:00:01Z"),
+      toolResultMsg("ok", "2026-01-01T00:00:02Z", { isError: false }),
+    ];
+    const filters = { ...DEFAULT_FILTERS, errorsOnly: true };
+    const result = filterMessages(msgs, filters);
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("filterMessages — errorsOnly + sidechains precedence (step 5)", () => {
+  it("hides sidechain-errored tool_results when sidechains=false (precedence wins)", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    // Two errored tool_results: one at top level, one inside a subagent.
+    // With errorsOnly=true and sidechains=false, ONLY the top-level error
+    // (plus its surrounding context) should surface.
+    const ctx = { agentId: "A", agentType: "general", description: "w" };
+    const msgs = [
+      asstMsg("a-top", "2026-01-01T00:00:00Z"),
+      toolCallMsg("top", "2026-01-01T00:00:01Z"),
+      toolResultMsg("top", "2026-01-01T00:00:02Z", { isError: true }),
+      // Subagent run, same-shape sequence but isSidechain / subagentContext set.
+      asstMsg("a-sub", "2026-01-01T00:00:03Z", {
+        isSidechain: true,
+        subagentContext: ctx,
+      }),
+      toolCallMsg("sub", "2026-01-01T00:00:04Z", {
+        isSidechain: true,
+        subagentContext: ctx,
+      }),
+      toolResultMsg("sub", "2026-01-01T00:00:05Z", {
+        isError: true,
+        isSidechain: true,
+        subagentContext: ctx,
+      }),
+    ];
+    const filters = {
+      ...DEFAULT_FILTERS,
+      errorsOnly: true,
+      sidechains: false,
+    };
+    const result = filterMessages(msgs, filters);
+    // Only the top-level triad; sidechain triad fully suppressed.
+    expect(result.map((m) => ("uuid" in m ? m.uuid : ""))).toEqual([
+      "a-top",
+      "top",
+      "top",
+    ]);
+  });
+
+  it("surfaces sidechain errors when sidechains is default (visible)", async () => {
+    const { filterMessages, DEFAULT_FILTERS } = await import(
+      "../client/src/components/analytics/messages/ConversationViewer"
+    );
+    const ctx = { agentId: "A", agentType: "general", description: "w" };
+    const msgs = [
+      asstMsg("a-sub", "2026-01-01T00:00:00Z", {
+        isSidechain: true,
+        subagentContext: ctx,
+      }),
+      toolCallMsg("sub", "2026-01-01T00:00:01Z", {
+        isSidechain: true,
+        subagentContext: ctx,
+      }),
+      toolResultMsg("sub", "2026-01-01T00:00:02Z", {
+        isError: true,
+        isSidechain: true,
+        subagentContext: ctx,
+      }),
+    ];
+    // sidechains defaults to true, so sidechain errors should appear.
+    const filters = { ...DEFAULT_FILTERS, errorsOnly: true };
+    const result = filterMessages(msgs, filters);
+    expect(result).toHaveLength(3);
+  });
+});

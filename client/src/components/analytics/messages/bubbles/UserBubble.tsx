@@ -17,28 +17,50 @@
 //     has no `toolUseIds` field (user tool_result records are a different
 //     TimelineMessage variant entirely — `tool_result`). If a future task
 //     adds the association on the type, this is the place to render it.
+//
+// task006 search:
+//   - When search is active (useSearchHighlight returns non-null), switch
+//     from markdown rendering to a highlighted plain-text render so
+//     matches can be wrapped in <mark>. Markdown rendering doesn't play
+//     well with per-character highlighting; dismissing search restores
+//     the normal markdown view. Contract explicitly permits this tradeoff
+//     (perfect highlighting of every variant is not required; text-body
+//     matching is the minimum bar).
 
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { relativeTime } from "@/lib/utils";
 import type { UserTextMessage } from "@shared/session-types";
+import { highlightText, useSearchHighlight } from "../search-highlight";
 
 export interface UserBubbleProps {
   message: UserTextMessage;
 }
 
 export function UserBubble({ message }: UserBubbleProps) {
+  const highlight = useSearchHighlight();
+
   return (
     <div
       data-message-type="user_text"
       className="group relative px-4 py-3 bg-primary/5 border-l-2 border-l-primary/40 rounded-r"
     >
-      {/* Body — rendered as markdown with GFM extensions (tables, tasklists,
-          autolinks, strikethrough). Prose styles are applied via Tailwind's
-          typography defaults tuned to our palette. */}
-      <div className="text-sm leading-relaxed prose prose-sm prose-invert max-w-none">
-        <Markdown remarkPlugins={[remarkGfm]}>{message.text}</Markdown>
-      </div>
+      {/* Body — when search is active, render a plain-text highlighted
+          view so matches carry visible <mark> spans. When idle, render
+          full markdown with GFM. */}
+      {highlight ? (
+        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          {highlightText(
+            message.text,
+            highlight,
+            highlight.getGlobalOffsetFor(message),
+          )}
+        </div>
+      ) : (
+        <div className="text-sm leading-relaxed prose prose-sm prose-invert max-w-none">
+          <Markdown remarkPlugins={[remarkGfm]}>{message.text}</Markdown>
+        </div>
+      )}
 
       {/* Timestamp — corner-anchored, fades in on hover to stay out of the
           way during a normal read-through but available when the user wants

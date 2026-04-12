@@ -22,6 +22,7 @@
 import { useState } from "react";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 import type { ToolResultMessage } from "@shared/session-types";
+import { highlightText, useSearchHighlight } from "../search-highlight";
 
 /**
  * Soft caps for truncation. Tuned to comfortably fit a typical terminal
@@ -62,15 +63,24 @@ export interface ToolResultBlockProps {
 
 export function ToolResultBlock({ message }: ToolResultBlockProps) {
   const isError = message.isError;
+  const highlight = useSearchHighlight();
 
   // Success: collapsed by default. Error: expanded by default — failures
   // should surface without a click.
   const [showOutput, setShowOutput] = useState(isError);
 
   // Show-more state for truncated output, independent of show-output.
+  // When search is active, force-render the full content so a match
+  // deep in the output isn't hidden behind the Show more toggle. The
+  // auto-expand effect in the viewer already clicks the "Show output"
+  // disclosure; we handle the "Show more" truncation by treating
+  // search-active as implicit show-full.
   const [showFull, setShowFull] = useState(false);
   const truncatable = isTruncatable(message.content);
-  const visible = showFull ? message.content : truncate(message.content);
+  const effectiveShowFull = showFull || highlight != null;
+  const visible = effectiveShowFull
+    ? message.content
+    : truncate(message.content);
 
   // Visual styling:
   //   - Indented under an implicit parent tool-call (ml-6).
@@ -112,13 +122,20 @@ export function ToolResultBlock({ message }: ToolResultBlockProps) {
         </span>
       </button>
 
-      {/* Output body — plain <pre> so tool output renders verbatim. */}
+      {/* Output body — plain <pre> so tool output renders verbatim. Search
+          matches get wrapped in <mark> spans via `highlightText`. */}
       {showOutput && (
         <div className="mt-2">
           <pre className="whitespace-pre-wrap break-words text-[11px] font-mono text-muted-foreground max-h-[600px] overflow-y-auto">
-            {visible}
+            {highlight
+              ? highlightText(
+                  visible,
+                  highlight,
+                  highlight.getGlobalOffsetFor(message),
+                )
+              : visible}
           </pre>
-          {truncatable && !showFull && (
+          {truncatable && !effectiveShowFull && (
             <button
               type="button"
               onClick={() => setShowFull(true)}
