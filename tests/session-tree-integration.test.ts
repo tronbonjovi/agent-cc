@@ -192,4 +192,28 @@ describe('session-tree integration — scanner end-to-end against real-shaped fi
     expect(sessionParseCache.getByPath(missing)).toBeNull();
     expect(sessionParseCache.getTreeByPath(missing)).toBeNull();
   });
+
+  it('surfaces subagent-parse-failed when an extra corrupt subagent file is present', () => {
+    // Drop an empty JSONL next to the valid 5 so discovery picks up a sixth
+    // subagent that `parseSessionFile` will reject. The builder must emit
+    // `subagent-parse-failed` and leave totals.subagents at 5 — we never want
+    // a broken file to silently vanish.
+    const rogueAgentId = 'b6666666666666666';
+    const subagentsDir = path.join(
+      tmpRoot,
+      '-home-user-projects-demo',
+      'parent',
+      'subagents',
+    );
+    fs.writeFileSync(path.join(subagentsDir, `agent-${rogueAgentId}.jsonl`), '');
+
+    parseSessionAndBuildTree(parentFilePath, '-home-user-projects-demo');
+    const tree = sessionParseCache.getTreeByPath(parentFilePath)!;
+
+    expect(tree.totals.subagents).toBe(5);
+    expect(tree.subagentsByAgentId.has(rogueAgentId)).toBe(false);
+    const warn = tree.warnings.find((w) => w.kind === 'subagent-parse-failed');
+    expect(warn).toBeDefined();
+    expect(warn!.detail).toContain(rogueAgentId);
+  });
 });

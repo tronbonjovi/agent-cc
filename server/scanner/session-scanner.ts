@@ -200,11 +200,10 @@ function parseSession(
     const basename = path.basename(filePath, ".jsonl");
     const stat = fs.statSync(filePath);
 
-    // Parse the parent JSONL + its subagents and cache the parsed/tree pair
-    // atomically. `parseSessionAndBuildTree` owns the full pipeline — we
-    // intentionally bypass `getOrParse` here so every scan pass refreshes the
-    // tree alongside the parsed session instead of leaving an earlier tree
-    // glued to a newer parsed entry.
+    // Route through the tree pipeline so every scanned session lands in the
+    // cache paired with a SessionTree. The helper reuses the file-size-keyed
+    // cache inside `getOrParse` as a fast path, so repeat scans of unchanged
+    // sessions stay O(1) and only new/grown sessions pay the rebuild cost.
     const parsed = parseSessionAndBuildTree(filePath, projectKey);
 
     if (parsed) {
