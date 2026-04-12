@@ -63,7 +63,7 @@ export function parseSessionFile(filePath: string, projectKey: string): ParsedSe
   // Tool call matching: pending tool_use calls waiting for results
   const pendingToolCalls = new Map<
     string,
-    { call: ToolCall; timestamp: string; isSidechain: boolean }
+    { call: ToolCall; timestamp: string; isSidechain: boolean; assistantUuid: string }
   >();
 
   // Parse line by line
@@ -149,6 +149,7 @@ export function parseSessionFile(filePath: string, projectKey: string): ParsedSe
             call: tc,
             timestamp: ts,
             isSidechain: !!record.isSidechain,
+            assistantUuid: record.uuid || '',
           });
         }
       }
@@ -243,6 +244,7 @@ export function parseSessionFile(filePath: string, projectKey: string): ParsedSe
             durationMs: tr.durationMs,
             isError: tr.isError,
             isSidechain: pending.isSidechain,
+            issuedByAssistantUuid: pending.assistantUuid,
           });
           pendingToolCalls.delete(tr.toolUseId);
         }

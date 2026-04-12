@@ -107,6 +107,7 @@ describe('session-types smoke test', () => {
       durationMs: 42,
       isError: false,
       isSidechain: false,
+      issuedByAssistantUuid: 'a-uuid-001',
     };
 
     const turnDuration: TurnDuration = {
@@ -1660,5 +1661,158 @@ describe('SessionParseCache integration', () => {
     expect(sessionParseCache.size).toBeGreaterThan(0);
     sessionParseCache.invalidateAll();
     expect(sessionParseCache.size).toBe(0);
+  });
+});
+
+describe('ToolExecution.issuedByAssistantUuid linkage', () => {
+  it('parseSessionFile populates issuedByAssistantUuid on every ToolExecution', () => {
+    const fp = writeSession('issued-by-single', [
+      {
+        type: 'user',
+        timestamp: '2026-01-01T10:00:00Z',
+        sessionId: 's1',
+        uuid: 'u1',
+        parentUuid: '',
+        isSidechain: false,
+        message: { role: 'user', content: 'do a thing' },
+      },
+      {
+        type: 'assistant',
+        timestamp: '2026-01-01T10:00:01Z',
+        sessionId: 's1',
+        uuid: 'asst-uuid-1',
+        parentUuid: 'u1',
+        isSidechain: false,
+        requestId: 'r1',
+        message: {
+          id: 'm1',
+          role: 'assistant',
+          model: 'claude-sonnet-4-20250514',
+          type: 'message',
+          stop_reason: 'tool_use',
+          content: [
+            { type: 'tool_use', id: 'tu-A', name: 'Read', input: { file_path: '/tmp/a.ts' } },
+          ],
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+      },
+      {
+        type: 'user',
+        timestamp: '2026-01-01T10:00:02Z',
+        sessionId: 's1',
+        uuid: 'u2',
+        parentUuid: 'asst-uuid-1',
+        isSidechain: false,
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tu-A', content: 'ok' }],
+        },
+      },
+    ]);
+
+    const parsed = parseSessionFile(fp, 'key');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.toolTimeline).toHaveLength(1);
+
+    const assistantUuids = new Set(parsed!.assistantMessages.map((a) => a.uuid));
+    for (const exec of parsed!.toolTimeline) {
+      expect(exec.issuedByAssistantUuid).toBeTruthy();
+      expect(assistantUuids.has(exec.issuedByAssistantUuid)).toBe(true);
+    }
+  });
+
+  it('issuedByAssistantUuid points to the correct assistant turn (1:1 mapping)', () => {
+    const fp = writeSession('issued-by-two-turns', [
+      {
+        type: 'user',
+        timestamp: '2026-01-01T10:00:00Z',
+        sessionId: 's1',
+        uuid: 'u1',
+        parentUuid: '',
+        isSidechain: false,
+        message: { role: 'user', content: 'first thing' },
+      },
+      {
+        type: 'assistant',
+        timestamp: '2026-01-01T10:00:01Z',
+        sessionId: 's1',
+        uuid: 'asst-one',
+        parentUuid: 'u1',
+        isSidechain: false,
+        requestId: 'r1',
+        message: {
+          id: 'm1',
+          role: 'assistant',
+          model: 'claude-sonnet-4-20250514',
+          type: 'message',
+          stop_reason: 'tool_use',
+          content: [
+            { type: 'tool_use', id: 'tu-one', name: 'Read', input: { file_path: '/tmp/one.ts' } },
+          ],
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+      },
+      {
+        type: 'user',
+        timestamp: '2026-01-01T10:00:02Z',
+        sessionId: 's1',
+        uuid: 'u2',
+        parentUuid: 'asst-one',
+        isSidechain: false,
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tu-one', content: 'one' }],
+        },
+      },
+      {
+        type: 'user',
+        timestamp: '2026-01-01T10:00:03Z',
+        sessionId: 's1',
+        uuid: 'u3',
+        parentUuid: 'u2',
+        isSidechain: false,
+        message: { role: 'user', content: 'second thing' },
+      },
+      {
+        type: 'assistant',
+        timestamp: '2026-01-01T10:00:04Z',
+        sessionId: 's1',
+        uuid: 'asst-two',
+        parentUuid: 'u3',
+        isSidechain: false,
+        requestId: 'r2',
+        message: {
+          id: 'm2',
+          role: 'assistant',
+          model: 'claude-sonnet-4-20250514',
+          type: 'message',
+          stop_reason: 'tool_use',
+          content: [
+            { type: 'tool_use', id: 'tu-two', name: 'Bash', input: { command: 'echo two' } },
+          ],
+          usage: { input_tokens: 10, output_tokens: 5 },
+        },
+      },
+      {
+        type: 'user',
+        timestamp: '2026-01-01T10:00:05Z',
+        sessionId: 's1',
+        uuid: 'u4',
+        parentUuid: 'asst-two',
+        isSidechain: false,
+        message: {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tu-two', content: 'two' }],
+        },
+      },
+    ]);
+
+    const parsed = parseSessionFile(fp, 'key');
+    expect(parsed).not.toBeNull();
+    expect(parsed!.toolTimeline).toHaveLength(2);
+
+    const byCallId = new Map(parsed!.toolTimeline.map((e) => [e.callId, e]));
+    expect(byCallId.get('tu-one')!.issuedByAssistantUuid).toBe('asst-one');
+    expect(byCallId.get('tu-two')!.issuedByAssistantUuid).toBe('asst-two');
   });
 });
