@@ -504,24 +504,16 @@ describe("delete button — source-conditional in board-side-panel", () => {
 });
 
 // --- /projects serves board page directly ---
+// Cleanup note (codebase-cleanup-task001): the dead client/src/pages/projects.tsx
+// re-export stub was deleted. /projects now renders BoardPage directly via
+// App.tsx's lazy import of @/pages/board, so the assertions below target
+// App.tsx and the layout nav list rather than the deleted stub.
 
 describe("/projects serves board page", () => {
-  const projectsSource = fs.readFileSync(
-    path.join(__dirname, "../client/src/pages/projects.tsx"),
-    "utf-8",
-  );
   const appSource = fs.readFileSync(
     path.join(__dirname, "../client/src/App.tsx"),
     "utf-8",
   );
-
-  it("/projects page re-exports from board", () => {
-    expect(projectsSource).toMatch(/board/i);
-  });
-
-  it("/projects page does NOT redirect to /board", () => {
-    expect(projectsSource).not.toContain('to="/board"');
-  });
 
   it("App.tsx registers /projects route", () => {
     expect(appSource).toContain('path="/projects"');
@@ -529,6 +521,12 @@ describe("/projects serves board page", () => {
 
   it("App.tsx registers /projects/:id route for detail pages", () => {
     expect(appSource).toContain('path="/projects/:id"');
+  });
+
+  it("App.tsx renders BoardPage at /projects", () => {
+    const match = appSource.match(/<Route path="\/projects">([\s\S]*?)<\/Route>/);
+    expect(match).toBeTruthy();
+    expect(match![1]).toMatch(/<BoardPage\s*\/?>/);
   });
 
   it("projects is a direct nav item", () => {

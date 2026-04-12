@@ -41,9 +41,6 @@ describe("scroll pages use PageContainer defaults", () => {
     });
   }
 
-  it("sessions.tsx removes hardcoded calc(100vh - 220px) height", async () => {
-    const fs = await import("fs");
-    const src = fs.readFileSync("client/src/pages/sessions.tsx", "utf-8");
-    expect(src).not.toMatch(/100vh\s*-\s*220px/);
-  });
+  // Cleanup note (codebase-cleanup-task001): the sessions.tsx assertion
+  // that used to live here was removed along with the file.
 });

@@ -11,96 +11,19 @@ import fs from "fs";
 import path from "path";
 
 // ---- Source files ----
+// Cleanup note (codebase-cleanup-task001): client/src/pages/sessions.tsx
+// was deleted. The "Sessions page responsive layout" describe block that
+// used to live here has been removed; the live list-detail sessions UI
+// now lives under client/src/components/analytics/sessions/ and is
+// exercised by the sessions-redesign test suite.
 
-const SESSIONS_PATH = path.resolve(__dirname, "../client/src/pages/sessions.tsx");
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
 const SETTINGS_PATH = path.resolve(__dirname, "../client/src/pages/settings.tsx");
 const LIBRARY_PATH = path.resolve(__dirname, "../client/src/pages/library.tsx");
 
-const sessionsSource = fs.readFileSync(SESSIONS_PATH, "utf-8");
 const statsSource = fs.readFileSync(STATS_PATH, "utf-8");
 const settingsSource = fs.readFileSync(SETTINGS_PATH, "utf-8");
 const librarySource = fs.readFileSync(LIBRARY_PATH, "utf-8");
-
-// ============================================================
-// Sessions page
-// ============================================================
-
-describe("Sessions page responsive layout", () => {
-  describe("PageContainer adoption", () => {
-    it("imports PageContainer", () => {
-      expect(sessionsSource).toMatch(
-        /import\s+\{[^}]*PageContainer[^}]*\}\s+from/,
-      );
-    });
-
-    it("renders PageContainer in JSX", () => {
-      expect(sessionsSource).toMatch(/<PageContainer[\s>]/);
-    });
-
-    it("no longer uses hardcoded p-6 on the root wrapper", () => {
-      expect(sessionsSource).not.toMatch(/className="p-6\s/);
-    });
-  });
-
-  describe("tab bar responsive", () => {
-    it("tab bar container allows horizontal scroll at narrow widths", () => {
-      expect(sessionsSource).toMatch(/overflow-x-auto/);
-    });
-
-    it("tab buttons use whitespace-nowrap to prevent text wrapping", () => {
-      expect(sessionsSource).toContain("whitespace-nowrap");
-    });
-  });
-
-  describe("session list responsive", () => {
-    it("session metadata uses flex-wrap to prevent overflow", () => {
-      expect(sessionsSource).toContain("flex-wrap");
-    });
-
-    it("main content area uses min-w-0 to prevent flex blowout", () => {
-      expect(sessionsSource).toContain("min-w-0");
-    });
-
-    it("hover actions hide at mobile using responsive class", () => {
-      // Hover actions should be hidden on touch devices (sm/xs) and shown on md+
-      expect(sessionsSource).toMatch(/hidden\s+(?:sm:hidden\s+)?md:flex|hidden\s+md:flex/);
-    });
-  });
-
-  describe("search bar responsive", () => {
-    it("search bar adapts width for mobile", () => {
-      // Should use w-full at mobile and constrained at larger
-      expect(sessionsSource).toMatch(/w-full|flex-1/);
-    });
-  });
-
-  describe("header responsive", () => {
-    it("header stacks on mobile using flex-col/sm:flex-row or PageContainer", () => {
-      // Either PageContainer handles it, or explicit flex-col sm:flex-row
-      expect(sessionsSource).toMatch(/flex-col|PageContainer/);
-    });
-  });
-
-  describe("expanded detail responsive", () => {
-    it("metadata grid is responsive: 2 cols base, 4 cols at md+", () => {
-      expect(sessionsSource).toContain("grid-cols-2");
-      expect(sessionsSource).toContain("md:grid-cols-4");
-    });
-  });
-
-  describe("overflow prevention", () => {
-    it("uses truncate for long text", () => {
-      expect(sessionsSource).toContain("truncate");
-    });
-
-    it("no fixed-width containers that could cause horizontal scroll", () => {
-      expect(sessionsSource).not.toMatch(
-        /className="[^"]*w-\[(?:5|6|7|8|9)\d{2,}px\]/,
-      );
-    });
-  });
-});
 
 // ============================================================
 // Analytics (Stats) page

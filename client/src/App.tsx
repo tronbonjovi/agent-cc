@@ -15,7 +15,6 @@ import { ThemeProvider } from "@/hooks/use-theme";
 // import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { KeyboardShortcutsOverlay } from "@/components/keyboard-shortcuts";
 const Dashboard = lazy(() => import("@/pages/dashboard"));
-const Projects = lazy(() => import("@/pages/projects"));
 const ProjectDetail = lazy(() => import("@/pages/project-detail"));
 const MarkdownEdit = lazy(() => import("@/pages/markdown-edit"));
 const Live = lazy(() => import("@/pages/live"));

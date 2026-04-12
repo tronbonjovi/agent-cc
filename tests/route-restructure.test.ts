@@ -5,33 +5,29 @@ import fs from "fs";
 import path from "path";
 
 const APP_PATH = path.resolve(__dirname, "../client/src/App.tsx");
-const PROJECTS_PATH = path.resolve(__dirname, "../client/src/pages/projects.tsx");
-const ACTIVITY_PATH = path.resolve(__dirname, "../client/src/pages/activity.tsx");
 const LIBRARY_PATH = path.resolve(__dirname, "../client/src/pages/library.tsx");
 const SHORTCUTS_PATH = path.resolve(__dirname, "../client/src/hooks/use-keyboard-shortcuts.ts");
 
 const appSource = fs.readFileSync(APP_PATH, "utf-8");
 
 // --- /projects serves the board/workspace page ---
+// Cleanup note (codebase-cleanup-task001): the dead pages/projects.tsx
+// re-export stub was deleted. /projects now renders BoardPage directly
+// via the lazy import in App.tsx, so the assertions below target App.tsx.
 
 describe("/projects route serves board page", () => {
-  const projectsSource = fs.readFileSync(PROJECTS_PATH, "utf-8");
-
-  it("/projects page does NOT redirect to /board", () => {
-    expect(projectsSource).not.toContain('to="/board"');
-  });
-
-  it("/projects page imports and renders the board page component", () => {
-    // Should import BoardPage or re-export it
-    expect(projectsSource).toMatch(/board/i);
-  });
-
   it("App.tsx registers /projects route", () => {
     expect(appSource).toContain('path="/projects"');
   });
 
   it("App.tsx registers /projects/:id route for detail pages", () => {
     expect(appSource).toContain('path="/projects/:id"');
+  });
+
+  it("App.tsx renders BoardPage at /projects", () => {
+    const match = appSource.match(/<Route path="\/projects">([\s\S]*?)<\/Route>/);
+    expect(match).toBeTruthy();
+    expect(match![1]).toMatch(/<BoardPage\s*\/?>/);
   });
 });
 
@@ -81,13 +77,16 @@ describe("/stats redirects to /analytics", () => {
 });
 
 // --- /activity redirects to /analytics?tab=nerve-center ---
+// Cleanup note (codebase-cleanup-task001): the dead pages/activity.tsx
+// redirect stub was deleted; the /activity redirect is now handled
+// inline in App.tsx (see the /activity Route block).
 
 describe("/activity redirects to /analytics?tab=nerve-center", () => {
-  const activitySource = fs.readFileSync(ACTIVITY_PATH, "utf-8");
-
-  it("redirects to /analytics?tab=nerve-center (not /stats)", () => {
-    expect(activitySource).toContain("/analytics?tab=nerve-center");
-    expect(activitySource).not.toContain("/stats");
+  it("App.tsx /activity route redirects to /analytics?tab=nerve-center", () => {
+    const match = appSource.match(/<Route path="\/activity">([\s\S]*?)<\/Route>/);
+    expect(match).toBeTruthy();
+    expect(match![1]).toMatch(/Redirect/);
+    expect(match![1]).toContain("/analytics?tab=nerve-center");
   });
 });
 
@@ -148,9 +147,8 @@ describe("no broken internal links to old client routes", () => {
     for (const file of clientFiles) {
       const content = fs.readFileSync(file, "utf-8");
       const relativePath = path.relative(clientDir, file);
-      // Skip the activity.tsx redirect page — it might still exist but should point to /analytics
       // Skip App.tsx — it has the redirect route definition
-      if (relativePath === "pages/activity.tsx" || relativePath === "App.tsx") continue;
+      if (relativePath === "App.tsx") continue;
       const hasStatNav = content.match(/setLocation\(["']\/stats/);
       expect(hasStatNav, `Found /stats navigation in ${relativePath}`).toBeNull();
     }
