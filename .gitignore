@@ -35,3 +35,7 @@ docs/screenshots/
 docs/social-preview.png
 .superpowers/
 .worktrees/
+
+# Historical archive — cleanup/archive session 2026-04-13
+# Excluded from grep/context; see archive/README.md for what's inside
+archive/

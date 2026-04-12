@@ -35,6 +35,8 @@ Express.js backend + React frontend (TypeScript), served from a single process. 
 
 9. **No screenshots in git.** `docs/screenshots/` is gitignored. Screenshots contain live user data and must never be committed. Also watch for encoded path forms like `C--Users-username` (Claude project key format).
 
+10. **Do not crawl `archive/`.** Historical specs, plans, task files, and brainstorms from Apr 3→12 live in `archive/` (gitignored, skipped by ripgrep). For history, use `git log` and `CHANGELOG.md`. Explicit `Read` on a known archive path is fine — just don't search/glob it when exploring the repo.
+
 ## Key Commands
 
 ```bash
