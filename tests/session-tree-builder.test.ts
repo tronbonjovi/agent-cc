@@ -252,8 +252,7 @@ describe('buildSessionTree', () => {
     const a1 = asst('a1', '', '2026-04-12T00:00:01.000Z');
     const agentCall = tool('agent-call-1', 'Agent', 'a1', '2026-04-12T00:00:02.000Z');
     const u1 = user('u1', 'a1', '2026-04-12T00:00:03.000Z', {
-      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true }],
-      textPreview: 'agent dispatched: agentId="aaa" completed successfully',
+      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true, agentId: 'aaa' }],
     });
     const parent = parsed({
       assistantMessages: [a1],
@@ -283,8 +282,7 @@ describe('buildSessionTree', () => {
     const a1 = asst('a1', '', '2026-04-12T00:00:01.000Z');
     const agentCall = tool('agent-call-1', 'Agent', 'a1', '2026-04-12T00:00:02.000Z');
     const u1 = user('u1', 'a1', '2026-04-12T00:00:03.000Z', {
-      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true }],
-      textPreview: 'no agentId mentioned here',
+      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true, agentId: null }],
     });
     const parent = parsed({
       assistantMessages: [a1],
@@ -312,8 +310,7 @@ describe('buildSessionTree', () => {
     const a1 = asst('a1', '', '2026-04-12T00:00:01.000Z');
     const agentCall = tool('agent-call-1', 'Agent', 'a1', '2026-04-12T00:00:02.000Z');
     const u1 = user('u1', 'a1', '2026-04-12T00:00:03.000Z', {
-      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true }],
-      textPreview: 'agent ccc finished',
+      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true, agentId: 'ccc' }],
     });
     const parent = parsed({
       assistantMessages: [a1],
@@ -321,7 +318,7 @@ describe('buildSessionTree', () => {
       toolTimeline: [agentCall],
     });
 
-    // Both tier 1 (agentId in textPreview) AND tier 2 (Δ=3ms) would match.
+    // Both tier 1 (toolResult.agentId === 'ccc') AND tier 2 (Δ=3ms) would match.
     const subParsed = parsed({
       meta: meta({ sessionId: 'sub-ccc', firstTs: '2026-04-12T00:00:02.003Z' }),
     });
@@ -337,8 +334,7 @@ describe('buildSessionTree', () => {
     const a1 = asst('a1', '', '2026-04-12T00:00:01.000Z');
     const agentCall = tool('agent-call-1', 'Agent', 'a1', '2026-04-12T00:00:02.000Z');
     const u1 = user('u1', 'a1', '2026-04-12T00:00:03.000Z', {
-      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true }],
-      textPreview: 'no agentId here',
+      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true, agentId: null }],
     });
     const parent = parsed({
       assistantMessages: [a1],
@@ -405,8 +401,7 @@ describe('buildSessionTree', () => {
     });
     const agentCall = tool('agent-call-1', 'Agent', 'a1', '2026-04-12T00:00:02.000Z');
     const u1 = user('u1', 'a1', '2026-04-12T00:00:03.000Z', {
-      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true }],
-      textPreview: 'subagent ddd done',
+      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true, agentId: 'ddd' }],
     });
     const parent = parsed({
       assistantMessages: [outerAsst],
@@ -450,8 +445,7 @@ describe('buildSessionTree', () => {
     const u1 = user('u1', 'a1', '2026-04-12T00:00:02.000Z');
     const agentCall = tool('agent-call-1', 'Agent', 'a1', '2026-04-12T00:00:03.000Z');
     const u2 = user('u2', 'a1', '2026-04-12T00:00:04.000Z', {
-      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true }],
-      textPreview: 'subagent eee done',
+      toolResults: [{ toolUseId: 'agent-call-1', isError: false, durationMs: null, success: true, agentId: 'eee' }],
     });
     const parent = parsed({
       assistantMessages: [outerAsst],

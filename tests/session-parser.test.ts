@@ -83,6 +83,7 @@ describe('session-types smoke test', () => {
       isError: false,
       durationMs: 42,
       success: true,
+      agentId: null,
     };
 
     const userMsg: UserRecord = {
@@ -1509,6 +1510,118 @@ describe('parseSessionFile', () => {
       expect(toolUser.toolResults[1].durationMs).toBeNull();
       expect(parsed!.counts.toolErrors).toBe(1);
       expect(parsed!.counts.toolCalls).toBe(3);
+    });
+
+    it('extracts toolUseResult.agentId into the matching ToolResult (Agent tool_result)', () => {
+      const fp = writeSession('agent-result', [
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: '',
+          isSidechain: false,
+          message: { role: 'user', content: 'dispatch a subagent' },
+        },
+        {
+          type: 'assistant',
+          timestamp: '2026-01-01T10:00:02Z',
+          sessionId: 's1',
+          uuid: 'a1',
+          parentUuid: 'u1',
+          isSidechain: false,
+          requestId: 'r1',
+          message: {
+            id: 'm1',
+            role: 'assistant',
+            model: 'claude-opus-4-6',
+            type: 'message',
+            stop_reason: 'tool_use',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_agentcall',
+                name: 'Agent',
+                input: { subagent_type: 'Explore', description: 'd', prompt: 'p' },
+              },
+            ],
+            usage: { input_tokens: 100, output_tokens: 50 },
+          },
+        },
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:01:00Z',
+          sessionId: 's1',
+          uuid: 'u2',
+          parentUuid: 'a1',
+          isSidechain: false,
+          toolUseResult: {
+            status: 'completed',
+            agentId: 'abc123def456789',
+            agentType: 'Explore',
+            totalDurationMs: 5000,
+          },
+          message: {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'toolu_agentcall',
+                content: [{ type: 'text', text: 'subagent result body' }],
+              },
+            ],
+          },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      const toolUser = parsed!.userMessages[1];
+      expect(toolUser.toolResults).toHaveLength(1);
+      expect(toolUser.toolResults[0].agentId).toBe('abc123def456789');
+      expect(toolUser.toolResults[0].toolUseId).toBe('toolu_agentcall');
+    });
+
+    it('leaves agentId null for non-Agent tool_results', () => {
+      const fp = writeSession('non-agent-result', [
+        {
+          type: 'assistant',
+          timestamp: '2026-01-01T10:00:00Z',
+          sessionId: 's1',
+          uuid: 'a1',
+          parentUuid: '',
+          isSidechain: false,
+          requestId: 'r1',
+          message: {
+            id: 'm1',
+            role: 'assistant',
+            model: 'claude-opus-4-6',
+            type: 'message',
+            stop_reason: 'tool_use',
+            content: [
+              { type: 'tool_use', id: 'tu-read', name: 'Read', input: { file_path: '/tmp/a.ts' } },
+            ],
+            usage: { input_tokens: 100, output_tokens: 50 },
+          },
+        },
+        {
+          type: 'user',
+          timestamp: '2026-01-01T10:00:01Z',
+          sessionId: 's1',
+          uuid: 'u1',
+          parentUuid: 'a1',
+          isSidechain: false,
+          toolUseResult: { durationMs: 42, success: true },
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'tu-read', content: 'file contents' }],
+          },
+        },
+      ]);
+
+      const parsed = parseSessionFile(fp, 'key');
+      const toolUser = parsed!.userMessages[0];
+      expect(toolUser.toolResults[0].agentId).toBeNull();
+      expect(toolUser.toolResults[0].durationMs).toBe(42);
     });
   });
 

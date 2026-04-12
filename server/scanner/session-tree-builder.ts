@@ -40,8 +40,15 @@ import type {
 import type { DiscoveredSubagent } from './subagent-discovery.js';
 import { computeCost, getPricing } from './pricing.js';
 
+/**
+ * A discovered subagent plus the result of parsing its JSONL. `parsed` is null
+ * when the subagent file was missing or malformed — the builder will emit a
+ * `subagent-parse-failed` warning and still surface the subagent's linkage
+ * metadata, so users never lose the fact that a subagent existed even if its
+ * content couldn't be loaded.
+ */
 export interface SubagentInput {
-  parsed: ParsedSession;
+  parsed: ParsedSession | null;
   meta: DiscoveredSubagent;
 }
 
@@ -270,19 +277,17 @@ function buildSessionInTree(
 }
 
 /**
- * Find the matching tool_result text for a given tool-use callId by walking
- * the parent's user messages. Returns the textPreview of the user record that
- * carried the result, or null if no matching result is present.
- *
- * `ToolResult` (shared/session-types.ts) carries no body field — the parser
- * only exposes the host UserRecord's `textPreview`, so that is the only "result
- * text" available for tier-1 substring matching today. If a future parser
- * change adds per-result content, prefer that over the host preview.
+ * Look up the subagent `agentId` that the parent's tool_result records against
+ * a given Agent tool-call. Returns null when the parent has no result record
+ * for that callId or when the result has no agentId (non-Agent tool call, or
+ * Agent call whose envelope happened to be missing the field). The parser
+ * lifts this from the record-level `toolUseResult.agentId` field so tier-1
+ * linkage is an exact match, not a substring scan of surrounding text.
  */
-function findToolResultText(parent: ParsedSession, callId: string): string | null {
+function findToolResultAgentId(parent: ParsedSession, callId: string): string | null {
   for (const u of parent.userMessages) {
     for (const r of u.toolResults) {
-      if (r.toolUseId === callId) return u.textPreview;
+      if (r.toolUseId === callId) return r.agentId;
     }
   }
   return null;
@@ -331,8 +336,8 @@ function resolveLinkage(
 ): LinkageResult {
   // Tier 1: agentid-in-result
   for (const cand of agentCalls) {
-    const text = findToolResultText(parent, cand.exec.callId);
-    if (text && text.includes(agentId)) {
+    const resultAgentId = findToolResultAgentId(parent, cand.exec.callId);
+    if (resultAgentId && resultAgentId === agentId) {
       return {
         linkage: { method: 'agentid-in-result', confidence: 'high' },
         attachTo: cand.toolNode,

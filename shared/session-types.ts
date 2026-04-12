@@ -139,6 +139,14 @@ export interface ToolResult {
   isError: boolean;
   durationMs: number | null;
   success: boolean | null;
+  /**
+   * For `Agent` tool-call results only: the dispatched subagent's agentId,
+   * lifted from the parent record's `toolUseResult.agentId` envelope field.
+   * Null on every non-Agent tool_result. This is the canonical source for
+   * tier-1 subagent linkage — the agentId is a 17-char hex string, so an
+   * exact match here is collision-proof, unlike scanning surrounding text.
+   */
+  agentId: string | null;
 }
 
 // ---------------------------------------------------------------------------
