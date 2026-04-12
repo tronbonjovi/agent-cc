@@ -16,16 +16,11 @@ const SESSIONS_PATH = path.resolve(__dirname, "../client/src/pages/sessions.tsx"
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
 const SETTINGS_PATH = path.resolve(__dirname, "../client/src/pages/settings.tsx");
 const LIBRARY_PATH = path.resolve(__dirname, "../client/src/pages/library.tsx");
-const ANALYTICS_PANEL_PATH = path.resolve(
-  __dirname,
-  "../client/src/components/session-analytics-panel.tsx",
-);
 
 const sessionsSource = fs.readFileSync(SESSIONS_PATH, "utf-8");
 const statsSource = fs.readFileSync(STATS_PATH, "utf-8");
 const settingsSource = fs.readFileSync(SETTINGS_PATH, "utf-8");
 const librarySource = fs.readFileSync(LIBRARY_PATH, "utf-8");
-const analyticsPanelSource = fs.readFileSync(ANALYTICS_PANEL_PATH, "utf-8");
 
 // ============================================================
 // Sessions page
@@ -139,15 +134,9 @@ describe("Analytics page responsive layout", () => {
     });
   });
 
-  describe("sub-tabs (session analytics panel) responsive", () => {
-    it("sub-tab bar is already scrollable with overflow-x-auto", () => {
-      expect(analyticsPanelSource).toContain("overflow-x-auto");
-    });
-
-    it("sub-tab buttons use whitespace-nowrap", () => {
-      expect(analyticsPanelSource).toContain("whitespace-nowrap");
-    });
-  });
+  // Note (codebase-cleanup-task002): the "sub-tabs (session analytics panel)"
+  // describe block was removed along with session-analytics-panel.tsx. Its
+  // sub-tab bar was part of the dead SessionAnalyticsTab export.
 
   describe("charts resize with container", () => {
     it("chart containers use w-full for fluid sizing", () => {

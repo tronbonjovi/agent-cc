@@ -7,7 +7,7 @@ import path from "path";
 const LIBRARY_TABS_PATH = path.resolve(__dirname, "../client/src/lib/library-tabs.ts");
 const LIBRARY_PAGE_PATH = path.resolve(__dirname, "../client/src/pages/library.tsx");
 const DISCOVER_TAB_PATH = path.resolve(__dirname, "../client/src/components/discover-tab.tsx");
-const ANALYTICS_PANEL_PATH = path.resolve(__dirname, "../client/src/components/session-analytics-panel.tsx");
+const BASH_KB_PANEL_PATH = path.resolve(__dirname, "../client/src/components/library/bash-knowledge-panel.tsx");
 
 describe("library-tabs.ts — new tab definitions", () => {
   const src = fs.readFileSync(LIBRARY_TABS_PATH, "utf-8");
@@ -76,10 +76,24 @@ describe("library.tsx — imports and renders new tabs", () => {
   });
 });
 
-describe("BashKnowledgePanel is exported from session-analytics-panel", () => {
-  const src = fs.readFileSync(ANALYTICS_PANEL_PATH, "utf-8");
+describe("BashKnowledgePanel has its own module", () => {
+  // Note (codebase-cleanup-task002): relocated from session-analytics-panel.tsx
+  const src = fs.readFileSync(BASH_KB_PANEL_PATH, "utf-8");
 
   it("exports BashKnowledgePanel", () => {
     expect(src).toMatch(/export\s+function\s+BashKnowledgePanel/);
+  });
+
+  it("imports bash hooks from use-sessions", () => {
+    expect(src).toMatch(/useBashKnowledge.*use-sessions/);
+    expect(src).toMatch(/useBashSearch/);
+  });
+});
+
+describe("library.tsx imports BashKnowledgePanel from its dedicated module", () => {
+  const src = fs.readFileSync(LIBRARY_PAGE_PATH, "utf-8");
+
+  it("imports from @/components/library/bash-knowledge-panel", () => {
+    expect(src).toMatch(/import.*BashKnowledgePanel.*from.*library\/bash-knowledge-panel/);
   });
 });

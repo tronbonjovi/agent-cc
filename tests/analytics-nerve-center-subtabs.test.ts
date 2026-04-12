@@ -5,7 +5,6 @@ import fs from "fs";
 import path from "path";
 
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
-const PANEL_PATH = path.resolve(__dirname, "../client/src/components/session-analytics-panel.tsx");
 
 describe("Nerve Center topology — stats.tsx", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
@@ -46,37 +45,12 @@ describe("Nerve Center topology — stats.tsx", () => {
   });
 });
 
-describe("session-analytics-panel.tsx — exported panels", () => {
-  const src = fs.readFileSync(PANEL_PATH, "utf-8");
-
-  it("exports FileHeatmapPanel", () => {
-    expect(src).toMatch(/export\s+function\s+FileHeatmapPanel/);
-  });
-
-  it("exports SessionHealthPanel", () => {
-    expect(src).toMatch(/export\s+function\s+SessionHealthPanel/);
-  });
-
-  it("does not export DecisionLogPanel (removed)", () => {
-    expect(src).not.toMatch(/export\s+function\s+DecisionLogPanel/);
-  });
-
-  it("exports WorkflowConfigPanel", () => {
-    expect(src).toMatch(/export\s+function\s+WorkflowConfigPanel/);
-  });
-
-  it("exports WeeklyDigestPanel", () => {
-    expect(src).toMatch(/export\s+function\s+WeeklyDigestPanel/);
-  });
-
-  it("removes subtabs that moved to Nerve Center from ANALYTICS_TABS", () => {
-    expect(src).not.toMatch(/id:\s*["']files["']/);
-    expect(src).not.toMatch(/id:\s*["']health["']/);
-    expect(src).not.toMatch(/id:\s*["']decisions["']/);
-    expect(src).not.toMatch(/id:\s*["']workflows["']/);
-    expect(src).not.toMatch(/id:\s*["']digest["']/);
-  });
-});
+// Note (codebase-cleanup-task002): session-analytics-panel.tsx was deleted.
+// BashKnowledgePanel and WorkflowConfigPanel were the only live exports and
+// have been extracted to components/library/bash-knowledge-panel.tsx and
+// components/settings/workflow-config-panel.tsx respectively. All other
+// exports (FileHeatmapPanel, SessionHealthPanel, NerveCenterPanel,
+// WeeklyDigestPanel, PromptLibraryPanel, SessionAnalyticsTab) were dead.
 
 describe("Settings page — Workflows tab", () => {
   const settingsSrc = fs.readFileSync(
@@ -84,8 +58,8 @@ describe("Settings page — Workflows tab", () => {
     "utf-8"
   );
 
-  it("imports WorkflowConfigPanel", () => {
-    expect(settingsSrc).toMatch(/import.*WorkflowConfigPanel.*from.*session-analytics-panel/);
+  it("imports WorkflowConfigPanel from its dedicated module", () => {
+    expect(settingsSrc).toMatch(/import.*WorkflowConfigPanel.*from.*settings\/workflow-config-panel/);
   });
 
   it("has a Workflows tab trigger", () => {

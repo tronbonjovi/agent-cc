@@ -6,7 +6,6 @@ import fs from "fs";
 import path from "path";
 
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
-const PANEL_PATH = path.resolve(__dirname, "../client/src/components/session-analytics-panel.tsx");
 
 describe("analytics tab restructure — stats.tsx", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
@@ -65,10 +64,5 @@ describe("analytics tab restructure — stats.tsx", () => {
   });
 });
 
-describe("session-analytics-panel.tsx exports", () => {
-  const src = fs.readFileSync(PANEL_PATH, "utf-8");
-
-  it("exports NerveCenterPanel as a named export", () => {
-    expect(src).toMatch(/export\s+function\s+NerveCenterPanel/);
-  });
-});
+// Note (codebase-cleanup-task002): session-analytics-panel.tsx was deleted.
+// NerveCenterPanel was dead code and has been removed along with the module.
