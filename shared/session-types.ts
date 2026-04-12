@@ -373,6 +373,7 @@ export type SubagentLinkage =
 export interface SessionTreeWarning {
   kind:
     | 'orphan-assistant-turn'
+    | 'orphan-user-turn'
     | 'orphan-tool-call'
     | 'orphan-subagent'
     | 'subagent-parse-failed'
