@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { extractText } from './utils';
+import { discoverSubagents } from './subagent-discovery';
 import type {
   ParsedSession,
   SessionMeta,
@@ -535,6 +536,12 @@ function flattenAssistant(record: any): TimelineMessage[] {
         : (typeof (block as Record<string, unknown>).text === 'string'
           ? ((block as Record<string, unknown>).text as string)
           : '');
+      // Claude Code JSONL persists thinking blocks as `{thinking: "", signature: "..."}`
+      // — only an encrypted signature, never the raw reasoning text. Suppress
+      // empty records so the timeline doesn't show broken "Thinking... (0 chars)"
+      // rows with nothing to expand. If Claude Code ever starts persisting the
+      // text, this filter becomes a no-op automatically.
+      if (!text) continue;
       out.push({
         type: 'thinking',
         uuid,
@@ -573,6 +580,22 @@ function flattenAssistant(record: any): TimelineMessage[] {
   return out;
 }
 
+// Tags that are system-injected into user messages by Claude Code itself.
+// `local-command-*` come from slash command output/caveats; `command-*`
+// frame the slash command invocation; `system-reminder` is injected by the
+// harness. All of these should be stripped before emitting user_text so the
+// reader sees only what the user actually typed.
+const SYSTEM_INJECTED_TAGS =
+  'system-reminder|command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat|local-command-stdin';
+const SYSTEM_INJECTED_TAG_RE = new RegExp(
+  `<(?:${SYSTEM_INJECTED_TAGS})>[\\s\\S]*?<\\/(?:${SYSTEM_INJECTED_TAGS})>`,
+  'g',
+);
+
+function stripSystemInjectedTags(raw: string): string {
+  return raw.replace(SYSTEM_INJECTED_TAG_RE, '').trim();
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function flattenUser(record: any): TimelineMessage[] {
   const out: TimelineMessage[] = [];
@@ -583,10 +606,10 @@ function flattenUser(record: any): TimelineMessage[] {
   const isSidechain = !!record.isSidechain;
   const isMeta = !!record.isMeta;
 
-  // Content can be a bare string or an array of blocks. Handle both.
-  if (typeof msg.content === 'string') {
-    const raw = msg.content;
-    // Detect slash command invocations embedded directly in user text.
+  const emitUserFromRaw = (raw: string): void => {
+    // Always try to extract a skill invocation first — if the user typed
+    // `/effort max\nyes`, we want the skill_invocation AND a user_text for
+    // the residual "yes" after stripping the command tags.
     const skill = extractSkillInvocation(raw);
     if (skill) {
       out.push({
@@ -596,14 +619,18 @@ function flattenUser(record: any): TimelineMessage[] {
         commandArgs: skill.commandArgs,
         isSidechain,
       });
-      return out;
     }
-    const stripped = raw
-      .replace(
-        /<(?:system-reminder|command-name|command-message|command-args)>[\s\S]*?<\/(?:system-reminder|command-name|command-message|command-args)>/g,
-        '',
-      )
-      .trim();
+    // isMeta records are framework-injected plumbing — when a user invokes
+    // a slash command, Claude Code emits the command as a normal user
+    // record (with <command-name> XML → skill_invocation chip above), then
+    // injects a SECOND user record with `isMeta: true` containing the
+    // skill's full body ("Base directory for this skill: ..."). That
+    // second record has no XML to strip, so without this guard it lands
+    // in the timeline as a blue user bubble full of skill boilerplate.
+    // The skill_invocation chip from the preceding non-meta record
+    // already represents the command; the body is noise.
+    if (isMeta) return;
+    const stripped = stripSystemInjectedTags(raw);
     if (stripped) {
       out.push({
         type: 'user_text',
@@ -614,6 +641,11 @@ function flattenUser(record: any): TimelineMessage[] {
         isSidechain,
       });
     }
+  };
+
+  // Content can be a bare string or an array of blocks. Handle both.
+  if (typeof msg.content === 'string') {
+    emitUserFromRaw(msg.content);
     return out;
   }
 
@@ -644,35 +676,7 @@ function flattenUser(record: any): TimelineMessage[] {
     }
   }
 
-  if (userText) {
-    const skill = extractSkillInvocation(userText);
-    if (skill) {
-      out.push({
-        type: 'skill_invocation',
-        timestamp: ts,
-        commandName: skill.commandName,
-        commandArgs: skill.commandArgs,
-        isSidechain,
-      });
-    } else {
-      const stripped = userText
-        .replace(
-          /<(?:system-reminder|command-name|command-message|command-args)>[\s\S]*?<\/(?:system-reminder|command-name|command-message|command-args)>/g,
-          '',
-        )
-        .trim();
-      if (stripped) {
-        out.push({
-          type: 'user_text',
-          uuid,
-          timestamp: ts,
-          text: stripped.slice(0, MAX_TEXT_CHARS),
-          isMeta,
-          isSidechain,
-        });
-      }
-    }
-  }
+  if (userText) emitUserFromRaw(userText);
   return out;
 }
 
@@ -699,16 +703,61 @@ export function parseSessionMessages(
   limit: number,
   types?: Set<TimelineMessageType>,
 ): { messages: TimelineMessage[]; totalMessages: number } {
-  const allMessages: TimelineMessage[] = [];
+  // Parse the main session file, then every discovered subagent file next
+  // to it. Subagent records have `isSidechain: true` and tree nodes that
+  // live under a `subagent-root`, so merging them into the timeline is how
+  // the frontend gets anything to group under SidechainGroup. Without this
+  // merge, main-session messages never have a subagent-root ancestor and
+  // `subagentContext` is always null.
+  const mainMessages = parseJsonlFileToMessages(filePath);
+  const allMessages: TimelineMessage[] = [...mainMessages];
+  if (allMessages.length < MAX_TIMELINE_MESSAGES) {
+    const subagents = discoverSubagents(filePath);
+    for (const sub of subagents) {
+      if (allMessages.length >= MAX_TIMELINE_MESSAGES) break;
+      const subMessages = parseJsonlFileToMessages(sub.filePath);
+      for (const m of subMessages) {
+        allMessages.push(m);
+        if (allMessages.length >= MAX_TIMELINE_MESSAGES) break;
+      }
+    }
+    // Merge sort by timestamp so subagent runs appear interleaved with
+    // their parent turn rather than appended at the end. ISO-8601 strings
+    // sort lexicographically in chronological order.
+    allMessages.sort((a, b) => {
+      if (a.timestamp < b.timestamp) return -1;
+      if (a.timestamp > b.timestamp) return 1;
+      return 0;
+    });
+  }
+
+  const filtered = types
+    ? allMessages.filter((m) => types.has(m.type))
+    : allMessages;
+  const totalMessages = filtered.length;
+  const sliced = filtered.slice(offset, offset + limit);
+  return { messages: sliced, totalMessages };
+}
+
+/**
+ * Parse one JSONL file (main session OR subagent) into a flat list of
+ * typed TimelineMessage records. Shared between the main-file and
+ * subagent-file read paths. Applies `MAX_TIMELINE_MESSAGES` as a soft cap
+ * so a single enormous file can't blow memory. No pagination or type
+ * filtering happens here — both are applied by `parseSessionMessages`
+ * after all files have been merged and sorted.
+ */
+function parseJsonlFileToMessages(filePath: string): TimelineMessage[] {
+  const out: TimelineMessage[] = [];
   let content: string;
   try {
     content = fs.readFileSync(filePath, 'utf-8');
   } catch {
-    return { messages: [], totalMessages: 0 };
+    return out;
   }
 
   let pos = 0;
-  while (pos < content.length && allMessages.length < MAX_TIMELINE_MESSAGES) {
+  while (pos < content.length && out.length < MAX_TIMELINE_MESSAGES) {
     const nextNewline = content.indexOf('\n', pos);
     const lineEnd = nextNewline === -1 ? content.length : nextNewline;
     const trimmed = content.slice(pos, lineEnd).trim();
@@ -813,15 +862,12 @@ export function parseSessionMessages(
     }
 
     for (const m of emitted) {
-      if (types && !types.has(m.type)) continue;
-      allMessages.push(m);
-      if (allMessages.length >= MAX_TIMELINE_MESSAGES) break;
+      out.push(m);
+      if (out.length >= MAX_TIMELINE_MESSAGES) break;
     }
   }
 
-  const totalMessages = allMessages.length;
-  const sliced = allMessages.slice(offset, offset + limit);
-  return { messages: sliced, totalMessages };
+  return out;
 }
 
 // ---------------------------------------------------------------------------

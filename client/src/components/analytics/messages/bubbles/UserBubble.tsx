@@ -40,16 +40,37 @@ export interface UserBubbleProps {
 export function UserBubble({ message }: UserBubbleProps) {
   const highlight = useSearchHighlight();
 
+  // Sidechain user records are agent-to-agent dispatch prompts (the text
+  // a parent agent sent TO a subagent when invoking it via the Agent tool),
+  // not human input. Render them muted with an "Agent Prompt" label so
+  // they're clearly distinct from the user's real blue-tinted bubbles.
+  // The surrounding SidechainGroup still carries the subagent color, so
+  // keeping this inner bubble neutral lets the group's identity dominate.
+  const isAgentPrompt = message.isSidechain === true;
+
   return (
     <div
       data-message-type="user_text"
-      className="group relative px-4 py-3 bg-blue-500/10 border-l-4 border-l-blue-500 rounded-r"
+      data-agent-prompt={isAgentPrompt ? "true" : undefined}
+      className={
+        isAgentPrompt
+          ? "group relative px-4 py-3 bg-muted/40 border-l-4 border-l-muted-foreground/50 rounded-r"
+          : "group relative px-4 py-3 bg-blue-500/10 border-l-4 border-l-blue-500 rounded-r"
+      }
     >
       {/* Role label — always present so at-a-glance sender identification
-          works without relying on subtle background cues. */}
+          works without relying on subtle background cues. Sidechain user
+          records get "Agent Prompt" in muted gray so they don't compete
+          with real human input. */}
       <div className="mb-1.5">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">
-          User
+        <span
+          className={
+            isAgentPrompt
+              ? "text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+              : "text-[11px] font-bold uppercase tracking-wider text-blue-400"
+          }
+        >
+          {isAgentPrompt ? "Agent Prompt" : "User"}
         </span>
       </div>
 
