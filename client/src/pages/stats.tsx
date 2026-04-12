@@ -21,7 +21,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
-import ChartsTab from "@/components/analytics/charts-tab";
+import ChartsTab from "@/components/analytics/charts/ChartsTab";
 import CostsTab from "@/components/analytics/costs/CostsTab";
 import { SessionsTab } from "@/components/analytics/sessions/SessionsTab";
 import { MessagesPanel } from "@/pages/message-history";
