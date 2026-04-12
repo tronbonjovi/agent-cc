@@ -48,7 +48,7 @@ export function SessionDetail({
   linkedTaskId, linkedTaskTitle, linkedMilestone, isManualLink, linkScore, linkSignals,
   onDelete,
 }: SessionDetailProps) {
-  const { data: session, isLoading } = useSessionDetail(sessionId);
+  const { data: session, isLoading } = useSessionDetail(sessionId, { includeTree: true });
   const { data: sessionNames } = useSessionNames();
   const togglePin = useTogglePin();
   const deleteSession = useDeleteSession();
@@ -204,7 +204,11 @@ export function SessionDetail({
           onToggle={() => toggleSection("tools")}
         />
         {openSections.has("tools") && resolvedParsed && (
-          <ToolTimeline tools={resolvedParsed.toolTimeline} sessionStartTs={resolvedParsed.meta.firstTs} />
+          <ToolTimeline
+            tools={resolvedParsed.toolTimeline}
+            sessionStartTs={resolvedParsed.meta.firstTs}
+            tree={session.tree}
+          />
         )}
         {openSections.has("tools") && !resolvedParsed && (
           <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>

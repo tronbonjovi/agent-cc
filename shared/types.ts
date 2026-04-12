@@ -542,6 +542,13 @@ export interface SessionHealth {
   projectKey?: string;
   lastTs?: string;
   estimatedCostUsd?: number;
+  /**
+   * Assistant-message count actually fed into computeHealthReasons. On the
+   * tree path this is the count of `kind === "assistant-turn"` nodes in
+   * `tree.nodesById` (so subagent turns are included). On the legacy flat
+   * fallback this mirrors `SessionData.messageCount`.
+   */
+  messageCount?: number;
 }
 
 export interface HealthAnalytics {

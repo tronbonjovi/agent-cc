@@ -389,6 +389,19 @@ export interface SessionTreeWarning {
   detail: string;
 }
 
+/**
+ * Wire shape of a `SessionTree` when serialized to JSON for HTTP transport.
+ * Structurally identical to `SessionTree` except the two `Map` fields become
+ * plain objects keyed by node id / agentId — `JSON.stringify` turns `Map`
+ * into `{}`, so the sessions route converts them via `Object.fromEntries`
+ * before serializing. Clients consuming `?include=tree` should type the
+ * response with this shape.
+ */
+export interface SerializedSessionTreeForClient extends Omit<SessionTree, "nodesById" | "subagentsByAgentId"> {
+  nodesById: Record<string, SessionTreeNode>;
+  subagentsByAgentId: Record<string, SessionTreeNode>;
+}
+
 export interface SessionTree {
   /** The root session node — always a session-root kind. */
   root: SessionTreeNode;
