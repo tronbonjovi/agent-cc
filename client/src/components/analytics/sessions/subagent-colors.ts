@@ -27,15 +27,14 @@ export interface ToolOwner {
  * Walk the parentId chain from the tool's issuing assistant turn up to either
  * `session-root` or `subagent-root`. Defensive: a missing turn or broken
  * parent chain falls back to `session-root` so an unexpected tree shape
- * still renders cleanly with a neutral color tag.
+ * still renders cleanly with a neutral color tag. Accepts `null`/`undefined`
+ * trees so callers that have an optional `tree?` prop can pass it through
+ * without a call-site guard.
  */
 export function resolveToolOwner(
-  tree: SerializedSessionTreeForClient,
+  tree: SerializedSessionTreeForClient | null | undefined,
   tool: ToolExecution,
 ): ToolOwner {
-  // Defensive: callers may pass null/undefined when ?include=tree wasn't
-  // requested. We can't tighten the static signature without churning every
-  // call site, so we guard at runtime and fall back to the neutral owner.
   if (!tree) {
     return { kind: "session-root", agentId: null };
   }

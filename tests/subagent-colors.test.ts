@@ -175,8 +175,7 @@ describe("resolveToolOwner", () => {
 
   it("defensively returns session-root when tree is null", () => {
     const tool = makeTool("call-1", "Read", "anything");
-    // Cast to satisfy the signature — runtime defensive path is what we test.
-    const owner = resolveToolOwner(null as unknown as SerializedSessionTreeForClient, tool);
+    const owner = resolveToolOwner(null, tool);
     expect(owner.kind).toBe("session-root");
   });
 });

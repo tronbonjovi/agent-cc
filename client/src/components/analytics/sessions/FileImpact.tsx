@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { ToolExecution, SerializedSessionTreeForClient } from "@shared/session-types";
-import {
-  resolveToolOwner,
-  colorClassForOwner,
-  type ToolOwner,
-} from "./subagent-colors";
+import { resolveToolOwner, colorClassForOwner } from "./subagent-colors";
 
 interface FileEntry {
   path: string;
@@ -34,12 +30,7 @@ export function groupByDirectoryWithOwners(
   const fileMap = new Map<string, FileEntry>();
   for (const tool of tools) {
     if (!tool.filePath) continue;
-    // Resolve owner. The shipped `resolveToolOwner` signature is non-nullable
-    // (task001 review nit) so we guard at the call site instead of widening
-    // it from this file (out of scope for task004's filesTouch list).
-    const owner: ToolOwner = tree
-      ? resolveToolOwner(tree, tool)
-      : { kind: "session-root", agentId: null };
+    const owner = resolveToolOwner(tree, tool);
     const ownerKey: string | null =
       owner.kind === "subagent-root" ? owner.agentId : null;
 
