@@ -49,13 +49,13 @@ describe("analytics page (stats.tsx) has restructured tabs", () => {
     expect(src).toMatch(/TabsContent.*value="nerve-center"/);
   });
 
-  it("renders TopologyLayout inside the nerve-center TabsContent (replaced NerveCenterPanel)", () => {
-    expect(src).toMatch(/<TopologyLayout/);
+  it("renders EntityGraph inside the nerve-center TabsContent (replaced topology layout)", () => {
+    expect(src).toMatch(/<EntityGraph/);
   });
 
-  it("imports topology components from nerve-center barrel", () => {
-    expect(src).toMatch(/TopologyLayout/);
-    expect(src).toMatch(/nerve-center/);
+  it("imports EntityGraph and no longer imports from the nerve-center barrel", () => {
+    expect(src).toMatch(/import.*EntityGraph.*from.*entity-graph/);
+    expect(src).not.toMatch(/from ["']@\/components\/analytics\/nerve-center/);
   });
 
   it("defaults to nerve-center tab", () => {

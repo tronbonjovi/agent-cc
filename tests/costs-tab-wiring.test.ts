@@ -75,7 +75,7 @@ describe("Old CostsTab removed from stats.tsx", () => {
     const source = fs.readFileSync(statsPath, "utf-8");
     expect(source).toContain("function UsageTab");
     expect(source).toContain("function ActivityTab");
-    expect(source).toContain("NerveCenterTopology");
+    expect(source).toContain("EntityGraph");
   });
 
   it("retains formatTokens and formatUsd (used by other components)", () => {

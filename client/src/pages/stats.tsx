@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { PageContainer } from "@/components/page-container";
@@ -7,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useScanStatus, useRescan } from "@/hooks/use-entities";
-import { useNerveCenter } from "@/hooks/use-sessions";
 import {
   BarChart3,
   Bot,
@@ -23,20 +21,11 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils";
-import {
-  TopologyLayout,
-  ScannerBrain,
-  CostNerves,
-  SessionVitals,
-  FileSensors,
-  ActivityReflexes,
-  ServiceSynapses,
-  type PathwayState,
-} from "@/components/analytics/nerve-center";
 import ChartsTab from "@/components/analytics/charts-tab";
 import CostsTab from "@/components/analytics/costs/CostsTab";
 import { SessionsTab } from "@/components/analytics/sessions/SessionsTab";
 import { MessagesPanel } from "@/pages/message-history";
+import { EntityGraph } from "@/components/analytics/entity-graph";
 
 // ---- Types ----
 
@@ -387,71 +376,6 @@ function ActivityTab() {
 
 // ---- Main Analytics Page ----
 
-/**
- * Derive ScannerBrain system state from the worst organ pathway state.
- * - Any organ at 'alert' -> brain is 'stressed'
- * - Any organ at 'active' (but none alert) -> brain is 'busy'
- * - All organs idle -> brain is 'calm'
- */
-function deriveSystemState(
-  organStates: PathwayState[],
-): "calm" | "busy" | "stressed" {
-  if (organStates.some((s) => s === "alert")) return "stressed";
-  if (organStates.some((s) => s === "active")) return "busy";
-  return "calm";
-}
-
-function NerveCenterTopology() {
-  // Track each organ's pathway state independently
-  const [costState, setCostState] = useState<PathwayState>("idle");
-  const [sessionState, setSessionState] = useState<PathwayState>("idle");
-  const [fileState, setFileState] = useState<PathwayState>("idle");
-  const [activityState, setActivityState] = useState<PathwayState>("idle");
-  const [serviceState, setServiceState] = useState<PathwayState>("idle");
-
-  // Fetch nerve center data for ServiceSynapses service list
-  const { data: nerveCenter } = useNerveCenter();
-  const services = nerveCenter?.services ?? [];
-
-  // Derive brain state from worst organ
-  const systemState = deriveSystemState([
-    costState, sessionState, fileState, activityState, serviceState,
-  ]);
-
-  return (
-    <TopologyLayout
-      brain={<ScannerBrain systemState={systemState} />}
-      organs={[
-        {
-          position: "top",
-          node: <CostNerves onStateChange={setCostState} />,
-          pathwayState: costState,
-        },
-        {
-          position: "top-left",
-          node: <SessionVitals onStateChange={setSessionState} />,
-          pathwayState: sessionState,
-        },
-        {
-          position: "top-right",
-          node: <FileSensors onStateChange={setFileState} />,
-          pathwayState: fileState,
-        },
-        {
-          position: "bottom-left",
-          node: <ActivityReflexes onStateChange={setActivityState} />,
-          pathwayState: activityState,
-        },
-        {
-          position: "bottom-right",
-          node: <ServiceSynapses services={services} onStateChange={setServiceState} />,
-          pathwayState: serviceState,
-        },
-      ]}
-    />
-  );
-}
-
 export default function Stats() {
   const defaultTab = new URLSearchParams(window.location.search).get("tab") || "nerve-center";
 
@@ -473,7 +397,7 @@ export default function Stats() {
         </div>
 
         <TabsContent value="nerve-center" className="mt-4">
-          <NerveCenterTopology />
+          <EntityGraph />
         </TabsContent>
 
         <TabsContent value="costs" className="mt-4">

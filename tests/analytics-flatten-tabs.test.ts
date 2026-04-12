@@ -66,29 +66,29 @@ describe("analytics flatten — no subtab infrastructure", () => {
   });
 });
 
-describe("analytics flatten — Nerve Center topology visualization", () => {
+describe("analytics flatten — Nerve Center entity graph visualization", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("renders TopologyLayout (replaced stacked panels)", () => {
-    expect(src).toMatch(/<TopologyLayout/);
+  it("renders EntityGraph in the nerve-center tab (replaced topology layout)", () => {
+    expect(src).toMatch(/<EntityGraph/);
   });
 
-  it("renders ScannerBrain as central brain node", () => {
-    expect(src).toMatch(/<ScannerBrain/);
+  it("imports EntityGraph from the entity-graph directory", () => {
+    expect(src).toMatch(/import.*EntityGraph.*from.*entity-graph/);
   });
 
-  it("renders all 5 organ modules: CostNerves, SessionVitals, FileSensors, ActivityReflexes, ServiceSynapses", () => {
-    expect(src).toMatch(/<CostNerves/);
-    expect(src).toMatch(/<SessionVitals/);
-    expect(src).toMatch(/<FileSensors/);
-    expect(src).toMatch(/<ActivityReflexes/);
-    expect(src).toMatch(/<ServiceSynapses/);
+  it("no longer renders the old topology layout or organ components", () => {
+    expect(src).not.toMatch(/<TopologyLayout/);
+    expect(src).not.toMatch(/<ScannerBrain/);
+    expect(src).not.toMatch(/<CostNerves/);
+    expect(src).not.toMatch(/<SessionVitals/);
+    expect(src).not.toMatch(/<FileSensors/);
+    expect(src).not.toMatch(/<ActivityReflexes/);
+    expect(src).not.toMatch(/<ServiceSynapses/);
   });
 
-  it("imports topology components from nerve-center barrel", () => {
-    expect(src).toMatch(/TopologyLayout/);
-    expect(src).toMatch(/ScannerBrain/);
-    expect(src).toMatch(/nerve-center/);
+  it("no longer imports from the deleted nerve-center barrel", () => {
+    expect(src).not.toMatch(/from ["']@\/components\/analytics\/nerve-center/);
   });
 
   it("no longer uses old stacked panels (NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel)", () => {

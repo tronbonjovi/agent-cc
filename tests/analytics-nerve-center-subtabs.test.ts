@@ -22,14 +22,10 @@ describe("Nerve Center topology — stats.tsx", () => {
     expect(src).not.toMatch(/["']workflows["']/);
   });
 
-  it("renders TopologyLayout with brain + 5 organs (replaced stacked panels)", () => {
-    expect(src).toMatch(/<TopologyLayout/);
-    expect(src).toMatch(/<ScannerBrain/);
-    expect(src).toMatch(/<CostNerves/);
-    expect(src).toMatch(/<SessionVitals/);
-    expect(src).toMatch(/<FileSensors/);
-    expect(src).toMatch(/<ActivityReflexes/);
-    expect(src).toMatch(/<ServiceSynapses/);
+  it("renders EntityGraph in the nerve-center tab (replaced topology layout)", () => {
+    expect(src).toMatch(/<EntityGraph/);
+    expect(src).not.toMatch(/<TopologyLayout/);
+    expect(src).not.toMatch(/<ScannerBrain/);
   });
 
   it("no longer renders old stacked panels (NerveCenterPanel, FileHeatmapPanel, SessionHealthPanel)", () => {
@@ -39,10 +35,9 @@ describe("Nerve Center topology — stats.tsx", () => {
     expect(src).not.toMatch(/<WeeklyDigestPanel/);
   });
 
-  it("imports topology components from nerve-center barrel", () => {
-    expect(src).toMatch(/TopologyLayout/);
-    expect(src).toMatch(/ScannerBrain/);
-    expect(src).toMatch(/nerve-center/);
+  it("imports EntityGraph and no longer imports from the nerve-center barrel", () => {
+    expect(src).toMatch(/import.*EntityGraph.*from.*entity-graph/);
+    expect(src).not.toMatch(/from ["']@\/components\/analytics\/nerve-center/);
   });
 
   it("does not import DecisionLogPanel or WorkflowConfigPanel", () => {

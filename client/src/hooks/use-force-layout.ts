@@ -28,8 +28,8 @@ export interface PositionedEdge extends SimulationLinkDatum<PositionedNode> {
 export interface UseForceLayoutOptions {
   width: number;
   height: number;
-  minRadius?: number;   // default 6
-  maxRadius?: number;   // default 40
+  minRadius?: number;   // default 3
+  maxRadius?: number;   // default 16
 }
 
 export interface UseForceLayoutResult {
@@ -64,57 +64,103 @@ export function useForceLayout(
 ): UseForceLayoutResult {
   const { width, height, minRadius = 3, maxRadius = 16 } = options;
 
-  const [positioned, setPositioned] = useState<PositionedNode[]>([]);
-  const [links, setLinks] = useState<PositionedEdge[]>([]);
+  // Tick counter — incremented at most once per animation frame to trigger renders
+  const [tick, setTick] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
   const simRef = useRef<Simulation<PositionedNode, PositionedEdge> | null>(null);
+  const nodesRef = useRef<PositionedNode[]>([]);
+  const edgesRef = useRef<PositionedEdge[]>([]);
+  const dirtyRef = useRef(false);
+  const rafRef = useRef<number>(0);
   const dragNodeRef = useRef<PositionedNode | null>(null);
+
+  // Persists node positions across data changes so drill-in reuses layout instead of re-scattering.
   const prevNodesRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
-  // Build/rebuild simulation when data changes
+  // Keep latest dimensions accessible without triggering simulation rebuild
+  const dimsRef = useRef({ width, height });
+  dimsRef.current = { width, height };
+
+  // ── rAF render loop ─────────────────────────────────────────────────
+  // Collapses many d3 ticks into a single React render per animation frame.
   useEffect(() => {
-    if (nodes.length === 0) {
-      setPositioned([]);
-      setLinks([]);
-      if (simRef.current) {
-        simRef.current.stop();
-        simRef.current = null;
+    const loop = () => {
+      if (dirtyRef.current) {
+        dirtyRef.current = false;
+        setTick((t) => t + 1);
       }
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
+
+  // ── Build simulation when node/edge data changes ────────────────────
+  useEffect(() => {
+    // Tear down previous simulation completely
+    if (simRef.current) {
+      simRef.current.stop();
+      simRef.current = null;
+    }
+
+    if (nodes.length === 0) {
+      nodesRef.current = [];
+      edgesRef.current = [];
+      dirtyRef.current = true;
       return;
     }
 
-    // Check if node set changed significantly (scope switch) — if so, scatter fresh
+    const cx = dimsRef.current.width / 2;
+    const cy = dimsRef.current.height / 2;
+    const scatterRadius = Math.min(dimsRef.current.width, dimsRef.current.height) * 0.3;
+
     const existing = prevNodesRef.current;
-    const newIds = new Set(nodes.map((n) => n.id));
-    const overlap = Array.from(existing.keys()).filter((id) => newIds.has(id)).length;
-    if (existing.size > 0 && overlap < newIds.size * 0.5) {
-      existing.clear();
+    const currentIds = new Set(nodes.map((n) => n.id));
+
+    // Scope switch heuristic: if most preserved positions no longer apply, scatter fresh.
+    if (existing.size > 0) {
+      let overlap = 0;
+      for (const key of Array.from(existing.keys())) {
+        if (currentIds.has(key)) overlap++;
+      }
+      if (overlap < currentIds.size * 0.5) existing.clear();
     }
 
+    // Prune cache entries for nodes that left the graph.
+    for (const key of Array.from(existing.keys())) {
+      if (!currentIds.has(key)) existing.delete(key);
+    }
+
+    // Seed from the cache where possible; scatter new nodes near center.
     const simNodes: PositionedNode[] = nodes.map((node) => {
       const r = minRadius + node.weight * (maxRadius - minRadius);
       const prev = existing.get(node.id);
+      if (prev) return { ...node, x: prev.x, y: prev.y, r };
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * scatterRadius;
       return {
         ...node,
-        x: prev?.x ?? Math.random() * width,
-        y: prev?.y ?? Math.random() * height,
+        x: cx + Math.cos(angle) * dist,
+        y: cy + Math.sin(angle) * dist,
         r,
       };
     });
 
-    // Place new nodes near their connected parent when existing positions are available
+    // Nudge new nodes to their connected parent's neighborhood so drill-in
+    // reveals children near where the user clicked, not scattered at the center.
     if (existing.size > 0) {
-      const nodeById = new Map(simNodes.map((n) => [n.id, n]));
+      const nodeById = new Map(simNodes.map((n) => [n.id, n] as const));
       for (const edge of edges) {
         const source = nodeById.get(edge.source);
         const target = nodeById.get(edge.target);
-        if (source && target) {
-          // If the target is new (no existing position), place near source
-          if (!existing.has(target.id) && existing.has(source.id)) {
-            target.x = source.x + (Math.random() - 0.5) * 40;
-            target.y = source.y + (Math.random() - 0.5) * 40;
-          }
+        if (!source || !target) continue;
+        if (!existing.has(target.id) && existing.has(source.id)) {
+          target.x = source.x + (Math.random() - 0.5) * 40;
+          target.y = source.y + (Math.random() - 0.5) * 40;
+        } else if (!existing.has(source.id) && existing.has(target.id)) {
+          source.x = target.x + (Math.random() - 0.5) * 40;
+          source.y = target.y + (Math.random() - 0.5) * 40;
         }
       }
     }
@@ -125,10 +171,9 @@ export function useForceLayout(
       relation: edge.relation,
     }));
 
-    // Stop previous simulation
-    if (simRef.current) {
-      simRef.current.stop();
-    }
+    // Store refs before simulation starts (so first render has data)
+    nodesRef.current = simNodes;
+    edgesRef.current = simEdges;
 
     const sim = forceSimulation<PositionedNode>(simNodes)
       .force(
@@ -148,26 +193,29 @@ export function useForceLayout(
         "charge",
         forceManyBody<PositionedNode>().strength((d) => -150 - d.r * 5),
       )
-      .force("center", forceCenter(width / 2, height / 2).strength(0.05))
+      .force("center", forceCenter(cx, cy).strength(0.15))
       .force(
         "collide",
         forceCollide<PositionedNode>()
           .radius((d) => d.r + 8)
           .strength(0.8),
       )
-      .force("x", forceX<PositionedNode>(width / 2).strength(0.03))
-      .force("y", forceY<PositionedNode>(height / 2).strength(0.03));
+      .force("x", forceX<PositionedNode>(cx).strength(0.08))
+      .force("y", forceY<PositionedNode>(cy).strength(0.08));
 
+    // Tick mutates positions in-place and marks the rAF loop dirty — no setState per tick.
     sim.on("tick", () => {
-      // Update position cache for next data change
-      const posMap = new Map<string, { x: number; y: number }>();
+      const cache = prevNodesRef.current;
       for (const n of simNodes) {
-        posMap.set(n.id, { x: n.x, y: n.y });
+        const entry = cache.get(n.id);
+        if (entry) {
+          entry.x = n.x;
+          entry.y = n.y;
+        } else {
+          cache.set(n.id, { x: n.x, y: n.y });
+        }
       }
-      prevNodesRef.current = posMap;
-
-      setPositioned([...simNodes]);
-      setLinks([...simEdges]);
+      dirtyRef.current = true;
     });
 
     simRef.current = sim;
@@ -175,31 +223,49 @@ export function useForceLayout(
     return () => {
       sim.stop();
     };
-  }, [nodes, edges, width, height, minRadius, maxRadius]);
+  }, [nodes, edges, minRadius, maxRadius]);
 
-  // ── Drag handlers ───────────────────────────────────────────────────
+  // ── Update centering forces on resize (no rebuild) ──────────────────
+  useEffect(() => {
+    const sim = simRef.current;
+    if (!sim) return;
+
+    const cx = width / 2;
+    const cy = height / 2;
+
+    sim.force("center", forceCenter(cx, cy).strength(0.15));
+    sim.force("x", forceX<PositionedNode>(cx).strength(0.08));
+    sim.force("y", forceY<PositionedNode>(cy).strength(0.08));
+
+    // Gentle reheat so nodes drift to new center
+    sim.alpha(0.1).restart();
+  }, [width, height]);
+
+  // ── Drag handlers (reference simulation nodes directly) ─────────────
 
   const onDragStart = useCallback(
     (nodeId: string, _event: React.MouseEvent) => {
-      const node = positioned.find((n) => n.id === nodeId);
-      if (!node || !simRef.current) return;
+      const sim = simRef.current;
+      if (!sim) return;
+
+      const node = sim.nodes().find((n) => n.id === nodeId);
+      if (!node) return;
+
       setIsDragging(true);
       dragNodeRef.current = node;
-      // Pin node at current position
       node.fx = node.x;
       node.fy = node.y;
-      simRef.current.alpha(0.3).restart();
+      sim.alpha(0.3).restart();
     },
-    [positioned],
+    [],
   );
 
   const onDrag = useCallback(
     (event: React.MouseEvent) => {
       const node = dragNodeRef.current;
-      if (!node || !isDragging) return;
+      if (!node) return;
 
-      // Transform screen coords to SVG coords
-      const svg = (event.currentTarget as SVGSVGElement);
+      const svg = event.currentTarget as SVGSVGElement;
       if (!svg.getScreenCTM) return;
       const ctm = svg.getScreenCTM();
       if (!ctm) return;
@@ -211,13 +277,12 @@ export function useForceLayout(
       node.fx = transformed.x;
       node.fy = transformed.y;
     },
-    [isDragging],
+    [],
   );
 
   const onDragEnd = useCallback(() => {
     const node = dragNodeRef.current;
     if (node) {
-      // Release pinned position, let simulation settle
       node.fx = null;
       node.fy = null;
     }
@@ -225,9 +290,14 @@ export function useForceLayout(
     setIsDragging(false);
   }, []);
 
+  // ── Return current ref contents (read on render triggered by tick counter) ──
+  // The tick state variable is intentionally read here to create the render dependency,
+  // even though the actual data comes from refs.
+  void tick;
+
   return {
-    positioned,
-    links,
+    positioned: nodesRef.current,
+    links: edgesRef.current,
     simulation: simRef.current,
     isDragging,
     onDragStart,
