@@ -17,6 +17,7 @@ import { CacheEfficiencyOverTime } from "./CacheEfficiencyOverTime";
 import { TokenDestinationBreakdown } from "./TokenDestinationBreakdown";
 import { ModelDistribution } from "./ModelDistribution";
 import { APIEquivalentValue } from "./APIEquivalentValue";
+import { SubagentCostBreakdown } from "./SubagentCostBreakdown";
 
 export function TokenEconomicsSection() {
   // Default = include subagents ("all") so totals match the rest of the app.
@@ -77,6 +78,9 @@ export function TokenEconomicsSection() {
         >
           <APIEquivalentValue breakdown={breakdown} />
         </ChartCard>
+
+        {/* SubagentCostBreakdown wraps itself in ChartCard, so render bare. */}
+        <SubagentCostBreakdown />
       </div>
     </div>
   );

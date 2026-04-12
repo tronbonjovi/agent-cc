@@ -227,8 +227,8 @@ describe("TokenEconomicsSection.tsx", () => {
     // Either the literal label or the breakdown state name
     expect(src).toMatch(/Parent only|Include subagents|breakdown/);
   });
-  it("does not import or reference SubagentCostBreakdown (owned by task007)", () => {
-    expect(src).not.toMatch(/SubagentCostBreakdown/);
+  it("imports SubagentCostBreakdown as the 6th card (task007 wiring)", () => {
+    expect(src).toMatch(/SubagentCostBreakdown/);
   });
   it("does not import from ChartsTab.tsx", () => {
     expect(src).not.toMatch(/from\s+["']\.\.\/ChartsTab["']/);

@@ -158,15 +158,12 @@ describe("ChartsTab.tsx", () => {
     expect(src).toMatch(/Activity & Workflow/);
   });
 
-  it("uses ChartCard for placeholder content", () => {
-    expect(src).toMatch(/<ChartCard/);
-  });
-
-  it("uses a responsive grid for chart cards", () => {
-    // Tailwind responsive grid classes (md:grid-cols-2 lg:grid-cols-3)
-    expect(src).toMatch(/grid-cols-1/);
-    expect(src).toMatch(/md:grid-cols-2/);
-    expect(src).toMatch(/lg:grid-cols-3/);
+  it("imports all five section components (tasks 003–007 wiring)", () => {
+    expect(src).toMatch(/TokenEconomicsSection/);
+    expect(src).toMatch(/SessionPatternsSection/);
+    expect(src).toMatch(/ToolUsageSection/);
+    expect(src).toMatch(/FileCodebaseSection/);
+    expect(src).toMatch(/ActivityWorkflowSection/);
   });
 
   it("does not use gradient styling", () => {
