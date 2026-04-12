@@ -17,6 +17,7 @@ import aiSuggestRouter from "./ai-suggest";
 import statsRouter from "./stats";
 import exportRouter from "./export";
 import costAnalyticsRouter from "./cost-analytics";
+import chartAnalyticsRouter from "./chart-analytics";
 import apisRouter from "./apis";
 import discoverRouter from "./discover";
 import libraryRouter from "./library";
@@ -80,6 +81,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.use(statsRouter);
   app.use(exportRouter);
   app.use(costAnalyticsRouter);
+  app.use(chartAnalyticsRouter);
   app.use(apisRouter);
   app.use(discoverRouter);
   app.use(libraryRouter);
