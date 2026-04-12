@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import type { ToolExecution } from "@shared/session-types";
+import type { ToolExecution, SerializedSessionTreeForClient } from "@shared/session-types";
+import {
+  resolveToolOwner,
+  colorClassForOwner,
+  type ToolOwner,
+} from "./subagent-colors";
 
 interface FileEntry {
   path: string;
@@ -9,14 +14,35 @@ interface FileEntry {
   edits: number;
   firstTouch: string;
   lastTouch: string;
+  /** agentId → op count for this file. Key `null` = parent session-root. */
+  ownerCounts: Map<string | null, number>;
 }
 
-/** Group tool executions by directory. Exported for testing. */
-export function groupByDirectory(tools: ToolExecution[]): Map<string, FileEntry[]> {
+/**
+ * Tree-aware grouping helper. Same per-file aggregation logic as the original
+ * `groupByDirectory` (reads/writes/edits + first/last touch + directory bucket),
+ * plus per-tool owner attribution via `resolveToolOwner`. The owner is mapped
+ * to a `Map` key (`null` for session-root, `agentId` for subagent-root) and
+ * the per-file `ownerCounts` is incremented per tool. Pure / exported for
+ * testing — no React. (flat-to-tree wave2 task004)
+ */
+export function groupByDirectoryWithOwners(
+  tools: ToolExecution[],
+  tree: SerializedSessionTreeForClient | null | undefined,
+): Map<string, FileEntry[]> {
   // Aggregate per file
   const fileMap = new Map<string, FileEntry>();
   for (const tool of tools) {
     if (!tool.filePath) continue;
+    // Resolve owner. The shipped `resolveToolOwner` signature is non-nullable
+    // (task001 review nit) so we guard at the call site instead of widening
+    // it from this file (out of scope for task004's filesTouch list).
+    const owner: ToolOwner = tree
+      ? resolveToolOwner(tree, tool)
+      : { kind: "session-root", agentId: null };
+    const ownerKey: string | null =
+      owner.kind === "subagent-root" ? owner.agentId : null;
+
     const existing = fileMap.get(tool.filePath);
     if (existing) {
       if (tool.name === "Read") existing.reads++;
@@ -24,7 +50,10 @@ export function groupByDirectory(tools: ToolExecution[]): Map<string, FileEntry[
       else if (tool.name === "Edit") existing.edits++;
       if (tool.timestamp < existing.firstTouch) existing.firstTouch = tool.timestamp;
       if (tool.timestamp > existing.lastTouch) existing.lastTouch = tool.timestamp;
+      existing.ownerCounts.set(ownerKey, (existing.ownerCounts.get(ownerKey) ?? 0) + 1);
     } else {
+      const ownerCounts = new Map<string | null, number>();
+      ownerCounts.set(ownerKey, 1);
       fileMap.set(tool.filePath, {
         path: tool.filePath,
         reads: tool.name === "Read" ? 1 : 0,
@@ -32,6 +61,7 @@ export function groupByDirectory(tools: ToolExecution[]): Map<string, FileEntry[
         edits: tool.name === "Edit" ? 1 : 0,
         firstTouch: tool.timestamp,
         lastTouch: tool.timestamp,
+        ownerCounts,
       });
     }
   }
@@ -49,12 +79,24 @@ export function groupByDirectory(tools: ToolExecution[]): Map<string, FileEntry[
   return groups;
 }
 
-interface FileImpactProps {
-  tools: ToolExecution[];
+/**
+ * Backward-compat alias for the original (non-tree-aware) grouping. Existing
+ * call sites that don't have a tree on hand still work — every entry will
+ * have `ownerCounts = new Map([[null, totalOps]])`, which the rendering path
+ * treats as "no subagent dots" (byte-identical to pre-task output).
+ */
+export function groupByDirectory(tools: ToolExecution[]): Map<string, FileEntry[]> {
+  return groupByDirectoryWithOwners(tools, null);
 }
 
-export function FileImpact({ tools }: FileImpactProps) {
-  const groups = groupByDirectory(tools);
+interface FileImpactProps {
+  tools: ToolExecution[];
+  /** Optional session tree for subagent owner attribution (?include=tree). */
+  tree?: SerializedSessionTreeForClient | null;
+}
+
+export function FileImpact({ tools, tree }: FileImpactProps) {
+  const groups = groupByDirectoryWithOwners(tools, tree);
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
 
   if (groups.size === 0) {
@@ -100,12 +142,37 @@ export function FileImpact({ tools }: FileImpactProps) {
                   .sort((a, b) => (b.reads + b.writes + b.edits) - (a.reads + a.writes + a.edits))
                   .map(file => {
                     const fileName = file.path.slice(dir.length + 1);
+                    // Subagent owner dots — skip the null parent-session entry,
+                    // sort by op count desc, take top 3. Empty list when there
+                    // are no subagent owners (or no tree) → byte-identical row.
+                    const subagentOwners = Array.from(file.ownerCounts.entries())
+                      .filter(([key]) => key !== null)
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 3) as Array<[string, number]>;
                     return (
                       <div key={file.path} className="flex items-center gap-3 text-xs py-0.5 px-1">
                         <span className="truncate flex-1 text-muted-foreground">{fileName}</span>
                         {file.reads > 0 && <span className="text-blue-400" title="Reads">R:{file.reads}</span>}
                         {file.edits > 0 && <span className="text-amber-400" title="Edits">E:{file.edits}</span>}
                         {file.writes > 0 && <span className="text-emerald-400" title="Writes">W:{file.writes}</span>}
+                        {subagentOwners.length > 0 && (
+                          <span className="flex items-center gap-1 shrink-0">
+                            {subagentOwners.map(([agentId, count]) => {
+                              const colorClass = colorClassForOwner({ kind: "subagent-root", agentId });
+                              const subagentNode = tree?.subagentsByAgentId?.[agentId] as
+                                | { agentType?: string }
+                                | undefined;
+                              const agentType = subagentNode?.agentType ?? agentId;
+                              return (
+                                <span
+                                  key={agentId}
+                                  className={`inline-block h-2 w-2 rounded-full border ${colorClass}`}
+                                  title={`${agentType}: ${count} ops`}
+                                />
+                              );
+                            })}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
