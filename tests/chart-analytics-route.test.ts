@@ -596,6 +596,64 @@ describe("GET /api/charts/activity", () => {
   });
 });
 
+describe("?models= filter (regression)", () => {
+  it("/api/charts/models with ?models= responds even when a session is on the flat fallback path", async () => {
+    // Force the tree session into the flat-fallback path so the loop in
+    // /api/charts/models that previously had `return` instead of `continue`
+    // would have hung the request before the fix.
+    treeByPath["/tmp/tree.jsonl"] = null;
+
+    // Filter on a model that exists only in the flat-fallback session so the
+    // first iteration of the inner loop hits the skip branch — that's the
+    // exact codepath the bug used to escape.
+    const { status, body } = await Promise.race([
+      getJSON("/api/charts/models?models=claude-haiku-4-5"),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("request hung — fix regressed")), 3000),
+      ),
+    ]);
+
+    expect(status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+    // The flat session has claude-haiku-4-5 → its day should appear with that model
+    const flatDay = day(2).slice(0, 10);
+    const flatRow = body.find((r: { date: string }) => r.date === flatDay);
+    expect(flatRow).toBeDefined();
+    expect(flatRow["claude-haiku-4-5"]).toBeGreaterThan(0);
+  });
+
+  it("/api/charts/tokens-over-time applies session-level model filter (Option A)", async () => {
+    // Tree session uses opus (parent) + sonnet (subagent); flat session uses haiku.
+    // ?models=claude-opus-4-6 should include the tree session and exclude the flat one.
+    const { body: opusBody } = await getJSON(
+      "/api/charts/tokens-over-time?models=claude-opus-4-6",
+    );
+    expect(opusBody.length).toBe(1);
+    expect(opusBody[0].date).toBe(day(1).slice(0, 10));
+
+    // ?models=claude-haiku-4-5 should include only the flat session.
+    const { body: haikuBody } = await getJSON(
+      "/api/charts/tokens-over-time?models=claude-haiku-4-5",
+    );
+    expect(haikuBody.length).toBe(1);
+    expect(haikuBody[0].date).toBe(day(2).slice(0, 10));
+
+    // Subagent-only model match: tree session must still be included because
+    // its subagent used sonnet (any-match semantics).
+    const { body: sonnetBody } = await getJSON(
+      "/api/charts/tokens-over-time?models=claude-sonnet-4-5",
+    );
+    expect(sonnetBody.length).toBe(1);
+    expect(sonnetBody[0].date).toBe(day(1).slice(0, 10));
+
+    // Unknown model excludes everything.
+    const { body: noneBody } = await getJSON(
+      "/api/charts/tokens-over-time?models=claude-nonexistent",
+    );
+    expect(noneBody).toEqual([]);
+  });
+});
+
 describe("empty-data graceful degradation", () => {
   beforeEach(() => {
     parsedByPath = {};

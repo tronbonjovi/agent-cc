@@ -34,6 +34,7 @@ import type { SessionData } from "@shared/types";
 import type {
   ParsedSession,
   SessionTree,
+  SessionTreeNode,
   AssistantTurnNode,
   ToolCallNode,
 } from "@shared/session-types";
@@ -84,7 +85,45 @@ function passesFilters(s: SessionData, f: ChartFilters): boolean {
     if (!ts || ts < f.cutoffIso) return false;
   }
   if (f.projects && !f.projects.has(s.projectKey)) return false;
+  // Note: f.models is NOT checked here — the models filter is session-level
+  // and requires inspecting the tree/parsed payload, so it is applied in
+  // loadSessions() after the metrics are resolved (see passesModelFilter).
   return true;
+}
+
+/**
+ * Session-level model filter: include the session if ANY of its models
+ * matches one of the requested models. Walks tree.nodesById for assistant-turn
+ * nodes when a tree is present (so subagent models count too); otherwise walks
+ * parsed.assistantMessages[].model. Comparison is case-insensitive.
+ *
+ * Returns true when no models filter is set, or when the session has at least
+ * one matching model. Returns false when both tree and parsed are missing
+ * (nothing to match against).
+ */
+function passesModelFilter(
+  tree: SessionTree | null,
+  parsed: ParsedSession | null,
+  models: Set<string> | null,
+): boolean {
+  if (!models || models.size === 0) return true;
+  if (tree) {
+    const nodes = Array.from(tree.nodesById.values());
+    for (const node of nodes) {
+      if (node.kind !== "assistant-turn") continue;
+      const model = (node as AssistantTurnNode).model || "unknown";
+      if (models.has(model.toLowerCase())) return true;
+    }
+    return false;
+  }
+  if (parsed) {
+    for (const m of parsed.assistantMessages) {
+      const model = m.model || "unknown";
+      if (models.has(model.toLowerCase())) return true;
+    }
+    return false;
+  }
+  return false;
 }
 
 function dayKey(iso: string | null | undefined): string {
@@ -121,7 +160,7 @@ function metricsFromTree(tree: SessionTree, breakdown: "all" | "parent"): Sessio
     let toolCalls = 0;
     let toolErrors = 0;
 
-    const visit = (node: ReturnType<typeof Object>): void => {
+    const visit = (node: SessionTreeNode): void => {
       // Only walk descendants of the parent session — stop at subagent roots.
       if (node.kind === "subagent-root") return;
       if (node.kind === "assistant-turn") {
@@ -235,7 +274,14 @@ function getMetricsForSession(s: SessionData, breakdown: "all" | "parent"): Reso
 function loadSessions(filters: ChartFilters): ResolvedSessionData[] {
   const all = getCachedSessions().filter(s => !s.isEmpty && s.messageCount > 0);
   const filtered = all.filter(s => passesFilters(s, filters));
-  return filtered.map(s => getMetricsForSession(s, filters.breakdown));
+  const resolved = filtered.map(s => getMetricsForSession(s, filters.breakdown));
+  // Apply session-level model filter after resolving tree/parsed payloads.
+  // A session is included if ANY of its assistant turns (parent or subagent)
+  // used one of the requested models.
+  if (filters.models && filters.models.size > 0) {
+    return resolved.filter(r => passesModelFilter(r.tree, r.parsed, filters.models));
+  }
+  return resolved;
 }
 
 // ---------------------------------------------------------------------------
@@ -372,7 +418,7 @@ router.get("/api/charts/models", (req, res) => {
         // Flat fallback
         for (const m of s.parsed.assistantMessages) {
           const model = m.model || "unknown";
-          if (filters.models && !filters.models.has(model.toLowerCase())) return;
+          if (filters.models && !filters.models.has(model.toLowerCase())) continue;
           const tokens = m.usage.inputTokens + m.usage.outputTokens;
           inner.set(model, (inner.get(model) || 0) + tokens);
         }
