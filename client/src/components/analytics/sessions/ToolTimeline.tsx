@@ -1,7 +1,21 @@
 import { useState, Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Check, X, ChevronDown, ChevronRight, GitBranch } from "lucide-react";
-import type { ToolExecution, SerializedSessionTreeForClient, SessionTreeNode } from "@shared/session-types";
+import type { ToolExecution, SerializedSessionTreeForClient } from "@shared/session-types";
+import {
+  PALETTE,
+  colorClassForOwner,
+  resolveToolOwner,
+  type ToolOwner,
+} from "./subagent-colors";
+
+// Backward-compat re-exports — wave1 task004 inlined PALETTE / ToolOwner /
+// colorClassForOwner / resolveToolOwner here, and `tests/tool-timeline.test.ts`
+// imports them from this module by name. Wave2 task001 moved the definitions
+// into `./subagent-colors`, so we re-export the originals so existing imports
+// (including the wave1 test file) keep resolving without any edit.
+export { PALETTE, colorClassForOwner, resolveToolOwner } from "./subagent-colors";
+export type { ToolOwner } from "./subagent-colors";
 
 /** Duration color by threshold. Exported for testing. */
 export function durationColor(ms: number | null): string {
@@ -37,82 +51,11 @@ export function filterTools(tools: ToolExecution[], filter: ToolFilter): ToolExe
 // ---------------------------------------------------------------------------
 // Tree-aware rendering helpers (flat-to-tree wave1 task004)
 //
-// All three are pure / side-effect free so they can be unit-tested in
-// isolation. The component renders by mapping over the result of
-// `groupToolsByAssistantTurn` and applying `colorClassForOwner(resolveToolOwner(...))`
-// to each row.
+// PALETTE / ToolOwner / colorClassForOwner / resolveToolOwner now live in
+// `./subagent-colors` (wave2 task001 extraction). They are imported and
+// re-exported above for backward compatibility. The grouping helper below
+// stays here because it is rendering-specific and only ToolTimeline uses it.
 // ---------------------------------------------------------------------------
-
-/**
- * Resolved owner of a tool call: either the parent session itself
- * (`session-root`, neutral color) or a subagent root carrying its `agentId`.
- * The owner determines the color tag rendered next to the tool row.
- */
-export interface ToolOwner {
-  kind: "session-root" | "subagent-root";
-  agentId: string | null;
-}
-
-/**
- * Walk the parentId chain from the tool's issuing assistant turn up to either
- * `session-root` or `subagent-root`. Defensive: a missing turn or broken
- * parent chain falls back to `session-root` so an unexpected tree shape
- * still renders cleanly with a neutral color tag.
- */
-export function resolveToolOwner(
-  tree: SerializedSessionTreeForClient,
-  tool: ToolExecution,
-): ToolOwner {
-  const startId = `asst:${tool.issuedByAssistantUuid}`;
-  let node: SessionTreeNode | undefined = tree.nodesById[startId];
-  // Cap walk length so a malformed tree with a parentId cycle can never hang.
-  let safety = 256;
-  while (node && safety-- > 0) {
-    if (node.kind === "session-root") {
-      return { kind: "session-root", agentId: null };
-    }
-    if (node.kind === "subagent-root") {
-      // SubagentRootNode has agentId; the type narrowing is enforced by the
-      // shared types. Read defensively in case wire data is malformed.
-      const agentId = (node as { agentId?: string }).agentId ?? null;
-      return { kind: "subagent-root", agentId };
-    }
-    if (node.parentId == null) break;
-    node = tree.nodesById[node.parentId];
-  }
-  return { kind: "session-root", agentId: null };
-}
-
-/**
- * Deterministic color palette for subagent owners. Six visually distinct
- * Tailwind classes — kept inline (no shared theme token) per task contract.
- * The first entry being a non-empty class is required for tests; do not
- * reorder without updating call sites.
- */
-export const PALETTE: readonly string[] = [
-  "bg-sky-500/15 text-sky-300 border-sky-500/30",
-  "bg-violet-500/15 text-violet-300 border-violet-500/30",
-  "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  "bg-pink-500/15 text-pink-300 border-pink-500/30",
-  "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
-] as const;
-
-/**
- * Map an owner to its color-tag CSS class. Parent-session owners (and any
- * defensive fallback) return an empty string so the row stays visually
- * unchanged from the pre-tree look. Subagent owners hash their `agentId` to a
- * stable palette index — same agent always gets the same color across
- * re-renders and views.
- */
-export function colorClassForOwner(owner: ToolOwner): string {
-  if (owner.kind !== "subagent-root" || !owner.agentId) return "";
-  let hash = 0;
-  for (let i = 0; i < owner.agentId.length; i++) {
-    hash = (hash + owner.agentId.charCodeAt(i)) >>> 0;
-  }
-  return PALETTE[hash % PALETTE.length];
-}
 
 /**
  * One contiguous run of tools that share an issuing assistant turn. The
