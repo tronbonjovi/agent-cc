@@ -1,6 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import { shortModel } from "@/lib/utils";
-import type { ParsedSession } from "@shared/session-types";
+import type {
+  AssistantRecord,
+  ParsedSession,
+  SerializedSessionTreeForClient,
+} from "@shared/session-types";
+import { colorClassForOwner, type ToolOwner } from "./subagent-colors";
 
 /** Format metric values for display. Exported for testing. */
 export function formatMetric(
@@ -30,6 +35,90 @@ export function formatMetric(
   }
 }
 
+/**
+ * Compute model → turn-count map for the Models row.
+ *
+ * When `tree` is provided, walk every assistant-turn node in the tree so
+ * subagent-only models surface in the Models row for the first time. When
+ * `tree` is null/undefined, fall back to the flat assistantMessages array
+ * (today's pre-tree behavior). Both branches return the same Map shape so
+ * the render code can stay unchanged.
+ *
+ * Defensive: tree-branch nodes without a `model` string are skipped rather
+ * than counted as an empty-key bucket.
+ */
+export function computeModelBreakdownFromTree(
+  tree: SerializedSessionTreeForClient | null | undefined,
+  fallbackAssistantMessages: AssistantRecord[],
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (!tree) {
+    for (const m of fallbackAssistantMessages) {
+      counts.set(m.model, (counts.get(m.model) ?? 0) + 1);
+    }
+    return counts;
+  }
+  for (const node of Object.values(tree.nodesById)) {
+    if (node.kind !== "assistant-turn") continue;
+    const model = (node as { model?: string }).model;
+    if (!model) continue;
+    counts.set(model, (counts.get(model) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * One row in the new Subagents chip strip below the Models row. Each chip
+ * carries everything the renderer needs (label fields + palette color class)
+ * so the JSX stays presentational. The color comes from the same
+ * `colorClassForOwner` hash used by ToolTimeline, so the same agent gets the
+ * same color across views.
+ */
+export interface SubagentChip {
+  agentId: string;
+  agentType: string;
+  costUsd: number;
+  totalTokens: number;
+  colorClass: string;
+}
+
+/**
+ * Build the chip list for the Subagents row. Returns `[]` whenever the tree
+ * is absent or has no subagents, so the renderer can branch on `length > 0`
+ * and avoid drawing an empty row. Chips are sorted by `costUsd` descending
+ * so the most expensive subagent leads the strip.
+ */
+export function computeSubagentChips(
+  tree: SerializedSessionTreeForClient | null | undefined,
+): SubagentChip[] {
+  if (!tree || !tree.subagentsByAgentId) return [];
+  const entries = Object.entries(tree.subagentsByAgentId);
+  if (entries.length === 0) return [];
+  const chips: SubagentChip[] = [];
+  for (const [agentId, node] of entries) {
+    const sub = node as {
+      agentType?: string;
+      rollupCost?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        costUsd?: number;
+      };
+    };
+    const owner: ToolOwner = { kind: "subagent-root", agentId };
+    chips.push({
+      agentId,
+      agentType: sub.agentType ?? "subagent",
+      costUsd: sub.rollupCost?.costUsd ?? 0,
+      totalTokens:
+        (sub.rollupCost?.inputTokens ?? 0) +
+        (sub.rollupCost?.outputTokens ?? 0),
+      colorClass: colorClassForOwner(owner),
+    });
+  }
+  chips.sort((a, b) => b.costUsd - a.costUsd);
+  return chips;
+}
+
 interface MetricCellProps {
   label: string;
   value: string;
@@ -56,12 +145,20 @@ interface SessionOverviewProps {
   healthScore?: "good" | "fair" | "poor" | null;
   healthReasons?: string[];
   durationMinutes?: number | null;
+  /**
+   * Optional session tree. When provided, the Models row walks tree
+   * assistant-turn nodes (so subagent-only models surface) and a Subagents
+   * chip strip renders below Models. When undefined/null, render is
+   * byte-identical to the pre-tree look — task005 forwards the prop later.
+   */
+  tree?: SerializedSessionTreeForClient | null;
 }
 
 export function SessionOverview({
   parsed, costUsd, inputTokens, outputTokens,
   cacheReadTokens, cacheCreationTokens,
   healthScore, healthReasons, durationMinutes,
+  tree,
 }: SessionOverviewProps) {
   if (!parsed) {
     return (
@@ -73,13 +170,17 @@ export function SessionOverview({
 
   const { meta, counts, assistantMessages, systemEvents } = parsed;
 
-  // Model breakdown
-  const modelCounts = new Map<string, number>();
-  for (const m of assistantMessages) {
-    modelCounts.set(m.model, (modelCounts.get(m.model) ?? 0) + 1);
-  }
+  // Model breakdown — when `tree` is provided, walks tree assistant-turn
+  // nodes so subagent-only models surface; otherwise uses the flat
+  // assistantMessages array (today's behavior).
+  const modelCounts = computeModelBreakdownFromTree(tree, assistantMessages);
   const models = Array.from(modelCounts.entries())
     .sort((a, b) => b[1] - a[1]);
+
+  // Subagent chip strip — empty array when there's no tree or no subagents,
+  // in which case the strip renders nothing (no empty row, byte-identical to
+  // the pre-tree look).
+  const subagentChips = computeSubagentChips(tree);
 
   // Stop reasons
   const stopReasons = new Map<string, number>();
@@ -146,6 +247,25 @@ export function SessionOverview({
             {models.map(([model, count]) => (
               <Badge key={model} variant="outline" className="text-xs">
                 {shortModel(model)} ({count})
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Subagents chip strip — only when tree present and subagents exist.
+          Renders nothing otherwise so the pre-tree look stays byte-identical. */}
+      {subagentChips.length > 0 && (
+        <div className="px-4 space-y-1">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Subagents</span>
+          <div className="flex flex-wrap gap-1">
+            {subagentChips.map((chip) => (
+              <Badge
+                key={chip.agentId}
+                variant="outline"
+                className={`text-xs ${chip.colorClass}`}
+              >
+                {chip.agentType} · {formatMetric(chip.costUsd, "cost")} · {formatMetric(chip.totalTokens, "tokens")}
               </Badge>
             ))}
           </div>
