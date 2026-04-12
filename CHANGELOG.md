@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Nerve Center redesign — force-directed entity graph** — replaced the CNS topology layout with a d3-force entity graph showing all entities as nodes (projects, sessions, MCPs, skills, plugins, markdown, configs), hierarchical and cross-reference edges, hover subgraph highlighting, click drill-in (system → project sessions), drag repositioning, and a sidebar detail panel. Position cache preserves layout across drill-in so children appear near the clicked parent instead of scattering. Performance: `requestAnimationFrame` render loop collapses many d3 ticks into one React render per frame, with in-place position cache mutation to avoid per-tick allocations. System view shows 296 nodes / 561 edges; per-project sessions view shows ~1000 nodes.
+
+### Removed
+- **Nerve Center topology layout** — `TopologyLayout`, `ScannerBrain`, `NervePathway`, and the 5 organ modules (`CostNerves`, `SessionVitals`, `FileSensors`, `ActivityReflexes`, `ServiceSynapses`) deleted along with 8 dedicated test files (~3,400 lines removed). Replaced by `EntityGraph` in the same `nerve-center` tab.
+
 ### Fixed
 - **Sessions page UX fixes** — resizable list-detail divider (reuses existing `useResizeHandle` hook), pin icon now toggles visually with optimistic state, overview panel wired to show duration/cost/health from enrichment data, Linked Task section hidden when no data, expand/collapse chevron smoothly rotates instead of bouncing, lifecycle events display human-friendly labels with readable time formatting.
 - **Costs tab UX fixes** — all 5 cost sections now collapsible with smooth chevron animation, "System Prompt Overhead" renamed to "Context Overhead" with accurate description, model names shortened and `<synthetic>` normalized to "unknown", expensive session links navigate to correct analytics page instead of dashboard.
