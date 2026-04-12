@@ -173,6 +173,7 @@ export function SessionDetail({
             healthScore={healthScore}
             healthReasons={healthReasons}
             durationMinutes={durationMinutes}
+            tree={session.tree}
           />
         )}
 
@@ -221,7 +222,7 @@ export function SessionDetail({
           onToggle={() => toggleSection("tokens")}
         />
         {openSections.has("tokens") && resolvedParsed && (
-          <TokenBreakdown assistantMessages={resolvedParsed.assistantMessages} userMessages={resolvedParsed.userMessages} />
+          <TokenBreakdown assistantMessages={resolvedParsed.assistantMessages} userMessages={resolvedParsed.userMessages} tree={session.tree} />
         )}
         {openSections.has("tokens") && !resolvedParsed && (
           <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
@@ -234,7 +235,7 @@ export function SessionDetail({
           onToggle={() => toggleSection("files")}
         />
         {openSections.has("files") && resolvedParsed && (
-          <FileImpact tools={resolvedParsed.toolTimeline} />
+          <FileImpact tools={resolvedParsed.toolTimeline} tree={session.tree} />
         )}
         {openSections.has("files") && !resolvedParsed && (
           <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
