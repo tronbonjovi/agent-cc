@@ -63,7 +63,7 @@ export function parseSessionFile(filePath: string, projectKey: string): ParsedSe
   // Tool call matching: pending tool_use calls waiting for results
   const pendingToolCalls = new Map<
     string,
-    { call: ToolCall; timestamp: string; isSidechain: boolean }
+    { call: ToolCall; timestamp: string; isSidechain: boolean; assistantUuid: string }
   >();
 
   // Parse line by line
@@ -149,6 +149,7 @@ export function parseSessionFile(filePath: string, projectKey: string): ParsedSe
             call: tc,
             timestamp: ts,
             isSidechain: !!record.isSidechain,
+            assistantUuid: record.uuid || '',
           });
         }
       }
@@ -214,17 +215,24 @@ export function parseSessionFile(filePath: string, projectKey: string): ParsedSe
             isError,
             durationMs: null,
             success: null,
+            agentId: null,
           });
         }
       }
 
-      // Extract toolUseResult metadata (record-level, separate from content blocks)
+      // Extract toolUseResult metadata (record-level, separate from content blocks).
+      // toolUseResult is an envelope for a single tool-call result — when it
+      // carries an Agent dispatch, its `agentId` field is the subagent that
+      // ran. We attach it to the first ToolResult so tier-1 linkage can
+      // resolve subagent parent → child without scanning text content.
       const tur = record.toolUseResult;
       if (tur && typeof tur === 'object') {
-        // Attach durationMs/success to the first tool result if present
         if (toolResults.length > 0) {
           if (typeof tur.durationMs === 'number') toolResults[0].durationMs = tur.durationMs;
           if (typeof tur.success === 'boolean') toolResults[0].success = tur.success;
+          if (typeof tur.agentId === 'string' && tur.agentId) {
+            toolResults[0].agentId = tur.agentId;
+          }
         }
       }
 
@@ -243,6 +251,7 @@ export function parseSessionFile(filePath: string, projectKey: string): ParsedSe
             durationMs: tr.durationMs,
             isError: tr.isError,
             isSidechain: pending.isSidechain,
+            issuedByAssistantUuid: pending.assistantUuid,
           });
           pendingToolCalls.delete(tr.toolUseId);
         }

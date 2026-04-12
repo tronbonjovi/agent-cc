@@ -2,7 +2,64 @@ import { CLAUDE_DIR, dirExists, fileExists, readHead, readTailTs, extractText, n
 import path from "path";
 import fs from "fs";
 import type { SessionData, SessionStats } from "@shared/types";
+import type { ParsedSession } from "@shared/session-types";
 import { sessionParseCache } from "./session-cache";
+import { parseSessionFile } from "./session-parser";
+import { discoverSubagents } from "./subagent-discovery";
+import { buildSessionTree, type SubagentInput } from "./session-tree-builder";
+
+// Re-export so callers (tests, routes) have a single scanner entry point that
+// exposes both the pipeline function and the cache it populates.
+export { sessionParseCache };
+
+/**
+ * Parse a parent session JSONL, discover and parse its subagents, build the
+ * hierarchical SessionTree, and populate the cache atomically with the pair.
+ * Returns the parsed parent session (or null if the parent file was missing
+ * or empty — in which case the cache is left untouched for this path).
+ *
+ * This is the single "teach the cache about a session" entry point used by
+ * `scanAllSessions` below and by the integration test. Keeping it out-of-line
+ * from the directory-walking loop makes it easy to exercise end-to-end
+ * without mocking `~/.claude/projects/`, and guarantees `getById`/`getTreeById`
+ * can never return a stale parsed-session against a fresh tree.
+ */
+export function parseSessionAndBuildTree(
+  parentFilePath: string,
+  projectKey: string,
+): ParsedSession | null {
+  // Parent parse goes through the file-size-keyed cache: if the JSONL hasn't
+  // grown since last scan, `getOrParse` returns the cached ParsedSession and
+  // leaves any previously-built tree in place. When the file changed, it
+  // re-parses and resets the tree to null, forcing us to rebuild below.
+  const parent = sessionParseCache.getOrParse(parentFilePath, projectKey);
+  if (!parent) return null;
+
+  // Tree already populated against the current parsed entry — nothing to do.
+  // Subagent changes don't invalidate the cache (same limitation as parent-
+  // file-size invalidation in task004), but on a scan where the parent file
+  // grew, `getOrParse` will have nulled the tree and we fall through to
+  // rebuild it from the refreshed parent.
+  if (sessionParseCache.getTreeByPath(parentFilePath)) return parent;
+
+  const discovered = discoverSubagents(parentFilePath);
+  const subagents: SubagentInput[] = discovered.map((sub) => {
+    const subParsed = parseSessionFile(sub.filePath, projectKey);
+    if (!subParsed) {
+      console.warn(
+        `[session-scanner] Failed to parse subagent ${sub.agentId} at ${sub.filePath}`,
+      );
+      // The builder consumes { parsed: null, meta } as a stub and emits
+      // `subagent-parse-failed` — we never silently drop a discovered subagent.
+      return { parsed: null, meta: sub };
+    }
+    return { parsed: subParsed, meta: sub };
+  });
+
+  const tree = buildSessionTree(parent, subagents);
+  sessionParseCache.setEntry(parentFilePath, parent, tree);
+  return parent;
+}
 
 // Per-project aggregate (backward compat for scanner/index.ts)
 export interface ProjectSessionAgg {
@@ -143,8 +200,11 @@ function parseSession(
     const basename = path.basename(filePath, ".jsonl");
     const stat = fs.statSync(filePath);
 
-    // Use the comprehensive parser for full extraction
-    const parsed = sessionParseCache.getOrParse(filePath, projectKey);
+    // Route through the tree pipeline so every scanned session lands in the
+    // cache paired with a SessionTree. The helper reuses the file-size-keyed
+    // cache inside `getOrParse` as a fast path, so repeat scans of unchanged
+    // sessions stay O(1) and only new/grown sessions pay the rebuild cost.
+    const parsed = parseSessionAndBuildTree(filePath, projectKey);
 
     if (parsed) {
       // Derive firstMessage: prefer history index (matches current behavior)

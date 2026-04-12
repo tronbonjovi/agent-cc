@@ -20,8 +20,45 @@ import { getContinuationBrief } from "../scanner/continuation-detector";
 import { getBashKnowledgeBase, searchBashCommands } from "../scanner/bash-knowledge";
 import { getNerveCenterData } from "../scanner/nerve-center";
 import { sessionParseCache } from "../scanner/session-cache";
+import type { SessionTree, SessionTreeNode, SubagentRootNode } from "@shared/session-types";
 import { storage } from "../storage";
 import crypto from "crypto";
+
+/**
+ * Wire shape of a `SessionTree` when returned over HTTP. Structurally
+ * identical to `SessionTree` except the two `Map` fields become plain
+ * objects keyed by node id / agentId — `JSON.stringify` turns `Map` into
+ * `{}`, so the route converts them before serializing. Kept local to this
+ * module; clients that consume the route can import
+ * `SessionTree` from `@shared/session-types` and substitute these two
+ * fields as `Record<string, SessionTreeNode>`.
+ */
+interface SerializedSessionTree extends Omit<SessionTree, "nodesById" | "subagentsByAgentId"> {
+  nodesById: Record<string, SessionTreeNode>;
+  // Narrower than `SessionTreeNode` — the builder only ever stores
+  // `SubagentRootNode` values here. Clients can read subagent-specific
+  // fields (`agentId`, `agentType`, `linkage`) without a type narrow.
+  subagentsByAgentId: Record<string, SubagentRootNode>;
+}
+
+/** Convert a `SessionTree`'s `Map` fields to plain objects for JSON transport. */
+function serializeSessionTree(tree: SessionTree): SerializedSessionTree {
+  return {
+    ...tree,
+    nodesById: Object.fromEntries(tree.nodesById),
+    subagentsByAgentId: Object.fromEntries(tree.subagentsByAgentId) as Record<string, SubagentRootNode>,
+  };
+}
+
+/**
+ * Parse the comma-separated `?include=` query param and test whether the
+ * caller asked for a given section. Unknown values are silently ignored so
+ * the API stays forgiving as new sections get added.
+ */
+function includesSection(raw: unknown, section: string): boolean {
+  if (typeof raw !== "string" || raw.length === 0) return false;
+  return raw.split(",").map(s => s.trim()).includes(section);
+}
 
 const router = Router();
 
@@ -476,7 +513,17 @@ router.get("/api/sessions/nerve-center", async (_req: Request, res: Response) =>
   }
 });
 
-/** GET /api/sessions/:id — Session detail with message timeline */
+/**
+ * GET /api/sessions/:id — Session detail with message timeline.
+ *
+ * Opt-in query params (`?include=<csv>`):
+ *   - `tree` — include the cached `SessionTree` built by the scanner.
+ *     When requested, `tree` is either a `SerializedSessionTree` (cache
+ *     hit) or `null` (no tree populated yet / session unknown to scanner).
+ *     When absent, the `tree` field is omitted entirely so the default
+ *     response shape is byte-compatible with pre-`include=tree` clients.
+ *   Unknown include values are silently ignored — keeps the API forgiving.
+ */
 router.get("/api/sessions/:id", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
@@ -489,6 +536,16 @@ router.get("/api/sessions/:id", async (req: Request, res: Response) => {
 
   const records = readMessageTimeline(safePath);
   const parsed = sessionParseCache.getById(session.id);
+
+  const wantTree = includesSection(qstr(req.query.include), "tree");
+  if (wantTree) {
+    const tree = sessionParseCache.getTreeById(session.id);
+    // Read-only against the cache — no parse/build here. If the scanner
+    // has not visited this session yet the client gets `tree: null` and
+    // can retry.
+    res.json({ ...session, records, parsed: parsed ?? null, tree: tree ? serializeSessionTree(tree) : null });
+    return;
+  }
 
   res.json({ ...session, records, parsed: parsed ?? null });
 });
