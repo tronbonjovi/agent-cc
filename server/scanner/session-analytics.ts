@@ -88,6 +88,13 @@ interface RawAnalytics {
   health: SessionHealth;
   messageTimestamps: string[];
   totalTokens: number;
+  /**
+   * On the tree path, count of `kind === "assistant-turn"` nodes in
+   * `tree.nodesById` — feeds computeHealthReasons so subagent turns are
+   * included. `null` on the flat fallback so runFullScan keeps using
+   * `SessionData.messageCount` (preserves graceful degradation).
+   */
+  assistantTurnCount: number | null;
 }
 
 /**
@@ -154,13 +161,16 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
   let totalCost = 0;
   let toolErrors = 0;
   let totalToolCalls = 0;
+  let assistantTurnCount: number | null = null;
 
   if (tree) {
     // Tree path: walk every assistant-turn / tool-call node so subagent
     // activity is rolled into the breakdown and totals.
+    assistantTurnCount = 0;
     Array.from(tree.nodesById.values()).forEach((node) => {
       if (node.kind === "assistant-turn") {
         const turn = node as AssistantTurnNode;
+        assistantTurnCount!++;
         if (turn.timestamp) messageTimestamps.push(turn.timestamp);
 
         const model = turn.model || "unknown";
@@ -267,6 +277,7 @@ function analyzeSession(session: SessionData): RawAnalytics | null {
     },
     messageTimestamps,
     totalTokens,
+    assistantTurnCount,
   };
 }
 
@@ -350,11 +361,14 @@ function runFullScan(sessions: SessionData[]): void {
   // Second pass: compute health reasons now that we have all session costs for percentile
   const allSessionCosts = allCosts.map(c => c.estimatedCostUsd);
   for (const { session, result } of rawResults) {
+    // Tree path: feed assistant-turn node count (includes subagent turns).
+    // Fallback path: keep using SessionData.messageCount for graceful degradation.
+    const messageCount = result.assistantTurnCount ?? session.messageCount;
     const reasons = computeHealthReasons({
       toolErrors: result.health.toolErrors,
       retries: result.health.retries,
       totalToolCalls: result.health.totalToolCalls,
-      messageCount: session.messageCount,
+      messageCount,
       estimatedCostUsd: result.cost.estimatedCostUsd,
       totalTokens: result.totalTokens,
       maxContextTokens: DEFAULT_CONTEXT_WINDOW,
@@ -367,6 +381,7 @@ function runFullScan(sessions: SessionData[]): void {
       projectKey: session.projectKey || undefined,
       lastTs: session.lastTs || undefined,
       estimatedCostUsd: result.cost.estimatedCostUsd,
+      messageCount,
     };
     allHealth.push(healthWithReasons);
   }

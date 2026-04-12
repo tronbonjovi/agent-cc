@@ -217,7 +217,10 @@ describe("session-analytics with SessionTree (flat-to-tree wave1 task001)", () =
     expect(tree.totals.toolErrors).toBeGreaterThan(parsed!.counts.toolErrors);
     expect(tree.totals.toolCalls).toBeGreaterThan(parsed!.counts.toolCalls);
 
-    const sessionData = makeSessionData(parentFilePath, projectKey);
+    // Force a low session.messageCount so the tree-based assistant-turn count
+    // is strictly greater — proves the tree value, not session.messageCount,
+    // is what reaches computeHealthReasons.
+    const sessionData = { ...makeSessionData(parentFilePath, projectKey), messageCount: 5 };
     const health = analytics.getSessionHealth([sessionData], "parent");
     expect(health).not.toBeNull();
 
@@ -226,6 +229,15 @@ describe("session-analytics with SessionTree (flat-to-tree wave1 task001)", () =
     expect(health!.totalToolCalls).toBe(tree.totals.toolCalls);
     expect(health!.toolErrors).toBe(tree.totals.toolErrors);
     expect(health!.toolErrors).toBeGreaterThan(0);
+
+    // The messageCount handed to computeHealthReasons on the tree path must
+    // come from tree.nodesById (count of kind === "assistant-turn"), NOT from
+    // session.messageCount. SessionHealth.messageCount mirrors that argument.
+    const assistantTurnCount = Array.from(tree.nodesById.values())
+      .filter((n) => n.kind === "assistant-turn").length;
+    expect(assistantTurnCount).toBeGreaterThan(0);
+    expect(health!.messageCount).toBe(assistantTurnCount);
+    expect(health!.messageCount!).toBeGreaterThan(sessionData.messageCount);
   });
 
   it("computeSessionAnalytics falls back gracefully when tree is null", async () => {
