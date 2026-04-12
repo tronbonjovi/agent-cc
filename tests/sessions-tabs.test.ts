@@ -33,11 +33,15 @@ describe("sessions page tab structure", () => {
     expect(src).not.toMatch(/setActiveTab\(["']prompts["']\)/);
   });
 
-  it("imports MessageHistory components from message-history page", () => {
-    expect(src).toMatch(/import.*from.*["']@\/pages\/message-history["']/);
+  it("imports the messages tab content component", () => {
+    // Cleanup note (messages-redesign-task005): the legacy
+    // @/pages/message-history module was deleted; this dead-route page
+    // now imports the new MessagesTab from the analytics directory but
+    // keeps the local alias name (MessagesTabContent) for clarity.
+    expect(src).toMatch(/import.*MessagesTab.*from.*analytics\/messages\/MessagesTab/);
   });
 
-  it("renders MessagesPanel when messages tab is active", () => {
+  it("renders MessagesTab content when messages tab is active", () => {
     expect(src).toMatch(/activeTab\s*===\s*["']messages["']/);
     expect(src).toMatch(/<MessagesTabContent/);
   });

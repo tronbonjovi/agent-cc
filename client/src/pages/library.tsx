@@ -9,7 +9,7 @@ import McpsTab from "@/components/library/mcps-tab";
 import AgentsTab from "@/components/library/agents-tab";
 import FileEditorTab from "@/components/library/file-editor-tab";
 import { DiscoverTab } from "@/components/discover-tab";
-import { PromptsPanel } from "@/pages/message-history";
+import { PromptsPanel } from "@/pages/prompts-panel";
 import { BashKnowledgePanel } from "@/components/session-analytics-panel";
 
 const TAB_ICONS: Record<LibraryTabId, React.ElementType> = {

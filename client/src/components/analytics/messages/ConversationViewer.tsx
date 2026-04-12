@@ -60,11 +60,19 @@ import { renderMessage, SidechainGroup } from "./bubbles";
 // ---------------------------------------------------------------------------
 
 /**
- * Per-type visibility toggles. Task005's filter bar will build one of these
- * and hand it in as a prop; this viewer treats it as read-only state.
+ * Per-type visibility toggles. Task005's filter bar builds one of these
+ * and hands it in as a prop; this viewer treats it as read-only state.
  *
- * Each field maps 1:1 to a TimelineMessage.type variant. Adding a new
- * message type means adding a new key here AND a case in `isMessageVisible`.
+ * The first seven keys map 1:1 to a TimelineMessage.type variant. Adding a
+ * new message type means adding a new key here AND a case in
+ * `isMessageVisible`.
+ *
+ * The two trailing keys (`sidechains`, `errorsOnly`) are orthogonal cross-
+ * cutting filters added in task005 so the FilterBar's "Sidechains" and
+ * "Errors Only" pills bind to the same canonical FilterState rather than
+ * forking it. Both are optional so existing call sites that build a
+ * 7-key FilterState literal continue to type-check; missing values are
+ * treated as the safe default (sidechains visible, errorsOnly off).
  */
 export interface FilterState {
   userText: boolean;
@@ -74,6 +82,10 @@ export interface FilterState {
   toolResults: boolean;
   systemEvents: boolean;
   skillInvocations: boolean;
+  /** When false, hides every message that lives inside a subagent run. */
+  sidechains?: boolean;
+  /** When true, shows only tool_result messages where isError is set. */
+  errorsOnly?: boolean;
 }
 
 /** All seven types on — the first-load default for a freshly opened session. */
@@ -85,6 +97,8 @@ export const DEFAULT_FILTERS: FilterState = {
   toolResults: true,
   systemEvents: true,
   skillInvocations: true,
+  sidechains: true,
+  errorsOnly: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -96,8 +110,32 @@ export const DEFAULT_FILTERS: FilterState = {
  *
  * Exhaustive over TimelineMessage.type — a never-guard default forces a
  * compile error when a new variant lands.
+ *
+ * Two cross-cutting filters layer on top of the per-type toggles:
+ *   - `errorsOnly`: when true, only `tool_result` messages with `isError`
+ *     are kept. Every other type is hidden regardless of its own toggle.
+ *     Used by the "Errors" mode preset to drive a debugging view.
+ *   - `sidechains`: when explicitly false, messages flagged `isSidechain`
+ *     or carrying a `subagentContext` (i.e. anything inside a subagent
+ *     run) are hidden. Default (`undefined` / `true`) keeps them visible
+ *     so the existing 7-key FilterState literals from task004 still
+ *     behave the same.
  */
 function isMessageVisible(msg: TimelineMessage, filters: FilterState): boolean {
+  // Errors-only mode: short-circuit before per-type checks. Any message
+  // that isn't an errored tool_result is hidden — matches the contract's
+  // "Errors Only — show only messages with tool errors" wording.
+  if (filters.errorsOnly === true) {
+    if (msg.type !== "tool_result") return false;
+    return msg.isError === true;
+  }
+
+  // Sidechain visibility gate (orthogonal to per-type toggles).
+  if (filters.sidechains === false) {
+    if (msg.isSidechain === true) return false;
+    if (msg.subagentContext != null) return false;
+  }
+
   switch (msg.type) {
     case "user_text":
       return filters.userText;

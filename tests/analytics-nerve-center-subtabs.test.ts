@@ -97,18 +97,26 @@ describe("Settings page — Workflows tab", () => {
   });
 });
 
-describe("Messages page — no prompts panel in layout", () => {
-  const msgSrc = fs.readFileSync(
-    path.resolve(__dirname, "../client/src/pages/message-history.tsx"),
-    "utf-8"
+describe("Messages tab — no prompts panel in layout", () => {
+  // Cleanup note (messages-redesign-task005): the legacy
+  // client/src/pages/message-history.tsx page was deleted. The Messages
+  // tab is now rendered as <MessagesTab /> from the analytics/messages
+  // directory; the prompts panel was moved to its own file under
+  // client/src/pages/prompts-panel.tsx.
+  const msgsTabSrc = fs.readFileSync(
+    path.resolve(
+      __dirname,
+      "../client/src/components/analytics/messages/MessagesTab.tsx",
+    ),
+    "utf-8",
   );
 
-  it("does not have split layout with prompts panel", () => {
-    expect(msgSrc).not.toMatch(/grid-cols-5/);
+  it("does not have a prompts panel embedded in the Messages tab", () => {
+    expect(msgsTabSrc).not.toMatch(/PromptsPanel/);
   });
 
-  it("renders MessagesPanel full-width", () => {
-    expect(msgSrc).toMatch(/<MessagesPanel/);
+  it("renders MessagesTab as the messages tab content", () => {
+    expect(msgsTabSrc).toMatch(/export function MessagesTab/);
   });
 });
 
@@ -118,8 +126,10 @@ describe("Library page — prompts tab uses PromptsPanel", () => {
     "utf-8"
   );
 
-  it("imports PromptsPanel from message-history", () => {
-    expect(libSrc).toMatch(/import.*PromptsPanel.*from.*message-history/);
+  it("imports PromptsPanel from prompts-panel", () => {
+    // Cleanup note (messages-redesign-task005): PromptsPanel was relocated
+    // out of the deleted message-history.tsx into its own page module.
+    expect(libSrc).toMatch(/import.*PromptsPanel.*from.*prompts-panel/);
   });
 
   it("renders PromptsPanel for the prompts tab", () => {

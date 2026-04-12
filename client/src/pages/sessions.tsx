@@ -22,7 +22,7 @@ import {
 import type { SessionData, DeepSearchMatch } from "@shared/types";
 import { formatBytes, relativeTime as _relativeTime } from "@/lib/utils";
 import { EmptyState } from "@/components/empty-state";
-import { MessagesPanel as MessagesTabContent } from "@/pages/message-history";
+import { MessagesTab as MessagesTabContent } from "@/components/analytics/messages/MessagesTab";
 
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

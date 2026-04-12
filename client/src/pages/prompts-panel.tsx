@@ -1,6 +1,11 @@
+// client/src/pages/prompts-panel.tsx
+//
+// Prompts library panel — extracted from the now-deleted message-history.tsx
+// during messages-redesign-task005 cleanup. The Library page imports
+// `PromptsPanel` from here; the implementation is unchanged from the
+// previous home so behavior stays identical.
+
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,151 +14,22 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { ListSkeleton } from "@/components/skeleton";
 import {
-  Search, ChevronDown, ChevronRight, MessageSquare, Clock, FolderOpen,
-  User, Bot, Wrench, Loader2, Plus, Star, Copy, Check, Trash2, Pencil,
-  Hash, Sparkles,
+  Search, Plus, Star, Copy, Check, Trash2, Pencil, Hash, Sparkles,
 } from "lucide-react";
-import { relativeTime, shortModel } from "@/lib/utils";
-import { usePromptTemplates, useCreatePrompt, useUpdatePrompt, useDeletePrompt } from "@/hooks/use-prompts";
-import type { SessionData, SessionStats, PromptTemplate } from "@shared/types";
+import {
+  usePromptTemplates,
+  useCreatePrompt,
+  useUpdatePrompt,
+  useDeletePrompt,
+} from "@/hooks/use-prompts";
+import type { PromptTemplate } from "@shared/types";
 
-const rt = (s: string | null) => s ? relativeTime(s) : "-";
-
-interface SessionMessage {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
-  model?: string;
-  tokenCount?: number;
-  hasToolUse?: boolean;
-  toolNames?: string[];
-}
-
-interface MessagesResponse {
-  sessionId: string;
-  totalMessages: number;
-  messages: SessionMessage[];
-}
-
-function formatTime(timestamp: string): string {
-  if (!timestamp) return "";
-  try {
-    return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch { return ""; }
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  try {
-    return new Date(dateStr).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
-  } catch { return ""; }
-}
-
-function lastPathSegment(fullPath: string): string {
-  if (!fullPath || fullPath === "(no project)") return fullPath || "";
-  const normalized = fullPath.replace(/\\/g, "/").replace(/\/$/, "");
-  const parts = normalized.split("/");
-  return parts[parts.length - 1] || fullPath;
-}
+type SortKey = "name" | "recent" | "most-used" | "favorites";
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + "..." : s;
 }
-
-type SortKey = "name" | "recent" | "most-used" | "favorites";
-
-// ─── Main Page ───────────────────────────────────────────────────────────────
-
-export default function MessageHistory() {
-  return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gradient">Messages</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Session history
-        </p>
-      </div>
-
-      {/* Full-width message history */}
-      <div style={{ height: "calc(100vh - 160px)" }}>
-        <MessagesPanel />
-      </div>
-    </div>
-  );
-}
-
-// ─── Messages Panel ──────────────────────────────────────────────────────────
-
-export function MessagesPanel() {
-  const [search, setSearch] = useState("");
-  const [expandedSession, setExpandedSession] = useState<string | null>(null);
-
-  const { data, isLoading } = useQuery<{ sessions: SessionData[]; stats: SessionStats }>({
-    queryKey: [`/api/sessions?sort=lastTs&order=desc&hideEmpty=true`],
-    staleTime: 60000,
-  });
-
-  const sessions = data?.sessions || [];
-
-  const filteredSessions = search
-    ? sessions.filter((s) => {
-        const q = search.toLowerCase();
-        return (
-          (s.firstMessage && s.firstMessage.toLowerCase().includes(q)) ||
-          (s.slug && s.slug.toLowerCase().includes(q)) ||
-          (s.projectKey && s.projectKey.toLowerCase().includes(q))
-        );
-      })
-    : sessions;
-
-  return (
-    <>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-          <MessageSquare className="h-4 w-4" />
-          History
-          <span className="text-[10px] font-mono normal-case">({sessions.length})</span>
-        </h2>
-        <div className="relative w-56">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search sessions..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-8 text-xs"
-          />
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto space-y-2 min-h-0">
-        {isLoading ? (
-          <ListSkeleton rows={6} />
-        ) : filteredSessions.length === 0 ? (
-          <div className="text-muted-foreground text-center py-12 text-sm">
-            {search ? "No sessions match your search" : "No sessions with messages found"}
-          </div>
-        ) : (
-          filteredSessions.map((session, i) => (
-            <SessionRow
-              key={session.id}
-              session={session}
-              index={i}
-              isExpanded={expandedSession === session.id}
-              onToggle={() =>
-                setExpandedSession(expandedSession === session.id ? null : session.id)
-              }
-            />
-          ))
-        )}
-      </div>
-    </>
-  );
-}
-
-// ─── Prompts Panel ───────────────────────────────────────────────────────────
 
 export function PromptsPanel() {
   const { data: templates, isLoading } = usePromptTemplates();
@@ -398,8 +274,6 @@ export function PromptsPanel() {
   );
 }
 
-// ─── Prompt Modal ────────────────────────────────────────────────────────────
-
 function PromptModal({
   open, onClose, initial,
 }: {
@@ -468,150 +342,5 @@ function PromptModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ─── Session Row ─────────────────────────────────────────────────────────────
-
-function SessionRow({
-  session, index, isExpanded, onToggle,
-}: {
-  session: SessionData;
-  index: number;
-  isExpanded: boolean;
-  onToggle: () => void;
-}) {
-  const project = lastPathSegment(session.projectKey);
-
-  return (
-    <Card
-      className={`card-hover animate-fade-in-up cursor-pointer ${isExpanded ? "ring-1 ring-blue-500/30" : ""}`}
-      style={{ animationDelay: `${Math.min(index, 20) * 30}ms` }}
-    >
-      <CardContent className="p-0">
-        <div className="flex items-center gap-3 p-4 hover:bg-accent/20 transition-colors" onClick={onToggle}>
-          <div className="flex-shrink-0 text-muted-foreground/50">
-            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium line-clamp-1">
-              {session.firstMessage || session.slug || "(untitled)"}
-            </p>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <span className="text-[11px] text-muted-foreground font-mono whitespace-nowrap flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {rt(session.lastTs)}
-              </span>
-              {project && (
-                <>
-                  <span className="text-muted-foreground/30 text-[11px]">/</span>
-                  <span className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
-                    <FolderOpen className="h-3 w-3" />
-                    {project}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <MessageSquare className="h-3.5 w-3.5" />
-              <span className="font-mono tabular-nums">{session.messageCount}</span>
-            </div>
-            <span className="text-[11px] text-muted-foreground/50 font-mono">
-              {formatDate(session.lastTs)}
-            </span>
-          </div>
-        </div>
-
-        {isExpanded && <ExpandedMessages sessionId={session.id} />}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Expanded Messages ───────────────────────────────────────────────────────
-
-function ExpandedMessages({ sessionId }: { sessionId: string }) {
-  const { data, isLoading } = useQuery<MessagesResponse>({
-    queryKey: [`/api/sessions/${sessionId}/messages`],
-    staleTime: 120000,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="px-4 pb-4 pt-2 border-t border-border/30">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading messages...
-        </div>
-      </div>
-    );
-  }
-
-  if (!data || data.messages.length === 0) {
-    return (
-      <div className="px-4 pb-4 pt-2 border-t border-border/30">
-        <p className="text-sm text-muted-foreground py-4 text-center">No messages found</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="px-4 pb-4 pt-2 border-t border-border/30">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
-          Conversation ({data.totalMessages} messages)
-        </span>
-      </div>
-      <div className="space-y-1.5 max-h-[500px] overflow-auto">
-        {data.messages.map((msg, idx) => (
-          <MessageRow key={idx} message={msg} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Message Row ─────────────────────────────────────────────────────────────
-
-function MessageRow({ message }: { message: SessionMessage }) {
-  const isUser = message.role === "user";
-
-  return (
-    <div
-      className={`flex items-start gap-2.5 text-xs rounded-md px-3 py-2 transition-colors hover:bg-accent/20 ${
-        isUser ? "border-l-2 border-l-blue-500/50" : "border-l-2 border-l-green-500/50"
-      }`}
-    >
-      <div className="flex-shrink-0 mt-0.5">
-        {isUser ? <User className="h-3.5 w-3.5 text-blue-400" /> : <Bot className="h-3.5 w-3.5 text-green-400" />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm leading-relaxed line-clamp-3 ${isUser ? "text-foreground" : "text-muted-foreground"}`}>
-          {message.content || "(no content)"}
-        </p>
-        {message.hasToolUse && message.toolNames && message.toolNames.length > 0 && (
-          <div className="flex items-center gap-1 mt-1 flex-wrap">
-            <Wrench className="h-3 w-3 text-muted-foreground/50" />
-            {message.toolNames.map((tool, i) => (
-              <Badge key={i} variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground/70 border-muted-foreground/20">
-                {tool}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex-shrink-0 text-right space-y-0.5">
-        <span className="text-[10px] text-muted-foreground/50 font-mono tabular-nums block">
-          {formatTime(message.timestamp)}
-        </span>
-        {message.model && (
-          <Badge variant="outline" className="text-[9px] px-1 py-0">
-            {shortModel(message.model ?? null)}
-          </Badge>
-        )}
-      </div>
-    </div>
   );
 }

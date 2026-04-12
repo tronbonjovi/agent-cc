@@ -24,7 +24,7 @@ import { formatBytes, formatDayLabel, isToday, relativeTime } from "@/lib/utils"
 import ChartsTab from "@/components/analytics/charts/ChartsTab";
 import CostsTab from "@/components/analytics/costs/CostsTab";
 import { SessionsTab } from "@/components/analytics/sessions/SessionsTab";
-import { MessagesPanel } from "@/pages/message-history";
+import { MessagesTab } from "@/components/analytics/messages/MessagesTab";
 import { EntityGraph } from "@/components/analytics/entity-graph";
 
 // ---- Types ----
@@ -413,7 +413,7 @@ export default function Stats() {
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4">
-          <MessagesPanel />
+          <MessagesTab />
         </TabsContent>
       </Tabs>
     </PageContainer>

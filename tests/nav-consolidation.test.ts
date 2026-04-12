@@ -173,7 +173,10 @@ describe("No broken links to old routes", () => {
     for (const file of clientFiles) {
       const content = fs.readFileSync(file, "utf-8");
       const relativePath = path.relative(clientDir, file);
-      if (relativePath.includes("prompts.tsx") || relativePath.includes("message-history.tsx")) continue;
+      // Cleanup note (messages-redesign-task005): message-history.tsx was
+      // deleted, so it no longer needs an exemption. prompts.tsx is the
+      // /prompts redirect page which legitimately mentions a path.
+      if (relativePath.includes("prompts.tsx")) continue;
       const hasLink = content.match(/["']\/messages["']/);
       expect(hasLink, `Found /messages reference in ${relativePath}`).toBeNull();
     }

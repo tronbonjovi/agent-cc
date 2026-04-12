@@ -40,8 +40,11 @@ describe("library.tsx — imports and renders new tabs", () => {
     expect(src).toMatch(/import.*DiscoverTab.*from/);
   });
 
-  it("imports PromptsPanel from message-history", () => {
-    expect(src).toMatch(/import.*PromptsPanel.*from.*message-history/);
+  it("imports PromptsPanel from prompts-panel", () => {
+    // Cleanup note (messages-redesign-task005): the prompts panel was
+    // extracted out of the now-deleted message-history.tsx into its own
+    // page module so the legacy file could be removed.
+    expect(src).toMatch(/import.*PromptsPanel.*from.*prompts-panel/);
   });
 
   it("imports BashKnowledgePanel", () => {

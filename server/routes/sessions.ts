@@ -570,6 +570,7 @@ function findSessionJsonl(sessionId: string): string | null {
  * Valid values for `?types=` — narrows the timeline to a subset of the
  * seven kinds. Unknown names are silently ignored (forgiving API).
  */
+// keep in sync with the union in shared/session-types.ts — will silently reject new types otherwise
 const TIMELINE_MESSAGE_TYPES: ReadonlySet<TimelineMessageType> = new Set<TimelineMessageType>([
   "user_text",
   "assistant_text",
@@ -601,6 +602,15 @@ function parseTypesFilter(raw: unknown): Set<TimelineMessageType> | undefined {
  *    a `treeNodeId` + `subagentContext` field computed from the cached
  *    `SessionTree`, and the response carries `meta.treeStatus`. When
  *    absent, the response is byte-identical to the unenriched shape.
+ *
+ * `totalMessages` semantics: when `?types=` is present, `totalMessages` is
+ * the count **after** the type filter has been applied (it counts only the
+ * messages the filter would include). A frontend rendering "X of Y" should
+ * therefore treat Y as filter-scoped — narrowing `?types=` shrinks both X
+ * and Y, never just X. When `?types=` is absent, `totalMessages` is the
+ * unfiltered total. This matches the pagination contract: `offset` and
+ * `limit` slice into the post-filter list, so the same Y is needed to
+ * compute "messages remaining after the page."
  *
  * Tree enrichment mutates the message objects in place with two new keys.
  * The flattener leaves those keys undefined; adding them costs a single

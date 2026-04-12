@@ -6,7 +6,9 @@ import path from "path";
 
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
 const SESSIONS_PATH = path.resolve(__dirname, "../client/src/pages/sessions.tsx");
-const MESSAGES_PATH = path.resolve(__dirname, "../client/src/pages/message-history.tsx");
+// Cleanup note (messages-redesign-task005): client/src/pages/message-history.tsx
+// was deleted; the messages tab now renders <MessagesTab /> from
+// client/src/components/analytics/messages/MessagesTab.tsx.
 
 describe("analytics flatten — 5 main tabs", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
@@ -113,12 +115,18 @@ describe("analytics flatten — Sessions tab", () => {
 describe("analytics flatten — Messages tab", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
 
-  it("imports MessagesPanel from message-history", () => {
-    expect(src).toMatch(/import.*MessagesPanel.*from.*message-history/);
+  it("imports MessagesTab from analytics/messages", () => {
+    // Cleanup note (messages-redesign-task005): replaces the legacy
+    // MessagesPanel import that came from @/pages/message-history.
+    expect(src).toMatch(/import.*MessagesTab.*from.*analytics\/messages/);
   });
 
-  it("renders MessagesPanel in messages tab content", () => {
-    expect(src).toMatch(/<MessagesPanel/);
+  it("renders MessagesTab in messages tab content", () => {
+    expect(src).toMatch(/<MessagesTab/);
+  });
+
+  it("no longer imports the legacy MessagesPanel", () => {
+    expect(src).not.toMatch(/MessagesPanel/);
   });
 });
 
@@ -134,14 +142,18 @@ describe("analytics flatten — sessions.tsx still functional", () => {
   });
 });
 
-describe("analytics flatten — message-history.tsx still functional", () => {
-  const src = fs.readFileSync(MESSAGES_PATH, "utf-8");
+describe("analytics flatten — messages tab MessagesTab still functional", () => {
+  // Cleanup note (messages-redesign-task005): the legacy
+  // client/src/pages/message-history.tsx file was deleted. The new
+  // <MessagesTab /> container lives in
+  // client/src/components/analytics/messages/MessagesTab.tsx.
+  const MSGS_TAB_PATH = path.resolve(
+    __dirname,
+    "../client/src/components/analytics/messages/MessagesTab.tsx",
+  );
+  const src = fs.readFileSync(MSGS_TAB_PATH, "utf-8");
 
-  it("still has a default export", () => {
-    expect(src).toMatch(/export default function MessageHistory/);
-  });
-
-  it("still exports MessagesPanel", () => {
-    expect(src).toMatch(/export function MessagesPanel/);
+  it("exports MessagesTab", () => {
+    expect(src).toMatch(/export function MessagesTab/);
   });
 });
