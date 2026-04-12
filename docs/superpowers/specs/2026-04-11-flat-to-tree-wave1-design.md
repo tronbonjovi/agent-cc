@@ -1,6 +1,6 @@
 # Flat-to-Tree Migration — Wave 1 + ToolTimeline
 
-**Date:** 2026-04-13
+**Date:** 2026-04-11
 **Predecessor:** `2026-04-12-session-hierarchy-design.md` (producer side, shipped in PR #3)
 **Audit:** `docs/audits/2026-04-13-flat-to-tree-audit.md`
 
