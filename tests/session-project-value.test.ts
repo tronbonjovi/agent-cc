@@ -1,5 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { computeSessionProjectValue } from "../server/scanner/session-project-value";
+import {
+  parseSessionAndBuildTree,
+  sessionParseCache,
+} from "../server/scanner/session-scanner";
 import type { ParsedSession, AssistantRecord, TokenUsage, UserRecord } from "../shared/session-types";
 
 /** Helper to build a minimal AssistantRecord */
@@ -334,6 +341,201 @@ describe("session-project-value", () => {
 
       const projA = result.byProject.find(p => p.project === "project-a")!;
       expect(projA.sessions).toBe(2);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // SessionTree migration (flat-to-tree wave1 task002)
+  // ---------------------------------------------------------------------
+  describe("computeSessionProjectValue with SessionTree", () => {
+    const FIXTURE_DIR = path.resolve(__dirname, "fixtures/session-hierarchy");
+    const SUB_IDS = [
+      "b1111111111111111",
+      "b2222222222222222",
+      "b3333333333333333",
+      "b4444444444444444",
+      "b5555555555555555",
+    ];
+
+    let tmpRoot: string;
+    let parentFilePath: string;
+
+    function copyFixtureInto(destProjectDir: string): string {
+      const subagentsDest = path.join(destProjectDir, "parent", "subagents");
+      fs.mkdirSync(subagentsDest, { recursive: true });
+      fs.copyFileSync(
+        path.join(FIXTURE_DIR, "parent.jsonl"),
+        path.join(destProjectDir, "parent.jsonl"),
+      );
+      for (const id of SUB_IDS) {
+        fs.copyFileSync(
+          path.join(FIXTURE_DIR, "parent", "subagents", `agent-${id}.jsonl`),
+          path.join(subagentsDest, `agent-${id}.jsonl`),
+        );
+        fs.copyFileSync(
+          path.join(FIXTURE_DIR, "parent", "subagents", `agent-${id}.meta.json`),
+          path.join(subagentsDest, `agent-${id}.meta.json`),
+        );
+      }
+      return path.join(destProjectDir, "parent.jsonl");
+    }
+
+    beforeEach(() => {
+      tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "acc-spv-tree-"));
+      const projectDir = path.join(tmpRoot, "-home-user-projects-demo");
+      parentFilePath = copyFixtureInto(projectDir);
+      sessionParseCache.invalidateAll();
+    });
+
+    afterEach(() => {
+      sessionParseCache.invalidateAll();
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    });
+
+    /** Compute parent-only cost the way the legacy flat path does. */
+    function flatParentOnlyCost(parsed: ParsedSession): number {
+      // Mirror the helpers in session-project-value: sum getPricing+computeCost
+      // for parent assistant messages only. We don't import the helpers (they're
+      // module-private) — instead assert via a known proxy: a strictly-greater
+      // assertion against tree totals.costUsd. The fixture invariant guarantees
+      // subagent cost is non-zero, so tree.totals.costUsd > parent self cost.
+      let total = 0;
+      for (const msg of parsed.assistantMessages) {
+        total += msg.usage.inputTokens + msg.usage.outputTokens
+          + msg.usage.cacheReadTokens + msg.usage.cacheCreationTokens;
+      }
+      return total;
+    }
+
+    it("cost numerator includes subagent spend", () => {
+      const parsed = parseSessionAndBuildTree(parentFilePath, "-home-user-projects-demo");
+      expect(parsed).not.toBeNull();
+      const tree = sessionParseCache.getTreeById(parsed!.meta.sessionId)!;
+      expect(tree).not.toBeNull();
+      expect(tree.totals.subagents).toBeGreaterThan(0);
+      expect(tree.totals.costUsd).toBeGreaterThan(0);
+
+      const result = computeSessionProjectValue([parsed!]);
+
+      // The single session shows up in topExpensive — its cost must equal the
+      // tree rollup, which (per fixture invariant) strictly exceeds parent-only
+      // assistant token totals.
+      expect(result.topExpensive).toHaveLength(1);
+      const ranked = result.topExpensive[0];
+      expect(ranked.sessionId).toBe(parsed!.meta.sessionId);
+      expect(ranked.cost).toBeCloseTo(tree.totals.costUsd, 10);
+
+      // Sanity: subagents added meaningful work — the tree's input/output
+      // tokens must exceed the parent-only token totals from assistantMessages.
+      const parentOnlyTokens = parsed!.assistantMessages.reduce(
+        (acc, m) =>
+          acc +
+          m.usage.inputTokens +
+          m.usage.outputTokens +
+          m.usage.cacheReadTokens +
+          m.usage.cacheCreationTokens,
+        0,
+      );
+      const treeTokens =
+        tree.totals.inputTokens +
+        tree.totals.outputTokens +
+        tree.totals.cacheReadTokens +
+        tree.totals.cacheCreationTokens;
+      expect(treeTokens).toBeGreaterThan(parentOnlyTokens);
+
+      // And the per-project tokens row must reflect the tree-rolled total.
+      expect(result.byProject).toHaveLength(1);
+      expect(result.byProject[0].tokens).toBe(treeTokens);
+      expect(result.byProject[0].cost).toBeCloseTo(tree.totals.costUsd, 10);
+    });
+
+    it("turn denominator includes subagent turns", () => {
+      const parsed = parseSessionAndBuildTree(parentFilePath, "-home-user-projects-demo");
+      expect(parsed).not.toBeNull();
+      const tree = sessionParseCache.getTreeById(parsed!.meta.sessionId)!;
+      expect(tree).not.toBeNull();
+
+      // Fixture invariant: every subagent has at least one assistant message,
+      // so tree assistantTurns must strictly exceed parent-only count.
+      expect(tree.totals.assistantTurns).toBeGreaterThan(parsed!.counts.assistantMessages);
+
+      const result = computeSessionProjectValue([parsed!]);
+
+      // avgTokensPerTurn divides tree token total by tree assistantTurns.
+      const expectedAvg =
+        (tree.totals.inputTokens +
+          tree.totals.outputTokens +
+          tree.totals.cacheReadTokens +
+          tree.totals.cacheCreationTokens) /
+        tree.totals.assistantTurns;
+      expect(result.avgTokensPerTurn).toBeCloseTo(expectedAvg, 5);
+
+      // avgDepth (turns per session) for the lone session must include
+      // subagent turns, so it must exceed parent-only turn count.
+      expect(result.byProject).toHaveLength(1);
+      const parentOnlyDepth =
+        parsed!.counts.assistantMessages + parsed!.counts.userMessages;
+      expect(result.byProject[0].avgDepth).toBeGreaterThan(parentOnlyDepth);
+      expect(result.byProject[0].avgDepth).toBeCloseTo(
+        tree.totals.assistantTurns + tree.totals.userTurns,
+        5,
+      );
+
+      // avgOutputInputRatio also runs off tree totals.
+      const expectedRatio =
+        tree.totals.inputTokens > 0
+          ? tree.totals.outputTokens / tree.totals.inputTokens
+          : 0;
+      expect(result.avgOutputInputRatio).toBeCloseTo(expectedRatio, 5);
+    });
+
+    it("falls back gracefully when tree is null", () => {
+      // Build a flat-only ParsedSession (don't prime the cache, so getTreeById
+      // returns null).
+      const flat = makeSession(
+        [
+          makeAssistantRecord({
+            usage: { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 200, cacheCreationTokens: 100 },
+          }),
+          makeAssistantRecord({
+            usage: { inputTokens: 2000, outputTokens: 1000, cacheReadTokens: 300, cacheCreationTokens: 100 },
+          }),
+        ],
+        "no-tree-session",
+        { projectKey: "no-tree-proj", userMessages: [makeUserRecord(), makeUserRecord()] },
+      );
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      // Cache is empty for this session — getTreeById returns null.
+      expect(sessionParseCache.getTreeById("no-tree-session")).toBeNull();
+
+      let result: ReturnType<typeof computeSessionProjectValue>;
+      expect(() => {
+        result = computeSessionProjectValue([flat]);
+      }).not.toThrow();
+
+      // Flat-array path produced legacy results.
+      expect(result!.byProject).toHaveLength(1);
+      expect(result!.byProject[0].project).toBe("no-tree-proj");
+      // Tokens equal the parent-only totals (no subagents in flat path).
+      expect(result!.byProject[0].tokens).toBe(
+        1000 + 500 + 200 + 100 + 2000 + 1000 + 300 + 100,
+      );
+      // avgTokensPerTurn from parent-only stats: 5200 / 2 = 2600
+      expect(result!.avgTokensPerTurn).toBeCloseTo(2600, 0);
+
+      // The fallback warning was emitted with session id and the contracted message.
+      expect(warnSpy).toHaveBeenCalled();
+      const calls = warnSpy.mock.calls.map((c) => c.join(" "));
+      expect(
+        calls.some(
+          (msg) =>
+            msg.includes("session-project-value: tree missing, falling back to flat arrays") &&
+            msg.includes("no-tree-session"),
+        ),
+      ).toBe(true);
     });
   });
 });
