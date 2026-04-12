@@ -208,51 +208,58 @@ function buildSessionsScope(projectKey: string): ForceGraphData {
   }
   const totalCost = projectCostRecords.reduce((sum, r) => sum + r.cost, 0);
 
-  // Build tool aggregates from parsed sessions
-  const sessionToolAggs = new Map<string, Map<string, number>>();
+  // Build tool aggregates across the whole project scope.
+  // One node per unique tool name; edges link each session that used it.
+  // sessionToolUses: sessionId -> (toolName -> count in that session)
+  const sessionToolUses = new Map<string, Map<string, number>>();
+  const toolTotals = new Map<string, number>();
   const allParsed = sessionParseCache.getAll();
 
   for (const session of projectSessions) {
     const parsed = allParsed.get(session.id);
-    if (parsed) {
-      // Tool aggregation: count by tool name
-      const toolCounts = new Map<string, number>();
-      for (const exec of parsed.toolTimeline) {
-        toolCounts.set(exec.name, (toolCounts.get(exec.name) || 0) + 1);
-      }
-      sessionToolAggs.set(session.id, toolCounts);
+    if (!parsed) continue;
+    const perSession = new Map<string, number>();
+    for (const exec of parsed.toolTimeline) {
+      perSession.set(exec.name, (perSession.get(exec.name) || 0) + 1);
+      toolTotals.set(exec.name, (toolTotals.get(exec.name) || 0) + 1);
     }
+    if (perSession.size > 0) sessionToolUses.set(session.id, perSession);
   }
 
-  // Agent executions from agent scanner (more reliable than bridge events)
-  const sessionAgents = new Map<string, string[]>();
+  // Agent executions aggregated across project: one node per unique agent slug.
+  // sessionAgentUses: sessionId -> (agentSlug -> count) ; agentTotals: slug -> total execs
+  const sessionAgentUses = new Map<string, Map<string, number>>();
+  const agentTotals = new Map<string, number>();
   const allAgentExecs = getCachedExecutions().filter(
     (e) => e.projectKey === projectKey,
   );
   for (const exec of allAgentExecs) {
-    const agents = sessionAgents.get(exec.sessionId) || [];
-    if (!agents.includes(exec.slug)) {
-      agents.push(exec.slug);
+    agentTotals.set(exec.slug, (agentTotals.get(exec.slug) || 0) + 1);
+    let perSession = sessionAgentUses.get(exec.sessionId);
+    if (!perSession) {
+      perSession = new Map<string, number>();
+      sessionAgentUses.set(exec.sessionId, perSession);
     }
-    sessionAgents.set(exec.sessionId, agents);
+    perSession.set(exec.slug, (perSession.get(exec.slug) || 0) + 1);
   }
 
   // Collect max values for normalization
   let maxMessages = 0;
-  let maxToolCount = 0;
   let maxCost = 0;
-
   for (const s of projectSessions) {
     if (s.messageCount > maxMessages) maxMessages = s.messageCount;
     const cost = sessionCosts.get(s.id) || 0;
     if (cost > maxCost) maxCost = cost;
   }
 
-  // Find max tool count across all tool aggregate nodes
-  sessionToolAggs.forEach((toolCounts) => {
-    toolCounts.forEach((count) => {
-      if (count > maxToolCount) maxToolCount = count;
-    });
+  let maxToolTotal = 0;
+  toolTotals.forEach((count) => {
+    if (count > maxToolTotal) maxToolTotal = count;
+  });
+
+  let maxAgentTotal = 0;
+  agentTotals.forEach((count) => {
+    if (count > maxAgentTotal) maxAgentTotal = count;
   });
 
   const nodes: ForceNode[] = [];
@@ -270,7 +277,7 @@ function buildSessionsScope(projectKey: string): ForceGraphData {
       health: session.isActive ? "ok" : "unknown",
       meta: {
         messageCount: session.messageCount,
-        toolCount: sessionToolAggs.get(session.id)?.size || 0,
+        toolCount: sessionToolUses.get(session.id)?.size || 0,
         cost: Math.round(cost * 1000) / 1000,
         isActive: session.isActive,
         slug: session.slug,
@@ -294,47 +301,55 @@ function buildSessionsScope(projectKey: string): ForceGraphData {
         relation: "cost",
       });
     }
+  }
 
-    // Tool aggregate nodes per session
-    const toolCounts = sessionToolAggs.get(session.id);
-    if (toolCounts) {
-      toolCounts.forEach((count, toolName) => {
-        const toolNodeId = `tool-${session.id}-${toolName}`;
-        nodes.push({
-          id: toolNodeId,
-          type: "tool",
-          label: toolName,
-          weight: normalizeWeight(count, maxToolCount),
-          health: "unknown",
-          meta: { count, toolName, sessionId: session.id },
-        });
-        edges.push({
-          source: session.id,
-          target: toolNodeId,
-          relation: "tool_call",
-        });
-      });
-    }
+  // One tool node per unique tool name, sized by total invocation count across project.
+  toolTotals.forEach((total, toolName) => {
+    const toolNodeId = `tool-${toolName}`;
+    nodes.push({
+      id: toolNodeId,
+      type: "tool",
+      label: toolName,
+      weight: normalizeWeight(total, maxToolTotal),
+      health: "unknown",
+      meta: { count: total, toolName },
+    });
+  });
 
-    // Agent nodes per session
-    const agents = sessionAgents.get(session.id) || [];
-    for (const agentSlug of agents) {
-      const agentNodeId = `agent-${session.id}-${agentSlug}`;
-      nodes.push({
-        id: agentNodeId,
-        type: "agent",
-        label: agentSlug,
-        weight: 0.5, // agents don't have a meaningful size metric yet
-        health: "unknown",
-        meta: { agentSlug, sessionId: session.id },
-      });
+  // Edges from each session to tools it used.
+  sessionToolUses.forEach((perSession, sessionId) => {
+    perSession.forEach((_count, toolName) => {
       edges.push({
-        source: session.id,
-        target: agentNodeId,
+        source: sessionId,
+        target: `tool-${toolName}`,
+        relation: "tool_call",
+      });
+    });
+  });
+
+  // One agent node per unique agent slug, sized by total executions across project.
+  agentTotals.forEach((total, agentSlug) => {
+    const agentNodeId = `agent-${agentSlug}`;
+    nodes.push({
+      id: agentNodeId,
+      type: "agent",
+      label: agentSlug,
+      weight: normalizeWeight(total, maxAgentTotal),
+      health: "unknown",
+      meta: { count: total, agentSlug },
+    });
+  });
+
+  // Edges from each session to agents it invoked.
+  sessionAgentUses.forEach((perSession, sessionId) => {
+    perSession.forEach((_count, agentSlug) => {
+      edges.push({
+        source: sessionId,
+        target: `agent-${agentSlug}`,
         relation: "agent_exec",
       });
-    }
-  }
+    });
+  });
 
   return {
     nodes,
