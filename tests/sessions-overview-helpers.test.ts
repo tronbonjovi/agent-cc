@@ -4,6 +4,7 @@ import {
   computeSidechainCount,
   computeCacheStatsFromTree,
 } from "@/components/analytics/sessions/SessionOverview";
+import { buildActivitySummary } from "@/components/analytics/sessions/activity-summary";
 import type {
   ParsedSession,
   SerializedSessionTreeForClient,
@@ -150,5 +151,75 @@ describe("computeCacheStatsFromTree", () => {
     expect(result.cacheReadTokens).toBe(600);
     expect(result.cacheCreationTokens).toBe(400);
     expect(result.cacheHitRate).toBeCloseTo(0.6, 5);
+  });
+});
+
+describe("buildActivitySummary", () => {
+  it("returns duration label from firstTs/lastTs", () => {
+    const parsed = makeParsed();
+    parsed.meta = {
+      ...parsed.meta,
+      firstTs: "2026-04-13T10:00:00Z",
+      lastTs: "2026-04-13T10:08:30Z",
+    } as ParsedSession["meta"];
+    const summary = buildActivitySummary(parsed);
+    expect(summary.durationLabel).toBe("8m");
+  });
+
+  it("returns hours+minutes for sessions over an hour", () => {
+    const parsed = makeParsed();
+    parsed.meta = {
+      ...parsed.meta,
+      firstTs: "2026-04-13T10:00:00Z",
+      lastTs: "2026-04-13T11:30:00Z",
+    } as ParsedSession["meta"];
+    expect(buildActivitySummary(parsed).durationLabel).toBe("1h 30m");
+  });
+
+  it("detects model switches between adjacent assistant records", () => {
+    const parsed = makeParsed({
+      assistantMessages: [
+        { uuid: "1", parentUuid: "", timestamp: "2026-04-13T10:00:00Z", requestId: "",
+          isSidechain: false, model: "claude-sonnet-4-6", stopReason: "end_turn",
+          toolCalls: [], hasThinking: false, textPreview: "",
+          usage: {} as any },
+        { uuid: "2", parentUuid: "1", timestamp: "2026-04-13T10:05:00Z", requestId: "",
+          isSidechain: false, model: "claude-opus-4-6", stopReason: "end_turn",
+          toolCalls: [], hasThinking: false, textPreview: "",
+          usage: {} as any },
+        { uuid: "3", parentUuid: "2", timestamp: "2026-04-13T10:10:00Z", requestId: "",
+          isSidechain: false, model: "claude-opus-4-6", stopReason: "end_turn",
+          toolCalls: [], hasThinking: false, textPreview: "",
+          usage: {} as any },
+      ] as any,
+    });
+    const summary = buildActivitySummary(parsed);
+    expect(summary.modelSwitches).toEqual([
+      { fromModel: "claude-sonnet-4-6", toModel: "claude-opus-4-6", at: "2026-04-13T10:05:00Z" },
+    ]);
+  });
+
+  it("returns first error timestamp from toolTimeline", () => {
+    const parsed = makeParsed({
+      toolTimeline: [
+        { callId: "c1", name: "Bash", filePath: null, command: null, pattern: null,
+          timestamp: "2026-04-13T10:01:00Z", resultTimestamp: "", durationMs: null,
+          isError: false, isSidechain: false, issuedByAssistantUuid: "" },
+        { callId: "c2", name: "Read", filePath: null, command: null, pattern: null,
+          timestamp: "2026-04-13T10:02:00Z", resultTimestamp: "", durationMs: null,
+          isError: true, isSidechain: false, issuedByAssistantUuid: "" },
+        { callId: "c3", name: "Edit", filePath: null, command: null, pattern: null,
+          timestamp: "2026-04-13T10:03:00Z", resultTimestamp: "", durationMs: null,
+          isError: true, isSidechain: false, issuedByAssistantUuid: "" },
+      ] as any,
+    });
+    expect(buildActivitySummary(parsed).firstErrorTs).toBe("2026-04-13T10:02:00Z");
+  });
+
+  it("returns null fields when data is absent", () => {
+    const summary = buildActivitySummary(makeParsed());
+    expect(summary.durationLabel).toBeNull();
+    expect(summary.modelSwitches).toEqual([]);
+    expect(summary.firstErrorTs).toBeNull();
   });
 });

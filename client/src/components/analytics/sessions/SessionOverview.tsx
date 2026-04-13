@@ -7,6 +7,7 @@ import type {
   SerializedSessionTreeForClient,
 } from "@shared/session-types";
 import { colorClassForOwner, type ToolOwner } from "./subagent-colors";
+import { buildActivitySummary } from "./activity-summary";
 
 /** Format metric values for display. Exported for testing. */
 export function formatMetric(
@@ -33,6 +34,16 @@ export function formatMetric(
     }
     case "count":
       return String(value);
+  }
+}
+
+/** Format ISO timestamp → short "14:32" local time. Empty string on bad input. */
+function formatTimeShort(iso: string): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return iso;
   }
 }
 
@@ -369,6 +380,33 @@ export function SessionOverview({
           </div>
         </div>
       )}
+
+      {/* Activity (salvaged from LifecycleEvents) */}
+      {(() => {
+        const activity = buildActivitySummary(parsed);
+        const parts: string[] = [];
+        if (activity.durationLabel) parts.push(`Active ${activity.durationLabel}`);
+        if (activity.modelSwitches.length > 0) {
+          const last = activity.modelSwitches[activity.modelSwitches.length - 1];
+          const shortName = last.toModel.split("-").slice(-2).join(" ");
+          parts.push(`Switched to ${shortName} at ${formatTimeShort(last.at)}`);
+        }
+        if (activity.firstErrorTs) {
+          parts.push(`First error at ${formatTimeShort(activity.firstErrorTs)}`);
+        }
+        if (parts.length === 0) return null;
+        return (
+          <div className="px-4 space-y-1" data-section="activity">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Activity</span>
+            <div
+              className="text-xs text-muted-foreground"
+              title={JSON.stringify(activity, null, 2)}
+            >
+              {parts.join(" · ")}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Health */}
       {healthScore && (
