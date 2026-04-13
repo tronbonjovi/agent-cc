@@ -2,9 +2,18 @@
  * Model intelligence — per-model token and cost breakdown.
  * Aggregates parsed sessions by model name, computing API-equivalent
  * cost and cache savings for each model.
+ *
+ * Tree path (flat-to-tree wave3): walks every assistant turn in the tree
+ * (parent + subagents) so per-model rows capture subagent spend. Subagent
+ * turns attribute to the parent's sessionId for the distinct-session count —
+ * subagents are not first-class sessions from a user perspective. Flat
+ * fallback preserves the legacy parent-only aggregation with a one-shot
+ * warning per session.
  */
 
 import { getPricing, computeCost } from "./pricing";
+import { sessionParseCache } from "./session-cache";
+import { walkAllTurns } from "./tree-turn-walker";
 import type { ParsedSession } from "@shared/session-types";
 
 export interface ModelIntelligenceRow {
@@ -32,9 +41,16 @@ export function computeModelIntelligence(sessions: ParsedSession[]): ModelIntell
 
   for (const session of sessions) {
     const sessionId = session.meta.sessionId;
+    const tree = sessionParseCache.getTreeById(sessionId);
+    if (!tree) {
+      console.warn(
+        "model-intelligence: tree missing, falling back to flat arrays",
+        sessionId,
+      );
+    }
 
-    for (const msg of session.assistantMessages) {
-      const rawModel = msg.model || "unknown";
+    for (const turn of walkAllTurns(session, tree)) {
+      const rawModel = turn.model || "unknown";
       const model = rawModel === "<synthetic>" ? "unknown" : rawModel;
       let acc = byModel.get(model);
       if (!acc) {
@@ -49,10 +65,10 @@ export function computeModelIntelligence(sessions: ParsedSession[]): ModelIntell
       }
 
       acc.sessionIds.add(sessionId);
-      acc.inputTokens += msg.usage.inputTokens;
-      acc.cacheReadTokens += msg.usage.cacheReadTokens;
-      acc.cacheCreationTokens += msg.usage.cacheCreationTokens;
-      acc.outputTokens += msg.usage.outputTokens;
+      acc.inputTokens += turn.usage.inputTokens;
+      acc.cacheReadTokens += turn.usage.cacheReadTokens;
+      acc.cacheCreationTokens += turn.usage.cacheCreationTokens;
+      acc.outputTokens += turn.usage.outputTokens;
     }
   }
 
@@ -68,8 +84,6 @@ export function computeModelIntelligence(sessions: ParsedSession[]): ModelIntell
       acc.cacheCreationTokens,
     );
 
-    // Cache savings: difference between what cache reads would have cost
-    // at the full input rate vs what they actually cost at the cache read rate
     const cacheSavings = acc.cacheReadTokens > 0
       ? (acc.cacheReadTokens * (pricing.input - pricing.cacheRead)) / 1_000_000
       : 0;
@@ -86,7 +100,6 @@ export function computeModelIntelligence(sessions: ParsedSession[]): ModelIntell
     });
   }
 
-  // Sort by cost descending
   rows.sort((a, b) => b.apiEquivCost - a.apiEquivCost);
 
   return rows;
