@@ -127,6 +127,35 @@ export function computeSidechainCount(
 }
 
 /**
+ * Cache read/creation tokens + hit rate. Prefers tree.totals when present.
+ * Hit rate is `cacheRead / (cacheRead + cacheCreation)`; returns null when
+ * the denominator is zero so the renderer shows "-" instead of "0%".
+ */
+export function computeCacheStatsFromTree(
+  tree: SerializedSessionTreeForClient | null | undefined,
+  parsed: ParsedSession,
+): {
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  cacheHitRate: number | null;
+} {
+  let cacheReadTokens = 0;
+  let cacheCreationTokens = 0;
+  if (tree && tree.totals) {
+    cacheReadTokens = tree.totals.cacheReadTokens ?? 0;
+    cacheCreationTokens = tree.totals.cacheCreationTokens ?? 0;
+  } else {
+    for (const m of parsed.assistantMessages) {
+      cacheReadTokens += m.usage?.cacheReadTokens ?? 0;
+      cacheCreationTokens += m.usage?.cacheCreationTokens ?? 0;
+    }
+  }
+  const total = cacheReadTokens + cacheCreationTokens;
+  const cacheHitRate = total > 0 ? cacheReadTokens / total : null;
+  return { cacheReadTokens, cacheCreationTokens, cacheHitRate };
+}
+
+/**
  * One row in the new Subagents chip strip below the Models row. Each chip
  * carries everything the renderer needs (label fields + palette color class)
  * so the JSX stays presentational. The color comes from the same

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeCostFromTree,
   computeSidechainCount,
+  computeCacheStatsFromTree,
 } from "@/components/analytics/sessions/SessionOverview";
 import type {
   ParsedSession,
@@ -107,5 +108,47 @@ describe("computeSidechainCount", () => {
 
   it("returns 0 when both tree and counts are absent", () => {
     expect(computeSidechainCount(null, makeParsed())).toBe(0);
+  });
+});
+
+describe("computeCacheStatsFromTree", () => {
+  it("returns hit rate from tree totals", () => {
+    const tree = {
+      root: {} as any, nodesById: {}, subagentsByAgentId: {},
+      totals: {
+        assistantTurns: 0, userTurns: 0, toolCalls: 0, toolErrors: 0, subagents: 0,
+        inputTokens: 0, outputTokens: 0,
+        cacheReadTokens: 800, cacheCreationTokens: 200,
+        costUsd: 0, durationMs: 0,
+      },
+      warnings: [],
+    } as unknown as SerializedSessionTreeForClient;
+    const result = computeCacheStatsFromTree(tree, makeParsed());
+    expect(result.cacheReadTokens).toBe(800);
+    expect(result.cacheCreationTokens).toBe(200);
+    expect(result.cacheHitRate).toBeCloseTo(0.8, 5);
+  });
+
+  it("returns null hit rate when cache total is zero", () => {
+    const result = computeCacheStatsFromTree(null, makeParsed());
+    expect(result.cacheHitRate).toBeNull();
+    expect(result.cacheReadTokens).toBe(0);
+    expect(result.cacheCreationTokens).toBe(0);
+  });
+
+  it("falls back to summing parsed.assistantMessages when tree is null", () => {
+    const parsed = makeParsed({
+      assistantMessages: [
+        { uuid: "1", parentUuid: "", timestamp: "", requestId: "", isSidechain: false,
+          model: "x", stopReason: "end_turn", toolCalls: [], hasThinking: false, textPreview: "",
+          usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 600, cacheCreationTokens: 400,
+                   serviceTier: "", inferenceGeo: "", speed: "",
+                   serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 } } },
+      ] as ParsedSession["assistantMessages"],
+    });
+    const result = computeCacheStatsFromTree(null, parsed);
+    expect(result.cacheReadTokens).toBe(600);
+    expect(result.cacheCreationTokens).toBe(400);
+    expect(result.cacheHitRate).toBeCloseTo(0.6, 5);
   });
 });
