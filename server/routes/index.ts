@@ -4,7 +4,7 @@ import entitiesRouter from "./entities";
 import projectsRouter from "./projects";
 import markdownRouter from "./markdown";
 import graphRouter from "./graph";
-import discoveryRouter from "./discovery";
+import discoveryRouter from "./discover-github";
 import configRouter from "./config";
 import scannerRouter from "./scanner";
 import sessionsRouter from "./sessions";

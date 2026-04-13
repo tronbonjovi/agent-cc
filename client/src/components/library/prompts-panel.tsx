@@ -1,9 +1,9 @@
-// client/src/pages/prompts-panel.tsx
+// client/src/components/library/prompts-panel.tsx
 //
 // Prompts library panel — extracted from the now-deleted message-history.tsx
-// during messages-redesign-task005 cleanup. The Library page imports
-// `PromptsPanel` from here; the implementation is unchanged from the
-// previous home so behavior stays identical.
+// during messages-redesign-task005 cleanup, then relocated from pages/ to
+// components/library/ during codebase-cleanup-task007 to match intent (it's
+// a library sub-tab component, not a routed page).
 
 import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";

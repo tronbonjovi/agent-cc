@@ -105,7 +105,7 @@ export default function AgentsTab() {
       {/* Tab content */}
       {subTab === "installed" && <InstalledTab />}
       {subTab === "library" && <LibraryTab />}
-      {subTab === "discover" && <DiscoverTab />}
+      {subTab === "discover" && <AgentsDiscoverTab />}
     </div>
   );
 }
@@ -472,7 +472,7 @@ function LibraryTab() {
   );
 }
 
-function DiscoverTab() {
+function AgentsDiscoverTab() {
   return <DiscoverPanel entityType="agents" />;
 }
 

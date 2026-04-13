@@ -6,7 +6,7 @@ import os from "os";
 import { runFullScan } from "../scanner/index";
 import { getSourcesForType } from "../discover/sources";
 
-export interface DiscoverResult {
+interface DiscoverResult {
   name: string;
   description: string | null;
   url: string;

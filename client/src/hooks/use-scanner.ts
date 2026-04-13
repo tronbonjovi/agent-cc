@@ -82,8 +82,9 @@ export interface ScannerStatusData {
 
 /**
  * useScannerStatus — fetches scanner metadata from /api/scanner/status.
- * Used by ScannerBrain to display last scan time, session count, cache health.
- * Polls every 15 seconds to keep the brain display current.
+ * Polls every 15 seconds. Currently unused in the UI (the previous
+ * ScannerBrain consumer was deleted in nerve-center-redesign); kept
+ * available for future scanner-health surfaces.
  */
 export function useScannerStatus() {
   return useQuery<ScannerStatusData>({
