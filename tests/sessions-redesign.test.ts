@@ -112,55 +112,18 @@ describe("SessionDetail — pin icon optimistic toggle (task002)", () => {
   });
 });
 
-describe("SessionDetail — hide Linked Task when no data (task004)", () => {
-  it("Linked Task section is conditionally rendered based on linkedTaskId", () => {
-    expect(detailSrc).toContain("{linkedTaskId && (");
+describe("SessionDetail — pill-driven section visibility (sessions-makeover PR2)", () => {
+  it("renders Linked Task section conditionally on filterState.linkedTaskId and filterState.linkedTask pill", () => {
+    expect(detailSrc).toContain("filterState.linkedTask");
+    expect(detailSrc).toContain("linkedTaskId");
   });
 
-  it("Linked Task SectionHeader is inside the linkedTaskId conditional", () => {
-    const lines = detailSrc.split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('title="Linked Task"')) {
-        const context = lines.slice(Math.max(0, i - 5), i).join(" ");
-        expect(context).toContain("{linkedTaskId && (");
-        break;
-      }
-    }
-  });
-});
-
-describe("SessionDetail — smooth chevron rotation (task005)", () => {
-  it("does NOT import ChevronDown", () => {
-    const importLine = detailSrc.match(/import \{[^}]*\} from "lucide-react"/);
-    expect(importLine).not.toBeNull();
-    expect(importLine![0]).not.toContain("ChevronDown");
+  it("no longer defines SectionHeader (replaced by SessionFilterBar)", () => {
+    expect(detailSrc).not.toMatch(/function SectionHeader/);
   });
 
-  it("SectionHeader uses ChevronRight with rotate-90 for open state", () => {
-    expect(detailSrc).toContain("rotate-90");
-  });
-
-  it("SectionHeader does NOT swap between ChevronDown and ChevronRight", () => {
-    expect(detailSrc).not.toContain("isOpen ? <ChevronDown");
-  });
-
-  it("SectionHeader has transition-transform for smooth animation", () => {
-    expect(detailSrc).toContain("transition-transform duration-150");
-  });
-
-  it("SectionHeader chevron has shrink-0 to prevent layout shift", () => {
-    expect(detailSrc).toContain("shrink-0");
-  });
-
-  it("SectionHeader does NOT contain bounce or scale classes", () => {
-    const sectionHeaderMatch = detailSrc.match(/function SectionHeader[\s\S]*?^\}/m);
-    expect(sectionHeaderMatch).not.toBeNull();
-    const sectionHeaderCode = sectionHeaderMatch![0];
-    expect(sectionHeaderCode).not.toContain("bounce");
-    expect(sectionHeaderCode).not.toContain("scale-");
-  });
-
-  it("SectionHeader has active press feedback", () => {
-    expect(detailSrc).toContain("active:bg-muted/40");
+  it("imports SessionFilterBar and applySessionPreset", () => {
+    expect(detailSrc).toContain("SessionFilterBar");
+    expect(detailSrc).toContain("applySessionPreset");
   });
 });
