@@ -3,13 +3,13 @@ import { useSessionDetail, useTogglePin, useDeleteSession, useSessionNames } fro
 import { SessionOverview } from "./SessionOverview";
 import { ToolTimeline } from "./ToolTimeline";
 import { TokenBreakdown } from "./TokenBreakdown";
-import { FileImpact } from "./FileImpact";
-import { HealthDetails } from "./HealthDetails";
-import { LifecycleEvents } from "./LifecycleEvents";
 import { LinkedTask } from "./LinkedTask";
+import { SessionFilterBar, applySessionPreset, type SessionFilterBarState } from "./SessionFilterBar";
+// FileImpact / HealthDetails / LifecycleEvents are no longer rendered here;
+// task009 deletes the orphaned files. Imports removed to satisfy noUnusedLocals.
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pin, Trash2, ChevronRight, GitBranch, Clock, FolderOpen } from "lucide-react";
+import { Pin, Trash2, GitBranch, Clock, FolderOpen } from "lucide-react";
 import { sessionHealthBadgeVariant, type SessionHealthScore } from "@/lib/session-health";
 import type { ParsedSession } from "@shared/session-types";
 import type { LinkSignal } from "@shared/board-types";
@@ -38,7 +38,7 @@ interface SessionDetailProps {
 
 export function SessionDetail({
   sessionId, parsed, healthScore, healthReasons,
-  durationMinutes, toolErrors, retries, maxTokensStops, totalToolCalls,
+  durationMinutes,
   linkedTaskId, linkedTaskTitle, linkedMilestone, isManualLink, linkScore, linkSignals,
   onDelete,
 }: SessionDetailProps) {
@@ -46,20 +46,13 @@ export function SessionDetail({
   const { data: sessionNames } = useSessionNames();
   const togglePin = useTogglePin();
   const deleteSession = useDeleteSession();
-  const [openSections, setOpenSections] = useState<Set<string>>(new Set(["overview"]));
+  const [filterState, setFilterState] = useState<SessionFilterBarState>(
+    () => applySessionPreset("default"),
+  );
   const [localPinned, setLocalPinned] = useState<boolean | null>(null);
   const isPinned = localPinned ?? session?.isPinned ?? false;
 
   useEffect(() => { setLocalPinned(null); }, [sessionId]);
-
-  const toggleSection = (name: string) => {
-    setOpenSections(prev => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  };
 
   if (isLoading || !session) {
     return (
@@ -148,130 +141,64 @@ export function SessionDetail({
         )}
       </div>
 
-      {/* Collapsible sections */}
+      {/* Filter bar */}
+      <SessionFilterBar state={filterState} onChange={setFilterState} />
+
+      {/* Sections — driven by filter pill state */}
       <div className="flex-1 overflow-y-auto">
-        {/* Overview section */}
-        <SectionHeader
-          title="Overview"
-          isOpen={openSections.has("overview")}
-          onToggle={() => toggleSection("overview")}
-        />
-        {openSections.has("overview") && (
-          <SessionOverview
-            parsed={resolvedParsed}
-            healthScore={healthScore}
-            healthReasons={healthReasons}
-            durationMinutes={durationMinutes}
-            tree={session.tree}
-          />
-        )}
-
-        {/* Linked Task */}
-        {linkedTaskId && (
-          <>
-            <SectionHeader
-              title="Linked Task"
-              isOpen={openSections.has("linked-task")}
-              onToggle={() => toggleSection("linked-task")}
+        {filterState.overview && (
+          <section data-section="overview" className="border-b border-border/20">
+            <SessionOverview
+              parsed={resolvedParsed}
+              healthScore={healthScore}
+              healthReasons={healthReasons}
+              durationMinutes={durationMinutes}
+              tree={session.tree}
             />
-            {openSections.has("linked-task") && (
-              <LinkedTask
-                taskId={linkedTaskId}
-                taskTitle={linkedTaskTitle}
-                milestone={linkedMilestone}
-                isManualLink={isManualLink}
-                linkScore={linkScore}
-                linkSignals={linkSignals}
+          </section>
+        )}
+
+        {filterState.linkedTask && linkedTaskId && (
+          <section data-section="linked-task" className="border-b border-border/20">
+            <LinkedTask
+              taskId={linkedTaskId}
+              taskTitle={linkedTaskTitle}
+              milestone={linkedMilestone}
+              isManualLink={isManualLink}
+              linkScore={linkScore}
+              linkSignals={linkSignals}
+            />
+          </section>
+        )}
+
+        {filterState.tools && (
+          <section data-section="tools" className="border-b border-border/20">
+            {resolvedParsed ? (
+              <ToolTimeline
+                tools={resolvedParsed.toolTimeline}
+                sessionStartTs={resolvedParsed.meta.firstTs}
+                tree={session.tree}
               />
+            ) : (
+              <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
             )}
-          </>
+          </section>
         )}
 
-        {/* Tool Timeline */}
-        <SectionHeader
-          title="Tool Timeline"
-          isOpen={openSections.has("tools")}
-          onToggle={() => toggleSection("tools")}
-        />
-        {openSections.has("tools") && resolvedParsed && (
-          <ToolTimeline
-            tools={resolvedParsed.toolTimeline}
-            sessionStartTs={resolvedParsed.meta.firstTs}
-            tree={session.tree}
-          />
-        )}
-        {openSections.has("tools") && !resolvedParsed && (
-          <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
-        )}
-
-        {/* Token Breakdown */}
-        <SectionHeader
-          title="Token Breakdown"
-          isOpen={openSections.has("tokens")}
-          onToggle={() => toggleSection("tokens")}
-        />
-        {openSections.has("tokens") && resolvedParsed && (
-          <TokenBreakdown assistantMessages={resolvedParsed.assistantMessages} userMessages={resolvedParsed.userMessages} tree={session.tree} />
-        )}
-        {openSections.has("tokens") && !resolvedParsed && (
-          <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
-        )}
-
-        {/* File Impact */}
-        <SectionHeader
-          title="File Impact"
-          isOpen={openSections.has("files")}
-          onToggle={() => toggleSection("files")}
-        />
-        {openSections.has("files") && resolvedParsed && (
-          <FileImpact tools={resolvedParsed.toolTimeline} tree={session.tree} />
-        )}
-        {openSections.has("files") && !resolvedParsed && (
-          <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
-        )}
-
-        {/* Health Details */}
-        <SectionHeader
-          title="Health Details"
-          isOpen={openSections.has("health")}
-          onToggle={() => toggleSection("health")}
-        />
-        {openSections.has("health") && (
-          <HealthDetails
-            healthScore={healthScore ?? null}
-            healthReasons={healthReasons ?? []}
-            totalToolCalls={totalToolCalls ?? 0}
-            toolErrors={toolErrors ?? 0}
-            retries={retries ?? 0}
-            maxTokensStops={maxTokensStops ?? 0}
-          />
-        )}
-
-        {/* Lifecycle Events */}
-        <SectionHeader
-          title="Lifecycle Events"
-          isOpen={openSections.has("lifecycle")}
-          onToggle={() => toggleSection("lifecycle")}
-        />
-        {openSections.has("lifecycle") && resolvedParsed && (
-          <LifecycleEvents events={resolvedParsed.lifecycle} sessionStartTs={resolvedParsed.meta.firstTs} />
-        )}
-        {openSections.has("lifecycle") && !resolvedParsed && (
-          <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
+        {filterState.tokens && (
+          <section data-section="tokens" className="border-b border-border/20">
+            {resolvedParsed ? (
+              <TokenBreakdown
+                assistantMessages={resolvedParsed.assistantMessages}
+                userMessages={resolvedParsed.userMessages}
+                tree={session.tree}
+              />
+            ) : (
+              <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
+            )}
+          </section>
         )}
       </div>
     </div>
-  );
-}
-
-function SectionHeader({ title, isOpen, onToggle }: { title: string; isOpen: boolean; onToggle: () => void }) {
-  return (
-    <button
-      onClick={onToggle}
-      className="flex items-center gap-2 w-full px-4 py-2 text-sm font-medium border-b border-border/20 hover:bg-muted/30 transition-colors active:bg-muted/40"
-    >
-      <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform duration-150 ${isOpen ? "rotate-90" : ""}`} />
-      <span>{title}</span>
-    </button>
   );
 }
