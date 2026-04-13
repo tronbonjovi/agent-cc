@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSessionDetail, useTogglePin, useDeleteSession, useSessionNames } from "@/hooks/use-sessions";
 import { SessionOverview } from "./SessionOverview";
-import { ToolTimeline } from "./ToolTimeline";
+import { SessionToolTimeline } from "./SessionToolTimeline";
 import { TokenBreakdown } from "./TokenBreakdown";
 import { LinkedTask } from "./LinkedTask";
 import { SessionFilterBar, applySessionPreset, type SessionFilterBarState } from "./SessionFilterBar";
@@ -173,15 +173,10 @@ export function SessionDetail({
 
         {filterState.tools && (
           <section data-section="tools" className="border-b border-border/20">
-            {resolvedParsed ? (
-              <ToolTimeline
-                tools={resolvedParsed.toolTimeline}
-                sessionStartTs={resolvedParsed.meta.firstTs}
-                tree={session.tree}
-              />
-            ) : (
-              <div className="p-4 text-sm text-muted-foreground">Parsed session data not available</div>
-            )}
+            <SessionToolTimeline
+              sessionId={sessionId}
+              errorsOnly={filterState.errorsOnly}
+            />
           </section>
         )}
 
