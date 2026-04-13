@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { computeCostFromTree } from "@/components/analytics/sessions/SessionOverview";
+import {
+  computeCostFromTree,
+  computeSidechainCount,
+} from "@/components/analytics/sessions/SessionOverview";
 import type {
   ParsedSession,
   SerializedSessionTreeForClient,
@@ -77,5 +80,32 @@ describe("computeCostFromTree", () => {
       costUsd: 0, inputTokens: 0, outputTokens: 0,
       cacheReadTokens: 0, cacheCreationTokens: 0,
     });
+  });
+});
+
+describe("computeSidechainCount", () => {
+  it("returns subagentsByAgentId size when tree is present", () => {
+    const tree = {
+      root: {} as any,
+      nodesById: {},
+      subagentsByAgentId: {
+        "abc123": {} as any,
+        "def456": {} as any,
+        "ghi789": {} as any,
+      },
+      totals: {} as any,
+      warnings: [],
+    } as unknown as SerializedSessionTreeForClient;
+    expect(computeSidechainCount(tree, makeParsed())).toBe(3);
+  });
+
+  it("falls back to parsed.counts.sidechainMessages when tree is null", () => {
+    const parsed = makeParsed();
+    parsed.counts.sidechainMessages = 7;
+    expect(computeSidechainCount(null, parsed)).toBe(7);
+  });
+
+  it("returns 0 when both tree and counts are absent", () => {
+    expect(computeSidechainCount(null, makeParsed())).toBe(0);
   });
 });

@@ -109,6 +109,24 @@ export function computeCostFromTree(
 }
 
 /**
+ * Subagent count for the Sidechains metric. Prefers `tree.subagentsByAgentId`
+ * size — same source the working Subagents chip strip already reads, so the
+ * two displays will always agree. Falls back to `parsed.counts.sidechainMessages`
+ * (which historically undercounts because sidechain JSONL records live in
+ * separate files and the flat counter doesn't see them) when the tree isn't
+ * available.
+ */
+export function computeSidechainCount(
+  tree: SerializedSessionTreeForClient | null | undefined,
+  parsed: ParsedSession,
+): number {
+  if (tree && tree.subagentsByAgentId) {
+    return Object.keys(tree.subagentsByAgentId).length;
+  }
+  return parsed.counts?.sidechainMessages ?? 0;
+}
+
+/**
  * One row in the new Subagents chip strip below the Models row. Each chip
  * carries everything the renderer needs (label fields + palette color class)
  * so the JSX stays presentational. The color comes from the same
