@@ -4,6 +4,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import type { SessionEnrichment } from "@shared/board-types";
 import { formatCost, formatTokens } from "@/lib/format";
 import { shortModel } from "@/lib/utils";
+import { sessionHealthColor, sessionHealthLabel, type SessionHealthScore } from "@/lib/session-health";
 
 // ── Formatting re-exports (canonical definitions live in @/lib/format) ────────
 //
@@ -34,23 +35,19 @@ export function formatDuration(minutes: number | null): string {
 
 export function statusLightColor(
   isActive: boolean,
-  healthScore: "good" | "fair" | "poor" | null
+  healthScore: SessionHealthScore
 ): string {
   if (!isActive) return "bg-slate-500";
-  if (healthScore === "poor") return "bg-red-500";
-  if (healthScore === "fair") return "bg-amber-500";
-  return "bg-green-500";
+  return sessionHealthColor(healthScore);
 }
 
 export function statusLightTooltip(
   isActive: boolean,
-  healthScore: "good" | "fair" | "poor" | null
+  healthScore: SessionHealthScore
 ): string {
   if (!isActive) return "Session ended";
-  if (healthScore === "poor") return "Active — high error rate";
-  if (healthScore === "fair") return "Active — moderate issues";
-  if (healthScore === "good") return "Active — healthy";
-  return "Active";
+  if (healthScore == null) return "Active";
+  return `Active — ${sessionHealthLabel(healthScore).toLowerCase()}`;
 }
 
 /** Format an agent role string for display — capitalize words, replace hyphens with spaces. */

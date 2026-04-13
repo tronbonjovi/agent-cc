@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach } from "vitest";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import {
+  sessionHealthColor,
+  sessionHealthLabel,
+  sessionHealthBadgeVariant,
+} from "../client/src/lib/session-health";
 
 const tmpDir = path.join(os.tmpdir(), "cc-health-test-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8));
 process.env.AGENT_CC_DATA = tmpDir;
@@ -134,5 +139,38 @@ describe("Session Health API Validation", () => {
 
     const invalid = ThresholdPairSchema.safeParse({ yellow: -5, red: 10 });
     expect(invalid.success).toBe(false);
+  });
+});
+
+describe("sessionHealthColor", () => {
+  it("returns emerald for good", () => {
+    expect(sessionHealthColor("good")).toBe("bg-emerald-500");
+  });
+  it("returns amber for fair", () => {
+    expect(sessionHealthColor("fair")).toBe("bg-amber-500");
+  });
+  it("returns red for poor", () => {
+    expect(sessionHealthColor("poor")).toBe("bg-red-500");
+  });
+  it("returns muted for null/unknown", () => {
+    expect(sessionHealthColor(null)).toBe("bg-muted-foreground/30");
+  });
+});
+
+describe("sessionHealthLabel", () => {
+  it("maps each score to a human label", () => {
+    expect(sessionHealthLabel("good")).toBe("Healthy");
+    expect(sessionHealthLabel("fair")).toBe("Some issues");
+    expect(sessionHealthLabel("poor")).toBe("High error rate");
+    expect(sessionHealthLabel(null)).toBe("Unknown");
+  });
+});
+
+describe("sessionHealthBadgeVariant", () => {
+  it("maps each score to a shadcn Badge variant", () => {
+    expect(sessionHealthBadgeVariant("good")).toBe("default");
+    expect(sessionHealthBadgeVariant("fair")).toBe("secondary");
+    expect(sessionHealthBadgeVariant("poor")).toBe("destructive");
+    expect(sessionHealthBadgeVariant(null)).toBe("outline");
   });
 });

@@ -35,11 +35,11 @@ describe("session indicator logic", () => {
   });
 
   it("picks correct status light color", () => {
-    expect(statusLightColor(true, "good")).toBe("bg-green-500");
+    expect(statusLightColor(true, "good")).toBe("bg-emerald-500");
     expect(statusLightColor(true, "fair")).toBe("bg-amber-500");
     expect(statusLightColor(true, "poor")).toBe("bg-red-500");
     expect(statusLightColor(false, "good")).toBe("bg-slate-500");
-    expect(statusLightColor(true, null)).toBe("bg-green-500");
+    expect(statusLightColor(true, null)).toBe("bg-muted-foreground/30");
   });
 
   it("formatCostLabel returns session-level qualifier", () => {
@@ -53,7 +53,7 @@ describe("session indicator logic", () => {
 
   it("returns correct status light tooltip text for all states", () => {
     expect(statusLightTooltip(true, "good")).toBe("Active — healthy");
-    expect(statusLightTooltip(true, "fair")).toBe("Active — moderate issues");
+    expect(statusLightTooltip(true, "fair")).toBe("Active — some issues");
     expect(statusLightTooltip(true, "poor")).toBe("Active — high error rate");
     expect(statusLightTooltip(true, null)).toBe("Active");
     expect(statusLightTooltip(false, "good")).toBe("Session ended");

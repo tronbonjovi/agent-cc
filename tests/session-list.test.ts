@@ -30,12 +30,12 @@ describe("SessionList components", () => {
       expect(formatDuration(null)).toBe("-");
     });
 
-    it("exports healthColor function", async () => {
-      const { healthColor } = await import("../client/src/components/analytics/sessions/SessionRow");
-      expect(healthColor("good")).toBe("bg-emerald-500");
-      expect(healthColor("fair")).toBe("bg-amber-500");
-      expect(healthColor("poor")).toBe("bg-red-500");
-      expect(healthColor(null)).toBe("bg-muted-foreground/30");
+    it("sessionHealthColor maps each score to the canonical Tailwind class", async () => {
+      const { sessionHealthColor } = await import("../client/src/lib/session-health");
+      expect(sessionHealthColor("good")).toBe("bg-emerald-500");
+      expect(sessionHealthColor("fair")).toBe("bg-amber-500");
+      expect(sessionHealthColor("poor")).toBe("bg-red-500");
+      expect(sessionHealthColor(null)).toBe("bg-muted-foreground/30");
     });
   });
 

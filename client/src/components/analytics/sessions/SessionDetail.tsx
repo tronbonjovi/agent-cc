@@ -10,6 +10,7 @@ import { LinkedTask } from "./LinkedTask";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pin, Trash2, ChevronRight, GitBranch, Clock, FolderOpen } from "lucide-react";
+import { sessionHealthBadgeVariant, type SessionHealthScore } from "@/lib/session-health";
 import type { ParsedSession } from "@shared/session-types";
 import type { LinkSignal } from "@shared/board-types";
 
@@ -18,7 +19,7 @@ interface SessionDetailProps {
   /** Parsed session data (optional — overview degrades gracefully without it) */
   parsed?: ParsedSession | null;
   /** Enrichment data passed from the session list */
-  healthScore?: "good" | "fair" | "poor" | null;
+  healthScore?: SessionHealthScore;
   healthReasons?: string[];
   costUsd?: number;
   inputTokens?: number;
@@ -143,7 +144,7 @@ export function SessionDetail({
 
         {healthScore && (
           <div className="flex items-center gap-1">
-            <Badge variant={healthScore === "good" ? "default" : healthScore === "fair" ? "secondary" : "destructive"}
+            <Badge variant={sessionHealthBadgeVariant(healthScore)}
               className="text-[10px]">
               {healthScore}
             </Badge>

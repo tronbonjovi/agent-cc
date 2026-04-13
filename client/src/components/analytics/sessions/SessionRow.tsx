@@ -1,27 +1,18 @@
 import { Badge } from "@/components/ui/badge";
 import { relativeTime, shortModel } from "@/lib/utils";
 import { formatCost } from "@/lib/format";
+import { sessionHealthColor, type SessionHealthScore } from "@/lib/session-health";
 import type { SessionData } from "@shared/types";
 
 interface SessionRowProps {
   session: SessionData;
   isSelected: boolean;
   onClick: () => void;
-  healthScore?: "good" | "fair" | "poor" | null;
+  healthScore?: SessionHealthScore;
   model?: string | null;
   costUsd?: number;
   durationMinutes?: number | null;
   displayName?: string;
-}
-
-/** Health dot color class. Exported for testing. */
-export function healthColor(score: "good" | "fair" | "poor" | null): string {
-  switch (score) {
-    case "good": return "bg-emerald-500";
-    case "fair": return "bg-amber-500";
-    case "poor": return "bg-red-500";
-    default: return "bg-muted-foreground/30";
-  }
 }
 
 /** Format duration in minutes to human-readable. Exported for testing. */
@@ -49,7 +40,7 @@ export function SessionRow({
     >
       {/* Health dot */}
       <div className="shrink-0">
-        <div className={`w-2 h-2 rounded-full ${healthColor(healthScore ?? null)}`} />
+        <div className={`w-2 h-2 rounded-full ${sessionHealthColor(healthScore ?? null)}`} />
       </div>
 
       {/* Main content */}
