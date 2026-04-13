@@ -225,11 +225,6 @@ function MetricCell({ label, value, subtitle }: MetricCellProps) {
 
 interface SessionOverviewProps {
   parsed: ParsedSession | null;
-  costUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheReadTokens?: number;
-  cacheCreationTokens?: number;
   healthScore?: SessionHealthScore;
   healthReasons?: string[];
   durationMinutes?: number | null;
