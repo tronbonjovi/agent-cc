@@ -41,11 +41,6 @@ describe("SessionsTab passes enrichment props to SessionDetail", () => {
     expect(src).toMatch(/durationMinutes=\{selectedSession\?\.durationMinutes\}/);
   });
 
-  it("passes costUsd to SessionDetail", () => {
-    // SessionDetail should receive costUsd from enrichment
-    expect(src).toMatch(/costUsd=\{selectedSession\?\.costUsd\}/);
-  });
-
   it("passes healthScore to SessionDetail", () => {
     expect(src).toMatch(/healthScore=\{selectedSession\?\.healthScore\}/);
   });

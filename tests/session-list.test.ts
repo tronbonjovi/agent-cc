@@ -83,37 +83,35 @@ describe("SessionList components", () => {
       expect(result).toHaveLength(2);
     });
 
-    it("applyFilters filters by health", async () => {
+    it("applyFilters ignores legacy health filter (passthrough)", async () => {
       const { applyFilters } = await import("../client/src/components/analytics/sessions/SessionList");
       const sessions = [
         { id: "1", isActive: true, healthScore: "good" as const, isEmpty: false },
         { id: "2", isActive: false, healthScore: "poor" as const, isEmpty: false },
       ];
+      // After Task 2.3 strip, applyFilters is a passthrough — health/status dims removed.
       const result = applyFilters(sessions, { health: ["good"] });
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("1");
+      expect(result).toHaveLength(2);
     });
 
-    it("applyFilters filters by status active", async () => {
+    it("applyFilters ignores legacy status:active filter (passthrough)", async () => {
       const { applyFilters } = await import("../client/src/components/analytics/sessions/SessionList");
       const sessions = [
         { id: "1", isActive: true, healthScore: null, isEmpty: false },
         { id: "2", isActive: false, healthScore: null, isEmpty: false },
       ];
       const result = applyFilters(sessions, { status: ["active"] });
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("1");
+      expect(result).toHaveLength(2);
     });
 
-    it("applyFilters filters by empty status", async () => {
+    it("applyFilters ignores legacy status:empty filter (passthrough)", async () => {
       const { applyFilters } = await import("../client/src/components/analytics/sessions/SessionList");
       const sessions = [
         { id: "1", isActive: false, healthScore: null, isEmpty: true },
         { id: "2", isActive: false, healthScore: null, isEmpty: false },
       ];
       const result = applyFilters(sessions, { status: ["empty"] });
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe("1");
+      expect(result).toHaveLength(2);
     });
 
     it("exports applySorting function", async () => {
