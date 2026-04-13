@@ -444,7 +444,7 @@ router.get("/api/charts/models", (req, res) => {
 // 4. sessions — daily session pattern
 // ---------------------------------------------------------------------------
 
-function computeHealthScore(toolErrors: number, totalCalls: number): "good" | "fair" | "poor" {
+function computeHealthScore(toolErrors: number, _totalCalls: number): "good" | "fair" | "poor" {
   if (toolErrors > 10) return "poor";
   if (toolErrors > 3) return "fair";
   return "good";

@@ -44,7 +44,7 @@ export function KeyboardShortcutsOverlay() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    function handler(e: CustomEvent) {
+    function handler(_e: CustomEvent) {
       setOpen((prev) => !prev);
     }
     window.addEventListener("toggle-shortcuts-overlay" as any, handler);

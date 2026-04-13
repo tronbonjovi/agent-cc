@@ -16,7 +16,7 @@ import { shortModel } from "@/lib/utils";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useMoveTask, useUnflagTask, useLinkSession, useDeleteTask } from "@/hooks/use-board";
 import { useSessions } from "@/hooks/use-sessions";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { BoardTask, BoardColumn } from "@shared/board-types";
 
 const POPOUT_WIDTH = 440;

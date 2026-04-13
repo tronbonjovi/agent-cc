@@ -52,7 +52,7 @@ function openPath(p: string): void {
   child.unref();
 }
 
-export async function registerRoutes(server: Server, app: Express): Promise<void> {
+export async function registerRoutes(_server: Server, app: Express): Promise<void> {
   // Health check
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

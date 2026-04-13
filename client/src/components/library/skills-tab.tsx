@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, Wand2, Terminal, ChevronDown, ChevronRight, Copy, Check, Edit3, FolderOpen, RefreshCw, Settings } from "lucide-react";
+import { Search, Wand2, RefreshCw, Settings } from "lucide-react";
 import { DiscoverPanel } from "@/components/library/discover-panel";
 import { ListSkeleton } from "@/components/skeleton";
 import { EntityCard } from "@/components/library/entity-card";
@@ -64,25 +64,10 @@ export default function SkillsTab() {
 
   const invocableCount = filtered.filter((s) => s.data.userInvocable).length;
 
-  const handleCopy = (name: string, id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(`/${name}`);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 1500);
-  };
-
   const findMarkdownId = (skillPath: string) => {
     if (!markdowns) return null;
     const normalizedSkillPath = skillPath.replace(/\\/g, "/");
     return markdowns.find((m) => m.path.replace(/\\/g, "/") === normalizedSkillPath)?.id ?? null;
-  };
-
-  const handleEdit = (skill: SkillEntity, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const mdId = findMarkdownId(skill.path);
-    if (mdId) {
-      setLocation(`/markdown/${mdId}`);
-    }
   };
 
   const buildTags = (skill: SkillEntity): string[] => {

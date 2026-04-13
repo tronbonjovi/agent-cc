@@ -31,10 +31,10 @@ interface GraphNodeProps {
  */
 const GraphNode = React.memo(function GraphNode({
   node,
-  isHighlighted,
+  isHighlighted: _isHighlighted,
   isDimmed,
   isDragging,
-  isHovered,
+  isHovered: _isHovered,
   showLabels,
   zoomScale,
   onHoverStart,

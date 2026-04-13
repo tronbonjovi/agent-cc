@@ -1,4 +1,4 @@
-import type { SessionData, WorkflowConfig } from "@shared/types";
+import type { SessionData } from "@shared/types";
 import { storage } from "../storage";
 import { summarizeBatch } from "./session-summarizer";
 

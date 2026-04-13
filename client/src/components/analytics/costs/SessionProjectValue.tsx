@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useSessionProjectValue, type SessionProjectValueData } from "@/hooks/use-sessions";
-import { FolderKanban, Zap, DollarSign, ArrowUpDown } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 import { formatTokens, formatUsd } from "@/lib/format";
 
 // ---- Sort logic for project table ----

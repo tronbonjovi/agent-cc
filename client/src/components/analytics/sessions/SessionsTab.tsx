@@ -4,7 +4,6 @@ import { SessionList, type EnrichedSession } from "./SessionList";
 import { SessionDetail } from "./SessionDetail";
 import { useSessions, useSessionNames } from "@/hooks/use-sessions";
 import { getSessionDisplayName } from "@/lib/session-display-name";
-import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
 
 /**
  * Sessions tab — list-detail inspector layout.
@@ -13,8 +12,6 @@ import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
 export function SessionsTab() {
   const { data, isLoading } = useSessions();
   const { data: sessionNames } = useSessionNames();
-  const bp = useBreakpoint();
-  const mobile = isMobile(bp);
 
   // Read session ID from URL params for deep linking
   const urlParams = new URLSearchParams(window.location.search);

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -108,7 +107,6 @@ function getStatusConfig(status?: string) {
 }
 
 export default function Dashboard() {
-  const [, setLocation] = useLocation();
   const { data: status } = useScanStatus();
   const rescan = useRescan();
   const { data: liveData } = useLiveData();

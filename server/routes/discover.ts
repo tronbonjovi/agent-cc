@@ -15,8 +15,6 @@ interface DiscoverResult {
   source: string;
 }
 
-type EntityType = "skills" | "agents" | "plugins";
-
 const VALID_TYPES = new Set<string>(["skills", "agents", "plugins"]);
 
 /**

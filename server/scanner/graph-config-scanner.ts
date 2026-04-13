@@ -1,5 +1,4 @@
 import fs from "fs";
-import path from "path";
 import type { CustomNode, CustomEdge, EntityOverride, GraphConfigYaml, CustomNodeSubType } from "@shared/types";
 import { HOME, CLAUDE_DIR, fileExists, discoverProjectDirs, normPath } from "./utils";
 

@@ -123,7 +123,6 @@ export function validateClaudeMd(filePath: string): ValidationResult {
   }
 
   // Check recommended sections
-  const contentLower = content.toLowerCase();
   for (const section of RECOMMENDED_SECTIONS) {
     // Look for heading with this text
     const hasSection = lines.some((l) => {

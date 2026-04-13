@@ -4,10 +4,6 @@ import fs from "fs";
 import os from "os";
 import { runFullScan } from "../scanner/index";
 
-// Define locally to avoid conflicts with parallel Task 001 (library scanner)
-const CLAUDE_DIR = path.join(os.homedir(), ".claude");
-const LIBRARY_DIR = path.join(CLAUDE_DIR, "library");
-
 const VALID_TYPES = ["skills", "agents", "plugins"] as const;
 type LibraryType = (typeof VALID_TYPES)[number];
 

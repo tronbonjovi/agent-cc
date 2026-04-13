@@ -1,9 +1,8 @@
 import { useState, useMemo } from "react";
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { useTokenAnatomy, type TokenAnatomyCategory } from "@/hooks/use-sessions";
-import { Layers } from "lucide-react";
 import { formatTokens, formatUsd } from "@/lib/format";
 
 // ---- Category config ----
@@ -15,8 +14,6 @@ const CATEGORIES = [
   { key: "thinking", label: "Thinking", color: "#a78bfa" },
   { key: "cacheOverhead", label: "Cache Overhead", color: "#f43f5e" },
 ] as const;
-
-type CategoryKey = (typeof CATEGORIES)[number]["key"];
 
 // ---- Loading skeleton ----
 

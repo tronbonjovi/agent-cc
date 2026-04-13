@@ -104,7 +104,7 @@ router.get("/api/graph/ai-suggest/status", (_req: Request, res: Response) => {
   res.json(result);
 });
 
-router.post("/api/graph/ai-suggest", async (req: Request, res: Response) => {
+router.post("/api/graph/ai-suggest", async (_req: Request, res: Response) => {
   // Check claude CLI first
   const cliCheck = checkClaudeCli();
   if (!cliCheck.available) {

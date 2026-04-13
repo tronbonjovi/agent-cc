@@ -2,7 +2,6 @@ import { Router, type Request, type Response } from "express";
 import { spawn, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
-import os from "os";
 import { handleRouteError } from "../lib/route-errors";
 import { getCachedSessions, getCachedStats, removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
 import { CLAUDE_DIR, encodeProjectKey, dirExists, readMessageTimeline } from "../scanner/utils";

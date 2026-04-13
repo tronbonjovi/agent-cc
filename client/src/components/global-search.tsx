@@ -10,7 +10,6 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandItem,
-  CommandSeparator,
 } from "@/components/ui/command";
 import { Search, Clock } from "lucide-react";
 import type { Entity, EntityType } from "@shared/types";

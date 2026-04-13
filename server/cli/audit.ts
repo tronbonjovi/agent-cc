@@ -122,7 +122,7 @@ function checkMcpConfigs(): Check {
 }
 
 async function checkSessions(): Promise<Check> {
-  const { sessions, stats } = await scanAllSessions();
+  const { sessions } = await scanAllSessions();
   if (sessions.length === 0) {
     return { name: "Session hygiene", score: 50, weight: 2, status: "warn", message: "No sessions found" };
   }

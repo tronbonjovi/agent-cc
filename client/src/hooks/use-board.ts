@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
-import type { BoardState, BoardStats, BoardFilter, BoardTask, MoveTaskInput, BoardColumn, SessionEnrichment, MilestoneMeta } from "@shared/board-types";
+import type { BoardState, BoardStats, BoardFilter, BoardTask, MoveTaskInput, BoardColumn, SessionEnrichment } from "@shared/board-types";
 import type { ProjectCardData, ProjectMilestoneData } from "@/components/board/project-card";
 import { useProjects } from "./use-projects";
 

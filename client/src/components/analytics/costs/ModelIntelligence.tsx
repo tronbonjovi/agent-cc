@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useModelIntelligence, type ModelIntelligenceRow } from "@/hooks/use-sessions";
-import { Cpu, ArrowUpDown } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 import { shortModel } from "@/lib/utils";
 import { formatTokens, formatUsd } from "@/lib/format";
 

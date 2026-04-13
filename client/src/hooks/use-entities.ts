@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, invalidateDataQueries } from "@/lib/queryClient";
 import { toast } from "sonner";
-import type { Entity, EntityType, ScanStatus, MCPEntity, SkillEntity, PluginEntity, MarkdownEntity, ConfigEntity, ProjectEntity } from "@shared/types";
+import type { Entity, EntityType, ScanStatus } from "@shared/types";
 
 export function makeRelativePath(fullPath: string, homeDir: string | null): string {
   if (!homeDir) return fullPath;

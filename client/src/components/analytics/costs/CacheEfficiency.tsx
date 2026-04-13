@@ -3,7 +3,6 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { useCacheEfficiency } from "@/hooks/use-sessions";
-import { Database } from "lucide-react";
 import { formatTokens, formatUsd } from "@/lib/format";
 
 // ---- Loading skeleton ----

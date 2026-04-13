@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Search, Server, Copy, Check, ExternalLink, ChevronDown, ChevronRight, ShoppingBag, RefreshCw, Settings } from "lucide-react";
+import { Search, Server, ExternalLink, ShoppingBag, RefreshCw, Settings } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ListSkeleton } from "@/components/skeleton";
 import { EntityCard } from "@/components/library/entity-card";
@@ -31,21 +31,6 @@ export default function McpsTab() {
   // Three-tier: all configured MCPs are "installed"
   const installed = filtered;
   const saved: MCPEntity[] = [];
-
-  const handleCopyCommand = (mcp: MCPEntity, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const cmd = mcp.data.command ? `${mcp.data.command} ${(mcp.data.args || []).join(" ")}` : mcp.data.url || "";
-    navigator.clipboard.writeText(cmd.trim());
-    setCopiedId(mcp.id);
-    setTimeout(() => setCopiedId(null), 1500);
-  };
-
-  const handleOpenSource = async (sourcePath: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await apiRequest("POST", "/api/actions/open-file", { path: sourcePath });
-    } catch {}
-  };
 
   const mapHealth = (mcp: MCPEntity): EntityCardHealth | undefined => {
     if (mcp.health === "ok") return "healthy";

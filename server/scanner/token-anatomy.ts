@@ -9,7 +9,7 @@
  * - Cache overhead: cacheCreationTokens across all messages
  */
 
-import type { ParsedSession, AssistantRecord } from "@shared/session-types";
+import type { ParsedSession } from "@shared/session-types";
 import { getPricing, computeCost } from "./pricing";
 
 export interface TokenAnatomyCategory {

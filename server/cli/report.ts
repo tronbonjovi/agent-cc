@@ -6,7 +6,6 @@
 import { scanAllSessions } from "../scanner/session-scanner";
 import { getCostAnalytics, getHealthAnalytics } from "../scanner/session-analytics";
 import { storage } from "../storage";
-import type { BillingMode } from "@shared/types";
 import { formatUsd, formatTokens } from "@shared/format";
 
 /** Resolve billing mode: "auto" defaults to "subscription" (most Claude Code users) */

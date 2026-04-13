@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { getCachedSessions } from "../scanner/session-scanner";
 import { getCachedAgentStats } from "../scanner/agent-scanner";
-import { storage } from "../storage";
 
 const router = Router();
 

@@ -875,12 +875,6 @@ function parseJsonlFileToMessages(filePath: string): TimelineMessage[] {
 // Used when the route handler sees `?include=tree`.
 // ---------------------------------------------------------------------------
 
-/** Cheap record: the tree id we computed + its nearest subagent ancestor. */
-interface NodeAncestorCache {
-  treeNodeId: string | null;
-  subagentContext: TimelineSubagentContext | null;
-}
-
 /**
  * Walk up `tree.nodesById` from `startId` until we hit a `subagent-root`
  * (success) or a `session-root` / missing parent (null). Caches results on
