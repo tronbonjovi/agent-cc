@@ -483,3 +483,53 @@ describe("roleLabel (task003 — TokenBreakdown role labels)", () => {
     expect(src).not.toMatch(/\?\s*"A"\s*:\s*"U"/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Viewport constraint tests (task003, sessions-makeover fix 2)
+//
+// Long sessions previously blew out the page — the token table had no
+// max-height and no sticky header. Fix wraps the table in a
+// `max-h-[60vh] overflow-auto` container (tagged `data-token-table-scroll`)
+// and pins the <thead> with `sticky top-0 bg-card z-10`. The background must
+// be SOLID (bg-card), never `bg-transparent` — otherwise rows scroll visibly
+// under the header. We assert these invariants via source-text checks because
+// the repo intentionally does not ship jsdom / @testing-library/react.
+// ---------------------------------------------------------------------------
+
+describe("TokenBreakdown viewport constraint (task003)", () => {
+  const src = readFileSync(
+    path.resolve(
+      __dirname,
+      "../client/src/components/analytics/sessions/TokenBreakdown.tsx",
+    ),
+    "utf8",
+  );
+
+  it("wraps the table in a max-h-[60vh] overflow-auto container tagged data-token-table-scroll", () => {
+    // Must have the data attribute marker used by manual QA + future tests.
+    expect(src).toContain("data-token-table-scroll");
+    // Find the wrapper element carrying the marker and assert the classes
+    // live on the same element.
+    const match = src.match(
+      /data-token-table-scroll[\s\S]*?className="([^"]*)"/,
+    );
+    expect(match, "data-token-table-scroll must have a className").toBeTruthy();
+    const className = match![1];
+    expect(className).toContain("max-h-[60vh]");
+    expect(className).toContain("overflow-auto");
+  });
+
+  it("uses a sticky <thead> with a SOLID bg-card background, never bg-transparent", () => {
+    // Grab the <thead ... className="..."> className string.
+    const theadMatch = src.match(/<thead[^>]*className="([^"]*)"/);
+    expect(theadMatch, "<thead> must carry a className").toBeTruthy();
+    const theadClass = theadMatch![1];
+    expect(theadClass).toContain("sticky");
+    expect(theadClass).toContain("top-0");
+    expect(theadClass).toContain("z-10");
+    // Solid background — must match bg-card (or bg-background), must NOT be
+    // bg-transparent. Content bleed-through on scroll is the exact bug.
+    expect(theadClass).toMatch(/bg-(card|background)/);
+    expect(theadClass).not.toContain("bg-transparent");
+  });
+});

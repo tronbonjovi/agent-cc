@@ -221,10 +221,15 @@ export function TokenBreakdown({ assistantMessages, userMessages, tree }: TokenB
         })}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Table — viewport-constrained with sticky header so long sessions
+          don't blow out the section height. The header background must be
+          solid (bg-card) so rows don't bleed through during scroll. */}
+      <div
+        data-token-table-scroll
+        className="max-h-[60vh] overflow-auto rounded border border-border/30"
+      >
         <table className="w-full text-xs">
-          <thead>
+          <thead className="sticky top-0 bg-card z-10">
             <tr className="text-muted-foreground border-b border-border/30">
               <th className="text-left py-1 px-1">#</th>
               <th className="text-left py-1 px-1">Role</th>
