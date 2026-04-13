@@ -18,6 +18,7 @@ import {
   Legend,
 } from "recharts";
 import { useChartFilters } from "../GlobalFilterBar";
+import { formatDate } from "@/lib/format";
 
 interface SidechainRow {
   date: string;
@@ -42,11 +43,6 @@ function rangeToDays(range: string): string {
   return "30";
 }
 
-function formatDate(d: string): string {
-  const date = new Date(d + "T00:00:00");
-  if (Number.isNaN(date.getTime())) return d;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 function SidechainTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ payload: SidechainRow }>; label?: string }) {
   if (!active || !payload?.[0]) return null;

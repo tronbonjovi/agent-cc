@@ -7,6 +7,7 @@ import { ModelIntelligence } from "./ModelIntelligence";
 import { CacheEfficiency } from "./CacheEfficiency";
 import { SystemPromptOverhead } from "./SystemPromptOverhead";
 import { SessionProjectValue } from "./SessionProjectValue";
+import { formatTokens, formatUsd } from "@/lib/format";
 
 // ---- Collapsible Section Wrapper ----
 
@@ -32,20 +33,6 @@ function CollapsibleSection({ title, icon, defaultOpen = true, children }: {
       {open && <div className="px-4 pb-4">{children}</div>}
     </div>
   );
-}
-
-// ---- Utilities (duplicated from stats.tsx for self-containment) ----
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
-  return n.toString();
-}
-
-function formatUsd(n: number): string {
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(4)}`;
 }
 
 // ---- Historical Lookup (collapsible) ----

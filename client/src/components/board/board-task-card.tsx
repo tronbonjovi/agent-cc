@@ -17,7 +17,6 @@ import {
   formatDuration,
   formatTokens,
   formatCost,
-  shortenModel,
   formatAgentRole,
 } from "./session-indicators";
 import type { BoardTask, LastSessionSnapshot } from "@shared/board-types";

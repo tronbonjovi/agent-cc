@@ -22,6 +22,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useChartFilters } from "../GlobalFilterBar";
+import { formatUsd } from "@/lib/format";
 
 export interface APIEquivalentValueProps {
   breakdown?: "all" | "parent";
@@ -72,13 +73,6 @@ function estimateModelCost(model: string, totalTokens: number): number {
   return (input * p.input + output * p.output) / 1_000_000;
 }
 
-function formatUsd(n: number): string {
-  if (!Number.isFinite(n) || n === 0) return "$0";
-  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
-  if (n >= 100) return `$${n.toFixed(0)}`;
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  return `$${n.toFixed(3)}`;
-}
 
 // Builds the query string for /api/charts/models including the section
 // breakdown toggle as `breakdown=parent|all`.

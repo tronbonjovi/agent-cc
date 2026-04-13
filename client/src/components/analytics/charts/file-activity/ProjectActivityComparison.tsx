@@ -23,6 +23,7 @@ import {
   Legend,
 } from "recharts";
 import { useChartFilters } from "../GlobalFilterBar";
+import { formatTokens, formatUsd } from "@/lib/format";
 
 interface ProjectRow {
   project: string;
@@ -50,17 +51,6 @@ function rangeToDays(range: string): string {
   return "90";
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
-  return n.toString();
-}
-
-function formatUsd(n: number): string {
-  if (n >= 100) return `$${Math.round(n)}`;
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  return `$${n.toFixed(3)}`;
-}
 
 function shortenProject(name: string, max = 22): string {
   if (name.length <= max) return name;

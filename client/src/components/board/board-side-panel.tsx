@@ -10,9 +10,9 @@ import {
   formatCost,
   formatDuration,
   formatTokens,
-  shortenModel,
   statusLightColor,
 } from "./session-indicators";
+import { shortModel } from "@/lib/utils";
 import { BOARD_COLUMNS } from "@/lib/board-columns";
 import { useMoveTask, useUnflagTask, useLinkSession, useDeleteTask } from "@/hooks/use-board";
 import { useSessions } from "@/hooks/use-sessions";
@@ -320,7 +320,7 @@ export function BoardSidePanel({ task, open, onClose, anchorRect }: BoardSidePan
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <span className="text-muted-foreground">Model</span>
-                      <div className="mt-0.5 font-medium">{shortenModel(task.session.model) || "Unknown"}</div>
+                      <div className="mt-0.5 font-medium">{task.session.model ? shortModel(task.session.model) : "Unknown"}</div>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Health</span>

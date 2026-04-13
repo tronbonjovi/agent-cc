@@ -20,6 +20,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useChartFilters } from "../GlobalFilterBar";
+import { formatTokens } from "@/lib/format";
 
 interface AnatomyCategory {
   tokens: number;
@@ -44,12 +45,6 @@ const CATEGORIES = [
   { key: "cacheOverhead", label: "Cache Overhead", color: "#f43f5e" },
 ] as const;
 
-function formatTokens(n: number): string {
-  if (!Number.isFinite(n) || n === 0) return "0";
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
-  return n.toString();
-}
 
 function rangeToDays(range: string): number {
   if (range === "7d") return 7;
