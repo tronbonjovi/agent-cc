@@ -1,5 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { computeModelIntelligence, type ModelIntelligenceRow } from "../server/scanner/model-intelligence";
+import {
+  parseSessionAndBuildTree,
+  sessionParseCache,
+} from "../server/scanner/session-scanner";
 import type { ParsedSession, AssistantRecord, TokenUsage } from "../shared/session-types";
 
 /** Helper to build a minimal AssistantRecord */
@@ -282,6 +289,155 @@ describe("model-intelligence", () => {
       expect(result[0].model).toBe("unknown");
       expect(result[0].inputTokens).toBe(300);
       expect(result[0].outputTokens).toBe(150);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // SessionTree migration (flat-to-tree wave3)
+  // ---------------------------------------------------------------------
+  describe("computeModelIntelligence with SessionTree", () => {
+    const FIXTURE_DIR = path.resolve(__dirname, "fixtures/session-hierarchy");
+    const SUB_IDS = [
+      "b1111111111111111",
+      "b2222222222222222",
+      "b3333333333333333",
+      "b4444444444444444",
+      "b5555555555555555",
+    ];
+    let tmpRoot: string;
+    let parentFilePath: string;
+
+    function copyFixtureInto(destProjectDir: string): string {
+      const subagentsDest = path.join(destProjectDir, "parent", "subagents");
+      fs.mkdirSync(subagentsDest, { recursive: true });
+      fs.copyFileSync(
+        path.join(FIXTURE_DIR, "parent.jsonl"),
+        path.join(destProjectDir, "parent.jsonl"),
+      );
+      for (const id of SUB_IDS) {
+        fs.copyFileSync(
+          path.join(FIXTURE_DIR, "parent", "subagents", `agent-${id}.jsonl`),
+          path.join(subagentsDest, `agent-${id}.jsonl`),
+        );
+        fs.copyFileSync(
+          path.join(FIXTURE_DIR, "parent", "subagents", `agent-${id}.meta.json`),
+          path.join(subagentsDest, `agent-${id}.meta.json`),
+        );
+      }
+      return path.join(destProjectDir, "parent.jsonl");
+    }
+
+    beforeEach(() => {
+      tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "acc-modint-tree-"));
+      const projectDir = path.join(tmpRoot, "-home-user-projects-demo");
+      parentFilePath = copyFixtureInto(projectDir);
+      sessionParseCache.invalidateAll();
+    });
+
+    afterEach(() => {
+      sessionParseCache.invalidateAll();
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    });
+
+    it("includes subagent spend in per-model token sums", () => {
+      const parsed = parseSessionAndBuildTree(parentFilePath, "-home-user-projects-demo");
+      expect(parsed).not.toBeNull();
+      const tree = sessionParseCache.getTreeById(parsed!.meta.sessionId)!;
+      expect(tree).not.toBeNull();
+      expect(tree.totals.subagents).toBeGreaterThan(0);
+
+      // Tree-less twin for parity compare.
+      const flatCopy: ParsedSession = {
+        ...parsed!,
+        meta: { ...parsed!.meta, sessionId: "no-tree-modint" },
+      };
+      expect(sessionParseCache.getTreeById("no-tree-modint")).toBeNull();
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const flatRows = computeModelIntelligence([flatCopy]);
+      const treeRows = computeModelIntelligence([parsed!]);
+
+      // Sum input tokens across all rows for each path.
+      const sumInput = (rows: ModelIntelligenceRow[]) =>
+        rows.reduce((acc, r) => acc + r.inputTokens + r.outputTokens + r.cacheReadTokens + r.cacheCreationTokens, 0);
+
+      // Fixture invariant: subagents add meaningful usage. Tree path must
+      // strictly exceed the flat-only path's total per-model token sum.
+      expect(sumInput(treeRows)).toBeGreaterThan(sumInput(flatRows));
+
+      // Every row must still have sessions >= 1 (session attribution intact).
+      for (const row of treeRows) {
+        expect(row.sessions).toBeGreaterThanOrEqual(1);
+      }
+      warnSpy.mockRestore();
+    });
+
+    it("attributes subagent turns to the parent session for the 'sessions' count", () => {
+      const parsed = parseSessionAndBuildTree(parentFilePath, "-home-user-projects-demo");
+      expect(parsed).not.toBeNull();
+
+      const rows = computeModelIntelligence([parsed!]);
+
+      // Only one input session was passed, so no model row may report more
+      // than one distinct session — subagents don't create new sessionIds.
+      for (const row of rows) {
+        expect(row.sessions).toBe(1);
+      }
+    });
+
+    it("falls back gracefully when tree is null", () => {
+      const flat: ParsedSession = {
+        meta: {
+          sessionId: "no-tree-modint-fallback",
+          slug: "x",
+          firstMessage: "hi",
+          firstTs: "2026-04-11T12:00:00Z",
+          lastTs: "2026-04-11T12:30:00Z",
+          sizeBytes: 0,
+          filePath: "/tmp/x.jsonl",
+          projectKey: "p",
+          cwd: "/tmp",
+          version: "1.0",
+          gitBranch: "main",
+          entrypoint: "cli",
+        },
+        assistantMessages: [
+          makeAssistantRecord({
+            model: "claude-sonnet-4-20250514",
+            usage: { inputTokens: 1000, outputTokens: 500 },
+          }),
+        ],
+        userMessages: [],
+        systemEvents: { turnDurations: [], hookSummaries: [], localCommands: [], bridgeEvents: [] },
+        toolTimeline: [],
+        fileSnapshots: [],
+        lifecycle: [],
+        conversationTree: [],
+        counts: {
+          totalRecords: 1,
+          assistantMessages: 1,
+          userMessages: 0,
+          systemEvents: 0,
+          toolCalls: 0,
+          toolErrors: 0,
+          fileSnapshots: 0,
+          sidechainMessages: 0,
+        },
+      };
+
+      expect(sessionParseCache.getTreeById("no-tree-modint-fallback")).toBeNull();
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const rows = computeModelIntelligence([flat]);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].model).toBe("claude-sonnet-4-20250514");
+      expect(rows[0].inputTokens).toBe(1000);
+      expect(rows[0].outputTokens).toBe(500);
+      expect(rows[0].sessions).toBe(1);
+      expect(warnSpy).toHaveBeenCalled();
+      warnSpy.mockRestore();
     });
   });
 });

@@ -1,5 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { computeCacheEfficiency, type CacheEfficiencyResult } from "../server/scanner/cache-efficiency";
+import {
+  parseSessionAndBuildTree,
+  sessionParseCache,
+} from "../server/scanner/session-scanner";
 import type { ParsedSession, AssistantRecord, TokenUsage } from "../shared/session-types";
 
 /** Helper to build a minimal AssistantRecord */
@@ -273,6 +280,160 @@ describe("cache-efficiency", () => {
       // Opus savings: 10000 * (5.0 - 0.5) / 1M = 0.045
       // Sonnet savings: 10000 * (3.0 - 0.3) / 1M = 0.027
       expect(result.cacheReadSavings).toBeCloseTo(0.045 + 0.027, 5);
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // SessionTree migration (flat-to-tree wave3)
+  // ---------------------------------------------------------------------
+  describe("computeCacheEfficiency with SessionTree", () => {
+    const FIXTURE_DIR = path.resolve(__dirname, "fixtures/session-hierarchy");
+    const SUB_IDS = [
+      "b1111111111111111",
+      "b2222222222222222",
+      "b3333333333333333",
+      "b4444444444444444",
+      "b5555555555555555",
+    ];
+    let tmpRoot: string;
+    let parentFilePath: string;
+
+    function copyFixtureInto(destProjectDir: string): string {
+      const subagentsDest = path.join(destProjectDir, "parent", "subagents");
+      fs.mkdirSync(subagentsDest, { recursive: true });
+      fs.copyFileSync(
+        path.join(FIXTURE_DIR, "parent.jsonl"),
+        path.join(destProjectDir, "parent.jsonl"),
+      );
+      for (const id of SUB_IDS) {
+        fs.copyFileSync(
+          path.join(FIXTURE_DIR, "parent", "subagents", `agent-${id}.jsonl`),
+          path.join(subagentsDest, `agent-${id}.jsonl`),
+        );
+        fs.copyFileSync(
+          path.join(FIXTURE_DIR, "parent", "subagents", `agent-${id}.meta.json`),
+          path.join(subagentsDest, `agent-${id}.meta.json`),
+        );
+      }
+      return path.join(destProjectDir, "parent.jsonl");
+    }
+
+    beforeEach(() => {
+      tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "acc-cache-tree-"));
+      const projectDir = path.join(tmpRoot, "-home-user-projects-demo");
+      parentFilePath = copyFixtureInto(projectDir);
+      sessionParseCache.invalidateAll();
+    });
+
+    afterEach(() => {
+      sessionParseCache.invalidateAll();
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+      vi.restoreAllMocks();
+    });
+
+    it("counts subagent first-messages in the first-message bucket", () => {
+      const parsed = parseSessionAndBuildTree(parentFilePath, "-home-user-projects-demo");
+      expect(parsed).not.toBeNull();
+      const tree = sessionParseCache.getTreeById(parsed!.meta.sessionId)!;
+      expect(tree).not.toBeNull();
+      expect(tree.totals.subagents).toBeGreaterThan(0);
+
+      // Tree-less twin for parity compare: same data, different sessionId so
+      // cache lookup returns null and the flat fallback path runs.
+      const flatCopy: ParsedSession = {
+        ...parsed!,
+        meta: { ...parsed!.meta, sessionId: "no-tree-cache" },
+      };
+      expect(sessionParseCache.getTreeById("no-tree-cache")).toBeNull();
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const flatResult = computeCacheEfficiency([flatCopy]);
+      const treeResult = computeCacheEfficiency([parsed!]);
+
+      // Tree path adds N subagent first-messages into the bucket — the
+      // flat/tree averages therefore must differ (subagent first-msg input
+      // tokens will not coincidentally equal the parent's).
+      expect(treeResult.firstMessageAvgInput).not.toBe(flatResult.firstMessageAvgInput);
+
+      // Curve stays bounded at 20 and populated.
+      expect(treeResult.messageCurve.length).toBeGreaterThan(0);
+      expect(treeResult.messageCurve.length).toBeLessThanOrEqual(20);
+
+      warnSpy.mockRestore();
+    });
+
+    it("adds subagent cache spend to creation cost / read savings", () => {
+      const parsed = parseSessionAndBuildTree(parentFilePath, "-home-user-projects-demo");
+      expect(parsed).not.toBeNull();
+
+      const flatCopy: ParsedSession = {
+        ...parsed!,
+        meta: { ...parsed!.meta, sessionId: "no-tree-cache2" },
+      };
+      expect(sessionParseCache.getTreeById("no-tree-cache2")).toBeNull();
+
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const flatResult = computeCacheEfficiency([flatCopy]);
+      const treeResult = computeCacheEfficiency([parsed!]);
+
+      // Fixture subagents may not carry cache-creation / cache-read tokens,
+      // so this stays a >= regression guard (never regresses below parent-only).
+      expect(treeResult.cacheCreationCost).toBeGreaterThanOrEqual(
+        flatResult.cacheCreationCost,
+      );
+      expect(treeResult.cacheReadSavings).toBeGreaterThanOrEqual(
+        flatResult.cacheReadSavings,
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("falls back gracefully when tree is null", () => {
+      const flat: ParsedSession = {
+        meta: {
+          sessionId: "no-tree-cache-fallback",
+          slug: "x",
+          firstMessage: "hi",
+          firstTs: "2026-04-11T12:00:00Z",
+          lastTs: "2026-04-11T12:30:00Z",
+          sizeBytes: 0,
+          filePath: "/tmp/x.jsonl",
+          projectKey: "p",
+          cwd: "/tmp",
+          version: "1.0",
+          gitBranch: "main",
+          entrypoint: "cli",
+        },
+        assistantMessages: [
+          makeAssistantRecord({ usage: { inputTokens: 200, cacheReadTokens: 800 } }),
+          makeAssistantRecord({ usage: { inputTokens: 200, cacheReadTokens: 800 } }),
+        ],
+        userMessages: [],
+        systemEvents: { turnDurations: [], hookSummaries: [], localCommands: [], bridgeEvents: [] },
+        toolTimeline: [],
+        fileSnapshots: [],
+        lifecycle: [],
+        conversationTree: [],
+        counts: {
+          totalRecords: 2,
+          assistantMessages: 2,
+          userMessages: 0,
+          systemEvents: 0,
+          toolCalls: 0,
+          toolErrors: 0,
+          fileSnapshots: 0,
+          sidechainMessages: 0,
+        },
+      };
+
+      expect(sessionParseCache.getTreeById("no-tree-cache-fallback")).toBeNull();
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const result = computeCacheEfficiency([flat]);
+
+      // Legacy path: hitRate = 1600 / (400 + 1600) * 100 = 80%
+      expect(result.hitRate).toBeCloseTo(80, 1);
+      expect(warnSpy).toHaveBeenCalled();
+      warnSpy.mockRestore();
     });
   });
 });

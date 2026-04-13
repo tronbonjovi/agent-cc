@@ -3,10 +3,18 @@
  *
  * Computes overall hit rate, first-message vs steady-state token comparison,
  * cache ROI (creation cost vs read savings), and per-message-index cache curve.
+ *
+ * Tree path (flat-to-tree wave3): each input session expands into one parent
+ * sub-session plus one per subagent. All hit-rate / ROI / first-vs-steady /
+ * curve math runs per sub-session so subagent cache activity is attributed
+ * correctly. Flat fallback preserves legacy parent-only behavior with a
+ * one-shot warning per session.
  */
 
 import type { ParsedSession } from "@shared/session-types";
 import { getPricing } from "./pricing";
+import { sessionParseCache } from "./session-cache";
+import { turnSubSessions, type TurnSlim } from "./tree-turn-walker";
 
 export interface CacheEfficiencyResult {
   hitRate: number;              // percentage
@@ -20,93 +28,107 @@ export interface CacheEfficiencyResult {
 
 const MAX_CURVE_INDEX = 20;
 
+interface Accumulator {
+  totalInputTokens: number;
+  totalCacheReadTokens: number;
+  cacheCreationCost: number;
+  cacheReadSavings: number;
+  firstMessageCount: number;
+  firstMessageInputSum: number;
+  steadyStateCount: number;
+  steadyStateInputSum: number;
+  curveAccum: { sumPct: number; count: number }[];
+}
+
+/**
+ * Fold one ordered sub-session (parent or a single subagent) into the
+ * running accumulator. Turn index 0 is the sub-session's "first message",
+ * and the per-index cache curve is shared across sub-sessions so a subagent's
+ * first turn contributes to the index-1 bucket just like the parent's first.
+ */
+function accumulateSubSession(turns: TurnSlim[], acc: Accumulator): void {
+  for (let i = 0; i < turns.length; i++) {
+    const turn = turns[i];
+    const u = turn.usage;
+    const pricing = getPricing(turn.model || "unknown");
+
+    acc.totalInputTokens += u.inputTokens;
+    acc.totalCacheReadTokens += u.cacheReadTokens;
+
+    if (u.cacheCreationTokens > 0) {
+      acc.cacheCreationCost += (u.cacheCreationTokens * pricing.cacheCreation) / 1_000_000;
+    }
+    if (u.cacheReadTokens > 0) {
+      acc.cacheReadSavings += (u.cacheReadTokens * (pricing.input - pricing.cacheRead)) / 1_000_000;
+    }
+
+    if (i === 0) {
+      acc.firstMessageCount++;
+      acc.firstMessageInputSum += u.inputTokens;
+    } else {
+      acc.steadyStateCount++;
+      acc.steadyStateInputSum += u.inputTokens;
+    }
+
+    if (i < MAX_CURVE_INDEX) {
+      if (!acc.curveAccum[i]) acc.curveAccum[i] = { sumPct: 0, count: 0 };
+      const total = u.inputTokens + u.cacheReadTokens;
+      const pct = total > 0 ? (u.cacheReadTokens / total) * 100 : 0;
+      acc.curveAccum[i].sumPct += pct;
+      acc.curveAccum[i].count++;
+    }
+  }
+}
+
 /**
  * Compute cache efficiency metrics from parsed sessions.
  */
 export function computeCacheEfficiency(sessions: ParsedSession[]): CacheEfficiencyResult {
-  let totalInputTokens = 0;
-  let totalCacheReadTokens = 0;
-  let cacheCreationCost = 0;
-  let cacheReadSavings = 0;
-
-  let firstMessageCount = 0;
-  let firstMessageInputSum = 0;
-  let steadyStateCount = 0;
-  let steadyStateInputSum = 0;
-
-  // Per-index accumulators: index 0..19 → { sumPct, count }
-  const curveAccum: { sumPct: number; count: number }[] = [];
+  const acc: Accumulator = {
+    totalInputTokens: 0,
+    totalCacheReadTokens: 0,
+    cacheCreationCost: 0,
+    cacheReadSavings: 0,
+    firstMessageCount: 0,
+    firstMessageInputSum: 0,
+    steadyStateCount: 0,
+    steadyStateInputSum: 0,
+    curveAccum: [],
+  };
 
   for (const session of sessions) {
-    const msgs = session.assistantMessages;
-    if (msgs.length === 0) continue;
+    const tree = sessionParseCache.getTreeById(session.meta.sessionId);
+    if (!tree) {
+      console.warn(
+        "cache-efficiency: tree missing, falling back to flat arrays",
+        session.meta.sessionId,
+      );
+    }
 
-    for (let i = 0; i < msgs.length; i++) {
-      const msg = msgs[i];
-      const u = msg.usage;
-      const model = msg.model || "unknown";
-      const pricing = getPricing(model);
-
-      // Aggregate totals for hit rate
-      totalInputTokens += u.inputTokens;
-      totalCacheReadTokens += u.cacheReadTokens;
-
-      // Cache creation cost
-      if (u.cacheCreationTokens > 0) {
-        cacheCreationCost += (u.cacheCreationTokens * pricing.cacheCreation) / 1_000_000;
-      }
-
-      // Cache read savings: what reads would have cost at full input rate minus actual cache read cost
-      if (u.cacheReadTokens > 0) {
-        cacheReadSavings += (u.cacheReadTokens * (pricing.input - pricing.cacheRead)) / 1_000_000;
-      }
-
-      // First message vs steady state
-      if (i === 0) {
-        firstMessageCount++;
-        firstMessageInputSum += u.inputTokens;
-      } else {
-        steadyStateCount++;
-        steadyStateInputSum += u.inputTokens;
-      }
-
-      // Message curve (capped at MAX_CURVE_INDEX)
-      if (i < MAX_CURVE_INDEX) {
-        if (!curveAccum[i]) {
-          curveAccum[i] = { sumPct: 0, count: 0 };
-        }
-        const total = u.inputTokens + u.cacheReadTokens;
-        const pct = total > 0 ? (u.cacheReadTokens / total) * 100 : 0;
-        curveAccum[i].sumPct += pct;
-        curveAccum[i].count++;
-      }
+    const subSessions = turnSubSessions(session, tree);
+    for (const sub of subSessions) {
+      if (sub.length === 0) continue;
+      accumulateSubSession(sub, acc);
     }
   }
 
-  // Hit rate
-  const totalReads = totalInputTokens + totalCacheReadTokens;
-  const hitRate = totalReads > 0 ? (totalCacheReadTokens / totalReads) * 100 : 0;
+  const totalReads = acc.totalInputTokens + acc.totalCacheReadTokens;
+  const hitRate = totalReads > 0 ? (acc.totalCacheReadTokens / totalReads) * 100 : 0;
 
-  // First message vs steady state averages
-  const firstMessageAvgInput = firstMessageCount > 0
-    ? Math.round(firstMessageInputSum / firstMessageCount)
+  const firstMessageAvgInput = acc.firstMessageCount > 0
+    ? Math.round(acc.firstMessageInputSum / acc.firstMessageCount)
     : 0;
-  const steadyStateAvgInput = steadyStateCount > 0
-    ? Math.round(steadyStateInputSum / steadyStateCount)
+  const steadyStateAvgInput = acc.steadyStateCount > 0
+    ? Math.round(acc.steadyStateInputSum / acc.steadyStateCount)
     : 0;
 
-  // ROI
-  const roi = cacheCreationCost > 0 ? cacheReadSavings / cacheCreationCost : 0;
+  const roi = acc.cacheCreationCost > 0 ? acc.cacheReadSavings / acc.cacheCreationCost : 0;
 
-  // Build message curve
   const messageCurve: { index: number; cacheReadPct: number }[] = [];
-  for (let i = 0; i < curveAccum.length; i++) {
-    const acc = curveAccum[i];
-    if (acc && acc.count > 0) {
-      messageCurve.push({
-        index: i + 1, // 1-based
-        cacheReadPct: acc.sumPct / acc.count,
-      });
+  for (let i = 0; i < acc.curveAccum.length; i++) {
+    const c = acc.curveAccum[i];
+    if (c && c.count > 0) {
+      messageCurve.push({ index: i + 1, cacheReadPct: c.sumPct / c.count });
     }
   }
 
@@ -114,8 +136,8 @@ export function computeCacheEfficiency(sessions: ParsedSession[]): CacheEfficien
     hitRate,
     firstMessageAvgInput,
     steadyStateAvgInput,
-    cacheCreationCost,
-    cacheReadSavings,
+    cacheCreationCost: acc.cacheCreationCost,
+    cacheReadSavings: acc.cacheReadSavings,
     roi,
     messageCurve,
   };
