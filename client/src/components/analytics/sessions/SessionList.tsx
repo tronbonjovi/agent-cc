@@ -3,38 +3,14 @@ import { SessionRow } from "./SessionRow";
 import { SessionFilters, type SessionFilterState } from "./SessionFilters";
 import type { SessionData } from "@shared/types";
 
-interface SessionListItem {
-  id: string;
-  isActive: boolean;
-  healthScore: "good" | "fair" | "poor" | null;
-  isEmpty: boolean;
-}
-
-/** Apply filter pills to sessions. Exported for testing. */
-export function applyFilters<T extends SessionListItem>(
-  sessions: T[],
-  filters: { health?: string[]; status?: string[] },
-): T[] {
-  let result = sessions;
-
-  if (filters.health?.length) {
-    result = result.filter(s => filters.health!.includes(s.healthScore ?? ""));
-  }
-
-  if (filters.status?.length) {
-    result = result.filter(s => {
-      if (filters.status!.includes("active") && s.isActive) return true;
-      if (filters.status!.includes("inactive") && !s.isActive && !s.isEmpty) return true;
-      if (filters.status!.includes("empty") && s.isEmpty) return true;
-      if (filters.status!.includes("stale") && !s.isActive && !s.isEmpty && "lastTs" in s) {
-        const lastTs = (s as any).lastTs;
-        if (lastTs && Date.now() - new Date(lastTs).getTime() > 30 * 24 * 60 * 60 * 1000) return true;
-      }
-      return false;
-    });
-  }
-
-  return result;
+/**
+ * Filter passthrough — kept as an exported function for callsite stability
+ * after the health/status pills were removed. The Sessions tab no longer
+ * filters on those dimensions; search / sort / project / model do all the
+ * filtering work now and live inline in the SessionList render path.
+ */
+export function applyFilters<T>(sessions: T[], _filters: unknown): T[] {
+  return sessions;
 }
 
 interface SortableSession {
