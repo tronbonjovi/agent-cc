@@ -243,8 +243,7 @@ interface SessionOverviewProps {
 }
 
 export function SessionOverview({
-  parsed, costUsd, inputTokens, outputTokens,
-  cacheReadTokens, cacheCreationTokens,
+  parsed,
   healthScore, healthReasons, durationMinutes,
   tree,
 }: SessionOverviewProps) {
@@ -276,14 +275,16 @@ export function SessionOverview({
     stopReasons.set(m.stopReason, (stopReasons.get(m.stopReason) ?? 0) + 1);
   }
 
-  // Cache hit rate
-  const cacheRead = cacheReadTokens ?? 0;
-  const cacheCreate = cacheCreationTokens ?? 0;
-  const cacheTotal = cacheRead + cacheCreate;
-  const cacheHitRate = cacheTotal > 0 ? cacheRead / cacheTotal : null;
-
-  const totalInput = inputTokens ?? 0;
-  const totalOutput = outputTokens ?? 0;
+  // Self-compute cost / cache / sidechain from parsed + tree. Avoids the
+  // upstream prop-drilling chain that historically delivered zeros.
+  const costData = computeCostFromTree(tree, parsed);
+  const cacheStats = computeCacheStatsFromTree(tree, parsed);
+  const sidechainCount = computeSidechainCount(tree, parsed);
+  const cacheHitRate = cacheStats.cacheHitRate;
+  const cacheRead = cacheStats.cacheReadTokens;
+  const cacheTotal = cacheStats.cacheReadTokens + cacheStats.cacheCreationTokens;
+  const totalInput = costData.inputTokens;
+  const totalOutput = costData.outputTokens;
 
   return (
     <div className="space-y-4">
@@ -304,7 +305,7 @@ export function SessionOverview({
         />
         <MetricCell
           label="Cost"
-          value={formatMetric(costUsd, "cost")}
+          value={formatMetric(costData.costUsd, "cost")}
           subtitle={`${formatMetric(totalInput, "tokens")} in / ${formatMetric(totalOutput, "tokens")} out`}
         />
         <MetricCell
@@ -319,7 +320,7 @@ export function SessionOverview({
         />
         <MetricCell
           label="Sidechains"
-          value={String(counts.sidechainMessages)}
+          value={String(sidechainCount)}
         />
         <MetricCell
           label="Version"
