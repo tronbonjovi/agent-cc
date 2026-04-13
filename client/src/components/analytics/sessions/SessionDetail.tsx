@@ -5,8 +5,6 @@ import { SessionToolTimeline } from "./SessionToolTimeline";
 import { TokenBreakdown } from "./TokenBreakdown";
 import { LinkedTask } from "./LinkedTask";
 import { SessionFilterBar, applySessionPreset, type SessionFilterBarState } from "./SessionFilterBar";
-// FileImpact / HealthDetails / LifecycleEvents are no longer rendered here;
-// task009 deletes the orphaned files. Imports removed to satisfy noUnusedLocals.
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pin, Trash2, GitBranch, Clock, FolderOpen } from "lucide-react";

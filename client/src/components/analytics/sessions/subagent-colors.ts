@@ -2,10 +2,10 @@
 //
 // Shared subagent palette + owner-resolution helpers (flat-to-tree wave2 task001).
 //
-// Extracted unchanged from ToolTimeline.tsx so TokenBreakdown, FileImpact,
-// and other tree-aware views can color rows by owning subagent without
-// duplicating the palette / hash / walk logic. ToolTimeline.tsx re-exports
-// the four originals from this module for backward compatibility.
+// Originally extracted from ToolTimeline.tsx so TokenBreakdown and other
+// tree-aware views could color rows by owning subagent without duplicating
+// the palette / hash / walk logic. ToolTimeline.tsx was deleted in task009;
+// SessionToolTimeline and the remaining consumers now import from here.
 
 import type {
   ToolExecution,

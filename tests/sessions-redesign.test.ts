@@ -1,45 +1,20 @@
 // tests/sessions-redesign.test.ts
-// Tests for sessions redesign: lifecycle event labels and relative time formatting
+// Tests for sessions redesign: relative time formatting and SessionDetail fixes.
+//
+// Note: the original "lifecycle event labels" + src-reading "relative time"
+// coverage pointed at client/src/components/analytics/sessions/LifecycleEvents.tsx,
+// which was deleted in sessions-makeover task009. The salvaged three facts
+// (active duration, model switches, first error) now live in activity-summary.ts
+// and are covered by tests/sessions-overview-helpers.test.ts.
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 
-const LIFECYCLE_PATH = path.resolve(
-  __dirname,
-  "../client/src/components/analytics/sessions/LifecycleEvents.tsx"
-);
-
-describe("lifecycle event labels", () => {
-  const src = fs.readFileSync(LIFECYCLE_PATH, "utf-8");
-
-  it("renders permission-change as 'Permission Changed'", () => {
-    expect(src).toContain('"permission-change": "Permission Changed"');
-  });
-
-  it("renders tools-changed as 'Tools Updated'", () => {
-    expect(src).toContain('"tools-changed": "Tools Updated"');
-  });
-
-  it("renders queue-enqueue as 'Queued'", () => {
-    expect(src).toContain('"queue-enqueue": "Queued"');
-  });
-
-  it("falls back to raw type for unknown events", () => {
-    expect(src).toMatch(/EVENT_LABELS\[event\.type\]\s*\?\?\s*event\.type/);
-  });
-});
-
 describe("relative time formatting", () => {
-  // Extract and test the formatRelativeTime function logic
-  // We verify the function exists and test its behavior by evaluating it
-
-  const src = fs.readFileSync(LIFECYCLE_PATH, "utf-8");
-
-  it("has a formatRelativeTime helper function", () => {
-    expect(src).toMatch(/function formatRelativeTime\(ms:\s*number\)/);
-  });
-
-  // Test the actual formatting logic by extracting and evaluating the function
+  // Pure reimplementation kept here so the sessions-redesign describe continues
+  // to guard the formatting rules that the old LifecycleEvents component used.
+  // If activity-summary or any future consumer needs the same helper, extract
+  // it into a shared util and update this test to import from there.
   function formatRelativeTime(ms: number): string {
     const totalSec = Math.round(ms / 1000);
     if (totalSec < 60) return `+${totalSec}s`;
@@ -69,10 +44,6 @@ describe("relative time formatting", () => {
 
   it("formats exact hours without minutes", () => {
     expect(formatRelativeTime(7200000)).toBe("+2h");
-  });
-
-  it("uses formatRelativeTime for relative time display", () => {
-    expect(src).toMatch(/formatRelativeTime\(relativeMs\)/);
   });
 });
 
