@@ -156,6 +156,28 @@ function abbreviateAgentType(
   return t.slice(0, 5);
 }
 
+/**
+ * Render the human-readable role label for a token row. Tree-aware: when the
+ * row's owner is a subagent-root, returns `Subagent: <agentType>` (falling
+ * back to `Subagent: subagent` when the lookup fails). Otherwise returns
+ * `Assistant` or `User` based on the row's role. Replaces the cryptic
+ * single-letter `A`/`U`/`sA` badges from the pre-makeover layout.
+ */
+export function roleLabel(
+  row: { role: "user" | "assistant"; owner: { kind: string; agentId: string | null } },
+  tree: SerializedSessionTreeForClient | null | undefined,
+): string {
+  if (row.role === "user") return "User";
+  if (tree && row.owner.kind === "subagent-root" && row.owner.agentId) {
+    const sub = tree.subagentsByAgentId?.[row.owner.agentId] as
+      | { agentType?: string }
+      | undefined;
+    const type = sub?.agentType ?? "subagent";
+    return `Subagent: ${type}`;
+  }
+  return "Assistant";
+}
+
 interface TokenBreakdownProps {
   assistantMessages: AssistantRecord[];
   userMessages: UserRecord[];
@@ -226,7 +248,7 @@ export function TokenBreakdown({ assistantMessages, userMessages, tree }: TokenB
                   <td className="py-1 px-1 text-muted-foreground">{row.index}</td>
                   <td className="py-1 px-1">
                     <Badge variant={row.role === "assistant" ? "default" : "outline"} className="text-[9px] px-1 py-0">
-                      {row.role === "assistant" ? "A" : "U"}
+                      {roleLabel(row, tree)}
                     </Badge>
                   </td>
                   <td className="py-1 px-1 text-right">{formatK(row.inputTokens)}</td>
