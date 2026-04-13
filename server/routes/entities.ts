@@ -21,7 +21,7 @@ router.get("/api/entities", (req: Request, res: Response) => {
 
 router.get("/api/entities/:id", (req: Request, res: Response) => {
   const entity = storage.getEntity(req.params.id as string);
-  if (!entity) return res.status(404).json({ message: "Entity not found" });
+  if (!entity) return res.status(404).json({ error: "Entity not found" });
   res.json(entity);
 });
 

@@ -30,7 +30,7 @@ import {
   Rocket,
 } from "lucide-react";
 import { HealthThresholdsSettings } from "@/components/settings-health-thresholds";
-import { WorkflowConfigPanel } from "@/components/session-analytics-panel";
+import { WorkflowConfigPanel } from "@/components/settings/workflow-config-panel";
 
 // ---- Shared utilities ----
 

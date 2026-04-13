@@ -1,6 +1,5 @@
-import path from "path";
 import fs from "fs";
-import { CLAUDE_DIR, dirExists, safeReadJson, readHead, extractText, normPath } from "./utils";
+import { CLAUDE_DIR, dirExists, safeReadJson, readHead, normPath } from "./utils";
 import { getCachedExecutions } from "./agent-scanner";
 import { getCachedSessions } from "./session-scanner";
 import { storage } from "../storage";

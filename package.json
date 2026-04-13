@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "dev": "tsx server/index.ts",
-    "build": "tsx script/build.ts",
+    "build": "tsx scripts/build.ts",
     "start": "node dist/index.cjs",
     "check": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts",

@@ -1,5 +1,5 @@
 import type { Entity } from "@shared/types";
-import { entityId, safeReadText, getFileStat, HOME, CLAUDE_DIR, now, fileExists, dirExists, listFiles, discoverProjectDirs, listDirs, normPath } from "./utils";
+import { entityId, safeReadText, getFileStat, HOME, CLAUDE_DIR, now, dirExists, listFiles, discoverProjectDirs, listDirs, normPath } from "./utils";
 import path from "path";
 import fs from "fs";
 import matter from "gray-matter";

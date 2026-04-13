@@ -1,4 +1,4 @@
-import { CLAUDE_DIR, dirExists, fileExists, readHead, readTailTs, extractText, normPath } from "./utils";
+import { CLAUDE_DIR, dirExists, fileExists, normPath } from "./utils";
 import path from "path";
 import fs from "fs";
 import type { SessionData, SessionStats } from "@shared/types";

@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { handleRouteError } from "../lib/route-errors";
 import { storage } from "../storage";
 import { spawn, execSync } from "child_process";
 import path from "path";
@@ -103,13 +104,13 @@ router.get("/api/graph/ai-suggest/status", (_req: Request, res: Response) => {
   res.json(result);
 });
 
-router.post("/api/graph/ai-suggest", async (req: Request, res: Response) => {
+router.post("/api/graph/ai-suggest", async (_req: Request, res: Response) => {
   // Check claude CLI first
   const cliCheck = checkClaudeCli();
   if (!cliCheck.available) {
     return res.status(503).json({
-      message: "Claude CLI not available",
-      error: cliCheck.error,
+      error: "Claude CLI not available",
+      detail: cliCheck.error,
       setup: true,
     });
   }
@@ -182,7 +183,7 @@ Respond with ONLY valid JSON (no markdown, no explanation):
     child.on("error", (err: Error) => {
       clearTimeout(timeout);
       if (!res.headersSent) {
-        res.status(500).json({ message: "Failed to spawn claude CLI", error: err.message });
+        handleRouteError(res, err, "routes/ai-suggest/spawn");
       }
     });
 
@@ -197,10 +198,10 @@ Respond with ONLY valid JSON (no markdown, no explanation):
 
       if (!stdout.trim()) {
         if (code !== 0) {
-          console.error("[ai-suggest] claude -p failed with no output:", stderr.slice(0, 500));
-          return res.status(500).json({ message: "AI suggestion failed", error: stderr.slice(0, 200) || `Exit code: ${code}` });
+          const detail = stderr.slice(0, 200) || `Exit code: ${code}`;
+          return handleRouteError(res, new Error(detail), "routes/ai-suggest/failed");
         }
-        return res.status(500).json({ message: "AI returned empty response" });
+        return handleRouteError(res, new Error("AI returned empty response"), "routes/ai-suggest/empty");
       }
 
       try {
@@ -276,13 +277,11 @@ Respond with ONLY valid JSON (no markdown, no explanation):
           reasoning: suggestions.reasoning || [],
         });
       } catch (parseErr) {
-        console.error("[ai-suggest] Failed to parse AI response:", stdout.slice(0, 500));
-        res.status(500).json({ message: "Failed to parse AI suggestions", raw: stdout.slice(0, 500) });
+        handleRouteError(res, parseErr, "routes/ai-suggest/parse");
       }
     });
   } catch (err) {
-    console.error("[ai-suggest] Error:", err);
-    res.status(500).json({ message: "AI suggestion failed" });
+    handleRouteError(res, err, "routes/ai-suggest/run");
   }
 });
 

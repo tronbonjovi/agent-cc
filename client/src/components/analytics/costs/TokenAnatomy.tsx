@@ -1,23 +1,9 @@
 import { useState, useMemo } from "react";
 import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { useTokenAnatomy, type TokenAnatomyCategory } from "@/hooks/use-sessions";
-import { Layers } from "lucide-react";
-
-// ---- Utilities ----
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
-  return n.toString();
-}
-
-function formatUsd(n: number): string {
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(4)}`;
-}
+import { formatTokens, formatUsd } from "@/lib/format";
 
 // ---- Category config ----
 
@@ -28,8 +14,6 @@ const CATEGORIES = [
   { key: "thinking", label: "Thinking", color: "#a78bfa" },
   { key: "cacheOverhead", label: "Cache Overhead", color: "#f43f5e" },
 ] as const;
-
-type CategoryKey = (typeof CATEGORIES)[number]["key"];
 
 // ---- Loading skeleton ----
 

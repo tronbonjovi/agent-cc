@@ -144,11 +144,12 @@ describe("legacy message-history.tsx removed", () => {
 
   it("PromptsPanel was relocated to its own file", () => {
     // The Library page used to import PromptsPanel from message-history.tsx.
-    // After the cleanup it lives in its own page module so the symbol
-    // survives the removal.
+    // After messages-redesign-task005 it moved to its own module. During
+    // codebase-cleanup-task007 it was relocated from pages/ to
+    // components/library/ to match intent.
     const promptsPath = path.resolve(
       __dirname,
-      "../client/src/pages/prompts-panel.tsx",
+      "../client/src/components/library/prompts-panel.tsx",
     );
     expect(fs.existsSync(promptsPath)).toBe(true);
     const src = fs.readFileSync(promptsPath, "utf-8");

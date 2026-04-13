@@ -9,8 +9,8 @@ import McpsTab from "@/components/library/mcps-tab";
 import AgentsTab from "@/components/library/agents-tab";
 import FileEditorTab from "@/components/library/file-editor-tab";
 import { DiscoverTab } from "@/components/discover-tab";
-import { PromptsPanel } from "@/pages/prompts-panel";
-import { BashKnowledgePanel } from "@/components/session-analytics-panel";
+import { PromptsPanel } from "@/components/library/prompts-panel";
+import { BashKnowledgePanel } from "@/components/library/bash-knowledge-panel";
 
 const TAB_ICONS: Record<LibraryTabId, React.ElementType> = {
   skills: BookOpen,

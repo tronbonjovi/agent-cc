@@ -1,7 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 export function invalidateDataQueries(qc: QueryClient) {
-  for (const key of ["/api/entities", "/api/scanner/status", "/api/projects", "/api/sessions", "/api/graph", "/api/apis", "/api/live", "/api/stats", "/api/markdown", "/api/tasks"]) {
+  for (const key of ["/api/entities", "/api/scanner/status", "/api/projects", "/api/sessions", "/api/graph", "/api/apis", "/api/live", "/api/stats", "/api/markdown"]) {
     qc.invalidateQueries({ queryKey: [key] });
   }
 }

@@ -135,7 +135,7 @@ describe("DELETE /api/projects/:id", () => {
 
     const res = await request(app).delete(`/api/projects/${currentId}`);
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/current project/i);
+    expect(res.body.error).toMatch(/current project/i);
     // Entity should still exist
     expect(mockEntities[currentId]).toBeDefined();
   });

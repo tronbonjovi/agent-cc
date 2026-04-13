@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { shortModel } from "@/lib/utils";
+import { sessionHealthBadgeVariant, type SessionHealthScore } from "@/lib/session-health";
 import type {
   AssistantRecord,
   ParsedSession,
@@ -142,7 +143,7 @@ interface SessionOverviewProps {
   outputTokens?: number;
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
-  healthScore?: "good" | "fair" | "poor" | null;
+  healthScore?: SessionHealthScore;
   healthReasons?: string[];
   durationMinutes?: number | null;
   /**
@@ -291,7 +292,7 @@ export function SessionOverview({
         <div className="px-4 space-y-1">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Health</span>
           <div className="flex items-center gap-2">
-            <Badge variant={healthScore === "good" ? "default" : healthScore === "fair" ? "secondary" : "destructive"}>
+            <Badge variant={sessionHealthBadgeVariant(healthScore)}>
               {healthScore}
             </Badge>
             {healthReasons?.map((r, i) => (

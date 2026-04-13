@@ -1,7 +1,7 @@
 import chokidar from "chokidar";
 import { HOME, CLAUDE_DIR, dirExists, discoverProjectDirs } from "./utils";
 import { runFullScan, runPartialScan } from "./index";
-import { getCachedSessions, getCachedStats } from "./session-scanner";
+import { getCachedStats } from "./session-scanner";
 import { getCachedExecutions } from "./agent-scanner";
 import { PERIODIC_SCAN_INTERVAL_MS, DEBOUNCE_MS } from "../config";
 import path from "path";

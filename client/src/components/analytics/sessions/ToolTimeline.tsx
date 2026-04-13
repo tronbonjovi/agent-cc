@@ -2,12 +2,7 @@ import { useState, Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Check, X, ChevronDown, ChevronRight, GitBranch } from "lucide-react";
 import type { ToolExecution, SerializedSessionTreeForClient } from "@shared/session-types";
-import {
-  PALETTE,
-  colorClassForOwner,
-  resolveToolOwner,
-  type ToolOwner,
-} from "./subagent-colors";
+import { colorClassForOwner, resolveToolOwner } from "./subagent-colors";
 
 // Backward-compat re-exports — wave1 task004 inlined PALETTE / ToolOwner /
 // colorClassForOwner / resolveToolOwner here, and `tests/tool-timeline.test.ts`

@@ -22,6 +22,7 @@ import {
   Legend,
 } from "recharts";
 import { useChartFilters } from "../GlobalFilterBar";
+import { formatDate, formatTokens } from "@/lib/format";
 
 interface TimelineRow {
   date: string;
@@ -47,17 +48,6 @@ function rangeToDays(range: string): string {
   return "30";
 }
 
-function formatDate(d: string): string {
-  const date = new Date(d + "T00:00:00");
-  if (Number.isNaN(date.getTime())) return d;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
-  return n.toString();
-}
 
 function ActivityTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ payload: TimelineRow }>; label?: string }) {
   if (!active || !payload?.[0]) return null;

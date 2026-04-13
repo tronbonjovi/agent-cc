@@ -4,7 +4,7 @@ import { useLibraryItems, useInstallItem, useUninstallItem, useRemoveItem } from
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Puzzle, Store, ShieldAlert, ShieldCheck, Server, ShoppingBag, RefreshCw, Settings } from "lucide-react";
+import { Puzzle, Store, ShieldAlert, ShieldCheck, RefreshCw, Settings } from "lucide-react";
 import { DiscoverPanel } from "@/components/library/discover-panel";
 import { EntityCard } from "@/components/library/entity-card";
 import type { EntityCardStatus } from "@/components/library/entity-card";
@@ -54,7 +54,7 @@ export default function PluginsTab() {
     return tags;
   };
 
-  const getStatus = (plugin: PluginEntity): EntityCardStatus => {
+  const getStatus = (_plugin: PluginEntity): EntityCardStatus => {
     return "installed";
   };
 

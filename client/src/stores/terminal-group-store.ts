@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { TerminalPanelState, TerminalGroupData, TerminalInstanceData } from "@shared/types";
+import type { TerminalPanelState, TerminalInstanceData } from "@shared/types";
 
 interface TerminalInstanceInfo extends TerminalInstanceData {
   shellType: string;

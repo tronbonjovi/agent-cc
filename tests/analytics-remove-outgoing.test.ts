@@ -5,8 +5,6 @@ import fs from "fs";
 import path from "path";
 
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
-const PANEL_PATH = path.resolve(__dirname, "../client/src/components/session-analytics-panel.tsx");
-const SESSIONS_PATH = path.resolve(__dirname, "../client/src/pages/sessions.tsx");
 
 describe("analytics — remove outgoing: stats.tsx", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
@@ -33,34 +31,13 @@ describe("analytics — remove outgoing: stats.tsx", () => {
   });
 });
 
-describe("analytics — remove outgoing: session-analytics-panel.tsx", () => {
-  const src = fs.readFileSync(PANEL_PATH, "utf-8");
-
-  it("does NOT have PromptLibraryPanel in ANALYTICS_TABS", () => {
-    expect(src).not.toMatch(/id:\s*["']prompts["']/);
-  });
-
-  it("does NOT have ProjectDashboardPanel in ANALYTICS_TABS", () => {
-    expect(src).not.toMatch(/id:\s*["']projects["']/);
-  });
-
-  it("does NOT have BashKnowledgePanel in ANALYTICS_TABS", () => {
-    expect(src).not.toMatch(/id:\s*["']bash["']/);
-  });
-
-  it("does NOT have ProjectDashboardPanel function defined", () => {
-    expect(src).not.toMatch(/function\s+ProjectDashboardPanel/);
-  });
-});
-
-describe("analytics — remove outgoing: sessions.tsx", () => {
-  const src = fs.readFileSync(SESSIONS_PATH, "utf-8");
-
-  it("does NOT have a Prompts tab", () => {
-    expect(src).not.toMatch(/activeTab.*===.*["']prompts["']/);
-    expect(src).not.toMatch(/setActiveTab\(["']prompts["']\)/);
-  });
-});
+// Note (codebase-cleanup-task002): session-analytics-panel.tsx was deleted
+// entirely. The negative assertions previously checked here are satisfied
+// by construction since the module no longer exists.
+//
+// Note (codebase-cleanup-task001): the legacy client/src/pages/sessions.tsx
+// was also deleted; the "analytics — remove outgoing: sessions.tsx" block
+// that used to live here is satisfied by construction.
 
 describe("analytics — discover-tab.tsx extraction", () => {
   const discoverPath = path.resolve(__dirname, "../client/src/components/discover-tab.tsx");

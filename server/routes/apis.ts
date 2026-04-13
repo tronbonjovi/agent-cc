@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { handleRouteError } from "../lib/route-errors";
 import { scanApiConfig } from "../scanner/api-config-scanner";
 import type { ApiDefinition } from "@shared/types";
 
@@ -22,7 +23,7 @@ router.get("/api/apis", (_req: Request, res: Response) => {
   try {
     res.json(getApis());
   } catch (err) {
-    res.status(500).json({ message: "Failed to scan API config" });
+    handleRouteError(res, err, "routes/apis/list");
   }
 });
 
@@ -42,7 +43,7 @@ router.get("/api/apis/stats", (_req: Request, res: Response) => {
 
     res.json({ total: apis.length, byCategory, byStatus, byAuth });
   } catch (err) {
-    res.status(500).json({ message: "Failed to compute API stats" });
+    handleRouteError(res, err, "routes/apis/stats");
   }
 });
 

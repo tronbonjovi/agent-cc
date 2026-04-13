@@ -5,7 +5,7 @@ import type {
 } from "@shared/types";
 import { getPricing, computeCost } from "./pricing";
 import { sessionParseCache } from "./session-cache";
-import type { ParsedSession, AssistantTurnNode, ToolCallNode } from "@shared/session-types";
+import type { AssistantTurnNode, ToolCallNode } from "@shared/session-types";
 
 // Alias for backward compat within this file
 const calcCost = computeCost;

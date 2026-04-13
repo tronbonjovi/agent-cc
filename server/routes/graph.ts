@@ -373,7 +373,7 @@ router.get("/api/graph", (req: Request, res: Response) => {
       if (scope === "sessions") {
         const projectKey = req.query.project as string;
         if (!projectKey) {
-          return res.status(400).json({ message: "project param required for scope=sessions" });
+          return res.status(400).json({ error: "project param required for scope=sessions" });
         }
         const data = buildSessionsScope(projectKey);
         return res.json(data);

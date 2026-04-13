@@ -5,9 +5,9 @@ import { useSessions } from "@/hooks/use-sessions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EntityBadge, entityConfig } from "@/components/entity-badge";
+import { EntityBadge } from "@/components/entity-badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Server, Wand2, HardDrive, MessageSquare, ExternalLink, Edit3, ChevronRight, Layers, Zap, Clock, Terminal } from "lucide-react";
+import { ArrowLeft, FileText, Server, Wand2, HardDrive, MessageSquare, Edit3, ChevronRight, Layers, Zap, Clock } from "lucide-react";
 import type { MCPEntity, SkillEntity, MarkdownEntity } from "@shared/types";
 import { formatBytes, relativeTime } from "@/lib/utils";
 

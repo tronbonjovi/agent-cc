@@ -105,7 +105,7 @@ describe("plugins tab component", () => {
   });
 
   it("includes health indicator for marketplaces", () => {
-    // Health is now conveyed via EntityCard's health prop instead of HealthIndicator
+    // Health is conveyed via EntityCard's health prop
     expect(src).toMatch(/health=/);
   });
 });
@@ -131,7 +131,7 @@ describe("mcps tab component", () => {
   });
 
   it("includes health indicators", () => {
-    // Health is now conveyed via EntityCard's health prop instead of HealthIndicator
+    // Health is conveyed via EntityCard's health prop
     expect(src).toMatch(/health=/);
   });
 

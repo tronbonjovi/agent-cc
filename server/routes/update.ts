@@ -131,7 +131,7 @@ router.get("/api/update/prefs", (_req: Request, res: Response) => {
 router.patch("/api/update/prefs", (req: Request, res: Response) => {
   const parsed = UpdatePrefsSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: parsed.error.issues.map(i => i.message).join("; ") });
+    return res.status(400).json({ error: parsed.error.issues.map(i => i.message).join("; ") });
   }
   const current = loadPrefs();
   const updated = { ...current, ...parsed.data };

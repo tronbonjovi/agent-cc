@@ -1,7 +1,6 @@
 import type { Entity } from "@shared/types";
 import { entityId, safeReadText, getFileStat, CLAUDE_DIR, now, listDirs, fileExists, dirExists, getExtraPaths, discoverProjectDirs, normPath } from "./utils";
 import path from "path";
-import fs from "fs";
 import matter from "gray-matter";
 
 export function scanSkills(): Entity[] {

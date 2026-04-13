@@ -71,16 +71,8 @@ describe("Old CostsTab removed from stats.tsx", () => {
     expect(source).toContain("<CostsTab");
   });
 
-  it("does not break other tabs (UsageTab, ActivityTab still exist)", () => {
+  it("still renders EntityGraph for the nerve-center tab", () => {
     const source = fs.readFileSync(statsPath, "utf-8");
-    expect(source).toContain("function UsageTab");
-    expect(source).toContain("function ActivityTab");
     expect(source).toContain("EntityGraph");
-  });
-
-  it("retains formatTokens and formatUsd (used by other components)", () => {
-    const source = fs.readFileSync(statsPath, "utf-8");
-    expect(source).toContain("function formatTokens");
-    expect(source).toContain("function formatUsd");
   });
 });

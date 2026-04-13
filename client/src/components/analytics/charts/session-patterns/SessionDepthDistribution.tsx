@@ -1,18 +1,17 @@
 // client/src/components/analytics/charts/session-patterns/SessionDepthDistribution.tsx
 //
 // Histogram of session depth (= tree.totals.assistantTurns, which INCLUDES
-// subagent turns — see "Scanner capability update" in
-// .claude/roadmap/charts-enrichment/charts-enrichment-task004.md).
+// subagent turns — the depth metric is tree-inclusive by design so a
+// 5-turn parent that dispatched a 50-turn subagent registers deep, not
+// shallow).
 //
 // - Horizontal BarChart from /api/charts/session-distributions (depth buckets)
 // - Median + mean reference lines computed from the bucket midpoints
-// - X-axis labeled "Assistant turns (includes subagent turns)" so the
-//   reader knows a 5-turn parent that dispatched a 50-turn subagent does
-//   not register as shallow
+// - X-axis labeled "Assistant turns (includes subagent turns)" to make the
+//   tree-inclusive semantics explicit at the reader
 // - Tooltip currently shows the bucket count only. Adding a "N with subagents"
-//   subcount requires the backend to return that field per bucket; that work
-//   is owned by charts-enrichment-task007. For now there is a TODO marker
-//   in the tooltip code referencing task007.
+//   subcount would require the backend to return that field per bucket;
+//   deferred — not currently tracked against an open task.
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine,
@@ -83,9 +82,9 @@ function DepthTooltip({ active, payload, label }: { active?: boolean; payload?: 
       <div className="text-muted-foreground">
         Sessions: <span className="font-mono text-foreground">{row.count}</span>
       </div>
-      {/* TODO(charts-enrichment-task007): backend does not yet return a
-          "with subagents" subcount per depth bucket. Once /api/charts/session-distributions
-          is extended to include `withSubagents`, render it here as
+      {/* Future enhancement: /api/charts/session-distributions does not
+          yet return a "with subagents" subcount per depth bucket. If the
+          backend gains a `withSubagents` field, render it here as
           `N with subagents` so the reader can see how much of each bucket's
           depth came from delegation. */}
     </div>

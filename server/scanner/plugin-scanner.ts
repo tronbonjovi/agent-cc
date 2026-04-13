@@ -1,5 +1,5 @@
 import type { Entity } from "@shared/types";
-import { entityId, safeReadJson, getFileStat, CLAUDE_DIR, now, dirExists, fileExists, getExtraPaths, normPath } from "./utils";
+import { entityId, safeReadJson, CLAUDE_DIR, now, dirExists, fileExists, getExtraPaths, normPath } from "./utils";
 import { PLUGIN_CATALOG } from "./knowledge-base";
 import path from "path";
 import fs from "fs";
@@ -24,9 +24,6 @@ export function scanPlugins(): Entity[] {
 
   if (marketplacesJson) {
     for (const [marketplaceId, config] of Object.entries(marketplacesJson)) {
-      const installLocation = config.installLocation?.replace(/\\/g, "/");
-      const stat = installLocation ? getFileStat(installLocation) : null;
-
       // Check if marketplace dir has plugins.
       // Marketplaces may organize plugins into container dirs like "plugins/" and
       // "external_plugins/", so we look one level deeper when a top-level subdir

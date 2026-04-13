@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { handleRouteError, NotFoundError } from "../lib/route-errors";
 import { getCostSummary, getSessionCostDetail } from "../scanner/cost-indexer";
 import { computeTokenAnatomy } from "../scanner/token-anatomy";
 import { computeModelIntelligence } from "../scanner/model-intelligence";
@@ -16,8 +17,7 @@ router.get("/api/analytics/costs", (_req, res) => {
     const summary = getCostSummary(days);
     res.json(summary);
   } catch (err) {
-    console.error("[cost-analytics] Failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to build cost analytics", error: (err as Error).message });
+    handleRouteError(res, err, "routes/analytics/costs/summary");
   }
 });
 
@@ -25,11 +25,10 @@ router.get("/api/analytics/costs", (_req, res) => {
 router.get("/api/analytics/costs/session/:id", (req, res) => {
   try {
     const detail = getSessionCostDetail(req.params.id);
-    if (!detail) return res.status(404).json({ message: "Session not found or has no cost data" });
+    if (!detail) throw new NotFoundError("Session not found or has no cost data");
     res.json(detail);
   } catch (err) {
-    console.error("[cost-analytics] Session detail failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to get session cost detail", error: (err as Error).message });
+    handleRouteError(res, err, "routes/analytics/costs/session");
   }
 });
 
@@ -51,8 +50,7 @@ router.get("/api/analytics/costs/anatomy", (_req, res) => {
     const anatomy = computeTokenAnatomy(filtered);
     res.json(anatomy);
   } catch (err) {
-    console.error("[cost-analytics] Anatomy failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute token anatomy", error: (err as Error).message });
+    handleRouteError(res, err, "routes/analytics/costs/anatomy");
   }
 });
 
@@ -74,8 +72,7 @@ router.get("/api/analytics/costs/models", (_req, res) => {
     const rows = computeModelIntelligence(filtered);
     res.json(rows);
   } catch (err) {
-    console.error("[cost-analytics] Models failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute model intelligence", error: (err as Error).message });
+    handleRouteError(res, err, "routes/analytics/costs/models");
   }
 });
 
@@ -97,8 +94,7 @@ router.get("/api/analytics/costs/cache", (_req, res) => {
     const result = computeCacheEfficiency(filtered);
     res.json(result);
   } catch (err) {
-    console.error("[cost-analytics] Cache efficiency failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute cache efficiency", error: (err as Error).message });
+    handleRouteError(res, err, "routes/analytics/costs/cache");
   }
 });
 
@@ -120,8 +116,7 @@ router.get("/api/analytics/costs/value", (_req, res) => {
     const result = computeSessionProjectValue(filtered);
     res.json(result);
   } catch (err) {
-    console.error("[cost-analytics] Value analysis failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute session/project value", error: (err as Error).message });
+    handleRouteError(res, err, "routes/analytics/costs/value");
   }
 });
 

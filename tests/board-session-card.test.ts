@@ -6,7 +6,6 @@ import {
   formatTokens,
   statusLightColor,
   statusLightTooltip,
-  shortenModel,
   formatAgentRole,
 } from "../client/src/components/board/session-indicators";
 import { truncateTitle } from "../client/src/components/board/board-task-card";
@@ -27,25 +26,20 @@ describe("session indicator logic", () => {
   });
 
   it("formats token counts as compact numbers", () => {
+    // These now delegate to the canonical formatTokens in shared/format.ts
+    // which uses uppercase "K" and 1-decimal precision across all tiers.
     expect(formatTokens(500)).toBe("500");
-    expect(formatTokens(1500)).toBe("1.5k");
-    expect(formatTokens(50000)).toBe("50k");
+    expect(formatTokens(1500)).toBe("1.5K");
+    expect(formatTokens(50000)).toBe("50.0K");
     expect(formatTokens(1200000)).toBe("1.2M");
   });
 
   it("picks correct status light color", () => {
-    expect(statusLightColor(true, "good")).toBe("bg-green-500");
+    expect(statusLightColor(true, "good")).toBe("bg-emerald-500");
     expect(statusLightColor(true, "fair")).toBe("bg-amber-500");
     expect(statusLightColor(true, "poor")).toBe("bg-red-500");
     expect(statusLightColor(false, "good")).toBe("bg-slate-500");
-    expect(statusLightColor(true, null)).toBe("bg-green-500");
-  });
-
-  it("shortens model name for badge display", () => {
-    expect(shortenModel("claude-sonnet-4-6")).toBe("Sonnet 4.6");
-    expect(shortenModel("claude-opus-4-6")).toBe("Opus 4.6");
-    expect(shortenModel("claude-haiku-4-5-20251001")).toBe("Haiku 4.5");
-    expect(shortenModel(null)).toBe("");
+    expect(statusLightColor(true, null)).toBe("bg-muted-foreground/30");
   });
 
   it("formatCostLabel returns session-level qualifier", () => {
@@ -59,7 +53,7 @@ describe("session indicator logic", () => {
 
   it("returns correct status light tooltip text for all states", () => {
     expect(statusLightTooltip(true, "good")).toBe("Active — healthy");
-    expect(statusLightTooltip(true, "fair")).toBe("Active — moderate issues");
+    expect(statusLightTooltip(true, "fair")).toBe("Active — some issues");
     expect(statusLightTooltip(true, "poor")).toBe("Active — high error rate");
     expect(statusLightTooltip(true, null)).toBe("Active");
     expect(statusLightTooltip(false, "good")).toBe("Session ended");

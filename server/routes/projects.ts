@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { handleRouteError, NotFoundError, ValidationError } from "../lib/route-errors";
 import { storage } from "../storage";
 import { entityId, encodeProjectKey } from "../scanner/utils";
 import fs from "fs";
@@ -159,27 +160,26 @@ router.delete("/api/projects/:id", (req: Request, res: Response) => {
   try {
     const entity = storage.getEntity(req.params.id as string);
     if (!entity || entity.type !== "project") {
-      return res.status(404).json({ message: "Project not found" });
+      throw new NotFoundError("Project not found");
     }
 
     // Prevent deleting the current project (the one this server runs in)
     const currentProjectId = entityId(`project:${path.basename(process.cwd())}`);
     if (entity.id === currentProjectId) {
-      return res.status(400).json({ message: "Cannot delete the current project" });
+      throw new ValidationError("Cannot delete the current project");
     }
 
     storage.deleteEntity(entity.id);
     res.json({ ok: true });
   } catch (err) {
-    console.error("[projects] DELETE error:", err);
-    res.status(500).json({ message: "Failed to delete project" });
+    handleRouteError(res, err, "routes/projects/delete");
   }
 });
 
 router.get("/api/projects/:id", (req: Request, res: Response) => {
   const project = storage.getEntity(req.params.id as string);
   if (!project || project.type !== "project") {
-    return res.status(404).json({ message: "Project not found" });
+    return res.status(404).json({ error: "Project not found" });
   }
 
   const rels = storage.getRelationships(project.id);

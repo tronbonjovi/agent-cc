@@ -2,10 +2,11 @@
 //
 // "What would this usage cost at full API rates?" — derives an API-equivalent
 // dollar figure per week (or month for longer ranges) by combining the
-// per-day per-model token totals from /api/charts/models with a small
-// inline pricing table that mirrors server/scanner/pricing.ts. We can't
-// import server code from the client, so the pricing table is duplicated
-// here intentionally; this comment is the canonical reference.
+// per-day per-model token totals from /api/charts/models with the canonical
+// pricing table from shared/pricing.ts. The client uses only the input/output
+// fields (it doesn't have a clean per-model cache split available at this
+// endpoint) and a rough 70/30 input/output token ratio, which makes this a
+// deliberately approximate view — the header label makes that explicit.
 //
 // Bars are stacked by model and rendered weekly for ranges <= 90 days,
 // monthly for "all".
@@ -22,6 +23,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useChartFilters } from "../GlobalFilterBar";
+import { formatUsd } from "@/lib/format";
+import { MODEL_PRICING } from "@shared/pricing";
 
 export interface APIEquivalentValueProps {
   breakdown?: "all" | "parent";
@@ -32,22 +35,24 @@ interface ModelRow {
   [model: string]: string | number;
 }
 
-// USD per million tokens — mirrors server/scanner/pricing.ts. Order matters:
-// version-specific keys before family keys so "opus-4-6" is matched before
-// "opus".
+// Derived from the shared MODEL_PRICING record: the chart only needs the
+// input/output rates, so we project those fields into a lookup array that
+// preserves insertion order (version-specific keys before family keys so
+// "opus-4-6" is matched before "opus").
 interface ModelPrice {
   input: number;
   output: number;
 }
-const PRICING: Array<{ key: string; price: ModelPrice }> = [
-  { key: "opus-4-5", price: { input: 5, output: 25 } },
-  { key: "opus-4-6", price: { input: 5, output: 25 } },
-  { key: "opus", price: { input: 15, output: 75 } },
-  { key: "sonnet", price: { input: 3, output: 15 } },
-  { key: "haiku-4-5", price: { input: 1, output: 5 } },
-  { key: "haiku", price: { input: 0.8, output: 4 } },
-];
-const DEFAULT_PRICE: ModelPrice = { input: 3, output: 15 };
+const PRICING: Array<{ key: string; price: ModelPrice }> = Object.entries(
+  MODEL_PRICING,
+).map(([key, pricing]) => ({
+  key,
+  price: { input: pricing.input, output: pricing.output },
+}));
+const DEFAULT_PRICE: ModelPrice = {
+  input: MODEL_PRICING.sonnet.input,
+  output: MODEL_PRICING.sonnet.output,
+};
 
 function priceForModel(model: string): ModelPrice {
   const lower = model.toLowerCase();
@@ -72,13 +77,6 @@ function estimateModelCost(model: string, totalTokens: number): number {
   return (input * p.input + output * p.output) / 1_000_000;
 }
 
-function formatUsd(n: number): string {
-  if (!Number.isFinite(n) || n === 0) return "$0";
-  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
-  if (n >= 100) return `$${n.toFixed(0)}`;
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  return `$${n.toFixed(3)}`;
-}
 
 // Builds the query string for /api/charts/models including the section
 // breakdown toggle as `breakdown=parent|all`.

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { SessionRow } from "./SessionRow";
-import { SessionFilters, type SessionFilterState, type SortOption } from "./SessionFilters";
+import { SessionFilters, type SessionFilterState } from "./SessionFilters";
 import type { SessionData } from "@shared/types";
 
 interface SessionListItem {

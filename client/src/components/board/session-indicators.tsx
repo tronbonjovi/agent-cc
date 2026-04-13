@@ -2,16 +2,22 @@ import { Activity, Bot, Cpu, DollarSign, MessageSquare, Clock } from "lucide-rea
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import type { SessionEnrichment } from "@shared/board-types";
+import { formatCost, formatTokens } from "@/lib/format";
+import { shortModel } from "@/lib/utils";
+import { sessionHealthColor, sessionHealthLabel, type SessionHealthScore } from "@/lib/session-health";
 
-// ── Formatting functions (exported for unit testing) ──────────────────────────
-
-export function formatCost(usd: number): string {
-  return `$${usd.toFixed(2)}`;
-}
+// ── Formatting re-exports (canonical definitions live in @/lib/format) ────────
+//
+// `formatCost` and `formatTokens` are re-exported so existing
+// `./session-indicators` imports keep working without per-caller changes.
+export { formatCost, formatTokens };
 
 /**
  * Format cost with a "(session)" qualifier to indicate the cost covers the
  * entire session, not just the individual task. Returns empty string for zero.
+ *
+ * Kept here (not in shared/format.ts) because it's specific to the board's
+ * session-cost display pattern — not a general canonical formatter.
  */
 export function formatCostLabel(usd: number): string {
   if (usd === 0) return "";
@@ -27,40 +33,21 @@ export function formatDuration(minutes: number | null): string {
   return `${h}h ${m}m`;
 }
 
-export function formatTokens(count: number): string {
-  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
-  if (count >= 10_000) return `${Math.round(count / 1_000)}k`;
-  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}k`;
-  return String(count);
-}
-
 export function statusLightColor(
   isActive: boolean,
-  healthScore: "good" | "fair" | "poor" | null
+  healthScore: SessionHealthScore
 ): string {
   if (!isActive) return "bg-slate-500";
-  if (healthScore === "poor") return "bg-red-500";
-  if (healthScore === "fair") return "bg-amber-500";
-  return "bg-green-500";
+  return sessionHealthColor(healthScore);
 }
 
 export function statusLightTooltip(
   isActive: boolean,
-  healthScore: "good" | "fair" | "poor" | null
+  healthScore: SessionHealthScore
 ): string {
   if (!isActive) return "Session ended";
-  if (healthScore === "poor") return "Active — high error rate";
-  if (healthScore === "fair") return "Active — moderate issues";
-  if (healthScore === "good") return "Active — healthy";
-  return "Active";
-}
-
-export function shortenModel(model: string | null): string {
-  if (!model) return "";
-  const match = model.match(/claude-(\w+)-(\d+)-(\d+)/);
-  if (!match) return model;
-  const [, family, major, minor] = match;
-  return `${family.charAt(0).toUpperCase() + family.slice(1)} ${major}.${minor}`;
+  if (healthScore == null) return "Active";
+  return `Active — ${sessionHealthLabel(healthScore).toLowerCase()}`;
 }
 
 /** Format an agent role string for display — capitalize words, replace hyphens with spaces. */
@@ -123,8 +110,8 @@ export function StatusLight({ session }: SessionProps) {
 
 /** Small badge showing the shortened model name with a CPU icon. */
 export function ModelBadge({ model }: { model: string | null }) {
-  const label = shortenModel(model);
-  if (!label) return null;
+  if (!model) return null;
+  const label = shortModel(model);
   return (
     <Badge variant="secondary" className="gap-0.5 px-1.5 py-0.5 text-[10px] leading-none font-normal">
       <Cpu className="h-2.5 w-2.5" />

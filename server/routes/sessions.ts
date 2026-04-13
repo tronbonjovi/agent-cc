@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { spawn, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
-import os from "os";
+import { handleRouteError } from "../lib/route-errors";
 import { getCachedSessions, getCachedStats, removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
 import { CLAUDE_DIR, encodeProjectKey, dirExists, readMessageTimeline } from "../scanner/utils";
 import { SessionIdSchema, SessionListSchema, IdsArraySchema, DeepSearchSchema, validate, qstr, validateSafePath } from "./validation";
@@ -265,8 +265,7 @@ router.get("/api/sessions/search", async (req: Request, res: Response) => {
     });
     res.json(result);
   } catch (err) {
-    console.error("[sessions] Deep search failed:", (err as Error).message);
-    res.status(500).json({ message: "Search failed" });
+    handleRouteError(res, err, "routes/sessions/search");
   }
 });
 
@@ -297,7 +296,7 @@ router.get("/api/sessions/analytics/stale", (_req: Request, res: Response) => {
 /** POST /api/sessions/context-loader — Generate context prompt for a project */
 router.post("/api/sessions/context-loader", (req: Request, res: Response) => {
   const project = (req.body as { project?: string })?.project;
-  if (!project) return res.status(400).json({ message: "project is required" });
+  if (!project) return res.status(400).json({ error: "project is required" });
 
   const sessions = getCachedSessions();
   const summaries = storage.getSummaries();
@@ -369,7 +368,7 @@ router.get("/api/sessions/prompts", (_req: Request, res: Response) => {
 /** POST /api/sessions/prompts — Create prompt template */
 router.post("/api/sessions/prompts", (req: Request, res: Response) => {
   const body = req.body as { name?: string; description?: string; prompt?: string; project?: string; tags?: string[] };
-  if (!body.name || !body.prompt) return res.status(400).json({ message: "name and prompt are required" });
+  if (!body.name || !body.prompt) return res.status(400).json({ error: "name and prompt are required" });
 
   const template = {
     id: crypto.randomUUID(),
@@ -391,7 +390,7 @@ router.post("/api/sessions/prompts", (req: Request, res: Response) => {
 router.patch("/api/sessions/prompts/:id", (req: Request, res: Response) => {
   const id = String(req.params.id);
   const existing = storage.getPromptTemplate(id);
-  if (!existing) return res.status(404).json({ message: "Template not found" });
+  if (!existing) return res.status(404).json({ error: "Template not found" });
 
   const body = req.body as Partial<{ name: string; description: string; prompt: string; tags: string[]; isFavorite: boolean }>;
   const updated = {
@@ -411,7 +410,7 @@ router.patch("/api/sessions/prompts/:id", (req: Request, res: Response) => {
 /** DELETE /api/sessions/prompts/:id — Delete prompt template */
 router.delete("/api/sessions/prompts/:id", (req: Request, res: Response) => {
   const id = String(req.params.id);
-  if (!storage.getPromptTemplate(id)) return res.status(404).json({ message: "Template not found" });
+  if (!storage.getPromptTemplate(id)) return res.status(404).json({ error: "Template not found" });
   storage.deletePromptTemplate(id);
   res.json({ message: "Deleted" });
 });
@@ -435,14 +434,14 @@ router.post("/api/sessions/workflows/run", async (_req: Request, res: Response) 
     const result = await runAutoWorkflows(sessions);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: (err as Error).message });
+    handleRouteError(res, err, "routes/sessions/workflows/run");
   }
 });
 
 /** POST /api/sessions/pin/:id — Toggle pin */
 router.post("/api/sessions/pin/:id", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(String(req.params.id));
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
   const isPinned = storage.togglePin(idResult.data);
   res.json({ sessionId: idResult.data, isPinned });
 });
@@ -450,9 +449,9 @@ router.post("/api/sessions/pin/:id", (req: Request, res: Response) => {
 /** PATCH /api/sessions/:id/name — Set or clear custom session name */
 router.patch("/api/sessions/:id/name", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(String(req.params.id));
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
   const name = (req.body as { name?: string })?.name;
-  if (typeof name !== "string") return res.status(400).json({ message: "name is required (string)" });
+  if (typeof name !== "string") return res.status(400).json({ error: "name is required (string)" });
   const trimmed = name.trim();
   if (trimmed === "") {
     storage.deleteSessionName(idResult.data);
@@ -465,22 +464,22 @@ router.patch("/api/sessions/:id/name", (req: Request, res: Response) => {
 /** GET /api/sessions/file-timeline — Timeline of changes to a file across sessions */
 router.get("/api/sessions/file-timeline", (req: Request, res: Response) => {
   const filePath = qstr(req.query.path);
-  if (!filePath) return res.status(400).json({ message: "path parameter is required" });
+  if (!filePath) return res.status(400).json({ error: "path parameter is required" });
   const sessions = getCachedSessions();
   res.json(getFileTimeline(sessions, filePath));
 });
 
 /** POST /api/sessions/nl-query — Natural language query */
 router.post("/api/sessions/nl-query", async (req: Request, res: Response) => {
-  if (!isClaudeAvailable()) return res.status(503).json({ message: "Claude Code CLI not installed — required for natural language queries" });
+  if (!isClaudeAvailable()) return res.status(503).json({ error: "Claude Code CLI not installed — required for natural language queries" });
   const question = (req.body as { question?: string })?.question;
-  if (!question || question.length < 3) return res.status(400).json({ message: "question is required (min 3 chars)" });
+  if (!question || question.length < 3) return res.status(400).json({ error: "question is required (min 3 chars)" });
   try {
     const sessions = getCachedSessions();
     const result = await runNLQuery(question.slice(0, 500), sessions);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: (err as Error).message });
+    handleRouteError(res, err, "routes/sessions/nl-query");
   }
 });
 
@@ -499,7 +498,7 @@ router.get("/api/sessions/analytics/bash", (_req: Request, res: Response) => {
 /** GET /api/sessions/analytics/bash/search — Search bash commands */
 router.get("/api/sessions/analytics/bash/search", (req: Request, res: Response) => {
   const q = qstr(req.query.q);
-  if (!q) return res.status(400).json({ message: "q parameter required" });
+  if (!q) return res.status(400).json({ error: "q parameter required" });
   const sessions = getCachedSessions();
   res.json(searchBashCommands(sessions, q));
 });
@@ -510,7 +509,7 @@ router.get("/api/sessions/nerve-center", async (_req: Request, res: Response) =>
     const sessions = getCachedSessions();
     res.json(await getNerveCenterData(sessions));
   } catch (err) {
-    res.status(500).json({ message: (err as Error).message });
+    handleRouteError(res, err, "routes/sessions/nerve-center");
   }
 });
 
@@ -527,13 +526,13 @@ router.get("/api/sessions/nerve-center", async (_req: Request, res: Response) =>
  */
 router.get("/api/sessions/:id", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
   const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
+  if (!session) return res.status(404).json({ error: "Session not found" });
 
   const safePath = await validateSafePath(session.filePath);
-  if (!safePath) return res.status(403).json({ message: "Session file path outside allowed directory" });
+  if (!safePath) return res.status(403).json({ error: "Session file path outside allowed directory" });
 
   const records = readMessageTimeline(safePath);
   const parsed = sessionParseCache.getById(session.id);
@@ -620,17 +619,17 @@ function parseTypesFilter(raw: unknown): Set<TimelineMessageType> | undefined {
  */
 router.get("/api/sessions/:id/messages", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
   const sessionId = idResult.data;
 
   // Find the JSONL file
   const jsonlPath = findSessionJsonl(sessionId);
-  if (!jsonlPath) return res.status(404).json({ message: "Session file not found" });
+  if (!jsonlPath) return res.status(404).json({ error: "Session file not found" });
 
   // Validate path before reading
   const safePath = await validateSafePath(jsonlPath);
-  if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
+  if (!safePath) return res.status(403).json({ error: "Path must be under user home directory" });
 
   // Pagination — keep defaults generous so a small UI can fetch in one shot.
   const offset = Math.max(0, parseInt(qstr(req.query.offset) || "0", 10) || 0);
@@ -662,10 +661,10 @@ router.get("/api/sessions/:id/messages", async (req: Request, res: Response) => 
 /** GET /api/sessions/:id/diffs — File changes made in session */
 router.get("/api/sessions/:id/diffs", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
   const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
+  if (!session) return res.status(404).json({ error: "Session not found" });
 
   res.json(getSessionDiffs(session));
 });
@@ -673,18 +672,18 @@ router.get("/api/sessions/:id/diffs", (req: Request, res: Response) => {
 /** GET /api/sessions/:id/note — Get session note */
 router.get("/api/sessions/:id/note", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
   const note = storage.getNote(idResult.data);
-  if (!note) return res.status(404).json({ message: "No note" });
+  if (!note) return res.status(404).json({ error: "No note" });
   res.json(note);
 });
 
 /** PUT /api/sessions/:id/note — Create/update session note */
 router.put("/api/sessions/:id/note", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
   const text = (req.body as { text?: string })?.text;
-  if (typeof text !== "string") return res.status(400).json({ message: "text is required" });
+  if (typeof text !== "string") return res.status(400).json({ error: "text is required" });
   if (text.length === 0) {
     storage.deleteNote(idResult.data);
     return res.json({ message: "Note deleted" });
@@ -696,11 +695,11 @@ router.put("/api/sessions/:id/note", (req: Request, res: Response) => {
 /** GET /api/sessions/:id/costs — Per-session cost breakdown */
 router.get("/api/sessions/:id/costs", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
   const sessions = getCachedSessions();
   const cost = getSessionCost(sessions, idResult.data);
-  if (!cost) return res.status(404).json({ message: "No cost data found" });
+  if (!cost) return res.status(404).json({ error: "No cost data found" });
 
   res.json(cost);
 });
@@ -708,10 +707,10 @@ router.get("/api/sessions/:id/costs", (req: Request, res: Response) => {
 /** GET /api/sessions/:id/commits — Git commits linked to session */
 router.get("/api/sessions/:id/commits", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
   const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
+  if (!session) return res.status(404).json({ error: "Session not found" });
 
   const commits = getSessionCommits(session);
   res.json({ sessionId: session.id, commits });
@@ -720,10 +719,10 @@ router.get("/api/sessions/:id/commits", (req: Request, res: Response) => {
 /** GET /api/sessions/:id/summary — Get stored summary for a session */
 router.get("/api/sessions/:id/summary", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
   const summary = storage.getSummary(idResult.data);
-  if (!summary) return res.status(404).json({ message: "No summary found for this session" });
+  if (!summary) return res.status(404).json({ error: "No summary found for this session" });
 
   res.json(summary);
 });
@@ -731,13 +730,13 @@ router.get("/api/sessions/:id/summary", (req: Request, res: Response) => {
 /** DELETE /api/sessions/:id — Delete a single session (moves to trash) */
 router.delete("/api/sessions/:id", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
   const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
+  if (!session) return res.status(404).json({ error: "Session not found" });
 
   const trashPath = await trashSession(session.filePath);
-  if (!trashPath) return res.status(500).json({ message: "Failed to move to trash" });
+  if (!trashPath) return res.status(500).json({ error: "Failed to move to trash" });
 
   const snapshot = { ...session };
   removeCachedSession(session.id);
@@ -804,7 +803,7 @@ router.post("/api/sessions/delete-all", async (_req: Request, res: Response) => 
 /** POST /api/sessions/undo — Restore last deleted batch from trash */
 router.post("/api/sessions/undo", (_req: Request, res: Response) => {
   if (lastDeleteBatch.length === 0) {
-    return res.status(400).json({ message: "Nothing to undo" });
+    return res.status(400).json({ error: "Nothing to undo" });
   }
 
   let restored = 0;
@@ -823,10 +822,10 @@ router.post("/api/sessions/undo", (_req: Request, res: Response) => {
 /** POST /api/sessions/:id/open — Open in CLI */
 router.post("/api/sessions/:id/open", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
-  if (!idResult.success) return res.status(400).json({ message: "Invalid session ID format" });
+  if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
   const session = getCachedSessions().find(s => s.id === idResult.data);
-  if (!session) return res.status(404).json({ message: "Session not found" });
+  if (!session) return res.status(404).json({ error: "Session not found" });
 
   try {
     const env = { ...process.env, CLAUDECODE: undefined };
@@ -855,7 +854,7 @@ router.post("/api/sessions/:id/open", (req: Request, res: Response) => {
     child.unref();
     res.json({ message: `Opened terminal in ${cwd} with --resume ${session.id}`, id: session.id });
   } catch (err) {
-    res.status(500).json({ message: (err as Error).message });
+    handleRouteError(res, err, "routes/sessions/open");
   }
 });
 

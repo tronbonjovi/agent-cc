@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { invalidateDataQueries } from "@/lib/queryClient";
 
 interface ScanEvent {
@@ -65,35 +65,3 @@ export function useLiveSync() {
   return { connected, lastEvent };
 }
 
-// ---- Scanner status query ----
-
-export interface ScannerStatusData {
-  scanning: boolean;
-  lastScanAt: string | null;
-  entityCounts: Record<string, number>;
-  totalEntities: number;
-  totalRelationships: number;
-  sessionCount?: number;
-  agentCount?: number;
-  scanVersion: number;
-  lastScanDuration: number;
-  parseCacheSize: number;
-}
-
-/**
- * useScannerStatus — fetches scanner metadata from /api/scanner/status.
- * Used by ScannerBrain to display last scan time, session count, cache health.
- * Polls every 15 seconds to keep the brain display current.
- */
-export function useScannerStatus() {
-  return useQuery<ScannerStatusData>({
-    queryKey: ["scanner-status"],
-    queryFn: async () => {
-      const res = await fetch("/api/scanner/status");
-      if (!res.ok) throw new Error(`Scanner status fetch failed: ${res.status}`);
-      return res.json();
-    },
-    refetchInterval: 15_000,
-    staleTime: 10_000,
-  });
-}

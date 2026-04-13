@@ -5,7 +5,7 @@ import type {
   SessionData, SessionStats, SessionSummary, DeepSearchResult,
   CostAnalytics, FileHeatmapResult, HealthAnalytics, StaleAnalytics,
   SessionCostData, CommitLink, ContextLoaderResult,
-  ProjectDashboardResult, SessionDiffsResult, PromptTemplate, WeeklyDigest, WorkflowConfig,
+  ProjectDashboardResult, SessionDiffsResult, WeeklyDigest, WorkflowConfig,
   SessionNote, FileTimelineResult, NLQueryResult,
   ContinuationBrief, BashKnowledgeBase, BashSearchResult,
   NerveCenterData,
@@ -223,42 +223,6 @@ export function useSessionDiffs(id: string | undefined) {
     queryKey: [`/api/sessions/${id}/diffs`],
     enabled: !!id,
     retry: false,
-  });
-}
-
-export function usePromptTemplates() {
-  return useQuery<PromptTemplate[]>({
-    queryKey: ["/api/sessions/prompts"],
-  });
-}
-
-export function useCreatePrompt() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (data: { name: string; description?: string; prompt: string; project?: string; tags?: string[] }) => {
-      const res = await apiRequest("POST", "/api/sessions/prompts", data);
-      return res.json() as Promise<PromptTemplate>;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/sessions/prompts"] });
-      toast.success("Prompt created");
-    },
-    onError: (err: Error) => { toast.error(`Failed to create prompt: ${err.message}`); },
-  });
-}
-
-export function useDeletePrompt() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/sessions/prompts/${id}`);
-      return res.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/sessions/prompts"] });
-      toast.success("Prompt deleted");
-    },
-    onError: (err: Error) => { toast.error(`Failed to delete prompt: ${err.message}`); },
   });
 }
 

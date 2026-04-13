@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import type { PositionedNode } from "@/hooks/use-force-layout";
 import type { ForceGraphData } from "@shared/types";
 import { NODE_COLORS } from "./graph-colors";
+import { formatCost } from "@/lib/format";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -16,13 +17,6 @@ interface GraphSidebarProps {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
-
-function formatCost(n: number): string {
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  if (n > 0) return `$${n.toFixed(4)}`;
-  return "$0.00";
-}
 
 /** Render type-specific metadata fields for the detail panel. */
 function MetaFields({ node }: { node: PositionedNode }) {

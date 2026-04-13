@@ -3,8 +3,9 @@
  *
  * Pure function: takes a parsed parent session plus a flat list of parsed
  * subagent sessions and produces a hierarchical SessionTree. No I/O, no
- * global state. See `docs/superpowers/specs/2026-04-12-session-hierarchy-design.md`
- * for the algorithm and the surrounding milestone (session-hierarchy).
+ * global state. Shipped in the `session-hierarchy` milestone; the spec that
+ * accompanied the work is archived — use `git log` on this file for the
+ * algorithm history.
  *
  * Pipeline:
  *   1. Build session-root from parent meta.

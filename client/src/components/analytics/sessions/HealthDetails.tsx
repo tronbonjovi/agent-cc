@@ -1,7 +1,8 @@
 import { Badge } from "@/components/ui/badge";
+import { sessionHealthBadgeVariant, type SessionHealthScore } from "@/lib/session-health";
 
 interface HealthDetailsProps {
-  healthScore: "good" | "fair" | "poor" | null;
+  healthScore: SessionHealthScore;
   healthReasons: string[];
   totalToolCalls: number;
   toolErrors: number;
@@ -25,7 +26,7 @@ export function HealthDetails({
   return (
     <div className="p-4 space-y-3">
       <div className="flex items-center gap-2">
-        <Badge variant={healthScore === "fair" ? "secondary" : "destructive"}>
+        <Badge variant={sessionHealthBadgeVariant(healthScore)}>
           {healthScore}
         </Badge>
       </div>

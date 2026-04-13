@@ -5,33 +5,23 @@
 // no session data at all. Data priority: active session > lastSession > omit.
 
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Bot, User, MessageSquare, Clock, Activity, DollarSign, Cpu } from "lucide-react";
+import { AlertTriangle, Bot, User, MessageSquare, Clock, Activity, DollarSign } from "lucide-react";
 import { SessionDetailAccordion } from "./session-detail-accordion";
 import {
   StatusLight,
   ModelBadge,
   AgentRoleBadge,
-  CostPill,
   AgentActivity,
-  SessionStats,
   formatDuration,
   formatTokens,
   formatCost,
-  shortenModel,
-  formatAgentRole,
 } from "./session-indicators";
-import type { BoardTask, LastSessionSnapshot } from "@shared/board-types";
+import type { BoardTask } from "@shared/board-types";
 
 interface BoardTaskCardProps {
   task: BoardTask;
   onClick: (task: BoardTask, e: React.MouseEvent) => void;
 }
-
-const priorityColors: Record<string, string> = {
-  high: "bg-red-500/10 text-red-500 border-red-500/20",
-  medium: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  low: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-};
 
 /** Truncate task title to ~60 characters with ellipsis. */
 export function truncateTitle(title: string, maxLen = 60): string {

@@ -1,6 +1,5 @@
 import type { Entity } from "@shared/types";
 import { entityId, safeReadJson, getFileStat, CLAUDE_DIR, now, fileExists, normPath } from "./utils";
-import path from "path";
 
 function redactSecrets(obj: any, depth = 0): any {
   if (depth > 5) return obj;

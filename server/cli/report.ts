@@ -6,7 +6,7 @@
 import { scanAllSessions } from "../scanner/session-scanner";
 import { getCostAnalytics, getHealthAnalytics } from "../scanner/session-analytics";
 import { storage } from "../storage";
-import type { BillingMode } from "@shared/types";
+import { formatUsd, formatTokens } from "@shared/format";
 
 /** Resolve billing mode: "auto" defaults to "subscription" (most Claude Code users) */
 function resolveBillingMode(): "subscription" | "pay-as-you-go" {
@@ -15,18 +15,6 @@ function resolveBillingMode(): "subscription" | "pay-as-you-go" {
   if (mode === "subscription") return "subscription";
   // Auto-detect: default to subscription since Claude Code CLI users are typically on Pro/Max plans
   return "subscription";
-}
-
-function formatUsd(n: number): string {
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(4)}`;
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
 }
 
 function pad(s: string, len: number, right = false): string {

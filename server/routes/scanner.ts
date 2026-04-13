@@ -1,19 +1,17 @@
 import { Router, type Request, type Response } from "express";
+import { handleRouteError, ConflictError } from "../lib/route-errors";
 import { storage } from "../storage";
 import { runFullScan, isScanning, getScanVersion, getLastScanDuration, getParseCacheSize, addSSEClient } from "../scanner/index";
 
 const router = Router();
 
 router.post("/api/scanner/rescan", async (_req: Request, res: Response) => {
-  if (isScanning()) {
-    return res.status(409).json({ message: "Scan already in progress" });
-  }
   try {
+    if (isScanning()) throw new ConflictError("Scan already in progress");
     await runFullScan();
     res.json({ message: "Scan complete", status: storage.getScanStatus() });
   } catch (err) {
-    console.error("[scanner] Rescan failed:", err);
-    res.status(500).json({ message: "Scan failed" });
+    handleRouteError(res, err, "routes/scanner/rescan");
   }
 });
 

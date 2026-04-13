@@ -34,6 +34,7 @@ import {
   colorClassForOwner,
 } from "@/components/analytics/sessions/subagent-colors";
 import { Users } from "lucide-react";
+import { formatUsd } from "@/lib/format";
 
 // ---- Types ---------------------------------------------------------------
 
@@ -82,13 +83,6 @@ function buildQuery(
   return params.toString();
 }
 
-function formatUsd(n: number): string {
-  if (!Number.isFinite(n) || n === 0) return "$0";
-  if (n >= 100) return `$${n.toFixed(0)}`;
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(4)}`;
-}
 
 function formatPct(n: number): string {
   if (!Number.isFinite(n)) return "0%";

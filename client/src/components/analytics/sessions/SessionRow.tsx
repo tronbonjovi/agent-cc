@@ -1,26 +1,18 @@
 import { Badge } from "@/components/ui/badge";
 import { relativeTime, shortModel } from "@/lib/utils";
+import { formatCost } from "@/lib/format";
+import { sessionHealthColor, type SessionHealthScore } from "@/lib/session-health";
 import type { SessionData } from "@shared/types";
 
 interface SessionRowProps {
   session: SessionData;
   isSelected: boolean;
   onClick: () => void;
-  healthScore?: "good" | "fair" | "poor" | null;
+  healthScore?: SessionHealthScore;
   model?: string | null;
   costUsd?: number;
   durationMinutes?: number | null;
   displayName?: string;
-}
-
-/** Health dot color class. Exported for testing. */
-export function healthColor(score: "good" | "fair" | "poor" | null): string {
-  switch (score) {
-    case "good": return "bg-emerald-500";
-    case "fair": return "bg-amber-500";
-    case "poor": return "bg-red-500";
-    default: return "bg-muted-foreground/30";
-  }
 }
 
 /** Format duration in minutes to human-readable. Exported for testing. */
@@ -31,13 +23,6 @@ export function formatDuration(minutes: number | null | undefined): string {
   const m = minutes % 60;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
-}
-
-function formatCost(n: number | undefined): string {
-  if (n == null || n === 0) return "-";
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(4)}`;
 }
 
 export function SessionRow({
@@ -55,7 +40,7 @@ export function SessionRow({
     >
       {/* Health dot */}
       <div className="shrink-0">
-        <div className={`w-2 h-2 rounded-full ${healthColor(healthScore ?? null)}`} />
+        <div className={`w-2 h-2 rounded-full ${sessionHealthColor(healthScore ?? null)}`} />
       </div>
 
       {/* Main content */}
@@ -82,7 +67,7 @@ export function SessionRow({
       <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
         <span title="Messages">{session.messageCount}</span>
         <span title="Duration">{formatDuration(durationMinutes)}</span>
-        <span title="Cost">{formatCost(costUsd)}</span>
+        <span title="Cost">{costUsd == null || costUsd === 0 ? "-" : formatCost(costUsd)}</span>
         <span title="Last activity">{session.lastTs ? relativeTime(session.lastTs) : "-"}</span>
       </div>
     </div>

@@ -14,6 +14,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useChartFilters } from "../GlobalFilterBar";
+import { formatDate } from "@/lib/format";
 
 interface ChurnRow {
   date: string;
@@ -35,12 +36,6 @@ function rangeToDays(range: string): string {
   return "30";
 }
 
-function formatDate(d: string): string {
-  // YYYY-MM-DD → MMM DD
-  const date = new Date(d + "T00:00:00");
-  if (Number.isNaN(date.getTime())) return d;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 function ChurnTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
   if (!active || !payload?.[0]) return null;

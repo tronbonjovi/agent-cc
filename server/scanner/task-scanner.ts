@@ -142,7 +142,7 @@ export function scanProjectTasks(
   projectPath: string,
   projectId: string,
   projectName: string,
-  opts?: { includeRemoved?: boolean }
+  _opts?: { includeRemoved?: boolean }
 ): TaskBoardState {
   const tasksDir = path.join(projectPath, ".claude", "tasks").replace(/\\/g, "/");
 

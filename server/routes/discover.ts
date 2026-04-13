@@ -3,18 +3,17 @@ import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import { handleRouteError } from "../lib/route-errors";
 import { runFullScan } from "../scanner/index";
 import { getSourcesForType } from "../discover/sources";
 
-export interface DiscoverResult {
+interface DiscoverResult {
   name: string;
   description: string | null;
   url: string;
   stars: number;
   source: string;
 }
-
-type EntityType = "skills" | "agents" | "plugins";
 
 const VALID_TYPES = new Set<string>(["skills", "agents", "plugins"]);
 
@@ -79,7 +78,7 @@ const router = Router();
 router.get("/api/discover/:type/sources", (req, res) => {
   const { type } = req.params;
   if (!VALID_TYPES.has(type)) {
-    return res.status(400).json({ message: `Invalid type: ${type}. Must be one of: skills, agents, plugins` });
+    return res.status(400).json({ error: `Invalid type: ${type}. Must be one of: skills, agents, plugins` });
   }
   const sources = getSourcesForType(type as "skills" | "agents" | "plugins");
   res.json(sources);
@@ -88,7 +87,7 @@ router.get("/api/discover/:type/sources", (req, res) => {
 router.get("/api/discover/:type/search", (req, res) => {
   const { type } = req.params;
   if (!VALID_TYPES.has(type)) {
-    return res.status(400).json({ message: `Invalid type: ${type}. Must be one of: skills, agents, plugins` });
+    return res.status(400).json({ error: `Invalid type: ${type}. Must be one of: skills, agents, plugins` });
   }
 
   const q = (req.query.q as string) || "";
@@ -105,7 +104,7 @@ router.get("/api/discover/:type/search", (req, res) => {
 router.post("/api/library/:type/save", async (req: Request, res: Response) => {
   const type = req.params.type as string;
   if (!VALID_TYPES.has(type)) {
-    return res.status(400).json({ message: `Invalid type: ${type}. Must be one of: skills, agents, plugins` });
+    return res.status(400).json({ error: `Invalid type: ${type}. Must be one of: skills, agents, plugins` });
   }
 
   const { repoUrl, path: repoPath, name } = req.body as {
@@ -115,7 +114,7 @@ router.post("/api/library/:type/save", async (req: Request, res: Response) => {
   };
 
   if (!repoUrl || !name) {
-    return res.status(400).json({ message: "repoUrl and name are required" });
+    return res.status(400).json({ error: "repoUrl and name are required" });
   }
 
   try {
@@ -148,8 +147,7 @@ router.post("/api/library/:type/save", async (req: Request, res: Response) => {
     runFullScan().catch(() => {});
     res.json({ message: `Saved "${name}" to library` });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Download failed";
-    res.status(500).json({ message: msg });
+    handleRouteError(res, err, "routes/library/save");
   }
 });
 

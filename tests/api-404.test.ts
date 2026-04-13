@@ -24,7 +24,7 @@ describe("API 404 handling", () => {
       expect(res.headers.get("content-type")).toMatch(/json/);
 
       const body = await res.json();
-      expect(body).toEqual({ message: "Not found" });
+      expect(body).toEqual({ error: "Not found" });
     } finally {
       server.close();
     }

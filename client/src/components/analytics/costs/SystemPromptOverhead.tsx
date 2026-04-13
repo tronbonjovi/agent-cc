@@ -1,21 +1,8 @@
 import { useState, useMemo } from "react";
 import { useTokenAnatomy } from "@/hooks/use-sessions";
 import { Link } from "wouter";
-import { Settings2, ArrowUpRight, ArrowDownRight, ArrowRight } from "lucide-react";
-
-// ---- Utilities ----
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + "K";
-  return n.toString();
-}
-
-function formatUsd(n: number): string {
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(4)}`;
-}
+import { ArrowUpRight, ArrowDownRight, ArrowRight } from "lucide-react";
+import { formatTokens, formatUsd } from "@/lib/format";
 
 // ---- Pure logic (exported for tests) ----
 
@@ -96,11 +83,10 @@ export function SystemPromptOverhead() {
   const { data: data7d } = useTokenAnatomy(7);
   const { data: data30d } = useTokenAnatomy(30);
 
-  const { pct, formattedPct, trend } = useMemo(() => {
-    if (!data) return { pct: 0, formattedPct: "0", trend: "stable" as TrendDirection };
+  const { formattedPct, trend } = useMemo(() => {
+    if (!data) return { formattedPct: "0", trend: "stable" as TrendDirection };
 
-    const p = computePercentage(data.systemPrompt.tokens, data.total.tokens);
-    const fp = formatPercentage(p);
+    const fp = formatPercentage(computePercentage(data.systemPrompt.tokens, data.total.tokens));
 
     // Compute trend: compare 7d % vs 30d %
     let t: TrendDirection = "stable";
@@ -110,7 +96,7 @@ export function SystemPromptOverhead() {
       t = computeTrend(pct7d, pct30d);
     }
 
-    return { pct: p, formattedPct: fp, trend: t };
+    return { formattedPct: fp, trend: t };
   }, [data, data7d, data30d]);
 
   if (isLoading || !data) return <LoadingSkeleton />;

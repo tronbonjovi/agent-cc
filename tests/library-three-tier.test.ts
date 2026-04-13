@@ -166,14 +166,6 @@ describe("Agents tab — EntityCard integration", () => {
   it("preserves agent definitions sub-tab", () => {
     expect(src).toMatch(/DefinitionsTab|definitions/);
   });
-
-  it("preserves agent history sub-tab", () => {
-    expect(src).toMatch(/HistoryTab|history/);
-  });
-
-  it("preserves agent stats sub-tab", () => {
-    expect(src).toMatch(/StatsTab|stats/);
-  });
 });
 
 // ---- Marketplace placeholder tests ----

@@ -5,10 +5,12 @@ import fs from "fs";
 import path from "path";
 
 const STATS_PATH = path.resolve(__dirname, "../client/src/pages/stats.tsx");
-const SESSIONS_PATH = path.resolve(__dirname, "../client/src/pages/sessions.tsx");
 // Cleanup note (messages-redesign-task005): client/src/pages/message-history.tsx
 // was deleted; the messages tab now renders <MessagesTab /> from
 // client/src/components/analytics/messages/MessagesTab.tsx.
+// Cleanup note (codebase-cleanup-task001): client/src/pages/sessions.tsx
+// was also deleted; its describe block ("sessions.tsx still functional")
+// has been removed since the module no longer exists.
 
 describe("analytics flatten — 5 main tabs", () => {
   const src = fs.readFileSync(STATS_PATH, "utf-8");
@@ -127,18 +129,6 @@ describe("analytics flatten — Messages tab", () => {
 
   it("no longer imports the legacy MessagesPanel", () => {
     expect(src).not.toMatch(/MessagesPanel/);
-  });
-});
-
-describe("analytics flatten — sessions.tsx still functional", () => {
-  const src = fs.readFileSync(SESSIONS_PATH, "utf-8");
-
-  it("still has a default export", () => {
-    expect(src).toMatch(/export default function Sessions/);
-  });
-
-  it("exports SessionsPanel as named export", () => {
-    expect(src).toMatch(/export function SessionsPanel/);
   });
 });
 
