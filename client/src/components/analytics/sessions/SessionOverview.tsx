@@ -69,6 +69,93 @@ export function computeModelBreakdownFromTree(
 }
 
 /**
+ * Total cost + token totals for the session. Prefers `tree.totals` (which
+ * includes subagent rollup from the post-order pass) when the tree is
+ * available; falls back to summing `parsed.assistantMessages[].usage` when
+ * the tree is null. The flat fallback cannot compute cost (per-message cost
+ * isn't stored on AssistantRecord), so it returns 0 for cost — same as
+ * today's broken display, but at least the token totals are real.
+ */
+export function computeCostFromTree(
+  tree: SerializedSessionTreeForClient | null | undefined,
+  parsed: ParsedSession,
+): {
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+} {
+  if (tree && tree.totals) {
+    return {
+      costUsd: tree.totals.costUsd ?? 0,
+      inputTokens: tree.totals.inputTokens ?? 0,
+      outputTokens: tree.totals.outputTokens ?? 0,
+      cacheReadTokens: tree.totals.cacheReadTokens ?? 0,
+      cacheCreationTokens: tree.totals.cacheCreationTokens ?? 0,
+    };
+  }
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheCreationTokens = 0;
+  for (const m of parsed.assistantMessages) {
+    inputTokens += m.usage?.inputTokens ?? 0;
+    outputTokens += m.usage?.outputTokens ?? 0;
+    cacheReadTokens += m.usage?.cacheReadTokens ?? 0;
+    cacheCreationTokens += m.usage?.cacheCreationTokens ?? 0;
+  }
+  return { costUsd: 0, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens };
+}
+
+/**
+ * Subagent count for the Sidechains metric. Prefers `tree.subagentsByAgentId`
+ * size — same source the working Subagents chip strip already reads, so the
+ * two displays will always agree. Falls back to `parsed.counts.sidechainMessages`
+ * (which historically undercounts because sidechain JSONL records live in
+ * separate files and the flat counter doesn't see them) when the tree isn't
+ * available.
+ */
+export function computeSidechainCount(
+  tree: SerializedSessionTreeForClient | null | undefined,
+  parsed: ParsedSession,
+): number {
+  if (tree && tree.subagentsByAgentId) {
+    return Object.keys(tree.subagentsByAgentId).length;
+  }
+  return parsed.counts?.sidechainMessages ?? 0;
+}
+
+/**
+ * Cache read/creation tokens + hit rate. Prefers tree.totals when present.
+ * Hit rate is `cacheRead / (cacheRead + cacheCreation)`; returns null when
+ * the denominator is zero so the renderer shows "-" instead of "0%".
+ */
+export function computeCacheStatsFromTree(
+  tree: SerializedSessionTreeForClient | null | undefined,
+  parsed: ParsedSession,
+): {
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  cacheHitRate: number | null;
+} {
+  let cacheReadTokens = 0;
+  let cacheCreationTokens = 0;
+  if (tree && tree.totals) {
+    cacheReadTokens = tree.totals.cacheReadTokens ?? 0;
+    cacheCreationTokens = tree.totals.cacheCreationTokens ?? 0;
+  } else {
+    for (const m of parsed.assistantMessages) {
+      cacheReadTokens += m.usage?.cacheReadTokens ?? 0;
+      cacheCreationTokens += m.usage?.cacheCreationTokens ?? 0;
+    }
+  }
+  const total = cacheReadTokens + cacheCreationTokens;
+  const cacheHitRate = total > 0 ? cacheReadTokens / total : null;
+  return { cacheReadTokens, cacheCreationTokens, cacheHitRate };
+}
+
+/**
  * One row in the new Subagents chip strip below the Models row. Each chip
  * carries everything the renderer needs (label fields + palette color class)
  * so the JSX stays presentational. The color comes from the same
@@ -138,11 +225,6 @@ function MetricCell({ label, value, subtitle }: MetricCellProps) {
 
 interface SessionOverviewProps {
   parsed: ParsedSession | null;
-  costUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheReadTokens?: number;
-  cacheCreationTokens?: number;
   healthScore?: SessionHealthScore;
   healthReasons?: string[];
   durationMinutes?: number | null;
@@ -156,8 +238,7 @@ interface SessionOverviewProps {
 }
 
 export function SessionOverview({
-  parsed, costUsd, inputTokens, outputTokens,
-  cacheReadTokens, cacheCreationTokens,
+  parsed,
   healthScore, healthReasons, durationMinutes,
   tree,
 }: SessionOverviewProps) {
@@ -189,14 +270,16 @@ export function SessionOverview({
     stopReasons.set(m.stopReason, (stopReasons.get(m.stopReason) ?? 0) + 1);
   }
 
-  // Cache hit rate
-  const cacheRead = cacheReadTokens ?? 0;
-  const cacheCreate = cacheCreationTokens ?? 0;
-  const cacheTotal = cacheRead + cacheCreate;
-  const cacheHitRate = cacheTotal > 0 ? cacheRead / cacheTotal : null;
-
-  const totalInput = inputTokens ?? 0;
-  const totalOutput = outputTokens ?? 0;
+  // Self-compute cost / cache / sidechain from parsed + tree. Avoids the
+  // upstream prop-drilling chain that historically delivered zeros.
+  const costData = computeCostFromTree(tree, parsed);
+  const cacheStats = computeCacheStatsFromTree(tree, parsed);
+  const sidechainCount = computeSidechainCount(tree, parsed);
+  const cacheHitRate = cacheStats.cacheHitRate;
+  const cacheRead = cacheStats.cacheReadTokens;
+  const cacheTotal = cacheStats.cacheReadTokens + cacheStats.cacheCreationTokens;
+  const totalInput = costData.inputTokens;
+  const totalOutput = costData.outputTokens;
 
   return (
     <div className="space-y-4">
@@ -217,7 +300,7 @@ export function SessionOverview({
         />
         <MetricCell
           label="Cost"
-          value={formatMetric(costUsd, "cost")}
+          value={formatMetric(costData.costUsd, "cost")}
           subtitle={`${formatMetric(totalInput, "tokens")} in / ${formatMetric(totalOutput, "tokens")} out`}
         />
         <MetricCell
@@ -232,7 +315,7 @@ export function SessionOverview({
         />
         <MetricCell
           label="Sidechains"
-          value={String(counts.sidechainMessages)}
+          value={String(sidechainCount)}
         />
         <MetricCell
           label="Version"

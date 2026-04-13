@@ -39,6 +39,9 @@ export function SessionsTab() {
     ...s,
     healthScore: null, // Will be enriched when backend supports it
     model: null,
+    // costUsd is required by EnrichedSession for SessionRow's cost badge;
+    // SessionDetail / SessionOverview no longer consume it — they self-compute
+    // from parsed + tree. Left as 0 here until the list endpoint enriches.
     costUsd: 0,
     durationMinutes: s.firstTs && s.lastTs
       ? Math.round((new Date(s.lastTs).getTime() - new Date(s.firstTs).getTime()) / 60000)
@@ -80,7 +83,6 @@ export function SessionsTab() {
             <SessionDetail
               sessionId={selectedId}
               durationMinutes={selectedSession?.durationMinutes}
-              costUsd={selectedSession?.costUsd}
               healthScore={selectedSession?.healthScore}
               healthReasons={selectedSession?.healthReasons}
               onDelete={handleBack}

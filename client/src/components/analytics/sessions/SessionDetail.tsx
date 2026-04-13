@@ -21,11 +21,6 @@ interface SessionDetailProps {
   /** Enrichment data passed from the session list */
   healthScore?: SessionHealthScore;
   healthReasons?: string[];
-  costUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheReadTokens?: number;
-  cacheCreationTokens?: number;
   durationMinutes?: number | null;
   toolErrors?: number;
   retries?: number;
@@ -43,8 +38,6 @@ interface SessionDetailProps {
 
 export function SessionDetail({
   sessionId, parsed, healthScore, healthReasons,
-  costUsd, inputTokens, outputTokens,
-  cacheReadTokens, cacheCreationTokens,
   durationMinutes, toolErrors, retries, maxTokensStops, totalToolCalls,
   linkedTaskId, linkedTaskTitle, linkedMilestone, isManualLink, linkScore, linkSignals,
   onDelete,
@@ -166,11 +159,6 @@ export function SessionDetail({
         {openSections.has("overview") && (
           <SessionOverview
             parsed={resolvedParsed}
-            costUsd={costUsd}
-            inputTokens={inputTokens}
-            outputTokens={outputTokens}
-            cacheReadTokens={cacheReadTokens}
-            cacheCreationTokens={cacheCreationTokens}
             healthScore={healthScore}
             healthReasons={healthReasons}
             durationMinutes={durationMinutes}

@@ -16,6 +16,8 @@
 //     Must keep its current shape so the no-tree render path is byte-identical.
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type {
   SessionTreeNode,
   SerializedSessionTreeForClient,
@@ -24,6 +26,7 @@ import type {
 import {
   buildTokenRowsFromTree,
   buildTokenRows,
+  roleLabel,
 } from "../client/src/components/analytics/sessions/TokenBreakdown";
 import { colorClassForOwner } from "../client/src/components/analytics/sessions/subagent-colors";
 
@@ -401,5 +404,132 @@ describe("buildTokenRows (flat fallback, no tree)", () => {
     expect(r0.cumulativeTotal).toBe(150); // 100 + 50
     // Second row's cumulative is the running sum across just the flat list.
     expect(rows[1].cumulativeTotal).toBe(450); // 150 + (200 + 100)
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Role label tests (task003, sessions-makeover fix 1)
+//
+// The component previously rendered `<Badge>A</Badge>` / `<Badge>U</Badge>`
+// / `<Badge>sA</Badge>` — cryptic and unreadable. This milestone replaces
+// that with a `roleLabel(row, tree)` helper that returns human labels and
+// tree-aware subagent type names. We unit-test the pure helper here (same
+// convention as the rest of this file — no jsdom / RTL) and cross-check
+// via source-text assertion that the renderer actually calls it.
+// ---------------------------------------------------------------------------
+
+describe("roleLabel (task003 — TokenBreakdown role labels)", () => {
+  it("returns 'User' for user rows, not 'U'", () => {
+    const row = {
+      role: "user" as const,
+      owner: { kind: "session-root", agentId: null } as const,
+    };
+    expect(roleLabel(row, null)).toBe("User");
+    expect(roleLabel(row, null)).not.toBe("U");
+  });
+
+  it("returns 'Assistant' for parent-session assistant rows, not 'A' or 'sA'", () => {
+    const row = {
+      role: "assistant" as const,
+      owner: { kind: "session-root", agentId: null } as const,
+    };
+    // No tree at all (flat fallback)
+    expect(roleLabel(row, null)).toBe("Assistant");
+    expect(roleLabel(row, undefined)).toBe("Assistant");
+    expect(roleLabel(row, null)).not.toBe("A");
+    expect(roleLabel(row, null)).not.toBe("sA");
+
+    // Tree present but row owner is the parent session — still 'Assistant'
+    const tree = makeFixtureTree();
+    expect(roleLabel(row, tree)).toBe("Assistant");
+  });
+
+  it("returns 'Subagent: <agentType>' for subagent rows when tree present", () => {
+    const tree = makeFixtureTree();
+    const row = {
+      role: "assistant" as const,
+      owner: { kind: "subagent-root", agentId: "agent-a" } as const,
+    };
+    expect(roleLabel(row, tree)).toBe("Subagent: Explore");
+
+    const row2 = {
+      role: "assistant" as const,
+      owner: { kind: "subagent-root", agentId: "agent-b" } as const,
+    };
+    expect(roleLabel(row2, tree)).toBe("Subagent: Plan");
+  });
+
+  it("falls back to 'Subagent: subagent' when the agentType lookup fails", () => {
+    const tree = makeFixtureTree();
+    const row = {
+      role: "assistant" as const,
+      owner: { kind: "subagent-root", agentId: "unknown-agent" } as const,
+    };
+    expect(roleLabel(row, tree)).toBe("Subagent: subagent");
+  });
+
+  it("is referenced by the TokenBreakdown renderer (replaces the single-letter A/U badges)", () => {
+    // Source-text check: confirm the renderer calls roleLabel(row, tree) and
+    // no longer carries the old `? "A" : "U"` ternary. This guards against a
+    // future refactor silently reintroducing the cryptic labels.
+    const src = readFileSync(
+      path.resolve(
+        __dirname,
+        "../client/src/components/analytics/sessions/TokenBreakdown.tsx",
+      ),
+      "utf8",
+    );
+    expect(src).toContain("roleLabel(row, tree)");
+    expect(src).not.toMatch(/\?\s*"A"\s*:\s*"U"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Viewport constraint tests (task003, sessions-makeover fix 2)
+//
+// Long sessions previously blew out the page — the token table had no
+// max-height and no sticky header. Fix wraps the table in a
+// `max-h-[60vh] overflow-auto` container (tagged `data-token-table-scroll`)
+// and pins the <thead> with `sticky top-0 bg-card z-10`. The background must
+// be SOLID (bg-card), never `bg-transparent` — otherwise rows scroll visibly
+// under the header. We assert these invariants via source-text checks because
+// the repo intentionally does not ship jsdom / @testing-library/react.
+// ---------------------------------------------------------------------------
+
+describe("TokenBreakdown viewport constraint (task003)", () => {
+  const src = readFileSync(
+    path.resolve(
+      __dirname,
+      "../client/src/components/analytics/sessions/TokenBreakdown.tsx",
+    ),
+    "utf8",
+  );
+
+  it("wraps the table in a max-h-[60vh] overflow-auto container tagged data-token-table-scroll", () => {
+    // Must have the data attribute marker used by manual QA + future tests.
+    expect(src).toContain("data-token-table-scroll");
+    // Find the wrapper element carrying the marker and assert the classes
+    // live on the same element.
+    const match = src.match(
+      /data-token-table-scroll[\s\S]*?className="([^"]*)"/,
+    );
+    expect(match, "data-token-table-scroll must have a className").toBeTruthy();
+    const className = match![1];
+    expect(className).toContain("max-h-[60vh]");
+    expect(className).toContain("overflow-auto");
+  });
+
+  it("uses a sticky <thead> with a SOLID bg-card background, never bg-transparent", () => {
+    // Grab the <thead ... className="..."> className string.
+    const theadMatch = src.match(/<thead[^>]*className="([^"]*)"/);
+    expect(theadMatch, "<thead> must carry a className").toBeTruthy();
+    const theadClass = theadMatch![1];
+    expect(theadClass).toContain("sticky");
+    expect(theadClass).toContain("top-0");
+    expect(theadClass).toContain("z-10");
+    // Solid background — must match bg-card (or bg-background), must NOT be
+    // bg-transparent. Content bleed-through on scroll is the exact bug.
+    expect(theadClass).toMatch(/bg-(card|background)/);
+    expect(theadClass).not.toContain("bg-transparent");
   });
 });

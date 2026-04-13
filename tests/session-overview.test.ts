@@ -18,14 +18,21 @@
 //       cost descending, with palette colors from `colorClassForOwner`.
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type {
   SessionTreeNode,
   SerializedSessionTreeForClient,
   AssistantRecord,
+  ParsedSession,
 } from "@shared/session-types";
 import {
   computeModelBreakdownFromTree,
   computeSubagentChips,
+  computeCostFromTree,
+  computeCacheStatsFromTree,
+  computeSidechainCount,
+  formatMetric,
 } from "../client/src/components/analytics/sessions/SessionOverview";
 import { colorClassForOwner } from "../client/src/components/analytics/sessions/subagent-colors";
 
@@ -266,5 +273,136 @@ describe("computeSubagentChips", () => {
       },
     ]);
     expect(computeSubagentChips(treeWithNoSubagents)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SessionOverview metrics from tree — task002 wiring tests
+//
+// These tests verify that:
+//   1. The three self-compute helpers produce the values the spec's two
+//      scenarios require ($4.56 cost / 80% cache hit / 3 sidechains) when fed
+//      the documented tree shapes, AND
+//   2. The SessionOverview render path actually references those helpers
+//      instead of the old prop-driven locals. We assert the wiring via
+//      source-text checks rather than rendering the component, because the
+//      repo intentionally ships no jsdom / testing-library (same convention
+//      as tool-timeline.test.ts + token-breakdown.test.ts).
+// ---------------------------------------------------------------------------
+
+function makeMinimalParsed(): ParsedSession {
+  return {
+    meta: {
+      sessionId: "s1",
+      slug: "test",
+      firstMessage: "",
+      firstTs: "2026-04-13T10:00:00Z",
+      lastTs: "2026-04-13T10:30:00Z",
+      sizeBytes: 0,
+      filePath: "",
+      projectKey: "p",
+      cwd: "",
+      version: "1.0.0",
+      gitBranch: "",
+      entrypoint: "",
+    } as ParsedSession["meta"],
+    assistantMessages: [],
+    userMessages: [],
+    systemEvents: { turnDurations: [], hookSummaries: [], localCommands: [], bridgeEvents: [] },
+    toolTimeline: [],
+    fileSnapshots: [],
+    lifecycle: [],
+    conversationTree: [],
+    counts: {
+      totalRecords: 0,
+      assistantMessages: 5,
+      userMessages: 4,
+      systemEvents: 0,
+      toolCalls: 12,
+      toolErrors: 0,
+      fileSnapshots: 0,
+      sidechainMessages: 0,
+    },
+  };
+}
+
+describe("SessionOverview metrics from tree", () => {
+  it("renders cost from tree.totals.costUsd", () => {
+    // Fixture from plan task 1.4 step 2: tree.totals has costUsd=4.56 and
+    // cacheReadTokens=800 / cacheCreationTokens=200 → 80% cache hit.
+    const parsed = makeMinimalParsed();
+    const tree = {
+      root: {} as SessionTreeNode,
+      nodesById: {},
+      subagentsByAgentId: {},
+      totals: {
+        assistantTurns: 0,
+        userTurns: 0,
+        toolCalls: 0,
+        toolErrors: 0,
+        subagents: 0,
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheReadTokens: 800,
+        cacheCreationTokens: 200,
+        costUsd: 4.56,
+        durationMs: 0,
+      },
+      warnings: [],
+    } as unknown as SerializedSessionTreeForClient;
+
+    // Helper outputs match what the render path would display.
+    const costData = computeCostFromTree(tree, parsed);
+    const cacheStats = computeCacheStatsFromTree(tree, parsed);
+    expect(formatMetric(costData.costUsd, "cost")).toBe("$4.56");
+    expect(formatMetric(cacheStats.cacheHitRate, "percent")).toBe("80%");
+
+    // Source-text wiring check: the render path must call the helpers and
+    // pass costData.costUsd into the Cost MetricCell's `value={...}`.
+    const src = readFileSync(
+      path.resolve(
+        __dirname,
+        "../client/src/components/analytics/sessions/SessionOverview.tsx",
+      ),
+      "utf8",
+    );
+    expect(src).toContain("computeCostFromTree(tree, parsed)");
+    expect(src).toContain("computeCacheStatsFromTree(tree, parsed)");
+    expect(src).toContain('formatMetric(costData.costUsd, "cost")');
+    // The old prop-driven cost cell must be gone.
+    expect(src).not.toMatch(/formatMetric\(costUsd,\s*"cost"\)/);
+  });
+
+  it("renders sidechains from tree.subagentsByAgentId size", () => {
+    // Fixture from plan task 1.4 step 2: three subagent entries.
+    const parsed = makeMinimalParsed();
+    const tree = {
+      root: {} as SessionTreeNode,
+      nodesById: {},
+      subagentsByAgentId: {
+        a: {} as SessionTreeNode,
+        b: {} as SessionTreeNode,
+        c: {} as SessionTreeNode,
+      },
+      totals: {} as SerializedSessionTreeForClient["totals"],
+      warnings: [],
+    } as unknown as SerializedSessionTreeForClient;
+
+    // Helper output: three subagents → count of 3.
+    expect(computeSidechainCount(tree, parsed)).toBe(3);
+
+    // Source-text wiring check: the Sidechains cell must read `sidechainCount`
+    // (the helper-derived local), not `counts.sidechainMessages`.
+    const src = readFileSync(
+      path.resolve(
+        __dirname,
+        "../client/src/components/analytics/sessions/SessionOverview.tsx",
+      ),
+      "utf8",
+    );
+    expect(src).toContain("computeSidechainCount(tree, parsed)");
+    expect(src).toContain("String(sidechainCount)");
+    // The old flat-counter sidechain cell must be gone.
+    expect(src).not.toContain("String(counts.sidechainMessages)");
   });
 });
