@@ -35,7 +35,7 @@ router.get("/api/discovery/search", async (req: Request, res: Response) => {
 
     if (!response.ok) {
       const text = await response.text();
-      res.status(response.status).json({ message: `GitHub API error: ${text}` });
+      res.status(response.status).json({ error: `GitHub API error: ${text}` });
       return;
     }
 
@@ -63,8 +63,8 @@ router.get("/api/discovery/search", async (req: Request, res: Response) => {
     storage.setCachedDiscovery(q, JSON.stringify(results));
     res.json(results);
   } catch (err) {
-    console.error("[discovery] GitHub API fetch failed:", (err as Error).message);
-    res.status(502).json({ message: "Failed to reach GitHub API" });
+    console.error("[routes/discovery/search]", err);
+    res.status(502).json({ error: "Failed to reach GitHub API" });
   }
 });
 

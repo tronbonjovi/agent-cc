@@ -46,7 +46,7 @@ router.get("/api/graph/custom-nodes", (_req: Request, res: Response) => {
 router.post("/api/graph/custom-nodes", (req: Request, res: Response) => {
   const parsed = CustomNodeSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
+    return res.status(400).json({ error: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
   }
 
   const node: CustomNode = {
@@ -62,11 +62,11 @@ router.post("/api/graph/custom-nodes", (req: Request, res: Response) => {
 router.put("/api/graph/custom-nodes/:id", (req: Request, res: Response) => {
   const id = String(req.params.id);
   const existing = storage.getCustomNodes().find((n) => n.id === id);
-  if (!existing) return res.status(404).json({ message: "Node not found" });
+  if (!existing) return res.status(404).json({ error: "Node not found" });
 
   const parsed = CustomNodeSchema.partial().safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
+    return res.status(400).json({ error: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
   }
 
   const updated: CustomNode = { ...existing, ...parsed.data, id };
@@ -88,7 +88,7 @@ router.get("/api/graph/custom-edges", (_req: Request, res: Response) => {
 router.post("/api/graph/custom-edges", (req: Request, res: Response) => {
   const parsed = CustomEdgeSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
+    return res.status(400).json({ error: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
   }
 
   const edge: CustomEdge = {
@@ -116,7 +116,7 @@ router.put("/api/graph/overrides/:entityId", (req: Request, res: Response) => {
   const eid = String(req.params.entityId);
   const parsed = EntityOverrideSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
+    return res.status(400).json({ error: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ") });
   }
   storage.setEntityOverride(eid, parsed.data as EntityOverride);
   res.json({ entityId: eid, ...parsed.data });

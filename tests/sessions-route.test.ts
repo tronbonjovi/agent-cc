@@ -780,7 +780,7 @@ describe("GET /api/sessions/:id?include=tree", () => {
     const res = await get(`/api/sessions/${UNKNOWN_ID}?include=tree`);
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.message).toBe("Session not found");
+    expect(body.error).toBe("Session not found");
   });
 
   it("passes SessionTree warnings through to the response", async () => {
@@ -876,14 +876,14 @@ describe("GET /api/sessions/:id/messages — typed timeline", () => {
     const res = await get(`/api/sessions/${UNKNOWN_ID}/messages`);
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.message).toBe("Session file not found");
+    expect(body.error).toBe("Session file not found");
   });
 
   it("returns 400 for malformed session id", async () => {
     const res = await get(`/api/sessions/not-a-uuid/messages`);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.message).toBe("Invalid session ID format");
+    expect(body.error).toBe("Invalid session ID format");
   });
 });
 

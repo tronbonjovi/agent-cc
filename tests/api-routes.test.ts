@@ -253,7 +253,7 @@ describe("GET /api/agents/definitions/:id", () => {
     const res = await api("GET", "/api/agents/definitions/nonexistent-id");
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.message).toBe("Definition not found");
+    expect(body.error).toBe("Definition not found");
   });
 });
 
@@ -262,14 +262,14 @@ describe("PUT /api/agents/definitions/:id", () => {
     const res = await api("PUT", "/api/agents/definitions/nonexistent-id", { content: "new content" });
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.message).toBe("Definition not found");
+    expect(body.error).toBe("Definition not found");
   });
 
   it("returns 400 for missing content", async () => {
     const res = await api("PUT", `/api/agents/definitions/${mockDefinitions[0].id}`, {});
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.message).toBe("content required");
+    expect(body.error).toBe("content required");
   });
 });
 
@@ -278,14 +278,14 @@ describe("POST /api/agents/definitions", () => {
     const res = await api("POST", "/api/agents/definitions", { description: "no name" });
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.message).toBe("name required");
+    expect(body.error).toBe("name required");
   });
 
   it("returns 400 for name too long", async () => {
     const res = await api("POST", "/api/agents/definitions", { name: "x".repeat(101) });
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.message).toBe("name too long (max 100)");
+    expect(body.error).toBe("name too long (max 100)");
   });
 });
 
@@ -363,14 +363,14 @@ describe("GET /api/sessions/:id", () => {
     const res = await api("GET", "/api/sessions/not-a-valid-uuid");
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.message).toBe("Invalid session ID format");
+    expect(body.error).toBe("Invalid session ID format");
   });
 
   it("returns 404 for valid UUID that doesn't exist", async () => {
     const res = await api("GET", "/api/sessions/00000000-0000-0000-0000-000000000000");
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.message).toBe("Session not found");
+    expect(body.error).toBe("Session not found");
   });
 });
 

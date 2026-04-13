@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
+import { handleRouteError } from "../lib/route-errors";
 import { getCachedDefinitions, getCachedExecutions, getCachedAgentStats } from "../scanner/agent-scanner";
 import { CLAUDE_DIR, entityId, dirExists, fileExists, readMessageTimeline } from "../scanner/utils";
 import { qstr, validate, AgentExecListSchema, validateSafePath } from "./validation";
@@ -39,11 +40,11 @@ router.get("/api/agents/definitions", (_req: Request, res: Response) => {
 /** GET /api/agents/definitions/:id — Single definition with full content */
 router.get("/api/agents/definitions/:id", async (req: Request, res: Response) => {
   const def = getCachedDefinitions().find(d => d.id === req.params.id);
-  if (!def) return res.status(404).json({ message: "Definition not found" });
+  if (!def) return res.status(404).json({ error: "Definition not found" });
 
   // Validate path before reading
   const safePath = await validateSafePath(def.filePath);
-  if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
+  if (!safePath) return res.status(403).json({ error: "Path must be under user home directory" });
 
   // Re-read full content for detail view
   try {
@@ -58,23 +59,22 @@ router.get("/api/agents/definitions/:id", async (req: Request, res: Response) =>
 /** PUT /api/agents/definitions/:id — Update writable agent */
 router.put("/api/agents/definitions/:id", async (req: Request, res: Response) => {
   const def = getCachedDefinitions().find(d => d.id === req.params.id);
-  if (!def) return res.status(404).json({ message: "Definition not found" });
-  if (!def.writable) return res.status(403).json({ message: "Plugin agents are read-only" });
+  if (!def) return res.status(404).json({ error: "Definition not found" });
+  if (!def.writable) return res.status(403).json({ error: "Plugin agents are read-only" });
 
   const { content } = req.body as { content?: string };
-  if (typeof content !== "string") return res.status(400).json({ message: "content required" });
-  if (content.length > 100_000) return res.status(400).json({ message: "content too long (max 100KB)" });
+  if (typeof content !== "string") return res.status(400).json({ error: "content required" });
+  if (content.length > 100_000) return res.status(400).json({ error: "content too long (max 100KB)" });
 
   // Validate path is under home directory
   const safePath = await validateSafePath(def.filePath);
-  if (!safePath) return res.status(403).json({ message: "Path must be under user home directory" });
+  if (!safePath) return res.status(403).json({ error: "Path must be under user home directory" });
 
   try {
     fs.writeFileSync(safePath, content, "utf-8");
     res.json({ message: "Updated", id: def.id });
   } catch (err) {
-    console.error("[agents] Failed to update agent:", (err as Error).message);
-    res.status(500).json({ message: (err as Error).message });
+    handleRouteError(res, err, "routes/agents/update");
   }
 });
 
@@ -89,10 +89,10 @@ router.post("/api/agents/definitions", (req: Request, res: Response) => {
     content?: string;
   };
 
-  if (!name || typeof name !== "string") return res.status(400).json({ message: "name required" });
-  if (name.length > 100) return res.status(400).json({ message: "name too long (max 100)" });
-  if (description && description.length > 500) return res.status(400).json({ message: "description too long (max 500)" });
-  if (content && content.length > 100_000) return res.status(400).json({ message: "content too long (max 100KB)" });
+  if (!name || typeof name !== "string") return res.status(400).json({ error: "name required" });
+  if (name.length > 100) return res.status(400).json({ error: "name too long (max 100)" });
+  if (description && description.length > 500) return res.status(400).json({ error: "description too long (max 500)" });
+  if (content && content.length > 100_000) return res.status(400).json({ error: "content too long (max 100KB)" });
 
   const agentsDir = path.join(CLAUDE_DIR, "agents").replace(/\\/g, "/");
   if (!dirExists(agentsDir)) {
@@ -100,14 +100,14 @@ router.post("/api/agents/definitions", (req: Request, res: Response) => {
   }
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  if (!slug) return res.status(400).json({ message: "name must contain at least one alphanumeric character" });
+  if (!slug) return res.status(400).json({ error: "name must contain at least one alphanumeric character" });
   const filePath = path.join(agentsDir, `${slug}.md`).replace(/\\/g, "/");
   // Path traversal guard: ensure resolved path stays within agents dir
   if (!path.resolve(filePath).startsWith(path.resolve(agentsDir))) {
-    return res.status(400).json({ message: "Invalid agent name" });
+    return res.status(400).json({ error: "Invalid agent name" });
   }
   if (fileExists(filePath)) {
-    return res.status(409).json({ message: "Agent with that name already exists" });
+    return res.status(409).json({ error: "Agent with that name already exists" });
   }
 
   const frontmatter: Record<string, unknown> = { name };
@@ -122,8 +122,7 @@ router.post("/api/agents/definitions", (req: Request, res: Response) => {
     fs.writeFileSync(filePath, fileContent, "utf-8");
     res.json({ message: "Created", id: entityId(filePath), filePath });
   } catch (err) {
-    console.error("[agents] Failed to create agent:", (err as Error).message);
-    res.status(500).json({ message: (err as Error).message });
+    handleRouteError(res, err, "routes/agents/create");
   }
 });
 
@@ -174,10 +173,10 @@ router.get("/api/agents/executions", (req: Request, res: Response) => {
 /** GET /api/agents/executions/:agentId — Detail with message timeline */
 router.get("/api/agents/executions/:agentId", async (req: Request, res: Response) => {
   const exec = getCachedExecutions().find(e => e.agentId === req.params.agentId);
-  if (!exec) return res.status(404).json({ message: "Execution not found" });
+  if (!exec) return res.status(404).json({ error: "Execution not found" });
 
   const safePath = await validateSafePath(exec.filePath);
-  if (!safePath) return res.status(403).json({ message: "Execution file path outside allowed directory" });
+  if (!safePath) return res.status(403).json({ error: "Execution file path outside allowed directory" });
 
   const records = readMessageTimeline(safePath, { includeModel: true });
 

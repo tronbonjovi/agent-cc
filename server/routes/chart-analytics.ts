@@ -28,6 +28,7 @@
  */
 
 import { Router, type Request } from "express";
+import { handleRouteError } from "../lib/route-errors";
 import { getCachedSessions } from "../scanner/session-scanner";
 import { sessionParseCache } from "../scanner/session-cache";
 import type { SessionData } from "@shared/types";
@@ -351,8 +352,7 @@ router.get("/api/charts/tokens-over-time", (req, res) => {
 
     res.json(sortByDate(rows));
   } catch (err) {
-    console.error("[chart-analytics] tokens-over-time failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute tokens-over-time", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/tokens-over-time");
   }
 });
 
@@ -382,8 +382,7 @@ router.get("/api/charts/cache-over-time", (req, res) => {
 
     res.json(sortByDate(rows));
   } catch (err) {
-    console.error("[chart-analytics] cache-over-time failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute cache-over-time", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/cache-over-time");
   }
 });
 
@@ -437,8 +436,7 @@ router.get("/api/charts/models", (req, res) => {
     rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
     res.json(rows);
   } catch (err) {
-    console.error("[chart-analytics] models failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute models chart", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/models");
   }
 });
 
@@ -488,8 +486,7 @@ router.get("/api/charts/sessions", (req, res) => {
 
     res.json(sortByDate(rows));
   } catch (err) {
-    console.error("[chart-analytics] sessions failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute sessions chart", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/sessions");
   }
 });
 
@@ -540,8 +537,7 @@ router.get("/api/charts/session-distributions", (req, res) => {
       duration: Object.entries(durationBuckets).map(([bucket, count]) => ({ bucket, count })),
     });
   } catch (err) {
-    console.error("[chart-analytics] session-distributions failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute session-distributions", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/session-distributions");
   }
 });
 
@@ -578,8 +574,7 @@ router.get("/api/charts/stop-reasons", (req, res) => {
 
     res.json(rows);
   } catch (err) {
-    console.error("[chart-analytics] stop-reasons failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute stop-reasons", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/stop-reasons");
   }
 });
 
@@ -645,8 +640,7 @@ router.get("/api/charts/tools", (req, res) => {
       overTime: overTimeRows,
     });
   } catch (err) {
-    console.error("[chart-analytics] tools failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute tools chart", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/tools");
   }
 });
 
@@ -705,8 +699,7 @@ router.get("/api/charts/files", (req, res) => {
 
     res.json({ heatmap, churn });
   } catch (err) {
-    console.error("[chart-analytics] files failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute files chart", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/files");
   }
 });
 
@@ -794,8 +787,7 @@ router.get("/api/charts/activity", (req, res) => {
 
     res.json({ timeline, projects, sidechains });
   } catch (err) {
-    console.error("[chart-analytics] activity failed:", (err as Error).message);
-    res.status(500).json({ message: "Failed to compute activity chart", error: (err as Error).message });
+    handleRouteError(res, err, "routes/charts/activity");
   }
 });
 
@@ -976,11 +968,7 @@ router.get("/api/charts/subagent-costs", (req, res) => {
 
     res.json(response);
   } catch (err) {
-    console.error("[chart-analytics] subagent-costs failed:", (err as Error).message);
-    res.status(500).json({
-      message: "Failed to compute subagent-costs",
-      error: (err as Error).message,
-    });
+    handleRouteError(res, err, "routes/charts/subagent-costs");
   }
 });
 

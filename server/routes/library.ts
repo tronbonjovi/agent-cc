@@ -85,10 +85,10 @@ const router = Router();
 router.post("/api/library/:type/:id/install", async (req: Request, res: Response) => {
   const type = req.params.type as string;
   const id = req.params.id as string;
-  if (!isValidType(type)) return res.status(400).json({ message: `Invalid type: ${type}` });
+  if (!isValidType(type)) return res.status(400).json({ error: `Invalid type: ${type}` });
 
   const result = await installItem(type, id);
-  if (!result.success) return res.status(400).json({ message: result.error });
+  if (!result.success) return res.status(400).json({ error: result.error });
 
   // Trigger rescan so UI reflects changes
   runFullScan().catch(() => {});
@@ -99,10 +99,10 @@ router.post("/api/library/:type/:id/install", async (req: Request, res: Response
 router.post("/api/library/:type/:id/uninstall", async (req: Request, res: Response) => {
   const type = req.params.type as string;
   const id = req.params.id as string;
-  if (!isValidType(type)) return res.status(400).json({ message: `Invalid type: ${type}` });
+  if (!isValidType(type)) return res.status(400).json({ error: `Invalid type: ${type}` });
 
   const result = await uninstallItem(type, id);
-  if (!result.success) return res.status(400).json({ message: result.error });
+  if (!result.success) return res.status(400).json({ error: result.error });
 
   runFullScan().catch(() => {});
   res.json({ message: `Uninstalled "${id}" — moved to library` });
@@ -112,10 +112,10 @@ router.post("/api/library/:type/:id/uninstall", async (req: Request, res: Respon
 router.delete("/api/library/:type/:id", async (req: Request, res: Response) => {
   const type = req.params.type as string;
   const id = req.params.id as string;
-  if (!isValidType(type)) return res.status(400).json({ message: `Invalid type: ${type}` });
+  if (!isValidType(type)) return res.status(400).json({ error: `Invalid type: ${type}` });
 
   const result = await removeItem(type, id);
-  if (!result.success) return res.status(400).json({ message: result.error });
+  if (!result.success) return res.status(400).json({ error: result.error });
 
   runFullScan().catch(() => {});
   res.json({ message: `Removed "${id}" from library` });
@@ -124,7 +124,7 @@ router.delete("/api/library/:type/:id", async (req: Request, res: Response) => {
 // GET /api/library/:type — list library items for a type
 router.get("/api/library/:type", (req: Request, res: Response) => {
   const type = req.params.type as string;
-  if (!isValidType(type)) return res.status(400).json({ message: `Invalid type: ${type}` });
+  if (!isValidType(type)) return res.status(400).json({ error: `Invalid type: ${type}` });
 
   const claudeDir = path.join(os.homedir(), ".claude");
   const typeDir = path.join(claudeDir, "library", type);

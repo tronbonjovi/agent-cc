@@ -103,7 +103,7 @@ export function validate<T extends z.ZodType>(
   const result = schema.safeParse(data);
   if (!result.success) {
     const messages = result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ");
-    res.status(400).json({ message: messages });
+    res.status(400).json({ error: messages });
     return null;
   }
   return result.data;

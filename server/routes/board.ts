@@ -3,6 +3,7 @@
 import { Router } from "express";
 import path from "path";
 import fs from "fs";
+import { handleRouteError } from "../lib/route-errors";
 import { aggregateBoardState, computeBoardStats, setArchived, getArchivedMilestones, deleteDbTask } from "../board/aggregator";
 import { validateMove, checkAutoUnflag } from "../board/validator";
 import { updateTaskField, generateTaskId, taskFilename, writeTaskFile } from "../task-io";
@@ -83,8 +84,8 @@ export function createBoardRouter(events: BoardEventBus): Router {
           }
         }
       }
-    } catch {
-      return res.status(500).json({ error: "Failed to update task" });
+    } catch (err) {
+      return handleRouteError(res, err, "routes/board/tasks/move");
     }
 
     // Emit event
@@ -111,8 +112,8 @@ export function createBoardRouter(events: BoardEventBus): Router {
     try {
       updateTaskField(id, "flagged", false, task.project);
       updateTaskField(id, "flagReason", undefined, task.project);
-    } catch {
-      return res.status(500).json({ error: "Failed to unflag task" });
+    } catch (err) {
+      return handleRouteError(res, err, "routes/board/tasks/unflag");
     }
 
     events.emit("task-unflagged", { taskId: id });
@@ -152,8 +153,8 @@ export function createBoardRouter(events: BoardEventBus): Router {
       if (!task) return res.status(404).json({ error: "Task not found" });
       if (!task.session) return res.status(404).json({ error: "No session linked to this task" });
       res.json(task.session);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message || "Failed to fetch session data" });
+    } catch (err) {
+      handleRouteError(res, err, "routes/board/tasks/session");
     }
   });
 
@@ -168,8 +169,8 @@ export function createBoardRouter(events: BoardEventBus): Router {
       updateTaskField(req.params.id, "sessionId", sessionId || undefined, task.project);
       events.emit("session-updated", { taskId: req.params.id, sessionId: sessionId || null });
       res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message || "Failed to link session" });
+    } catch (err) {
+      handleRouteError(res, err, "routes/board/tasks/link-session");
     }
   });
 

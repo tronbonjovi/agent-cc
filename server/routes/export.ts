@@ -65,7 +65,7 @@ router.get("/api/export", (_req, res) => {
 router.post("/api/import", (req, res) => {
   const result = ImportSchema.safeParse(req.body);
   if (!result.success) {
-    return res.status(400).json({ message: "Invalid import data", errors: result.error.issues.slice(0, 5) });
+    return res.status(400).json({ error: "Invalid import data", detail: result.error.issues.slice(0, 5).map(i => i.message).join("; ") });
   }
 
   const body = result.data;

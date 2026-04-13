@@ -92,7 +92,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   // Actions — open-folder and open-file share identical logic
   const handleOpen = (req: import("express").Request, res: import("express").Response) => {
     const { path: targetPath } = req.body;
-    if (!targetPath || typeof targetPath !== "string") return res.status(400).json({ message: "path required" });
+    if (!targetPath || typeof targetPath !== "string") return res.status(400).json({ error: "path required" });
     openPath(targetPath);
     res.json({ message: "Opening" });
   };
@@ -102,6 +102,6 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   // Catch-all for unmatched API routes — must be after all API routers
   // but before the SPA catch-all in static.ts/vite.ts
   app.use("/api/{*path}", (_req, res) => {
-    res.status(404).json({ message: "Not found" });
+    res.status(404).json({ error: "Not found" });
   });
 }
