@@ -69,6 +69,46 @@ export function computeModelBreakdownFromTree(
 }
 
 /**
+ * Total cost + token totals for the session. Prefers `tree.totals` (which
+ * includes subagent rollup from the post-order pass) when the tree is
+ * available; falls back to summing `parsed.assistantMessages[].usage` when
+ * the tree is null. The flat fallback cannot compute cost (per-message cost
+ * isn't stored on AssistantRecord), so it returns 0 for cost — same as
+ * today's broken display, but at least the token totals are real.
+ */
+export function computeCostFromTree(
+  tree: SerializedSessionTreeForClient | null | undefined,
+  parsed: ParsedSession,
+): {
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+} {
+  if (tree && tree.totals) {
+    return {
+      costUsd: tree.totals.costUsd ?? 0,
+      inputTokens: tree.totals.inputTokens ?? 0,
+      outputTokens: tree.totals.outputTokens ?? 0,
+      cacheReadTokens: tree.totals.cacheReadTokens ?? 0,
+      cacheCreationTokens: tree.totals.cacheCreationTokens ?? 0,
+    };
+  }
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheCreationTokens = 0;
+  for (const m of parsed.assistantMessages) {
+    inputTokens += m.usage?.inputTokens ?? 0;
+    outputTokens += m.usage?.outputTokens ?? 0;
+    cacheReadTokens += m.usage?.cacheReadTokens ?? 0;
+    cacheCreationTokens += m.usage?.cacheCreationTokens ?? 0;
+  }
+  return { costUsd: 0, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens };
+}
+
+/**
  * One row in the new Subagents chip strip below the Models row. Each chip
  * carries everything the renderer needs (label fields + palette color class)
  * so the JSX stays presentational. The color comes from the same
