@@ -61,26 +61,12 @@ describe("Analytics page responsive layout", () => {
   // describe block was removed along with session-analytics-panel.tsx. Its
   // sub-tab bar was part of the dead SessionAnalyticsTab export.
 
-  describe("charts resize with container", () => {
-    it("chart containers use w-full for fluid sizing", () => {
-      // Stats page grid should have responsive columns
-      expect(statsSource).toContain("grid-cols-1");
-    });
-
-    it("stat cards use responsive grid (1 col at mobile)", () => {
-      expect(statsSource).toMatch(/grid-cols-1/);
-    });
-  });
-
-  describe("data tables responsive", () => {
-    it("data lists use min-w-0 for overflow prevention", () => {
-      expect(statsSource).toContain("min-w-0");
-    });
-
-    it("uses truncate for long text content", () => {
-      expect(statsSource).toContain("truncate");
-    });
-  });
+  // Note (codebase-cleanup-task003): the "charts resize with container" and
+  // "data tables responsive" blocks were removed because stats.tsx became a
+  // thin router shell. The dead UsageTab/ActivityTab that held the grids,
+  // truncated rows, and min-w-0 flex containers were deleted. Those responsive
+  // concerns now live inside CostsTab/ChartsTab/SessionsTab/MessagesTab and
+  // their own tests cover them.
 
   describe("overflow prevention", () => {
     it("no fixed-width containers that could cause horizontal scroll", () => {

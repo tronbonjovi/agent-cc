@@ -62,12 +62,6 @@ describe("Neon/gradient removal", () => {
     expect(src).not.toContain(".gradient-border:hover::before");
   });
 
-  it("stat-card.tsx has no gradient-border class", () => {
-    const src = fs.readFileSync("client/src/components/stat-card.tsx", "utf-8");
-    expect(src).not.toContain("gradient-border");
-    expect(src).not.toContain("shadow-[0_0_16px");
-  });
-
   it("agents-tab.tsx has no gradient-border or gradient progress bars", () => {
     const src = fs.readFileSync("client/src/components/library/agents-tab.tsx", "utf-8");
     expect(src).not.toContain("gradient-border");
