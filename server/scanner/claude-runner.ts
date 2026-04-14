@@ -4,6 +4,50 @@
  */
 import { spawn } from "child_process";
 
+/** Cached availability result so repeated calls don't re-spawn `claude --version`. */
+let claudeAvailabilityCache: boolean | null = null;
+
+/**
+ * Returns true if the Claude CLI is installed and responsive.
+ * Result is cached for the lifetime of the process — call `resetClaudeAvailabilityCache()` to force a recheck.
+ */
+export function isClaudeAvailable(): Promise<boolean> {
+  if (claudeAvailabilityCache !== null) return Promise.resolve(claudeAvailabilityCache);
+  return new Promise<boolean>((resolve) => {
+    try {
+      const env = buildClaudeEnv();
+      const child = spawn("claude", ["--version"], {
+        env,
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      const timeout = setTimeout(() => {
+        try { child.kill(); } catch { /* ignore */ }
+        claudeAvailabilityCache = false;
+        resolve(false);
+      }, 5000);
+      child.on("error", () => {
+        clearTimeout(timeout);
+        claudeAvailabilityCache = false;
+        resolve(false);
+      });
+      child.on("close", (code) => {
+        clearTimeout(timeout);
+        const ok = code === 0;
+        claudeAvailabilityCache = ok;
+        resolve(ok);
+      });
+    } catch {
+      claudeAvailabilityCache = false;
+      resolve(false);
+    }
+  });
+}
+
+/** Reset the cached availability check — primarily for tests. */
+export function resetClaudeAvailabilityCache(): void {
+  claudeAvailabilityCache = null;
+}
+
 interface RunClaudeOpts {
   model?: string;
   timeoutMs?: number;
