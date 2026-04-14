@@ -16,6 +16,7 @@ import { useTerminalGroupStore } from "@/stores/terminal-group-store";
 // react-resizable-panels v4.x API: Group + Panel + Separator,
 // `orientation` instead of `direction`.
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 
 import {
   LayoutDashboard,
@@ -86,6 +87,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const terminalHeight = useTerminalGroupStore((s) => s.height);
   const setTerminalHeight = useTerminalGroupStore((s) => s.setHeight);
   const terminalCollapsed = useTerminalGroupStore((s) => s.collapsed);
+  // Imperative handle on the terminal Panel. The collapse toggle
+  // drives size changes through this ref rather than via a structural
+  // conditional — the PanelGroup stays mounted so <main> children
+  // keep their React identity and don't refetch on every collapse.
+  const terminalPanelRef = useRef<PanelImperativeHandle | null>(null);
+
+  // Collapsed height = the toolbar's own height (h-8 = 32px). The
+  // terminal Panel clamps to this via dynamic min/max when collapsed,
+  // so TerminalPanel's collapsed-render (toolbar-only) fits exactly
+  // with no blank gap above or below.
+  const TERMINAL_COLLAPSED_PX = 32;
+
+  // Sync the Panel's size to the store's collapsed flag. The grab
+  // handle never touches this — only the toolbar chevron does.
+  useEffect(() => {
+    const ref = terminalPanelRef.current;
+    if (!ref) return;
+    if (terminalCollapsed) {
+      ref.resize(TERMINAL_COLLAPSED_PX);
+    } else {
+      ref.resize(terminalHeight);
+    }
+    // terminalHeight intentionally omitted — when the user drags the
+    // handle we don't want this effect re-firing and yanking the Panel
+    // back to the old persisted value. Only collapse toggles drive the
+    // imperative resize.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminalCollapsed]);
 
   // Reset sidebar state when breakpoint changes (unless user manually toggled within same tier)
   useEffect(() => {
@@ -309,64 +338,65 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             )}
             {/*
-              Terminal area: the store's `collapsed` flag (toggled by the
-              toolbar chevron button) is the single open/close mechanism.
-              The grab handle adjusts height only when the terminal is
-              expanded — it never opens or closes the panel.
+              Terminal area: the PanelGroup stays mounted regardless of
+              collapse state so <main> children keep stable React
+              identity (no refetch on collapse toggle). Collapse state
+              is driven by:
+                1. Dynamic min/max clamping the terminal Panel to its
+                   toolbar height when collapsed, normal floor/ceiling
+                   otherwise.
+                2. An imperative panelRef.resize() in a useEffect so the
+                   Panel actually snaps to the new size on toggle.
+                3. CSS hiding the resize handle when collapsed so the
+                   user cannot drag the panel open or closed — the
+                   toolbar chevron is the only open/close mechanism.
 
-              When collapsed: simple flex layout, TerminalPanel renders
-              its toolbar-only path pinned to the bottom of <main>. No
-              PanelGroup, no resize handle. No blank gap.
-
-              When expanded: vertical PanelGroup with a resizable terminal
-              Panel. The outer Panel reads the persisted pixel height from
-              the store and writes back via onResize. groupResizeBehavior
-              "preserve-pixel-size" keeps the terminal at the user's chosen
-              height when the window resizes; main stays relative so the
-              library's "≥1 relative panel per group" invariant is satisfied.
-
-              Note: TerminalPanel unmounts/remounts on collapse toggle.
-              This is safe — xterm instances live in the singleton
-              TerminalInstanceManager (outside React) and survive remount.
-              The init useEffect re-fetches /api/terminal/panel, but
-              loadFromServer is idempotent against existing manager state.
+              groupResizeBehavior "preserve-pixel-size" keeps the
+              terminal at the user's chosen height when the window
+              resizes; main stays relative so the library's "≥1
+              relative panel per group" invariant is satisfied.
             */}
-            {terminalCollapsed ? (
-              <>
-                <div className="flex-1 overflow-hidden">
+            <PanelGroup orientation="vertical" className="flex-1 min-h-0">
+              <Panel minSize="20%">
+                <div className="h-full overflow-hidden">
                   <div className="page-enter h-full">
                     {children}
                   </div>
                 </div>
-                <TerminalPanel />
-              </>
-            ) : (
-              <PanelGroup orientation="vertical" className="flex-1 min-h-0">
-                <Panel minSize="20%">
-                  <div className="h-full overflow-hidden">
-                    <div className="page-enter h-full">
-                      {children}
-                    </div>
-                  </div>
-                </Panel>
-                <PanelResizeHandle className="group h-1.5 bg-border hover:bg-accent/50 transition-colors flex items-center justify-center cursor-row-resize">
+              </Panel>
+              <PanelResizeHandle
+                className={cn(
+                  "group bg-border transition-colors flex items-center justify-center",
+                  terminalCollapsed
+                    ? "h-0 pointer-events-none opacity-0"
+                    : "h-1.5 hover:bg-accent/50 cursor-row-resize"
+                )}
+              >
+                {!terminalCollapsed && (
                   <div className="w-10 h-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
-                </PanelResizeHandle>
-                <Panel
-                  defaultSize={terminalHeight}
-                  minSize={100}
-                  groupResizeBehavior="preserve-pixel-size"
-                  onResize={(panelSize) => {
-                    const px = Math.round(panelSize.inPixels);
-                    if (Number.isFinite(px) && px !== terminalHeight) {
-                      setTerminalHeight(px);
-                    }
-                  }}
-                >
-                  <TerminalPanel />
-                </Panel>
-              </PanelGroup>
-            )}
+                )}
+              </PanelResizeHandle>
+              <Panel
+                panelRef={terminalPanelRef}
+                defaultSize={terminalCollapsed ? TERMINAL_COLLAPSED_PX : terminalHeight}
+                minSize={terminalCollapsed ? TERMINAL_COLLAPSED_PX : 100}
+                maxSize={terminalCollapsed ? TERMINAL_COLLAPSED_PX : undefined}
+                groupResizeBehavior="preserve-pixel-size"
+                onResize={(panelSize) => {
+                  // When collapsed, the Panel is clamped at the toolbar
+                  // height — do NOT persist that as the user's expanded
+                  // height. Only writes from the expanded state update
+                  // the store.
+                  if (terminalCollapsed) return;
+                  const px = Math.round(panelSize.inPixels);
+                  if (Number.isFinite(px) && px !== terminalHeight) {
+                    setTerminalHeight(px);
+                  }
+                }}
+              >
+                <TerminalPanel />
+              </Panel>
+            </PanelGroup>
           </main>
         </Panel>
         {!chatPanelCollapsed && (
