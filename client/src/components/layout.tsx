@@ -11,6 +11,7 @@ import { SyncIndicator } from "@/components/sync-indicator";
 import { UpdateIndicator } from "@/components/update-indicator";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { TerminalPanel } from "./terminal-panel";
+import { ChatPanel } from "./chat/chat-panel";
 import { useLayoutStore } from "@/stores/layout-store";
 import { useTerminalGroupStore } from "@/stores/terminal-group-store";
 // react-resizable-panels v4.x API: Group + Panel + Separator,
@@ -27,6 +28,7 @@ import {
   Kanban,
   BookOpen,
   Menu,
+  MessageSquare,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import React from "react";
@@ -78,6 +80,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const chatPanelWidth = useLayoutStore((s) => s.chatPanelWidth);
   const chatPanelCollapsed = useLayoutStore((s) => s.chatPanelCollapsed);
   const setChatPanelWidth = useLayoutStore((s) => s.setChatPanelWidth);
+  const toggleChatPanel = useLayoutStore((s) => s.toggleChatPanel);
 
   // Task008: the outer vertical Panel wrapping the terminal component is
   // the single source of truth for terminal height. We size it from the
@@ -266,6 +269,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
           <ThemeSwitcher collapsed={collapsed} />
           <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+          {/*
+            Chat panel toggle — calls the layout store's toggleChatPanel().
+            aria-pressed reflects whether the panel is currently open so
+            assistive tech and visual state stay in sync. When open, the
+            button gets a subtle bg-accent treatment; no animations (per
+            project memory feedback_no_bounce_animations).
+          */}
+          <button
+            data-testid="sidebar-chat-toggle"
+            onClick={() => toggleChatPanel()}
+            aria-pressed={!chatPanelCollapsed}
+            aria-label={chatPanelCollapsed ? "Open chat panel" : "Close chat panel"}
+            className={cn(
+              "flex items-center h-10 text-muted-foreground hover:text-foreground transition-colors",
+              collapsed ? "justify-center" : "px-4 gap-2.5",
+              !chatPanelCollapsed && "bg-accent/40 text-foreground",
+            )}
+          >
+            <MessageSquare className="h-4 w-4 flex-shrink-0" />
+            {!collapsed && <span className="text-sm">Chat</span>}
+          </button>
+          <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
           <button
             onClick={() => {
               manualToggleRef.current = true;
@@ -417,9 +442,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               <div
                 data-testid="chat-panel-slot"
-                className="h-full border-l bg-background flex items-center justify-center text-xs text-muted-foreground"
+                className="h-full border-l bg-background overflow-hidden"
               >
-                Chat panel slot
+                <ChatPanel />
               </div>
             </Panel>
           </>

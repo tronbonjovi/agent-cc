@@ -217,6 +217,37 @@ describe("layout.tsx — 3-column shell structure", () => {
     expect(src).toMatch(/PanelResizeHandle[^>]*w-1\.5/);
     expect(src).toMatch(/cursor-col-resize/);
   });
+
+  // -------------------------------------------------------------------------
+  // Task006 — ChatPanel mounted + sidebar toggle
+  // -------------------------------------------------------------------------
+
+  it("imports ChatPanel from ./chat/chat-panel (task006)", () => {
+    expect(src).toMatch(/from ["']\.\/chat\/chat-panel["']/);
+    expect(src).toContain("<ChatPanel");
+  });
+
+  it("no longer renders the 'Chat panel slot' placeholder text (task006)", () => {
+    expect(src).not.toContain("Chat panel slot");
+  });
+
+  it("sidebar has a chat toggle button that calls toggleChatPanel (task006)", () => {
+    // The toggle button must reference toggleChatPanel from the layout
+    // store and be identifiable in tests via a data-testid.
+    expect(src).toMatch(/toggleChatPanel/);
+    expect(src).toContain('data-testid="sidebar-chat-toggle"');
+  });
+
+  it("sidebar chat toggle uses a lucide MessageSquare icon (task006)", () => {
+    expect(src).toMatch(/MessageSquare/);
+    // Ensure it comes from lucide-react (the existing import block).
+    expect(src).toMatch(/from ["']lucide-react["']/);
+  });
+
+  it("sidebar chat toggle reflects open/closed state via aria-pressed (task006)", () => {
+    // When chatPanelCollapsed is false, the panel is open → aria-pressed=true.
+    expect(src).toMatch(/aria-pressed=\{!chatPanelCollapsed\}/);
+  });
 });
 
 describe("layout-store.ts — source guardrails", () => {

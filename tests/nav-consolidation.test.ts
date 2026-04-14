@@ -260,7 +260,13 @@ describe("Layout — unused icon imports cleaned up", () => {
     expect(layoutSource).toMatch(/\bBookOpen\b/);
   });
 
-  it("does not import MessageSquare icon (Sessions removed from nav)", () => {
-    expect(layoutSource).not.toMatch(/\bMessageSquare\b/);
+  it("MessageSquare icon is not used in the top-level navItems array (Sessions removed from nav)", () => {
+    // The original guardrail banned MessageSquare entirely. Task006
+    // (chat-skeleton) reintroduces it as the sidebar chat-toggle icon,
+    // which is not a nav route — so the real invariant is: no
+    // MessageSquare reference inside the navItems array literal.
+    const navItemsMatch = layoutSource.match(/const navItems[\s\S]*?\];/);
+    expect(navItemsMatch).toBeTruthy();
+    expect(navItemsMatch![0]).not.toMatch(/\bMessageSquare\b/);
   });
 });
