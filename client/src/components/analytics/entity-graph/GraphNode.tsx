@@ -1,4 +1,3 @@
-import React from "react";
 import type { PositionedNode } from "@/hooks/use-force-layout";
 import { NODE_COLORS } from "./graph-colors";
 
@@ -22,14 +21,19 @@ interface GraphNodeProps {
 
 /**
  * SVG node rendered as a single solid-fill circle with an optional label.
- * Uses React.memo so only nodes whose props change re-render on hover.
+ *
+ * NOT memoized — d3-force mutates node.x/y in place, so the node prop
+ * reference is stable across ticks and React.memo would cache the first
+ * render forever, leaving nodes frozen at their original positions while
+ * edges (which recalculate paths every render) drifted away. Same
+ * reasoning as GraphEdge.
  *
  * Label visibility is zoom-driven:
  *   scale < 0.6  → no labels
  *   0.6 - 1.2    → labels on nodes with r > 10
  *   scale > 1.2  → all labels
  */
-const GraphNode = React.memo(function GraphNode({
+function GraphNode({
   node,
   isHighlighted: _isHighlighted,
   isDimmed,
@@ -91,7 +95,7 @@ const GraphNode = React.memo(function GraphNode({
       )}
     </g>
   );
-});
+}
 
 export { GraphNode };
 export type { GraphNodeProps };
