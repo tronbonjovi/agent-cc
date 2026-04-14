@@ -16,6 +16,8 @@ import path from "path";
 const ROOT = path.resolve(__dirname, "..");
 const LAYOUT_PATH = path.resolve(ROOT, "client/src/components/layout.tsx");
 const STORE_PATH = path.resolve(ROOT, "client/src/stores/layout-store.ts");
+const TERMINAL_PANEL_PATH = path.resolve(ROOT, "client/src/components/terminal-panel.tsx");
+const TERMINAL_GROUP_VIEW_PATH = path.resolve(ROOT, "client/src/components/terminal-group-view.tsx");
 
 // ---------------------------------------------------------------------------
 // layout-store — pure Zustand, safe to import in node env
@@ -159,6 +161,25 @@ describe("layout.tsx — 3-column shell structure", () => {
       /chatPanelCollapsed\s*&&/.test(src);
     expect(hasConditional).toBe(true);
   });
+
+  // Task008 — the outer vertical Panel wrapping <TerminalPanel /> is the
+  // single source of truth for terminal height. It must read from and
+  // write back to useTerminalGroupStore.
+  it("imports useTerminalGroupStore for terminal height wiring", () => {
+    expect(src).toContain("useTerminalGroupStore");
+    expect(src).toMatch(/from\s+["']@\/stores\/terminal-group-store["']/);
+  });
+
+  it("reads terminal height from the store and writes it back via onResize", () => {
+    expect(src).toMatch(/s\)\s*=>\s*s\.height/);
+    expect(src).toMatch(/s\)\s*=>\s*s\.setHeight/);
+    // onResize handler on the terminal Panel uses the same inPixels
+    // pattern the chat panel uses, with a referential-guard to prevent
+    // feedback loops.
+    expect(src).toMatch(/onResize=\{\(panelSize\)/);
+    expect(src).toMatch(/panelSize\.inPixels/);
+    expect(src).toMatch(/setTerminalHeight/);
+  });
 });
 
 describe("layout-store.ts — source guardrails", () => {
@@ -170,5 +191,59 @@ describe("layout-store.ts — source guardrails", () => {
 
   it("persists under the agent-cc:layout localStorage key", () => {
     expect(storeSrc).toContain("agent-cc:layout");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task008 — terminal panel consolidation on react-resizable-panels
+// ---------------------------------------------------------------------------
+
+describe("terminal-panel.tsx — no bespoke drag handle (task008)", () => {
+  const src = fs.readFileSync(TERMINAL_PANEL_PATH, "utf-8");
+
+  it("does not render its own onMouseDown drag handle", () => {
+    // Regression guard for the dual-handle desync task008 fixed.
+    // The outer vertical <Panel> in layout.tsx owns resize now.
+    expect(src).not.toMatch(/onMouseDown=\{handleMouseDown\}/);
+    expect(src).not.toMatch(/handleMouseDown/);
+  });
+
+  it("does not style itself with a pixel height", () => {
+    // The component must fill its parent Panel, not impose a height.
+    expect(src).not.toMatch(/style=\{\{\s*height\s*\}\}/);
+  });
+
+  it("still subscribes to height for server persistence", () => {
+    // height stays in the deps array for the PATCH /api/terminal/panel
+    // effect — the outer Panel writes back into the store, and this
+    // subscription makes the PATCH re-fire.
+    expect(src).toMatch(/useTerminalGroupStore\(\(s\)\s*=>\s*s\.height\)/);
+  });
+});
+
+describe("terminal-group-view.tsx — uses react-resizable-panels (task008)", () => {
+  const src = fs.readFileSync(TERMINAL_GROUP_VIEW_PATH, "utf-8");
+
+  it("does not import allotment", () => {
+    expect(src).not.toMatch(/from ["']allotment["']/);
+    expect(src).not.toMatch(/allotment\/dist\/style\.css/);
+    expect(src).not.toContain("Allotment");
+  });
+
+  it("imports Group / Panel / Separator from react-resizable-panels", () => {
+    expect(src).toMatch(/from ["']react-resizable-panels["']/);
+    // Alias pattern must match layout.tsx for consistency.
+    expect(src).toMatch(/Group as PanelGroup/);
+    expect(src).toMatch(/Separator as PanelResizeHandle/);
+  });
+});
+
+describe("package.json — allotment removed (task008)", () => {
+  const pkgSrc = fs.readFileSync(path.resolve(ROOT, "package.json"), "utf-8");
+
+  it("does not list allotment as a dependency", () => {
+    const pkg = JSON.parse(pkgSrc);
+    expect(pkg.dependencies?.allotment).toBeUndefined();
+    expect(pkg.devDependencies?.allotment).toBeUndefined();
   });
 });

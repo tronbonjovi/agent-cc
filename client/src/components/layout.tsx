@@ -12,6 +12,7 @@ import { UpdateIndicator } from "@/components/update-indicator";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { TerminalPanel } from "./terminal-panel";
 import { useLayoutStore } from "@/stores/layout-store";
+import { useTerminalGroupStore } from "@/stores/terminal-group-store";
 // react-resizable-panels v4.x API: Group + Panel + Separator,
 // `orientation` instead of `direction`.
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
@@ -76,6 +77,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const chatPanelWidth = useLayoutStore((s) => s.chatPanelWidth);
   const chatPanelCollapsed = useLayoutStore((s) => s.chatPanelCollapsed);
   const setChatPanelWidth = useLayoutStore((s) => s.setChatPanelWidth);
+
+  // Task008: the outer vertical Panel wrapping the terminal component is
+  // the single source of truth for terminal height. We size it from the
+  // persisted store value and write back on resize so server persistence
+  // (the PATCH /api/terminal/panel flow inside the terminal panel) keeps
+  // working.
+  const terminalHeight = useTerminalGroupStore((s) => s.height);
+  const setTerminalHeight = useTerminalGroupStore((s) => s.setHeight);
 
   // Reset sidebar state when breakpoint changes (unless user manually toggled within same tier)
   useEffect(() => {
@@ -300,21 +309,39 @@ export function Layout({ children }: { children: React.ReactNode }) {
             )}
             {/*
               Nested vertical group: main content on top, terminal on
-              bottom. The TerminalPanel manages its own internal height
-              via useTerminalGroupStore — we give it a flexible Panel
-              so it can still render at its intrinsic height, and main
-              takes the rest.
+              bottom. Task008 made the outer vertical Panel the single
+              source of truth for terminal height — sized from the
+              persisted store value (pixels), writing back via onResize.
+              TerminalPanel no longer owns a bespoke drag handle.
+
+              groupResizeBehavior="preserve-pixel-size" keeps the terminal
+              at the user's chosen height when the window resizes; main
+              stays at the default preserve-relative-size so the library's
+              invariant (≥1 relative panel per group) is satisfied.
             */}
             <PanelGroup orientation="vertical" className="flex-1 min-h-0">
-              <Panel defaultSize="70%" minSize="20%">
+              <Panel minSize="20%">
                 <div className="h-full overflow-hidden">
                   <div className="page-enter h-full">
                     {children}
                   </div>
                 </div>
               </Panel>
-              <PanelResizeHandle className="h-px bg-border hover:bg-border/80 transition-colors" />
-              <Panel defaultSize="30%" minSize="5%" collapsible>
+              <PanelResizeHandle className="group h-1.5 bg-border hover:bg-accent/50 transition-colors flex items-center justify-center cursor-row-resize">
+                <div className="w-10 h-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
+              </PanelResizeHandle>
+              <Panel
+                defaultSize={terminalHeight}
+                minSize={100}
+                collapsible
+                groupResizeBehavior="preserve-pixel-size"
+                onResize={(panelSize) => {
+                  const px = Math.round(panelSize.inPixels);
+                  if (Number.isFinite(px) && px !== terminalHeight) {
+                    setTerminalHeight(px);
+                  }
+                }}
+              >
                 <TerminalPanel />
               </Panel>
             </PanelGroup>
