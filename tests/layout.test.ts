@@ -136,14 +136,26 @@ describe("layout.tsx — 3-column shell structure", () => {
     expect(src).toContain("<TerminalPanel");
   });
 
-  it("terminal lives inside the nested vertical panel group, not at layout root", () => {
-    // The terminal must appear AFTER the vertical PanelGroup is opened,
-    // so its subtree contains <TerminalPanel /> — meaning the terminal
-    // no longer spans across the chat panel column.
+  it("terminal lives inside the center column, not spanning under chat", () => {
+    // After the task008 follow-up, layout conditionally renders the
+    // terminal area: a flex layout when collapsed, a vertical PanelGroup
+    // when expanded. The expanded branch must contain <TerminalPanel
+    // AFTER the vertical orientation marker (proving it lives in the
+    // nested vertical group). The collapsed branch can place TerminalPanel
+    // anywhere inside the center column — what matters is that the
+    // terminal never sits adjacent to the chat panel slot at the root
+    // of the horizontal PanelGroup.
     const verticalOpen = src.search(/(direction|orientation)=["']vertical["']/);
-    const terminalIdx = src.indexOf("<TerminalPanel");
+    const terminalLastIdx = src.lastIndexOf("<TerminalPanel");
     expect(verticalOpen).toBeGreaterThan(-1);
-    expect(terminalIdx).toBeGreaterThan(verticalOpen);
+    // The expanded-branch TerminalPanel must follow the vertical marker.
+    expect(terminalLastIdx).toBeGreaterThan(verticalOpen);
+    // And no TerminalPanel may appear adjacent to the chat panel slot.
+    const chatSlotIdx = src.indexOf('data-testid="chat-panel-slot"');
+    expect(chatSlotIdx).toBeGreaterThan(-1);
+    // All TerminalPanel references must come BEFORE the chat panel slot
+    // (i.e. inside the center column, which renders before the right column).
+    expect(terminalLastIdx).toBeLessThan(chatSlotIdx);
   });
 
   it("reads chatPanelCollapsed and chatPanelWidth from useLayoutStore", () => {
@@ -179,6 +191,31 @@ describe("layout.tsx — 3-column shell structure", () => {
     expect(src).toMatch(/onResize=\{\(panelSize\)/);
     expect(src).toMatch(/panelSize\.inPixels/);
     expect(src).toMatch(/setTerminalHeight/);
+  });
+
+  // Task008 follow-up: the toolbar chevron button is the single
+  // open/close mechanism. The grab handle adjusts height only when
+  // expanded — it never opens or closes the panel. layout.tsx must
+  // subscribe to terminal collapse state and conditionally render
+  // the resizable PanelGroup vs a flex layout.
+  it("subscribes to terminal collapsed state from useTerminalGroupStore", () => {
+    expect(src).toMatch(/s\)\s*=>\s*s\.collapsed/);
+  });
+
+  it("conditionally renders the terminal area based on collapsed state", () => {
+    // When collapsed, the terminal area is a flex layout with no
+    // PanelGroup wrapping it (no blank gap above the toolbar). When
+    // expanded, the vertical PanelGroup with resize handle is used.
+    expect(src).toMatch(/terminalCollapsed\s*\?/);
+  });
+
+  it("chat panel resize handle is grabbable (not a 1px hairline)", () => {
+    // Regression guard: the chat panel divider must be wide enough to
+    // grab. The original `w-px` was unusable; bump to `w-1.5` with a
+    // hover treatment matching the terminal handle.
+    expect(src).not.toMatch(/PanelResizeHandle\s+className=["']w-px\b/);
+    expect(src).toMatch(/PanelResizeHandle[^>]*w-1\.5/);
+    expect(src).toMatch(/cursor-col-resize/);
   });
 });
 
