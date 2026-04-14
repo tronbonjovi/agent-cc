@@ -61,20 +61,33 @@ export function resolveCustomEdges(
 
   const customNodeIds = new Set(customNodes.map((n) => n.id));
 
+  const devWarn = process.env.NODE_ENV !== "production";
   const resolved: ResolvedEdge[] = [];
   for (const ce of customEdges) {
     const resolvedSource =
       entityNameToId.get(ce.source) || entityNameToId.get(ce.source.toLowerCase());
     const resolvedTarget =
       entityNameToId.get(ce.target) || entityNameToId.get(ce.target.toLowerCase());
-    if (resolvedSource && resolvedTarget) {
-      const sourceInGraph = entityIds.has(resolvedSource) || customNodeIds.has(resolvedSource);
-      const targetInGraph = entityIds.has(resolvedTarget) || customNodeIds.has(resolvedTarget);
-      if (sourceInGraph && targetInGraph) {
-        resolved.push({ ...ce, source: resolvedSource, target: resolvedTarget });
-        g.setEdge(resolvedSource, resolvedTarget);
+    if (!resolvedSource || !resolvedTarget) {
+      if (devWarn) {
+        console.warn(
+          `[graph-builder] dropped custom edge: source="${ce.source}" target="${ce.target}" — no name/id match`,
+        );
       }
+      continue;
     }
+    const sourceInGraph = entityIds.has(resolvedSource) || customNodeIds.has(resolvedSource);
+    const targetInGraph = entityIds.has(resolvedTarget) || customNodeIds.has(resolvedTarget);
+    if (!sourceInGraph || !targetInGraph) {
+      if (devWarn) {
+        console.warn(
+          `[graph-builder] dropped custom edge after resolution: ${resolvedSource} → ${resolvedTarget} (source in graph: ${sourceInGraph}, target in graph: ${targetInGraph})`,
+        );
+      }
+      continue;
+    }
+    resolved.push({ ...ce, source: resolvedSource, target: resolvedTarget });
+    g.setEdge(resolvedSource, resolvedTarget);
   }
   return resolved;
 }

@@ -102,18 +102,39 @@ export function buildRelationships(
     }
   }
 
-  // Global MCPs (not connected to any project) are available to all projects
+  // Global MCPs (not connected to any project) previously fanned out one
+  // edge per project × MCP, producing a dense hairball in the graph. We
+  // now collapse them under a single synthetic "Global MCP Pool" node so
+  // the graph stays legible while still showing which servers exist
+  // globally. Real per-project usage still flows through defines_mcp /
+  // uses_mcp above.
+  const GLOBAL_MCP_POOL_ID = "mcp-pool-global";
+  let poolCreated = false;
+  const now = new Date().toISOString();
   for (const mcp of mcps) {
     if (!connectedMcps.has(mcp.id) && !mcp.tags.includes("plugin")) {
-      for (const project of projects) {
-        storage.addRelationship({
-          sourceId: project.id,
-          sourceType: "project",
-          targetId: mcp.id,
-          targetType: "mcp",
-          relation: "uses_mcp",
+      if (!poolCreated) {
+        storage.upsertEntity({
+          id: GLOBAL_MCP_POOL_ID,
+          type: "mcp",
+          name: "Global MCP Pool",
+          path: "",
+          description: "Global MCP servers available to every project",
+          lastModified: null,
+          tags: ["pool", "global"],
+          health: "ok",
+          data: { synthetic: true },
+          scannedAt: now,
         });
+        poolCreated = true;
       }
+      storage.addRelationship({
+        sourceId: GLOBAL_MCP_POOL_ID,
+        sourceType: "mcp",
+        targetId: mcp.id,
+        targetType: "mcp",
+        relation: "provides_mcp",
+      });
       connectedMcps.add(mcp.id);
     }
   }

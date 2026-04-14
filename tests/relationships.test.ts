@@ -149,9 +149,10 @@ describe("buildRelationships", () => {
     buildRelationships([project], [mcp], [skill], [md], []);
 
     const rels = storage.getAllRelationships();
-    // The global MCP will be linked with "uses_mcp" since it's unconnected and not a plugin
-    const nonGlobal = rels.filter((r) => r.relation !== "uses_mcp");
-    expect(nonGlobal).toHaveLength(0);
+    // The global MCP is attached to the Global MCP Pool, not to the project.
+    // No relationship should have the project as its source.
+    const projectRels = rels.filter((r) => r.sourceId === "proj1");
+    expect(projectRels).toHaveLength(0);
   });
 
   it("creates plugin-skill relationship when skill belongs to a plugin", () => {
@@ -177,7 +178,7 @@ describe("buildRelationships", () => {
     expect(pluginSkill[0].targetType).toBe("skill");
   });
 
-  it("links global MCPs to all projects via uses_mcp", () => {
+  it("collapses global MCPs under the Global MCP Pool instead of fanning out to every project", () => {
     const project1 = makeEntity("proj1", "project", {
       name: "Project A",
       path: "/home/user/project-a",
@@ -198,10 +199,23 @@ describe("buildRelationships", () => {
     buildRelationships([project1, project2], [mcp], [], [], []);
 
     const rels = storage.getAllRelationships();
-    const usesMcp = rels.filter((r) => r.relation === "uses_mcp");
-    expect(usesMcp).toHaveLength(2);
-    expect(usesMcp.map((r) => r.sourceId).sort()).toEqual(["proj1", "proj2"]);
-    expect(usesMcp.every((r) => r.targetId === "mcp1")).toBe(true);
+    // No project→MCP fan-out anymore
+    const projectFanout = rels.filter(
+      (r) => r.relation === "uses_mcp" && (r.sourceId === "proj1" || r.sourceId === "proj2"),
+    );
+    expect(projectFanout).toHaveLength(0);
+
+    // Exactly one pool→MCP edge for the orphan MCP
+    const poolEdges = rels.filter((r) => r.sourceId === "mcp-pool-global");
+    expect(poolEdges).toHaveLength(1);
+    expect(poolEdges[0].targetId).toBe("mcp1");
+    expect(poolEdges[0].relation).toBe("provides_mcp");
+
+    // The pool entity itself should have been upserted
+    const poolEntity = storage.getEntity("mcp-pool-global");
+    expect(poolEntity).toBeDefined();
+    expect(poolEntity?.type).toBe("mcp");
+    expect(poolEntity?.name).toBe("Global MCP Pool");
   });
 
   it("links plugin MCP to plugin entity via provides_mcp", () => {

@@ -10,6 +10,7 @@ import { GraphEdge } from "./GraphEdge";
 import { GraphSidebar } from "./GraphSidebar";
 import { FlowParticles } from "./FlowParticles";
 import { NODE_COLORS } from "./graph-colors";
+import { computeZoomTransform } from "./zoom-math";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -21,6 +22,13 @@ interface EntityGraphProps {
 
 const ALL_ENTITY_TYPES = ["project", "mcp", "skill", "plugin", "markdown", "config"] as const;
 const DEFAULT_ENABLED = new Set(["project", "mcp", "skill", "plugin"]);
+
+// d3-force mutates edge.source/target from string IDs into live node
+// references during simulation init — but before the first tick (or on
+// a stale render during scope change) they can still be strings. The
+// d3 type also permits numbers, so widen the helper accordingly.
+const linkId = (endpoint: string | number | PositionedNode): string =>
+  typeof endpoint === "object" ? endpoint.id : String(endpoint);
 
 // ── Mobile fallback ────────────────────────────────────────────────────
 
@@ -135,6 +143,7 @@ export function EntityGraph({ className }: EntityGraphProps) {
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
 
   // ── Tab visibility (pause particles when hidden) ──
   const [tabVisible, setTabVisible] = useState(true);
@@ -218,14 +227,22 @@ export function EntityGraph({ className }: EntityGraphProps) {
     return positioned.filter((n) => visibleNodeIds.has(n.id));
   }, [positioned, visibleNodeIds]);
 
+  // Always gate links on the current node set so dangling edges can never
+  // render — even in sessions scope where visibleNodeIds is null.
+  const nodeIdSet = useMemo(
+    () => new Set(positioned.map((n) => n.id)),
+    [positioned],
+  );
+
   const filteredLinks = useMemo(() => {
-    if (!visibleNodeIds) return links;
     return links.filter((e) => {
-      const sid = (e.source as PositionedNode).id;
-      const tid = (e.target as PositionedNode).id;
+      const sid = linkId(e.source);
+      const tid = linkId(e.target);
+      if (!nodeIdSet.has(sid) || !nodeIdSet.has(tid)) return false;
+      if (!visibleNodeIds) return true;
       return visibleNodeIds.has(sid) && visibleNodeIds.has(tid);
     });
-  }, [links, visibleNodeIds]);
+  }, [links, nodeIdSet, visibleNodeIds]);
 
   // ── Hover subgraph highlighting ──
   const { highlightedNodes, highlightedEdges } = useMemo(() => {
@@ -236,8 +253,8 @@ export function EntityGraph({ className }: EntityGraphProps) {
     const edges = new Set<number>();
 
     filteredLinks.forEach((e, i) => {
-      const sid = (e.source as PositionedNode).id;
-      const tid = (e.target as PositionedNode).id;
+      const sid = linkId(e.source);
+      const tid = linkId(e.target);
       if (sid === hoveredNodeId || tid === hoveredNodeId) {
         edges.add(i);
         nodes.add(sid);
@@ -257,8 +274,8 @@ export function EntityGraph({ className }: EntityGraphProps) {
   const connectionCount = useMemo(() => {
     if (!selectedNodeId) return 0;
     return filteredLinks.filter((e) => {
-      const sid = (e.source as PositionedNode).id;
-      const tid = (e.target as PositionedNode).id;
+      const sid = linkId(e.source);
+      const tid = linkId(e.target);
       return sid === selectedNodeId || tid === selectedNodeId;
     }).length;
   }, [selectedNodeId, filteredLinks]);
@@ -305,11 +322,19 @@ export function EntityGraph({ className }: EntityGraphProps) {
   // ── Pan/zoom handlers ──
   const handleWheel = useCallback((e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    setTransform((prev) => ({
-      ...prev,
-      scale: Math.min(3, Math.max(0.3, prev.scale * factor)),
-    }));
+    const svg = svgRef.current;
+    if (!svg || !svg.getScreenCTM) return;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    // Convert client coords → viewBox coords. The pan/zoom <g> transform
+    // lives inside the viewBox, so doing the zoom math in viewBox space
+    // keeps the cursor-anchored point stable even when the SVG element's
+    // pixel size doesn't match its viewBox (we clamp height to ≥500).
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const { x: cursorX, y: cursorY } = pt.matrixTransform(ctm.inverse());
+    setTransform((prev) => computeZoomTransform(prev, cursorX, cursorY, e.deltaY));
   }, []);
 
   const handleBgMouseDown = useCallback(
@@ -443,6 +468,7 @@ export function EntityGraph({ className }: EntityGraphProps) {
 
       {/* ── SVG Graph ── */}
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
         className="w-full h-full"
         onWheel={handleWheel}

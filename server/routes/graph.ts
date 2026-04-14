@@ -74,7 +74,7 @@ function normalizeWeight(value: number, maxValue: number): number {
 
 // ── Force graph: scope=system builder ─────────────────────────────────────
 
-function buildSystemScope(): ForceGraphData {
+export function buildSystemScope(): ForceGraphData {
   const allEntities = storage.getEntities();
   const allRels = storage.getAllRelationships();
   const entityIds = new Set(allEntities.map((e) => e.id));
@@ -196,7 +196,7 @@ function buildEntityMeta(entity: Entity): Record<string, unknown> {
 
 // ── Force graph: scope=sessions builder ───────────────────────────────────
 
-function buildSessionsScope(projectKey: string): ForceGraphData {
+export function buildSessionsScope(projectKey: string): ForceGraphData {
   const allSessions = getCachedSessions();
   const projectSessions = allSessions.filter((s) => s.projectKey === projectKey);
 

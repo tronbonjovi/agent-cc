@@ -118,16 +118,10 @@ export function useForceLayout(
     const existing = prevNodesRef.current;
     const currentIds = new Set(nodes.map((n) => n.id));
 
-    // Scope switch heuristic: if most preserved positions no longer apply, scatter fresh.
-    if (existing.size > 0) {
-      let overlap = 0;
-      for (const key of Array.from(existing.keys())) {
-        if (currentIds.has(key)) overlap++;
-      }
-      if (overlap < currentIds.size * 0.5) existing.clear();
-    }
-
-    // Prune cache entries for nodes that left the graph.
+    // Keep only cached positions whose nodes survived into the new graph.
+    // Any new node re-scatters from scratch — the overlap heuristic we
+    // used to have here could leave orphaned nodes frozen at stale
+    // positions after a scope change.
     for (const key of Array.from(existing.keys())) {
       if (!currentIds.has(key)) existing.delete(key);
     }
