@@ -11,6 +11,10 @@ import { SyncIndicator } from "@/components/sync-indicator";
 import { UpdateIndicator } from "@/components/update-indicator";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { TerminalPanel } from "./terminal-panel";
+import { useLayoutStore } from "@/stores/layout-store";
+// react-resizable-panels v4.x API: Group + Panel + Separator,
+// `orientation` instead of `direction`.
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
 
 import {
   LayoutDashboard,
@@ -66,6 +70,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const counts = (status?.entityCounts || {}) as Record<string, number>;
   const isScanning = status?.scanning;
   const appName = settings?.appName || "Agent CC";
+
+  // Right-side chat panel state (persisted in localStorage via zustand).
+  // task005 replaces the slot placeholder with <ChatPanel />.
+  const chatPanelWidth = useLayoutStore((s) => s.chatPanelWidth);
+  const chatPanelCollapsed = useLayoutStore((s) => s.chatPanelCollapsed);
+  const setChatPanelWidth = useLayoutStore((s) => s.setChatPanelWidth);
 
   // Reset sidebar state when breakpoint changes (unless user manually toggled within same tier)
   useEffect(() => {
@@ -260,28 +270,80 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </Sheet>
       )}
 
-      {/* Main content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile hamburger button */}
-        {mobile && (
-          <div className="flex items-center h-14 px-4 border-b bg-background">
-            <button
-              onClick={() => setMobileDrawerOpen(true)}
-              className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Open mobile menu"
+      {/*
+        3-column resizable shell:
+          [sidebar (already rendered above as a flex sibling)]
+          [ center column: main content (top) + terminal (bottom) ]
+          [ right: chat panel slot — task005 mounts <ChatPanel /> here ]
+
+        Sidebar stays outside the PanelGroup so its existing
+        breakpoint-aware collapse logic keeps working unchanged.
+        The horizontal PanelGroup sizes center + chat; the center
+        column itself is a nested vertical PanelGroup so the terminal
+        is constrained to the center and no longer spans under chat.
+      */}
+      <PanelGroup orientation="horizontal" className="flex-1 min-w-0">
+        <Panel defaultSize="70%" minSize="30%">
+          <main className="h-full flex flex-col overflow-hidden">
+            {/* Mobile hamburger button */}
+            {mobile && (
+              <div className="flex items-center h-14 px-4 border-b bg-background">
+                <button
+                  onClick={() => setMobileDrawerOpen(true)}
+                  className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Open mobile menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <span className="ml-2 font-semibold text-sm">{appName}</span>
+              </div>
+            )}
+            {/*
+              Nested vertical group: main content on top, terminal on
+              bottom. The TerminalPanel manages its own internal height
+              via useTerminalGroupStore — we give it a flexible Panel
+              so it can still render at its intrinsic height, and main
+              takes the rest.
+            */}
+            <PanelGroup orientation="vertical" className="flex-1 min-h-0">
+              <Panel defaultSize="70%" minSize="20%">
+                <div className="h-full overflow-hidden">
+                  <div className="page-enter h-full">
+                    {children}
+                  </div>
+                </div>
+              </Panel>
+              <PanelResizeHandle className="h-px bg-border hover:bg-border/80 transition-colors" />
+              <Panel defaultSize="30%" minSize="5%" collapsible>
+                <TerminalPanel />
+              </Panel>
+            </PanelGroup>
+          </main>
+        </Panel>
+        {!chatPanelCollapsed && (
+          <>
+            <PanelResizeHandle className="w-px bg-border hover:bg-border/80 transition-colors" />
+            <Panel
+              defaultSize={chatPanelWidth}
+              minSize={240}
+              maxSize={800}
+              onResize={(panelSize) => {
+                const px = Math.round(panelSize.inPixels);
+                if (Number.isFinite(px) && px !== chatPanelWidth) {
+                  setChatPanelWidth(px);
+                }
+              }}
             >
-              <Menu className="h-5 w-5" />
-            </button>
-            <span className="ml-2 font-semibold text-sm">{appName}</span>
-          </div>
+              <div
+                data-testid="chat-panel-slot"
+                className="h-full border-l bg-background flex items-center justify-center text-xs text-muted-foreground"
+              >
+                Chat panel slot
+              </div>
+            </Panel>
+          </>
         )}
-        <div className="flex-1 overflow-hidden">
-          <div className="page-enter h-full">
-            {children}
-          </div>
-        </div>
-        <TerminalPanel />
-      </main>
+      </PanelGroup>
     </div>
   );
 }
