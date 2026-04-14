@@ -76,7 +76,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const appName = settings?.appName || "Agent CC";
 
   // Right-side chat panel state (persisted in localStorage via zustand).
-  // task005 replaces the slot placeholder with <ChatPanel />.
+  // task006 mounts <ChatPanel /> into the slot and adds the sidebar toggle.
   const chatPanelWidth = useLayoutStore((s) => s.chatPanelWidth);
   const chatPanelCollapsed = useLayoutStore((s) => s.chatPanelCollapsed);
   const setChatPanelWidth = useLayoutStore((s) => s.setChatPanelWidth);
