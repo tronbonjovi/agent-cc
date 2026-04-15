@@ -252,16 +252,23 @@ function utcDay(iso: string): string {
  * Inputs:
  *   - `windowEvents`: events inside the `days` window (feeds totalCost,
  *      totalTokens, byModel, byProject, byDay, topSessions).
- *   - `allEvents`: every event in the store (feeds weeklyComparison and
- *      monthlyTotalCost, which legacy computes across full history).
+ *   - `extendedEvents`: events from a wider window sized to cover every
+ *      rollup that reaches outside the days window — currently the
+ *      14-day weekly comparison and 30-day monthly total. The caller is
+ *      expected to pass at least a 30-day slice; this reducer then
+ *      timestamp-filters internally to extract `thisWeek` / `lastWeek`
+ *      / `monthlyTotalCost`. Legacy's cost-indexer iterated the full
+ *      costRecords table here, but since the widest lookback is 30 days
+ *      any older event would contribute zero anyway — passing a bounded
+ *      slice is both cheaper and numerically identical.
  *
  * The split mirrors legacy's shape — don't collapse them into one call,
- * because the week-over-week number is always full-history even when the
- * user asks for a 7-day summary.
+ * because the week-over-week number reaches outside the `days` window
+ * whenever the user asks for less than 14 days of summary.
  */
 export function reduceCostSummary(
   windowEvents: InteractionEvent[],
-  allEvents: InteractionEvent[]
+  extendedEvents: InteractionEvent[]
 ): CostSummary {
   // ---- Totals over the window ----
   let totalCost = 0;
@@ -275,7 +282,7 @@ export function reduceCostSummary(
     totalTokens.cacheCreation += e.cost.cacheCreationTokens || 0;
   }
 
-  // ---- Weekly comparison (full history) ----
+  // ---- Weekly comparison (14-day lookback) ----
   const now = new Date();
   const sevenAgo = new Date(now);
   sevenAgo.setDate(sevenAgo.getDate() - 7);
@@ -288,7 +295,7 @@ export function reduceCostSummary(
   const fourteenStr = fourteenAgo.toISOString().slice(0, 10);
   let thisWeekCost = 0;
   let lastWeekCost = 0;
-  for (const e of allEvents) {
+  for (const e of extendedEvents) {
     if (e.cost === null) continue;
     const d = utcDay(e.timestamp);
     if (d >= sevenStr && d < tomorrowStr) thisWeekCost += e.cost.usd || 0;
@@ -297,12 +304,12 @@ export function reduceCostSummary(
   const changePct =
     lastWeekCost > 0 ? Math.round((thisWeekCost / lastWeekCost - 1) * 100) : 0;
 
-  // ---- Monthly total (30d, full history) ----
+  // ---- Monthly total (30-day lookback) ----
   const thirtyAgo = new Date(now);
   thirtyAgo.setDate(thirtyAgo.getDate() - 30);
   const thirtyStr = thirtyAgo.toISOString();
   let monthlyTotalCost = 0;
-  for (const e of allEvents) {
+  for (const e of extendedEvents) {
     if (e.cost === null) continue;
     if (e.timestamp >= thirtyStr) monthlyTotalCost += e.cost.usd || 0;
   }

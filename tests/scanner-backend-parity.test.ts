@@ -231,18 +231,20 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  // Wipe fixtures between tests so conversations can't leak across
-  // describe blocks. We intentionally DO NOT wipe interactions.db or
-  // the JSON db — each describe uses distinct session ids and the
-  // parity tests assert by id, so cross-test ghost rows wouldn't
-  // affect the assertions but would bloat later cost-summary tests.
-  // To keep the week/day rollup reducers deterministic we do wipe
-  // the ingester's event table at the top of the cost-summary test
-  // and re-ingest a fresh fixture. See `wipeEvents` below.
+  // Wipe fixtures AND stores between tests so conversations can't leak
+  // across describe blocks. Every test starts from a known-empty state:
+  // no JSONL on disk, no rows in interactions.db, no costRecords in the
+  // JSON db, no analytics/session-parse cache entries.
+  //
+  // Centralized here rather than at the top of each `it(...)` so a new
+  // test author can't forget the call — especially in the cost-summary
+  // block which queries by date window and would silently blend fixtures
+  // from a previous test otherwise.
   const entries = fs.readdirSync(projectsDir, { withFileTypes: true });
   for (const e of entries) {
     fs.rmSync(path.join(projectsDir, e.name), { recursive: true, force: true });
   }
+  wipeAllStores();
 });
 
 /**
@@ -275,7 +277,6 @@ function wipeAllStores(): void {
 
 describe('scanner backend parity — getSessionMessages', () => {
   it('returns identical user_text + assistant_text messages for a text-only fixture', () => {
-    wipeAllStores();
     const sessionId = 'session-msg-text';
     const content =
       userRecord('u-1', 'hello world', '2026-04-15T10:00:00Z') +
@@ -319,7 +320,6 @@ describe('scanner backend parity — getSessionMessages', () => {
   });
 
   it('honors pagination offset+limit identically on both backends', () => {
-    wipeAllStores();
     const sessionId = 'session-msg-pagination';
     const lines: string[] = [];
     for (let i = 0; i < 6; i++) {
@@ -346,7 +346,6 @@ describe('scanner backend parity — getSessionMessages', () => {
   });
 
   it('honors type filter identically on both backends', () => {
-    wipeAllStores();
     const sessionId = 'session-msg-typefilter';
     const content =
       userRecord('u-1', 'first', '2026-04-15T10:00:00Z') +
@@ -368,7 +367,6 @@ describe('scanner backend parity — getSessionMessages', () => {
   });
 
   it('tool_call + tool_result pairs are emitted by both backends for the same fixture', () => {
-    wipeAllStores();
     const sessionId = 'session-msg-tools';
     const content =
       userRecord('u-1', 'please read a file', '2026-04-15T10:00:00Z') +
@@ -415,7 +413,6 @@ describe('scanner backend parity — getSessionMessages', () => {
   });
 
   it('returns empty result for unknown session on both backends', () => {
-    wipeAllStores();
     // No files ingested.
     const missing = path.join(projectsDir, '-tmp-proj', 'does-not-exist.jsonl');
     const l = mods.legacy.getSessionMessages(missing, 0, 10);
@@ -429,7 +426,6 @@ describe('scanner backend parity — getSessionMessages', () => {
 
 describe('scanner backend parity — getSessionCost', () => {
   it('returns identical per-session cost totals and model breakdown', () => {
-    wipeAllStores();
     const sessionId = 'session-cost-simple';
     const content =
       userRecord('u-1', 'ask', '2026-04-15T10:00:00Z') +
@@ -468,7 +464,6 @@ describe('scanner backend parity — getSessionCost', () => {
   });
 
   it('returns null for an unknown session id on both backends', () => {
-    wipeAllStores();
     const sessionId = 'session-cost-present';
     const content =
       userRecord('u-1', 'ask', '2026-04-15T10:00:00Z') +
@@ -488,7 +483,6 @@ describe('scanner backend parity — getSessionCost', () => {
 
 describe('scanner backend parity — getCostSummary', () => {
   it('returns identical totals + byModel + byDay for a multi-day fixture', () => {
-    wipeAllStores();
     // Three sessions on three consecutive days so byDay has three buckets.
     writeSession(
       '-tmp-proj',
@@ -577,7 +571,6 @@ describe('scanner backend parity — getCostSummary', () => {
 
 describe('scanner backend parity — getSessionCostDetail', () => {
   it('returns identical direct cost + tokens + model for a single-session fixture', () => {
-    wipeAllStores();
     const sessionId = 'session-detail-simple';
     writeSession(
       '-tmp-proj',
@@ -617,7 +610,6 @@ describe('scanner backend parity — getSessionCostDetail', () => {
   });
 
   it('returns null for unknown session on both backends', () => {
-    wipeAllStores();
     // Populate one real session so the cost index isn't empty, then query
     // a bogus id.
     writeSession(

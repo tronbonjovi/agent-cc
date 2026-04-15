@@ -8,7 +8,9 @@
  *   - `getSessionMessages`, `getSessionCost`, `getCostSummary`, and
  *     `getSessionCostDetail` are now implemented via `event-reductions.ts`
  *     + the per-session `listEventsBySessionId` and windowed
- *     `listEventsBetween` / `listAllEvents` repo helpers added in task004.
+ *     `listEventsBetween` repo helpers added in task004. `getCostSummary`
+ *     uses two bounded range queries (days-window + 30-day rollup) so it
+ *     never pulls the full `events` table into memory.
  *
  * Parity with legacy is within the store's recordable surface:
  *   - Cost / token / model-breakdown reductions match legacy's
@@ -66,7 +68,6 @@ import {
   listConversationRollups,
   listEventsBySessionId,
   listEventsBetween,
-  listAllEvents,
   type ConversationRollupRow,
 } from '../interactions-repo';
 import {
@@ -204,16 +205,37 @@ export const storeBackend: IScannerBackend = {
   },
 
   getCostSummary(days: number): CostSummary {
-    // Two queries: windowed for totals/breakdowns, full history for
-    // the week-over-week + 30d rollups. Legacy does the same split via
-    // `queryCosts({days})` + `Object.values(db.costRecords)`.
-    const cutoff = new Date();
+    // Two BOUNDED range queries: one for the days-window (totals /
+    // breakdowns / byModel / byDay / topSessions) and one for the
+    // extended 30-day window (weeklyComparison + monthlyTotalCost).
+    //
+    // The extended query deliberately caps at 30 days even though the
+    // reducer's weekly comparison only looks at the last 14 days — 30d
+    // is the widest window either rollup needs, so a single query
+    // feeds both. Critically, this avoids `listAllEvents()` and its
+    // unbounded full-table scan on every Costs page request: on a
+    // user db with months of history we'd otherwise pull everything
+    // just to compute a 7-day comparison.
+    //
+    // The reducer (`reduceCostSummary`) already date-filters its
+    // "extended" input by ISO string comparison, so passing a pre-
+    // windowed 30-day slice produces the same weeklyComparison /
+    // monthlyTotalCost values it would on the full history — anything
+    // older than 30 days contributes zero to either rollup anyway.
+    const now = new Date();
+    const endIso = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+    const cutoff = new Date(now);
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffIso = cutoff.toISOString();
-    const endIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const thirtyAgo = new Date(now);
+    thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+    const thirtyAgoIso = thirtyAgo.toISOString();
+
     const windowEvents = listEventsBetween(cutoffIso, endIso);
-    const allEvents = listAllEvents();
-    return reduceCostSummary(windowEvents, allEvents);
+    const extendedEvents = listEventsBetween(thirtyAgoIso, endIso);
+    return reduceCostSummary(windowEvents, extendedEvents);
   },
 
   getSessionCostDetail(sessionId: string): SessionCostDetail | null {
