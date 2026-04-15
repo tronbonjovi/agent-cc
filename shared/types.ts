@@ -884,3 +884,95 @@ export interface SessionCostDetail {
     cacheCreation: number;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Unified capture: InteractionEvent (milestone unified-capture, task001)
+// ---------------------------------------------------------------------------
+// Foundational type for M2–M5. Represents any observable interaction
+// (AI call, shell command, hook fire, imported JSONL line) in a uniform shape
+// with rich metadata for source tagging and cost tracking.
+// ---------------------------------------------------------------------------
+
+export type InteractionSource =
+  | 'chat-ai'
+  | 'chat-slash'
+  | 'chat-hook'
+  | 'chat-workflow'
+  | 'scanner-jsonl'
+  // Placeholders for future platform sources (M5)
+  | 'github-issue'
+  | 'telegram'
+  | 'discord'
+  | 'imessage';
+
+export type InteractionRole = 'user' | 'assistant' | 'system' | 'tool';
+
+export interface TextContent {
+  type: 'text';
+  text: string;
+}
+
+export interface ToolCallContent {
+  type: 'tool_call';
+  toolName: string;
+  input: unknown;
+  toolUseId: string;
+}
+
+export interface ToolResultContent {
+  type: 'tool_result';
+  toolUseId: string;
+  output: unknown;
+  isError?: boolean;
+}
+
+export interface ThinkingContent {
+  type: 'thinking';
+  text: string;
+}
+
+export interface SystemContent {
+  type: 'system';
+  subtype: 'workflow_step' | 'hook_fire' | 'info';
+  text: string;
+  data?: unknown;
+}
+
+export type InteractionContent =
+  | TextContent
+  | ToolCallContent
+  | ToolResultContent
+  | ThinkingContent
+  | SystemContent;
+
+export interface InteractionCost {
+  usd: number;
+  tokensIn: number;
+  tokensOut: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+  durationMs: number;
+  model?: string;
+}
+
+export interface InteractionEvent {
+  id: string; // ULID or UUID
+  conversationId: string;
+  parentEventId?: string | null; // for tool_call → tool_result linking
+  timestamp: string; // ISO
+  source: InteractionSource;
+  role: InteractionRole;
+  content: InteractionContent;
+  cost: InteractionCost | null; // null = deterministic event, no AI cost
+  metadata?: Record<string, unknown>;
+}
+
+export function isAiEvent(e: InteractionEvent): boolean {
+  return e.cost !== null && e.source !== 'scanner-jsonl'
+    ? true
+    : e.source === 'chat-ai' || e.source === 'scanner-jsonl';
+}
+
+export function isDeterministicEvent(e: InteractionEvent): boolean {
+  return e.source === 'chat-slash' || e.source === 'chat-hook' || e.source === 'chat-workflow';
+}

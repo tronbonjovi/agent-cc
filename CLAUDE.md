@@ -115,7 +115,7 @@ When adding integrations with external services:
 |----------|---------|---------|
 | `PORT` | Server port | 5100 |
 | `HOST` | Server host | 127.0.0.1 |
-| `AGENT_CC_DATA` | Data directory | ~/.agent-cc |
+| `AGENT_CC_DATA` | Data directory (holds `agent-cc.json` config store and `interactions.db` SQLite event store) | ~/.agent-cc |
 | `NERVE_CENTER_SERVICES` | Services to monitor (name:port,name:port) | Agent CC:5100 |
 | `VOICE_CALLER_SCRIPT` | Path to voice outbound caller script | (disabled) |
 | `VOICE_PHONE` | Phone number for voice calls | (disabled) |

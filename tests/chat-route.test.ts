@@ -17,11 +17,32 @@ vi.mock("../server/scanner/claude-runner", () => {
   };
 });
 
+// Mock the interactions-repo so tests can assert on persistence calls without
+// touching a real SQLite database. task004 wires chat.ts to this module, and
+// task005 added the read helpers `listConversations` and
+// `getEventsByConversation` to the same mock.
+vi.mock("../server/interactions-repo", () => {
+  return {
+    insertEvent: vi.fn(),
+    listConversations: vi.fn(() => []),
+    getEventsByConversation: vi.fn(() => []),
+  };
+});
+
 import chatRouter from "../server/routes/chat";
 import { isClaudeAvailable, runClaudeStreaming } from "../server/scanner/claude-runner";
+import {
+  insertEvent,
+  listConversations,
+  getEventsByConversation,
+} from "../server/interactions-repo";
+import type { InteractionEvent } from "../shared/types";
 
 const mockedIsClaudeAvailable = isClaudeAvailable as unknown as ReturnType<typeof vi.fn>;
 const mockedRunClaudeStreaming = runClaudeStreaming as unknown as ReturnType<typeof vi.fn>;
+const mockedInsertEvent = insertEvent as unknown as ReturnType<typeof vi.fn>;
+const mockedListConversations = listConversations as unknown as ReturnType<typeof vi.fn>;
+const mockedGetEventsByConversation = getEventsByConversation as unknown as ReturnType<typeof vi.fn>;
 
 /** Helper: async generator that yields the given chunks then finishes. */
 async function* yieldChunks(chunks: unknown[]) {
@@ -39,8 +60,14 @@ describe("chat route", () => {
   beforeEach(() => {
     mockedIsClaudeAvailable.mockReset();
     mockedRunClaudeStreaming.mockReset();
+    mockedInsertEvent.mockReset();
+    mockedInsertEvent.mockImplementation(() => {});
     mockedIsClaudeAvailable.mockResolvedValue(true);
     mockedRunClaudeStreaming.mockImplementation(() => yieldChunks([]));
+    mockedListConversations.mockReset();
+    mockedListConversations.mockReturnValue([]);
+    mockedGetEventsByConversation.mockReset();
+    mockedGetEventsByConversation.mockReturnValue([]);
   });
 
   afterEach(() => {
@@ -134,6 +161,9 @@ describe("chat route", () => {
         const streamReq = http.request(
           { hostname: "127.0.0.1", port, path: "/api/chat/stream/conv-1", method: "GET" },
           (res) => {
+            // By the time this callback fires, the server has flushed SSE
+            // headers — which means the route's synchronous block already
+            // ran `activeStreams.set(...)`. Safe to POST now with no race.
             res.setEncoding("utf8");
             res.on("data", (data: string) => {
               received.push(data);
@@ -153,6 +183,23 @@ describe("chat route", () => {
                 resolve();
               }
             });
+
+            // Fire the POST from inside the response callback — deterministic
+            // replacement for the old 50ms setTimeout race window.
+            (async () => {
+              try {
+                const postRes = await request(`http://127.0.0.1:${port}`)
+                  .post("/api/chat/prompt")
+                  .send({ conversationId: "conv-1", text: "hello" });
+                if (postRes.status !== 200) {
+                  server.close();
+                  reject(new Error(`POST failed with ${postRes.status}`));
+                }
+              } catch (e) {
+                server.close();
+                reject(e);
+              }
+            })();
           },
         );
         streamReq.on("error", (err: NodeJS.ErrnoException) => {
@@ -161,22 +208,6 @@ describe("chat route", () => {
           reject(err);
         });
         streamReq.end();
-
-        // Give the SSE request a brief moment to register itself, then POST.
-        setTimeout(async () => {
-          try {
-            const res = await request(`http://127.0.0.1:${port}`)
-              .post("/api/chat/prompt")
-              .send({ conversationId: "conv-1", text: "hello" });
-            if (res.status !== 200) {
-              server.close();
-              reject(new Error(`POST failed with ${res.status}`));
-            }
-          } catch (e) {
-            server.close();
-            reject(e);
-          }
-        }, 50);
       });
     });
   });
@@ -228,5 +259,440 @@ describe("chat route", () => {
 
     // Close the request — the handler should clear its interval.
     (reqEventHandlers["close"] ?? []).forEach((h) => h());
+  });
+
+  // -------------------------------------------------------------------------
+  // task004 — chat write path persists InteractionEvents
+  // -------------------------------------------------------------------------
+
+  /** Small helper: wait until `pred` is true or the timeout fires. */
+  async function waitFor(pred: () => boolean, timeoutMs = 1000) {
+    const start = Date.now();
+    while (!pred()) {
+      if (Date.now() - start > timeoutMs) {
+        throw new Error("waitFor timed out");
+      }
+      await new Promise((r) => setTimeout(r, 5));
+    }
+  }
+
+  /** Collect all InteractionEvent arguments passed to insertEvent. */
+  function persistedEvents(): InteractionEvent[] {
+    return mockedInsertEvent.mock.calls.map((c) => c[0] as InteractionEvent);
+  }
+
+  it("POST /prompt persists a user event before streaming", async () => {
+    // runClaudeStreaming yields nothing so the streaming block finishes fast.
+    mockedRunClaudeStreaming.mockImplementation(() =>
+      yieldChunks([{ type: "done", raw: null }]),
+    );
+    const app = buildApp();
+
+    const res = await request(app)
+      .post("/api/chat/prompt")
+      .send({ conversationId: "c-user", text: "hello world" });
+    expect(res.status).toBe(200);
+
+    // The user event is inserted synchronously before dispatch — should be
+    // the very first insertEvent call.
+    await waitFor(() => mockedInsertEvent.mock.calls.length >= 1);
+
+    const userEvent = persistedEvents()[0];
+    expect(userEvent.conversationId).toBe("c-user");
+    expect(userEvent.role).toBe("user");
+    expect(userEvent.source).toBe("chat-ai");
+    expect(userEvent.content).toEqual({ type: "text", text: "hello world" });
+    expect(userEvent.cost).toBeNull();
+    expect(typeof userEvent.id).toBe("string");
+    expect(userEvent.id.length).toBeGreaterThan(0);
+    expect(typeof userEvent.timestamp).toBe("string");
+  });
+
+  it("streaming text chunks coalesce into one assistant event", async () => {
+    // Three text chunks in stream-json shape, then done.
+    mockedRunClaudeStreaming.mockImplementation(() =>
+      yieldChunks([
+        {
+          type: "text",
+          raw: {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "hello " }] },
+          },
+        },
+        {
+          type: "text",
+          raw: {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "brave " }] },
+          },
+        },
+        {
+          type: "text",
+          raw: {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "world" }] },
+          },
+        },
+        { type: "done", raw: null },
+      ]),
+    );
+
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/chat/prompt")
+      .send({ conversationId: "c-coalesce", text: "hi" });
+    expect(res.status).toBe(200);
+
+    // One user event + one assistant event = 2 total.
+    await waitFor(() => mockedInsertEvent.mock.calls.length >= 2);
+
+    const assistantEvents = persistedEvents().filter((e) => e.role === "assistant");
+    expect(assistantEvents).toHaveLength(1);
+
+    const [asst] = assistantEvents;
+    expect(asst.content).toEqual({ type: "text", text: "hello brave world" });
+    expect(asst.conversationId).toBe("c-coalesce");
+    expect(asst.source).toBe("chat-ai");
+  });
+
+  it("non-text chunks are persisted as separate events", async () => {
+    mockedRunClaudeStreaming.mockImplementation(() =>
+      yieldChunks([
+        {
+          type: "text",
+          raw: {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "working on it" }] },
+          },
+        },
+        {
+          type: "tool_call",
+          raw: {
+            type: "assistant",
+            message: {
+              content: [
+                {
+                  type: "tool_use",
+                  id: "tool_123",
+                  name: "Bash",
+                  input: { command: "ls" },
+                },
+              ],
+            },
+          },
+        },
+        {
+          type: "tool_result",
+          raw: {
+            type: "user",
+            message: {
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: "tool_123",
+                  content: "file.txt",
+                },
+              ],
+            },
+          },
+        },
+        {
+          type: "thinking",
+          raw: {
+            type: "assistant",
+            message: {
+              content: [{ type: "thinking", thinking: "pondering the result" }],
+            },
+          },
+        },
+        { type: "done", raw: null },
+      ]),
+    );
+
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/chat/prompt")
+      .send({ conversationId: "c-tools", text: "run it" });
+    expect(res.status).toBe(200);
+
+    // user + assistant-text + tool_call + tool_result + thinking = 5 events.
+    await waitFor(() => mockedInsertEvent.mock.calls.length >= 5);
+
+    const events = persistedEvents();
+    const byType = events.map((e) => e.content.type);
+    expect(byType).toContain("tool_call");
+    expect(byType).toContain("tool_result");
+    expect(byType).toContain("thinking");
+
+    const toolCall = events.find((e) => e.content.type === "tool_call");
+    expect(toolCall).toBeTruthy();
+    if (toolCall && toolCall.content.type === "tool_call") {
+      expect(toolCall.content.toolName).toBe("Bash");
+      expect(toolCall.content.toolUseId).toBe("tool_123");
+      expect(toolCall.content.input).toEqual({ command: "ls" });
+    }
+
+    const toolResult = events.find((e) => e.content.type === "tool_result");
+    expect(toolResult).toBeTruthy();
+    if (toolResult && toolResult.content.type === "tool_result") {
+      expect(toolResult.content.toolUseId).toBe("tool_123");
+      expect(toolResult.role).toBe("tool");
+    }
+
+    const thinking = events.find((e) => e.content.type === "thinking");
+    expect(thinking).toBeTruthy();
+    if (thinking && thinking.content.type === "thinking") {
+      expect(thinking.content.text).toBe("pondering the result");
+    }
+
+    // All conversationIds line up.
+    for (const e of events) {
+      expect(e.conversationId).toBe("c-tools");
+    }
+  });
+
+  it("persistence failure doesn't crash the stream", async () => {
+    // Every insertEvent throws — the stream must still deliver all chunks
+    // to an open SSE subscriber and the POST must still return 200.
+    mockedInsertEvent.mockImplementation(() => {
+      throw new Error("simulated db failure");
+    });
+    // Suppress noisy error logs for this test.
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    mockedRunClaudeStreaming.mockImplementation(() =>
+      yieldChunks([
+        {
+          type: "text",
+          raw: {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "hi" }] },
+          },
+        },
+        { type: "done", raw: null },
+      ]),
+    );
+
+    const app = buildApp();
+
+    await new Promise<void>((resolve, reject) => {
+      const server = app.listen(0, () => {
+        const port = (server.address() as { port: number }).port;
+        const received: string[] = [];
+
+        const streamReq = http.request(
+          {
+            hostname: "127.0.0.1",
+            port,
+            path: "/api/chat/stream/c-fail",
+            method: "GET",
+          },
+          (res) => {
+            res.setEncoding("utf8");
+            res.on("data", (data: string) => {
+              received.push(data);
+              const joined = received.join("");
+              if (joined.includes('"type":"done"')) {
+                try {
+                  expect(joined).toContain('"type":"text"');
+                } catch (e) {
+                  res.destroy();
+                  server.close();
+                  reject(e);
+                  return;
+                }
+                res.destroy();
+                server.close();
+                resolve();
+              }
+            });
+
+            (async () => {
+              try {
+                const postRes = await request(`http://127.0.0.1:${port}`)
+                  .post("/api/chat/prompt")
+                  .send({ conversationId: "c-fail", text: "hi" });
+                expect(postRes.status).toBe(200);
+              } catch (e) {
+                server.close();
+                reject(e);
+              }
+            })();
+          },
+        );
+        streamReq.on("error", (err: NodeJS.ErrnoException) => {
+          if (err.code === "ECONNRESET") return;
+          server.close();
+          reject(err);
+        });
+        streamReq.end();
+      });
+    });
+
+    errSpy.mockRestore();
+  });
+
+  it("conversationId is preserved on every event", async () => {
+    mockedRunClaudeStreaming.mockImplementation(() =>
+      yieldChunks([
+        {
+          type: "text",
+          raw: {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "one " }] },
+          },
+        },
+        {
+          type: "tool_call",
+          raw: {
+            type: "assistant",
+            message: {
+              content: [
+                {
+                  type: "tool_use",
+                  id: "t1",
+                  name: "Bash",
+                  input: { command: "pwd" },
+                },
+              ],
+            },
+          },
+        },
+        {
+          type: "text",
+          raw: {
+            type: "assistant",
+            message: { content: [{ type: "text", text: "two" }] },
+          },
+        },
+        { type: "done", raw: null },
+      ]),
+    );
+
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/chat/prompt")
+      .send({ conversationId: "abc", text: "hi" });
+    expect(res.status).toBe(200);
+
+    // user + tool_call + assistant text = 3 events.
+    await waitFor(() => mockedInsertEvent.mock.calls.length >= 3);
+
+    const events = persistedEvents();
+    expect(events.length).toBeGreaterThanOrEqual(3);
+    for (const e of events) {
+      expect(e.conversationId).toBe("abc");
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // task005 — chat load API endpoints
+  // -------------------------------------------------------------------------
+
+  it("GET /conversations returns an empty list when the DB is empty", async () => {
+    mockedListConversations.mockReturnValue([]);
+    const app = buildApp();
+    const res = await request(app).get("/api/chat/conversations");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ conversations: [] });
+    expect(mockedListConversations).toHaveBeenCalledTimes(1);
+  });
+
+  it("GET /conversations filters out non-chat sources", async () => {
+    // Mixed bag: chat-ai + scanner-jsonl + chat-slash. Only chat-ai and
+    // chat-slash should come back; scanner-jsonl must be filtered out.
+    mockedListConversations.mockReturnValue([
+      {
+        conversationId: "conv-chat-ai",
+        source: "chat-ai",
+        eventCount: 3,
+        lastEvent: "2026-04-15T10:00:00.000Z",
+      },
+      {
+        conversationId: "conv-scanner",
+        source: "scanner-jsonl",
+        eventCount: 10,
+        lastEvent: "2026-04-15T09:00:00.000Z",
+      },
+      {
+        conversationId: "conv-slash",
+        source: "chat-slash",
+        eventCount: 1,
+        lastEvent: "2026-04-15T08:00:00.000Z",
+      },
+    ]);
+
+    const app = buildApp();
+    const res = await request(app).get("/api/chat/conversations");
+    expect(res.status).toBe(200);
+
+    const ids = (res.body.conversations as Array<{ conversationId: string }>).map(
+      (c) => c.conversationId,
+    );
+    expect(ids).toContain("conv-chat-ai");
+    expect(ids).toContain("conv-slash");
+    expect(ids).not.toContain("conv-scanner");
+    expect(res.body.conversations).toHaveLength(2);
+  });
+
+  it("GET /conversations/:id/events returns events in timestamp order", async () => {
+    // Seed the mock out of order — the repo is contract-bound to sort ASC,
+    // so the route just forwards whatever the repo returns. We assert the
+    // route preserves repo ordering (no accidental re-sort / reverse).
+    const orderedEvents: InteractionEvent[] = [
+      {
+        id: "e1",
+        conversationId: "conv-a",
+        parentEventId: null,
+        timestamp: "2026-04-15T10:00:00.000Z",
+        source: "chat-ai",
+        role: "user",
+        content: { type: "text", text: "first" },
+        cost: null,
+      },
+      {
+        id: "e2",
+        conversationId: "conv-a",
+        parentEventId: null,
+        timestamp: "2026-04-15T10:00:01.000Z",
+        source: "chat-ai",
+        role: "assistant",
+        content: { type: "text", text: "second" },
+        cost: null,
+      },
+      {
+        id: "e3",
+        conversationId: "conv-a",
+        parentEventId: null,
+        timestamp: "2026-04-15T10:00:02.000Z",
+        source: "chat-ai",
+        role: "user",
+        content: { type: "text", text: "third" },
+        cost: null,
+      },
+    ];
+    mockedGetEventsByConversation.mockReturnValue(orderedEvents);
+
+    const app = buildApp();
+    const res = await request(app).get("/api/chat/conversations/conv-a/events");
+    expect(res.status).toBe(200);
+    expect(mockedGetEventsByConversation).toHaveBeenCalledWith("conv-a");
+
+    const events = res.body.events as InteractionEvent[];
+    expect(events).toHaveLength(3);
+    expect(events.map((e) => e.id)).toEqual(["e1", "e2", "e3"]);
+    // Timestamps strictly ascending.
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i].timestamp >= events[i - 1].timestamp).toBe(true);
+    }
+  });
+
+  it("GET /conversations/:id/events returns 200 with empty array for unknown id", async () => {
+    mockedGetEventsByConversation.mockReturnValue([]);
+    const app = buildApp();
+    const res = await request(app).get("/api/chat/conversations/does-not-exist/events");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ events: [] });
+    expect(mockedGetEventsByConversation).toHaveBeenCalledWith("does-not-exist");
   });
 });
