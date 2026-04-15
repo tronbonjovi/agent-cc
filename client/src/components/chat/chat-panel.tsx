@@ -78,6 +78,17 @@ export function ChatPanel() {
             queryKey: ['chat-history', conversationId],
           });
           clearLive();
+        } else if (chunk.type === 'workflow_event') {
+          // task004 — chat-workflows-tabs. The server has already persisted
+          // the workflow step event via insertEvent; we just pull it into
+          // the React Query cache so it renders on the next revalidation.
+          // We deliberately do NOT render mid-stream here — task006 owns
+          // rich live rendering of workflow events. The visible-but-laggy
+          // UX (steps only show after the query refetch) is intentional
+          // until task006 lands.
+          queryClient.invalidateQueries({
+            queryKey: ['chat-history', conversationId],
+          });
         }
         // Other chunk types (tool_call, tool_result, thinking, system) are
         // intentionally ignored in the live stream — they'll appear on the

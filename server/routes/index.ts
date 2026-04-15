@@ -23,6 +23,7 @@ import discoverRouter from "./discover";
 import libraryRouter from "./library";
 import chatRouter from "./chat";
 import chatTabsRouter from "./chat-tabs";
+import chatWorkflowsRouter from "./chat-workflows";
 
 import terminalRouter from "./terminal";
 import { createBoardRouter } from "./board";
@@ -89,6 +90,7 @@ export async function registerRoutes(_server: Server, app: Express): Promise<voi
   app.use(libraryRouter);
   app.use("/api/chat", chatRouter);
   app.use("/api/chat", chatTabsRouter);
+  app.use("/api/chat", chatWorkflowsRouter);
 
   app.use(terminalRouter);
   app.use(createBoardRouter(boardEvents));
