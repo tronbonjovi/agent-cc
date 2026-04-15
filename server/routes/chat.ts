@@ -25,13 +25,30 @@
 import { Router, type Request, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { runClaudeStreaming, isClaudeAvailable } from "../scanner/claude-runner";
-import { insertEvent } from "../interactions-repo";
+import {
+  insertEvent,
+  listConversations,
+  getEventsByConversation,
+} from "../interactions-repo";
 import type {
   InteractionEvent,
   InteractionContent,
   InteractionCost,
   InteractionRole,
+  InteractionSource,
 } from "../../shared/types";
+
+/**
+ * Sources that represent "chat" conversations for the task005 load API.
+ * Scanner-imported conversations (source `scanner-jsonl`) surface elsewhere
+ * in the app, so we exclude them from the chat history list.
+ */
+const CHAT_SOURCES: ReadonlySet<InteractionSource> = new Set<InteractionSource>([
+  "chat-ai",
+  "chat-slash",
+  "chat-hook",
+  "chat-workflow",
+]);
 
 // In-memory conversation → subscribed SSE responses.
 // The skeleton makes no effort to persist, fan-out is best-effort.
@@ -335,6 +352,41 @@ router.get("/stream/:conversationId", (req: Request, res: Response) => {
       activeStreams.set(conversationId, remaining);
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// task005 — chat load API
+//
+// These endpoints back the frontend chat store's history load on mount.
+// Scanner-imported conversations are intentionally excluded from the list
+// endpoint because they surface via the library/scanner UI, not the chat UI.
+// No pagination for this milestone — chat histories are small and the
+// frontend can always ask for one conversation's events at a time.
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /api/chat/conversations
+ * Returns every chat-sourced conversation, freshest first (ordering comes
+ * from `listConversations`, which sorts by `lastEvent` DESC). Empty DB →
+ * `{ conversations: [] }` with a 200.
+ */
+router.get("/conversations", (_req: Request, res: Response) => {
+  const all = listConversations();
+  const conversations = all.filter((c) => CHAT_SOURCES.has(c.source));
+  res.json({ conversations });
+});
+
+/**
+ * GET /api/chat/conversations/:id/events
+ * Returns every event for the given conversation in timestamp-ASC order.
+ * Unknown id → `{ events: [] }` with a 200 (no 404 — the frontend treats an
+ * empty result as "new conversation" rather than a failure).
+ */
+router.get("/conversations/:id/events", (req: Request, res: Response) => {
+  const rawId = req.params.id;
+  const conversationId = Array.isArray(rawId) ? rawId[0] : rawId;
+  const events = getEventsByConversation(conversationId);
+  res.json({ events });
 });
 
 export default router;

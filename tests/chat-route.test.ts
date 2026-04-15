@@ -18,21 +18,31 @@ vi.mock("../server/scanner/claude-runner", () => {
 });
 
 // Mock the interactions-repo so tests can assert on persistence calls without
-// touching a real SQLite database. task004 wires chat.ts to this module.
+// touching a real SQLite database. task004 wires chat.ts to this module, and
+// task005 added the read helpers `listConversations` and
+// `getEventsByConversation` to the same mock.
 vi.mock("../server/interactions-repo", () => {
   return {
     insertEvent: vi.fn(),
+    listConversations: vi.fn(() => []),
+    getEventsByConversation: vi.fn(() => []),
   };
 });
 
 import chatRouter from "../server/routes/chat";
 import { isClaudeAvailable, runClaudeStreaming } from "../server/scanner/claude-runner";
-import { insertEvent } from "../server/interactions-repo";
+import {
+  insertEvent,
+  listConversations,
+  getEventsByConversation,
+} from "../server/interactions-repo";
 import type { InteractionEvent } from "../shared/types";
 
 const mockedIsClaudeAvailable = isClaudeAvailable as unknown as ReturnType<typeof vi.fn>;
 const mockedRunClaudeStreaming = runClaudeStreaming as unknown as ReturnType<typeof vi.fn>;
 const mockedInsertEvent = insertEvent as unknown as ReturnType<typeof vi.fn>;
+const mockedListConversations = listConversations as unknown as ReturnType<typeof vi.fn>;
+const mockedGetEventsByConversation = getEventsByConversation as unknown as ReturnType<typeof vi.fn>;
 
 /** Helper: async generator that yields the given chunks then finishes. */
 async function* yieldChunks(chunks: unknown[]) {
@@ -54,6 +64,10 @@ describe("chat route", () => {
     mockedInsertEvent.mockImplementation(() => {});
     mockedIsClaudeAvailable.mockResolvedValue(true);
     mockedRunClaudeStreaming.mockImplementation(() => yieldChunks([]));
+    mockedListConversations.mockReset();
+    mockedListConversations.mockReturnValue([]);
+    mockedGetEventsByConversation.mockReset();
+    mockedGetEventsByConversation.mockReturnValue([]);
   });
 
   afterEach(() => {
@@ -569,5 +583,116 @@ describe("chat route", () => {
     for (const e of events) {
       expect(e.conversationId).toBe("abc");
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // task005 — chat load API endpoints
+  // -------------------------------------------------------------------------
+
+  it("GET /conversations returns an empty list when the DB is empty", async () => {
+    mockedListConversations.mockReturnValue([]);
+    const app = buildApp();
+    const res = await request(app).get("/api/chat/conversations");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ conversations: [] });
+    expect(mockedListConversations).toHaveBeenCalledTimes(1);
+  });
+
+  it("GET /conversations filters out non-chat sources", async () => {
+    // Mixed bag: chat-ai + scanner-jsonl + chat-slash. Only chat-ai and
+    // chat-slash should come back; scanner-jsonl must be filtered out.
+    mockedListConversations.mockReturnValue([
+      {
+        conversationId: "conv-chat-ai",
+        source: "chat-ai",
+        eventCount: 3,
+        lastEvent: "2026-04-15T10:00:00.000Z",
+      },
+      {
+        conversationId: "conv-scanner",
+        source: "scanner-jsonl",
+        eventCount: 10,
+        lastEvent: "2026-04-15T09:00:00.000Z",
+      },
+      {
+        conversationId: "conv-slash",
+        source: "chat-slash",
+        eventCount: 1,
+        lastEvent: "2026-04-15T08:00:00.000Z",
+      },
+    ]);
+
+    const app = buildApp();
+    const res = await request(app).get("/api/chat/conversations");
+    expect(res.status).toBe(200);
+
+    const ids = (res.body.conversations as Array<{ conversationId: string }>).map(
+      (c) => c.conversationId,
+    );
+    expect(ids).toContain("conv-chat-ai");
+    expect(ids).toContain("conv-slash");
+    expect(ids).not.toContain("conv-scanner");
+    expect(res.body.conversations).toHaveLength(2);
+  });
+
+  it("GET /conversations/:id/events returns events in timestamp order", async () => {
+    // Seed the mock out of order — the repo is contract-bound to sort ASC,
+    // so the route just forwards whatever the repo returns. We assert the
+    // route preserves repo ordering (no accidental re-sort / reverse).
+    const orderedEvents: InteractionEvent[] = [
+      {
+        id: "e1",
+        conversationId: "conv-a",
+        parentEventId: null,
+        timestamp: "2026-04-15T10:00:00.000Z",
+        source: "chat-ai",
+        role: "user",
+        content: { type: "text", text: "first" },
+        cost: null,
+      },
+      {
+        id: "e2",
+        conversationId: "conv-a",
+        parentEventId: null,
+        timestamp: "2026-04-15T10:00:01.000Z",
+        source: "chat-ai",
+        role: "assistant",
+        content: { type: "text", text: "second" },
+        cost: null,
+      },
+      {
+        id: "e3",
+        conversationId: "conv-a",
+        parentEventId: null,
+        timestamp: "2026-04-15T10:00:02.000Z",
+        source: "chat-ai",
+        role: "user",
+        content: { type: "text", text: "third" },
+        cost: null,
+      },
+    ];
+    mockedGetEventsByConversation.mockReturnValue(orderedEvents);
+
+    const app = buildApp();
+    const res = await request(app).get("/api/chat/conversations/conv-a/events");
+    expect(res.status).toBe(200);
+    expect(mockedGetEventsByConversation).toHaveBeenCalledWith("conv-a");
+
+    const events = res.body.events as InteractionEvent[];
+    expect(events).toHaveLength(3);
+    expect(events.map((e) => e.id)).toEqual(["e1", "e2", "e3"]);
+    // Timestamps strictly ascending.
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i].timestamp >= events[i - 1].timestamp).toBe(true);
+    }
+  });
+
+  it("GET /conversations/:id/events returns 200 with empty array for unknown id", async () => {
+    mockedGetEventsByConversation.mockReturnValue([]);
+    const app = buildApp();
+    const res = await request(app).get("/api/chat/conversations/does-not-exist/events");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ events: [] });
+    expect(mockedGetEventsByConversation).toHaveBeenCalledWith("does-not-exist");
   });
 });
