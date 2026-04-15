@@ -44,6 +44,7 @@ export function ChatPanel() {
   const history = useChatHistory(conversationId);
 
   const [input, setInput] = useState('');
+  const [lastError, setLastError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   // Open the SSE stream once on mount and tear it down on unmount. The
@@ -102,16 +103,34 @@ export function ChatPanel() {
     // (or `onerror`), so this naturally re-opens once the turn completes.
     if (isStreaming) return;
     setInput('');
+    setLastError(null);
     setStreaming(true);
 
     try {
-      await fetch('/api/chat/prompt', {
+      const res = await fetch('/api/chat/prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId, text }),
       });
-    } catch {
+      if (!res.ok) {
+        // Server rejected the prompt (e.g. 503 when the Claude CLI isn't
+        // installed, or 5xx during a transient backend failure). The SSE
+        // stream's `done` chunk will never fire for this turn, so we have to
+        // surface the error here and release the streaming gate ourselves —
+        // otherwise the input greys out forever and the user sees nothing.
+        let msg = `Request failed: ${res.status} ${res.statusText}`;
+        try {
+          const body = await res.json();
+          if (body && typeof body.error === 'string') msg = body.error;
+        } catch {
+          // Non-JSON body — keep the status-line message.
+        }
+        setLastError(msg);
+        setStreaming(false);
+      }
+    } catch (err) {
       // Network error — drop streaming state so the UI isn't stuck.
+      setLastError(err instanceof Error ? err.message : 'Network error');
       setStreaming(false);
     }
   };
@@ -128,6 +147,15 @@ export function ChatPanel() {
       <ScrollArea className="flex-1 p-4">
         <InteractionEventRenderer events={allEvents} />
       </ScrollArea>
+      {lastError && (
+        <div
+          className="border-t border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          role="alert"
+          data-testid="chat-error-banner"
+        >
+          {lastError}
+        </div>
+      )}
       <div className="border-t p-3 flex gap-2">
         <Input
           value={input}

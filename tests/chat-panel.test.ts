@@ -111,6 +111,28 @@ describe('chat-panel.tsx — source guardrails', () => {
     expect(src).toMatch(/onerror/);
   });
 
+  it('checks res.ok and surfaces a visible error when POST /api/chat/prompt rejects', () => {
+    // Regression: 503 (e.g. "Claude CLI not installed") is a *successful* fetch
+    // — only network errors throw. Without an explicit res.ok branch the catch
+    // never runs, setStreaming(false) never fires, and the input greys out
+    // forever with no message shown. handleSubmit must check res.ok, parse the
+    // server's error body, surface it via lastError state, and release the
+    // streaming gate.
+    expect(src).toMatch(/const\s+res\s*=\s*await\s+fetch\(/);
+    expect(src).toMatch(/if\s*\(\s*!res\.ok\s*\)/);
+    expect(src).toContain('setLastError');
+    // The error body parser must handle the project's standard `{ error: "..." }`
+    // shape from server route handlers.
+    expect(src).toMatch(/body\.error/);
+    // The error banner must render somewhere in the JSX so the user actually
+    // sees the failure instead of a silently greyed-out input.
+    expect(src).toContain('data-testid="chat-error-banner"');
+    expect(src).toMatch(/role=["']alert["']/);
+    // lastError must reset on each new submit so a successful retry clears the
+    // previous error automatically.
+    expect(src).toMatch(/setLastError\(null\)/);
+  });
+
   it('reads isStreaming from the store and disables the input + button while streaming', () => {
     // Guard against rapid re-submits during an active SSE stream: the store
     // exposes `isStreaming`, ChatPanel must subscribe to it, early-return in
