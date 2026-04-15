@@ -134,6 +134,9 @@ describe("chat route", () => {
         const streamReq = http.request(
           { hostname: "127.0.0.1", port, path: "/api/chat/stream/conv-1", method: "GET" },
           (res) => {
+            // By the time this callback fires, the server has flushed SSE
+            // headers — which means the route's synchronous block already
+            // ran `activeStreams.set(...)`. Safe to POST now with no race.
             res.setEncoding("utf8");
             res.on("data", (data: string) => {
               received.push(data);
@@ -153,6 +156,23 @@ describe("chat route", () => {
                 resolve();
               }
             });
+
+            // Fire the POST from inside the response callback — deterministic
+            // replacement for the old 50ms setTimeout race window.
+            (async () => {
+              try {
+                const postRes = await request(`http://127.0.0.1:${port}`)
+                  .post("/api/chat/prompt")
+                  .send({ conversationId: "conv-1", text: "hello" });
+                if (postRes.status !== 200) {
+                  server.close();
+                  reject(new Error(`POST failed with ${postRes.status}`));
+                }
+              } catch (e) {
+                server.close();
+                reject(e);
+              }
+            })();
           },
         );
         streamReq.on("error", (err: NodeJS.ErrnoException) => {
@@ -161,22 +181,6 @@ describe("chat route", () => {
           reject(err);
         });
         streamReq.end();
-
-        // Give the SSE request a brief moment to register itself, then POST.
-        setTimeout(async () => {
-          try {
-            const res = await request(`http://127.0.0.1:${port}`)
-              .post("/api/chat/prompt")
-              .send({ conversationId: "conv-1", text: "hello" });
-            if (res.status !== 200) {
-              server.close();
-              reject(new Error(`POST failed with ${res.status}`));
-            }
-          } catch (e) {
-            server.close();
-            reject(e);
-          }
-        }, 50);
       });
     });
   });

@@ -118,7 +118,12 @@ describe.skipIf(skipReal)("chat skeleton E2E (mocked claude-runner)", () => {
           };
 
           // 1. Open the SSE subscription first so the POST's fan-out has a
-          //    registered listener to write to.
+          //    registered listener to write to. The `http.request` response
+          //    callback fires only after the server has flushed SSE headers —
+          //    and the route registers into `activeStreams` in the same
+          //    synchronous block as the header flush — so POSTing from inside
+          //    the callback is a deterministic replacement for the old 50ms
+          //    setTimeout race window.
           const sseReq = http.request(
             {
               hostname: "127.0.0.1",
@@ -153,6 +158,27 @@ describe.skipIf(skipReal)("chat skeleton E2E (mocked claude-runner)", () => {
                 if (err.code === "ECONNRESET") return;
                 safeReject(err);
               });
+
+              // 2. Subscriber is registered — fire the POST from inside the
+              //    response callback. No timer, no race.
+              (async () => {
+                try {
+                  const postRes = await request(`http://127.0.0.1:${port}`)
+                    .post("/api/chat/prompt")
+                    .send({ conversationId: "e2e-conv", text: "hi" });
+                  if (postRes.status !== 200) {
+                    safeReject(
+                      new Error(
+                        `POST /api/chat/prompt failed with ${postRes.status}`,
+                      ),
+                    );
+                    return;
+                  }
+                  expect(postRes.body.ok).toBe(true);
+                } catch (e) {
+                  safeReject(e);
+                }
+              })();
             },
           );
           sseReq.on("error", (err: NodeJS.ErrnoException) => {
@@ -160,25 +186,6 @@ describe.skipIf(skipReal)("chat skeleton E2E (mocked claude-runner)", () => {
             safeReject(err);
           });
           sseReq.end();
-
-          // 2. Give the SSE subscription a beat to register itself in the
-          //    route's in-memory `activeStreams` map, then POST the prompt.
-          setTimeout(async () => {
-            try {
-              const res = await request(`http://127.0.0.1:${port}`)
-                .post("/api/chat/prompt")
-                .send({ conversationId: "e2e-conv", text: "hi" });
-              if (res.status !== 200) {
-                safeReject(
-                  new Error(`POST /api/chat/prompt failed with ${res.status}`),
-                );
-                return;
-              }
-              expect(res.body.ok).toBe(true);
-            } catch (e) {
-              safeReject(e);
-            }
-          }, 50);
         });
 
         server.on("error", (err) => reject(err));
