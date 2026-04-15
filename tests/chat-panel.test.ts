@@ -81,13 +81,55 @@ describe('chat-panel.tsx — source guardrails', () => {
     expect(src).toMatch(/JSON\.stringify\(\s*\{\s*conversationId\s*,\s*text\s*\}/);
   });
 
-  it('coalesces text chunks via coalesceAssistantText (not optimistic append)', () => {
+  it('coalesces text chunks via coalesceAssistantText', () => {
     // New live-events path: text chunks merge into the tail assistant bubble.
     expect(src).toContain('coalesceAssistantText');
     expect(src).toMatch(/chunk\.type\s*===\s*['"]text['"]/);
     // Legacy API should be gone — if this reappears the wrong store is wired.
     expect(src).not.toContain('appendMessage(');
     expect(src).not.toContain('appendAssistantChunk');
+  });
+
+  it('appends an optimistic user echo on submit so Send feels responsive', () => {
+    // The Claude CLI's first chunks arrive 5-10s after POST (session hooks
+    // + init warm-up), so without an immediate echo the input clears into
+    // dead air. handleSubmit must appendLiveEvent a user text event right
+    // after setStreaming(true) and BEFORE the fetch.
+    expect(src).toContain('appendLiveEvent');
+    expect(src).toMatch(/useChatStore\(\(s\)\s*=>\s*s\.appendLiveEvent\)/);
+    // The optimistic event must carry role "user" and the submitted text.
+    expect(src).toMatch(/role:\s*['"]user['"]/);
+    // Must be inside handleSubmit, before the fetch call.
+    const submitBody = src.match(
+      /const handleSubmit\s*=\s*async\s*\(\s*\)\s*=>\s*\{[\s\S]*?\n  \};/,
+    );
+    expect(submitBody, 'handleSubmit body not found').not.toBeNull();
+    const body = submitBody![0];
+    const appendIdx = body.indexOf('appendLiveEvent(');
+    const fetchIdx = body.indexOf("fetch('/api/chat/prompt'");
+    expect(appendIdx).toBeGreaterThan(-1);
+    expect(fetchIdx).toBeGreaterThan(-1);
+    expect(appendIdx).toBeLessThan(fetchIdx);
+  });
+
+  it('un-renders the optimistic echo when POST fails or the network errors', () => {
+    // If the fetch rejects or returns !ok, the optimistic user bubble must
+    // come out of liveEvents — otherwise the user sees a stranded prompt
+    // next to an error banner with no explanation.
+    expect(src).toContain('removeLiveEvent');
+    expect(src).toMatch(/useChatStore\(\(s\)\s*=>\s*s\.removeLiveEvent\)/);
+    // Must be called in the !res.ok branch AND the catch branch.
+    const submitBody = src.match(
+      /const handleSubmit\s*=\s*async\s*\(\s*\)\s*=>\s*\{[\s\S]*?\n  \};/,
+    );
+    expect(submitBody, 'handleSubmit body not found').not.toBeNull();
+    const body = submitBody![0];
+    const notOkBranch = body.match(/if\s*\(\s*!res\.ok\s*\)\s*\{[\s\S]*?\n\s{4}\}/);
+    expect(notOkBranch, '!res.ok branch not found').not.toBeNull();
+    expect(notOkBranch![0]).toContain('removeLiveEvent(optimisticId)');
+    const catchBranch = body.match(/catch\s*\(\s*err\s*\)\s*\{[\s\S]*?\n\s{4}\}/);
+    expect(catchBranch, 'catch branch not found').not.toBeNull();
+    expect(catchBranch![0]).toContain('removeLiveEvent(optimisticId)');
   });
 
   it('reads text chunks through the shared chat-chunk parser (no raw.text shortcut)', () => {
@@ -285,5 +327,24 @@ describe('ChatPanel store contract', () => {
     expect(useChatStore.getState().liveEvents).toHaveLength(1);
     useChatStore.getState().clearLive();
     expect(useChatStore.getState().liveEvents).toEqual([]);
+  });
+
+  it('removeLiveEvent filters out the optimistic echo by id on POST failure', () => {
+    const { appendLiveEvent, removeLiveEvent } = useChatStore.getState();
+    appendLiveEvent(makeTextEvent({ id: 'opt-user', role: 'user' }));
+    appendLiveEvent(makeTextEvent({ id: 'keep-me', role: 'assistant' }));
+    expect(useChatStore.getState().liveEvents).toHaveLength(2);
+    removeLiveEvent('opt-user');
+    const remaining = useChatStore.getState().liveEvents;
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].id).toBe('keep-me');
+  });
+
+  it('removeLiveEvent is a no-op when the id is not in the buffer', () => {
+    const { appendLiveEvent, removeLiveEvent } = useChatStore.getState();
+    appendLiveEvent(makeTextEvent({ id: 'only-one' }));
+    removeLiveEvent('not-there');
+    expect(useChatStore.getState().liveEvents).toHaveLength(1);
+    expect(useChatStore.getState().liveEvents[0].id).toBe('only-one');
   });
 });

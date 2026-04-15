@@ -37,6 +37,8 @@ export function ChatPanel() {
   const conversationId = useChatStore((s) => s.conversationId);
   const liveEvents = useChatStore((s) => s.liveEvents);
   const isStreaming = useChatStore((s) => s.isStreaming);
+  const appendLiveEvent = useChatStore((s) => s.appendLiveEvent);
+  const removeLiveEvent = useChatStore((s) => s.removeLiveEvent);
   const coalesceAssistantText = useChatStore((s) => s.coalesceAssistantText);
   const clearLive = useChatStore((s) => s.clearLive);
   const setStreaming = useChatStore((s) => s.setStreaming);
@@ -111,6 +113,27 @@ export function ChatPanel() {
     setLastError(null);
     setStreaming(true);
 
+    // Optimistic user-message echo. The Claude CLI emits its first chunks
+    // 5-10 seconds after the POST arrives (session hooks + init), so without
+    // an immediate echo the input clears into dead air and the user can't
+    // tell their prompt landed. Drop it on POST failure below; on success it
+    // gets replaced by the persisted copy when the `done` branch in
+    // onmessage calls `clearLive()` and the history query refetches.
+    const optimisticId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    appendLiveEvent({
+      id: optimisticId,
+      conversationId,
+      parentEventId: null,
+      timestamp: new Date().toISOString(),
+      source: 'chat-ai',
+      role: 'user',
+      content: { type: 'text', text },
+      cost: null,
+    });
+
     try {
       const res = await fetch('/api/chat/prompt', {
         method: 'POST',
@@ -121,8 +144,9 @@ export function ChatPanel() {
         // Server rejected the prompt (e.g. 503 when the Claude CLI isn't
         // installed, or 5xx during a transient backend failure). The SSE
         // stream's `done` chunk will never fire for this turn, so we have to
-        // surface the error here and release the streaming gate ourselves —
-        // otherwise the input greys out forever and the user sees nothing.
+        // surface the error here, un-render the optimistic echo, and release
+        // the streaming gate ourselves — otherwise the input greys out
+        // forever and the user sees nothing.
         let msg = `Request failed: ${res.status} ${res.statusText}`;
         try {
           const body = await res.json();
@@ -131,11 +155,14 @@ export function ChatPanel() {
           // Non-JSON body — keep the status-line message.
         }
         setLastError(msg);
+        removeLiveEvent(optimisticId);
         setStreaming(false);
       }
     } catch (err) {
-      // Network error — drop streaming state so the UI isn't stuck.
+      // Network error — drop the optimistic echo and streaming state so the
+      // UI isn't stuck showing a stranded user bubble next to an error.
       setLastError(err instanceof Error ? err.message : 'Network error');
+      removeLiveEvent(optimisticId);
       setStreaming(false);
     }
   };

@@ -30,6 +30,12 @@ interface ChatState {
   /** Append an event to the live buffer (e.g. a tool_call as it arrives). */
   appendLiveEvent: (event: InteractionEvent) => void;
   /**
+   * Remove a live event by id. Used to un-render the optimistic user echo
+   * when POST /api/chat/prompt fails so the stranded bubble doesn't stick
+   * around after the error banner surfaces.
+   */
+  removeLiveEvent: (id: string) => void;
+  /**
    * Merge an assistant text chunk into the last assistant text event in the
    * buffer, or start a new one if the tail isn't an assistant text event.
    * Mirrors the server-side `assistantTextBuffer` coalescing so the UI shows
@@ -49,6 +55,9 @@ export const useChatStore = create<ChatState>((set) => ({
 
   appendLiveEvent: (event) =>
     set((s) => ({ liveEvents: [...s.liveEvents, event] })),
+
+  removeLiveEvent: (id) =>
+    set((s) => ({ liveEvents: s.liveEvents.filter((e) => e.id !== id) })),
 
   coalesceAssistantText: (text) =>
     set((s) => {
