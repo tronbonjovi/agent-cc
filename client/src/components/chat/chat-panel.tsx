@@ -89,6 +89,15 @@ export function ChatPanel() {
           queryClient.invalidateQueries({
             queryKey: ['chat-history', conversationId],
           });
+        } else if (chunk.type === 'hook_event') {
+          // task005 — chat-workflows-tabs. Server has already persisted
+          // the hook event via insertEvent; we pull it into the React
+          // Query cache on the next revalidation. Rich live rendering of
+          // hook fires is task006 — keeping this branch invalidate-only
+          // matches the workflow_event handling directly above.
+          queryClient.invalidateQueries({
+            queryKey: ['chat-history', conversationId],
+          });
         }
         // Other chunk types (tool_call, tool_result, thinking, system) are
         // intentionally ignored in the live stream — they'll appear on the
