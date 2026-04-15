@@ -1,0 +1,2 @@
+{"type":"user","uuid":"fx-meta-1","timestamp":"2026-04-15T09:00:02.000Z","isMeta":true,"message":{"role":"user","content":[{"type":"text","text":"framework-injected content that must be dropped"}]}}
+{"type":"user","uuid":"fx-meta-2","timestamp":"2026-04-15T09:00:03.000Z","isMeta":false,"message":{"role":"user","content":"real message"}}
