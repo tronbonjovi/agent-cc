@@ -1,28 +1,16 @@
 /**
- * Scanner backend interface (M5 scanner-ingester task003).
+ * Scanner backend interface.
  *
- * Agent CC's data-read layer for Sessions / Messages / Costs historically
- * parsed JSONL directly on every request. Milestone 5 inverts that: a
- * background ingester writes JSONL into `interactions.db` once, and route
- * handlers read through a single backend interface with two implementations
- * sitting behind it:
+ * Agent CC's data-read layer for Sessions / Messages / Costs. A background
+ * ingester writes JSONL into `interactions.db` once, and route handlers
+ * read through this interface against the store.
  *
- *   - `backend-legacy.ts`  — the original "parse JSONL on every request"
- *                            pipeline, lifted behind this interface with
- *                            zero behavior change.
- *   - `backend-store.ts`   — queries the `events` table via
- *                            `interactions-repo.ts`.
- *
- * Only one is active at a time. The active implementation is selected by the
- * `SCANNER_BACKEND` env var (values: `legacy` | `store`, default `store`).
- * Task008 (M5 Phase 5) promoted `store` to the default after the task007
- * parity gate closed. `legacy` remains selectable for one release cycle as
- * a rollback escape hatch and logs a deprecation warning when used; it will
- * be deleted in the follow-up dispatch after manual smoke confirms `store`.
- *
- * This module intentionally contains ZERO logic beyond the factory — keeping
- * the interface and the selector in one file makes it trivial to grep for
- * every method the routes need to bridge during the migration.
+ * Historically (through M5 Phase 4) a dual-path legacy backend that parsed
+ * JSONL on every request lived alongside the store backend, gated by the
+ * `SCANNER_BACKEND` env var, so parity could be verified fixture-by-fixture
+ * before cutover. Task008 (M5 Phase 5) promoted `store` to the default,
+ * and the follow-up cutover deleted `backend-legacy.ts` and the env var
+ * entirely. Only one backend now ships.
  */
 
 import type {
@@ -44,28 +32,22 @@ export interface SessionMessagesResult {
 }
 
 /**
- * The read surface routes call into for scanner-sourced data. Any future
- * data-read helper that could reasonably swap from JSONL-parse to
- * store-query lives here; analytics helpers that purely transform a
- * `SessionData[]` list (heatmaps, health, weekly digest, bash knowledge,
- * etc.) stay outside the interface and keep taking whatever `listSessions`
- * returns — they don't care which backend produced it.
+ * The read surface routes call into for scanner-sourced data. Analytics
+ * helpers that purely transform a `SessionData[]` list (heatmaps, health,
+ * weekly digest, bash knowledge, etc.) stay outside the interface and keep
+ * taking whatever `listSessions` returns.
  */
 export interface IScannerBackend {
   /** Backend identity — convenient for diagnostics, tests, and logs. */
-  readonly name: 'legacy' | 'store';
+  readonly name: 'store';
 
   /**
    * Return the cached session list that powers Sessions list, Costs, and
-   * most analytics pages. Legacy: module-level `cachedSessions`. Store:
-   * grouped query against `events`.
+   * most analytics pages.
    */
   listSessions(): SessionData[];
 
-  /**
-   * Session-list aggregate stats (counts + size totals). Legacy: module
-   * cache. Store: recomputed from the store.
-   */
+  /** Session-list aggregate stats (counts + size totals). */
   getStats(): SessionStats;
 
   /**
@@ -76,10 +58,9 @@ export interface IScannerBackend {
 
   /**
    * Typed, paginated message timeline for a session. `filePath` is the
-   * session JSONL path (legacy reads it directly; store ignores it and
-   * uses conversation-id lookups keyed by session id derived from the
-   * basename). `types` filters the seven timeline variants — empty means
-   * all.
+   * session JSONL path (ignored by the store backend, which looks up by
+   * conversation id derived from the basename). `types` filters the seven
+   * timeline variants — empty means all.
    */
   getSessionMessages(
     filePath: string,
@@ -90,15 +71,13 @@ export interface IScannerBackend {
 
   /**
    * Per-session cost breakdown (rolled up across every record) used by
-   * `GET /api/sessions/:id/costs`. `sessions` is passed because the
-   * legacy helper needs the pre-resolved list to match the session by
-   * id — the store backend ignores it.
+   * `GET /api/sessions/:id/costs`. `sessions` is accepted for call-site
+   * symmetry with earlier iterations; the store backend ignores it.
    */
   getSessionCost(sessions: SessionData[], sessionId: string): SessionCostData | null;
 
   /**
-   * Cost summary over the last `days` days — drives the Costs tab
-   * overview. Legacy: cost-indexer read. Store: aggregate query.
+   * Cost summary over the last `days` days — drives the Costs tab overview.
    */
   getCostSummary(days: number): CostSummary;
 
@@ -122,35 +101,10 @@ export const SCANNER_BACKEND_METHODS: ReadonlyArray<keyof IScannerBackend> = [
   'getSessionCostDetail',
 ];
 
-import { legacyBackend } from './backend-legacy';
 import { storeBackend } from './backend-store';
 
-/**
- * Resolve the active scanner backend from `SCANNER_BACKEND`. Default is
- * `store`; `legacy` is retained for one release cycle as a rollback
- * escape hatch and logs a deprecation warning on each resolution.
- * Unknown or missing values fall through to `store`.
- *
- * Intentionally NOT memoized — tests flip the env var between calls, and
- * the lookup is just an env-var read. If that ever becomes a hot-path
- * concern, memoize against the string value so a mid-process env change
- * still takes effect.
- *
- * Both implementations are imported statically rather than lazy-required
- * so vitest's `vi.mock(...)` hoisting sees the full dependency graph at
- * module-load time — any test that mocks `scanner/session-scanner` or
- * `scanner/cost-indexer` transparently intercepts calls made through
- * the legacy backend without extra wiring. If the store backend ever
- * grows a heavyweight startup (e.g. opening the sqlite file on import),
- * move its import back behind a lazy loader.
- */
+/** Resolve the active scanner backend. There is only one; the factory is
+ *  kept so test doubles and future migrations can still intercept it. */
 export function getScannerBackend(): IScannerBackend {
-  const raw = process.env.SCANNER_BACKEND?.toLowerCase().trim();
-  if (raw === 'legacy') {
-    console.warn(
-      '[scanner] SCANNER_BACKEND=legacy is deprecated and will be removed in the next release; unset the env var to use the default store backend.'
-    );
-    return legacyBackend;
-  }
   return storeBackend;
 }

@@ -10,13 +10,9 @@ import { TRASH_DIR, MAX_SESSIONS_RESPONSE } from "../config";
 import { deepSearch } from "../scanner/deep-search";
 import { getCostAnalytics, getFileHeatmap, getHealthAnalytics, getStaleAnalytics } from "../scanner/session-analytics";
 // Scanner data-read surface — see `server/scanner/backend.ts`. Every route
-// that reaches into JSONL-parsed data (session list, stats, message
-// timeline, per-session cost) goes through this factory so M5 task008 can
-// flip the implementation via `SCANNER_BACKEND=store` without touching
-// route code. The mutation endpoints (delete/undo) still hold references
-// to `removeCachedSession`/`restoreCachedSession` because the cache
-// invalidation contract is legacy-specific; the store backend rebuilds
-// its view on the next ingester tick.
+// that reaches into scanner-sourced data (session list, stats, message
+// timeline, per-session cost) goes through this factory so tests can
+// swap in a fake backend without touching route code.
 import { getScannerBackend } from "../scanner/backend";
 import { getSessionCommits } from "../scanner/commit-linker";
 import { getProjectDashboards } from "../scanner/project-dashboard";

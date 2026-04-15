@@ -235,6 +235,65 @@ vi.mock("../server/scanner/session-scanner", () => ({
   restoreCachedSession: vi.fn(),
 }));
 
+// Route-level backend mock. The sessions router resolves its data-read
+// surface through `getScannerBackend()` — we short-circuit that to a
+// fake that delegates to the already-mocked helpers, so these tests don't
+// care which real backend implementation is wired up. `getSessionMessages`
+// stays backed by the real `parseSessionMessages` reading the fixture
+// JSONL file written in beforeAll — that's the code path these tests
+// actually exercise.
+vi.mock("../server/scanner/backend", async () => {
+  const parser = await vi.importActual<typeof import("../server/scanner/session-parser")>(
+    "../server/scanner/session-parser",
+  );
+  const fakeBackend = {
+    name: "store" as const,
+    listSessions: () => mockSessions,
+    getStats: () => mockStats,
+    getSessionById: (id: string) => mockSessions.find((s) => s.id === id),
+    getSessionMessages: (
+      filePath: string,
+      offset: number,
+      limit: number,
+      types?: Set<unknown>,
+    ) =>
+      parser.parseSessionMessages(
+        filePath,
+        offset,
+        limit,
+        types as Parameters<typeof parser.parseSessionMessages>[3],
+      ),
+    getSessionCost: () => null,
+    getCostSummary: () => ({
+      totalCost: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalCacheReadTokens: 0,
+      totalCacheCreationTokens: 0,
+      byModel: {},
+      byDay: {},
+      bySource: {},
+      countBySource: {},
+      topSessions: [],
+      days: 0,
+    }),
+    getSessionCostDetail: () => null,
+  };
+  return {
+    getScannerBackend: () => fakeBackend,
+    SCANNER_BACKEND_METHODS: [
+      "name",
+      "listSessions",
+      "getStats",
+      "getSessionById",
+      "getSessionMessages",
+      "getSessionCost",
+      "getCostSummary",
+      "getSessionCostDetail",
+    ] as const,
+  };
+});
+
 vi.mock("../server/scanner/session-cache", () => ({
   sessionParseCache: {
     getById: (id: string) => (id === SESSION_ID ? cacheParsed : null),
@@ -641,16 +700,12 @@ function buildSevenKindTree(): SessionTree {
   };
 }
 
-// This test exercises the legacy scanner backend end-to-end through the
-// Express router: it mocks `session-scanner` + `session-cache` and writes
-// a real JSONL fixture that legacy path-based helpers read. Task008
-// flipped `SCANNER_BACKEND`'s default to `store`, so pin this file to the
-// legacy backend explicitly — legacy remains available for one release
-// cycle as a rollback escape hatch and is the right target for these
-// cache/fixture-based assertions. Store-side coverage of the same
-// timeline behaviors lives in scanner-backend-parity.test.ts.
-const __originalScannerBackend = process.env.SCANNER_BACKEND;
-process.env.SCANNER_BACKEND = "legacy";
+// This test exercises the Express router end-to-end: it mocks the
+// scanner backend (via `vi.mock("../server/scanner/backend", ...)` above),
+// the session parse cache, and a fixture JSONL file on disk so
+// `parseSessionMessages` can read real bytes. Backend choice is
+// decoupled — if the real store backend ever swaps out how it resolves
+// session messages, these tests still pass because they hit the fake.
 
 beforeAll(async () => {
   // Set up the fake CLAUDE_DIR structure so findSessionJsonl() resolves.
@@ -677,11 +732,6 @@ afterAll(() => {
     fs.rmSync(CLAUDE_TEST_DIR, { recursive: true, force: true });
   } catch {
     // best-effort cleanup
-  }
-  if (__originalScannerBackend === undefined) {
-    delete process.env.SCANNER_BACKEND;
-  } else {
-    process.env.SCANNER_BACKEND = __originalScannerBackend;
   }
 });
 
