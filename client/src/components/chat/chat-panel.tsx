@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { useChatStore } from '@/stores/chat-store';
 import { useChatHistory } from '@/hooks/use-chat-history';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
+import { ChatTabBar } from '@/components/chat/chat-tab-bar';
 import type { InteractionEvent } from '../../../../shared/types';
 import { extractChunkText } from '../../../../shared/chat-chunk';
 
@@ -176,6 +177,7 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col h-full" data-testid="chat-panel">
+      <ChatTabBar />
       <ScrollArea className="flex-1 p-4">
         <InteractionEventRenderer events={allEvents} />
       </ScrollArea>
