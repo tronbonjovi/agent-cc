@@ -70,6 +70,60 @@ describe('chat-tab-bar.tsx — source guardrails', () => {
     expect(src).toMatch(/s\.loaded\b/);
     expect(src).toMatch(/if\s*\(\s*!\s*loaded\s*\)/);
   });
+
+  // -------------------------------------------------------------------------
+  // task007 — TODO markers replaced, close-confirm + drafts wiring
+  // -------------------------------------------------------------------------
+
+  it('no longer carries the TODO(task007) markers', () => {
+    // task007 replaces both TODO markers with the shadcn AlertDialog
+    // close-confirm flow.
+    expect(src).not.toMatch(/TODO\(task007\)/);
+  });
+
+  it('imports AlertDialog from @/components/ui/alert-dialog (task007)', () => {
+    expect(src).toMatch(/from ['"]@\/components\/ui\/alert-dialog['"]/);
+    expect(src).toContain('AlertDialog');
+  });
+
+  it('reads drafts via useChatStore to decide whether to confirm on close (task007)', () => {
+    // Dirty check: `drafts[tabId]?.trim().length > 0`. Must be sourced from
+    // useChatStore so the tab bar stays consistent with the panel's draft
+    // state.
+    expect(src).toMatch(/from ['"]@\/stores\/chat-store['"]/);
+    expect(src).toContain('useChatStore');
+    expect(src).toContain('drafts');
+    expect(src).toContain('setDraft');
+  });
+
+  it('close-confirm dialog copy names the tab and offers Cancel / Discard', () => {
+    // Copy lock — the contract fixes the exact wording so screenshot
+    // regressions are visible at the source-text level.
+    expect(src).toContain('Discard unsent message');
+    expect(src).toMatch(/\bCancel\b/);
+    expect(src).toMatch(/\bDiscard\b/);
+  });
+
+  it('file-header comment no longer lists task007 rewiring as pending', () => {
+    // Header at lines 15-20 said "lands in task007" and "also a task007
+    // rewiring" — now that task007 has landed, both clauses must be gone.
+    expect(src).not.toMatch(/lands in task007/);
+    expect(src).not.toMatch(/task007 rewiring/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// task007 — chat-panel.tsx TODO/boundary comment cleanup
+// ---------------------------------------------------------------------------
+
+describe('chat-panel.tsx — task007 boundary comment cleanup', () => {
+  const src = fs.readFileSync(CHAT_PANEL_PATH, 'utf-8');
+
+  it('drops the stale task003/004 "tab-store → chat-store retarget lands in task007" note', () => {
+    // The retarget has landed. Keeping the comment is a lie.
+    expect(src).not.toMatch(/retarget lands in task007/);
+    expect(src).not.toMatch(/task007 owns that/);
+  });
 });
 
 describe('chat-panel.tsx — ChatTabBar mount', () => {

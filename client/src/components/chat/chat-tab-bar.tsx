@@ -2,7 +2,8 @@
 //
 // Tab bar UI for the integrated chat panel — shipped in
 // chat-workflows-tabs-task002 as the user-facing surface on top of the
-// persisted tab store from task001.
+// persisted tab store from task001, completed in task007 (per-tab
+// conversation retarget + close-confirm on dirty draft).
 //
 // Responsibilities:
 //   - Render one chip per open tab, in the store's authoritative `order`.
@@ -11,18 +12,21 @@
 //   - Persist every action through the store (all mutations are async and
 //     throw on PUT failure — we log and swallow here so the tab bar stays
 //     resilient to transient backend hiccups; toast UI is task008).
+//   - Confirm before discarding a tab's unsent draft (shadcn AlertDialog).
+//     Clean tabs close immediately; dirty tabs pop a Cancel/Discard dialog.
 //
-// What this task intentionally does NOT do:
-//   - Close-confirmation for dirty tabs (no per-tab draft state exists yet,
-//     lands in task007 along with multi-turn history threading).
-//   - Switching the chat content when the active tab changes — ChatPanel's
-//     existing content still follows the chat-store from M3, also a
-//     task007 rewiring.
+// Draft-aware close flow:
+//   The draft text for each tab lives on `useChatStore.drafts`, keyed by
+//   conversationId. We read it here only to decide whether to show the
+//   confirm dialog — the actual editing happens in `chat-panel.tsx`. On
+//   close (either path), the draft entry is cleared via `setDraft(id, '')`
+//   so a future re-open of the same conversation starts fresh.
 //
 // Iteration must go through `buildOrderedTabs(tabs, order)`, never
 // `tabs.map(...)` directly — source-text guard in
 // tests/chat-tab-bar-source.test.ts pins that.
 
+import { useState } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -40,12 +44,23 @@ import { CSS } from '@dnd-kit/utilities';
 import { X, Plus } from 'lucide-react';
 
 import { useChatTabsStore } from '@/stores/chat-tabs-store';
+import { useChatStore } from '@/stores/chat-store';
 import {
   buildOrderedTabs,
   reorderIds,
   type OrderedTab,
 } from '@/lib/chat-tab-order';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
 interface ChatTabChipProps {
@@ -103,7 +118,6 @@ function ChatTabChip({ tab, active, onSelect, onClose }: ChatTabChipProps) {
           // store would fire setActiveTab just before closeTab and the user
           // briefly sees the wrong content flash.
           e.stopPropagation();
-          // TODO(task007): confirm before closing tab with unsent draft
           onClose(tab.conversationId);
         }}
         // dnd-kit listens on pointer events via the chip wrapper; stop
@@ -125,6 +139,18 @@ export function ChatTabBar() {
   const closeTab = useChatTabsStore((s) => s.closeTab);
   const setActiveTab = useChatTabsStore((s) => s.setActiveTab);
   const reorder = useChatTabsStore((s) => s.reorder);
+
+  // Drafts live on the chat store, keyed by conversationId. We read the
+  // whole map once here so the dirty-check for close-confirm can look up
+  // any tab in O(1) without re-subscribing on every keystroke of every
+  // non-active tab.
+  const drafts = useChatStore((s) => s.drafts);
+  const setDraft = useChatStore((s) => s.setDraft);
+
+  // Close-confirm dialog state — local to the tab bar because it's only
+  // reachable from clicking the X on a chip. `pendingCloseId` holds the
+  // tab we're asking the user to confirm; null means no dialog is open.
+  const [pendingCloseId, setPendingCloseId] = useState<string | null>(null);
 
   // A tiny drag-activation distance keeps the click-to-switch UX responsive
   // — without it, even tiny pointer jitter on a plain click is treated as a
@@ -158,14 +184,44 @@ export function ChatTabBar() {
     }
   };
 
-  const handleClose = async (id: string) => {
+  /**
+   * Actually close a tab — clears its draft from the store and calls the
+   * persisted close action. Used by both the clean-close path and the
+   * confirm-discard path.
+   */
+  const performClose = async (id: string) => {
+    // Drop the draft first so a future re-open of the same conversation
+    // starts fresh. Even if closeTab fails we don't want to leak the
+    // stale draft into a tab the user thought was gone.
+    setDraft(id, '');
     try {
-      // TODO(task007): confirm before closing tab with unsent draft
       await closeTab(id);
     } catch (err) {
       console.error('[chat-tab-bar] closeTab failed', err);
     }
   };
+
+  const handleClose = async (id: string) => {
+    const hasDirtyDraft = (drafts[id] ?? '').trim().length > 0;
+    if (hasDirtyDraft) {
+      // Defer close to the dialog's Discard action.
+      setPendingCloseId(id);
+      return;
+    }
+    await performClose(id);
+  };
+
+  const handleConfirmDiscard = async () => {
+    if (!pendingCloseId) return;
+    const id = pendingCloseId;
+    setPendingCloseId(null);
+    await performClose(id);
+  };
+
+  const pendingTab = pendingCloseId
+    ? tabs.find((t) => t.conversationId === pendingCloseId)
+    : undefined;
+  const pendingTitle = pendingTab?.title ?? '';
 
   const handleSelect = async (id: string) => {
     if (id === activeId) return;
@@ -228,6 +284,33 @@ export function ChatTabBar() {
       >
         <Plus className="h-4 w-4" />
       </Button>
+      {/* Close-confirm dialog — only rendered when a dirty tab is pending.
+          The open state is driven by `pendingCloseId`; the Cancel path
+          nulls it, the Discard path calls `performClose` which clears the
+          draft and calls the tabs-store close action. */}
+      <AlertDialog
+        open={pendingCloseId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCloseId(null);
+        }}
+      >
+        <AlertDialogContent data-testid="chat-tab-close-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Discard unsent message in &#39;{pendingTitle}&#39;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Your draft text will be lost. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDiscard}>
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

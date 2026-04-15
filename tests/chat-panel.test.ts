@@ -142,12 +142,12 @@ describe('chat-panel.tsx — source guardrails', () => {
       /if\s*\(\s*!res\.ok\s*\)\s*\{[\s\S]*?\n\s{6}\}/,
     );
     expect(notOkBranch, '!res.ok branch not found').not.toBeNull();
-    expect(notOkBranch![0]).toContain('removeLiveEvent(optimisticId)');
+    expect(notOkBranch![0]).toContain('removeLiveEvent(conversationId, optimisticId)');
     const catchBranch = promptTail.match(
       /catch\s*\(\s*err\s*\)\s*\{[\s\S]*?\n\s{4}\}/,
     );
     expect(catchBranch, 'AI-prompt catch branch not found').not.toBeNull();
-    expect(catchBranch![0]).toContain('removeLiveEvent(optimisticId)');
+    expect(catchBranch![0]).toContain('removeLiveEvent(conversationId, optimisticId)');
   });
 
   it('reads text chunks through the shared chat-chunk parser (no raw.text shortcut)', () => {
@@ -190,7 +190,8 @@ describe('chat-panel.tsx — source guardrails', () => {
     const body = doneBranch![0];
     const setStreamingIdx = body.indexOf('setStreaming(false)');
     const invalidateIdx = body.indexOf('invalidateQueries');
-    const clearLiveIdx = body.indexOf('clearLive()');
+    // task007: clearLive now takes a conversationId argument.
+    const clearLiveIdx = body.indexOf('clearLive(');
     expect(setStreamingIdx).toBeGreaterThan(-1);
     expect(invalidateIdx).toBeGreaterThan(-1);
     expect(clearLiveIdx).toBeGreaterThan(-1);
@@ -203,7 +204,8 @@ describe('chat-panel.tsx — source guardrails', () => {
     // history and drops its in-flight buffer so the turn doesn't double-render.
     expect(src).toContain('invalidateQueries');
     expect(src).toMatch(/queryKey\s*:\s*\[\s*['"]chat-history['"]\s*,\s*conversationId\s*\]/);
-    expect(src).toContain('clearLive()');
+    // task007: clearLive is now keyed by conversationId.
+    expect(src).toMatch(/clearLive\(\s*conversationId\s*\)/);
     expect(src).toMatch(/chunk\.type\s*===\s*['"]done['"]/);
   });
 
@@ -259,19 +261,57 @@ describe('chat-panel.tsx — source guardrails', () => {
     expect(src).not.toContain('intentionally ignored in the live stream');
   });
 
-  it('does not retarget to useChatTabsStore (task007 owns that)', () => {
-    // Regression lock: task007 retargets ChatPanel from
-    // useChatStore.conversationId to useChatTabsStore.activeTabId. Doing
-    // that work inside task006 would block the handoff and collide with a
-    // gate the user has explicitly called out as a repeat-offender trap.
+  it('does not import useChatTabsStore directly (task007 narrowed regression lock)', () => {
+    // task007 retarget: ChatPanel now sources the active conversation id
+    // via the `useActiveConversationId` hook, NOT a direct subscribe to
+    // `useChatTabsStore`. The hook file is allowed to wrap the tabs store;
+    // the panel itself must stay on the hook seam so the rest of the panel
+    // doesn't grow dependencies on tab-store internals.
     //
-    // The existing file comment in chat-panel.tsx already mentions
-    // useChatTabsStore to document the boundary — we only care that there
-    // is no import of it and no invocation of it as a hook, which is what
-    // the retarget would actually look like in code.
+    // The original task006 lock banned any mention of useChatTabsStore here.
+    // After task007 that would be a false negative — the hook IS the correct
+    // consumer of the tabs store — so the lock is narrowed to:
+    //   - no direct `from '@/stores/chat-tabs-store'` import
+    //   - no direct `useChatTabsStore(...)` invocation
     expect(src).not.toMatch(/from ['"]@\/stores\/chat-tabs-store['"]/);
-    expect(src).not.toMatch(/import[\s\S]*?useChatTabsStore[\s\S]*?from/);
     expect(src).not.toMatch(/useChatTabsStore\s*\(/);
+  });
+
+  it('sources conversationId via useActiveConversationId hook (task007)', () => {
+    // task007: the panel must consume the hook, not `useChatStore.conversationId`.
+    expect(src).toMatch(/from ['"]@\/hooks\/use-active-conversation-id['"]/);
+    expect(src).toContain('useActiveConversationId');
+    expect(src).toMatch(/const\s+conversationId\s*=\s*useActiveConversationId\(\)/);
+  });
+
+  it('no longer reads conversationId from useChatStore (task007)', () => {
+    // The hardcoded `'default'` field is gone from useChatStore; any
+    // residual selector pointing at it would be dead code.
+    expect(src).not.toMatch(/useChatStore\(\(s\)\s*=>\s*s\.conversationId\)/);
+  });
+
+  it('reads input from the drafts store, not local useState (task007)', () => {
+    // Per-tab drafts live on useChatStore.drafts, keyed by conversationId.
+    // Local `useState('')` for the input would discard drafts across tab
+    // switches — task007 explicitly replaces that wiring.
+    expect(src).toContain('drafts');
+    expect(src).toMatch(/useChatStore\(\(s\)\s*=>\s*s\.drafts/);
+    expect(src).toContain('setDraft');
+    // The old local useState('') for input must be gone.
+    expect(src).not.toMatch(/useState\(\s*['"]{2}\s*\)/);
+  });
+
+  it('wires up the first-mount auto-create flow via useChatTabsStoreAutoCreate (task007)', () => {
+    // The actual auto-create effect lives in a dedicated hook so the panel
+    // stays ignorant of the tabs store. Tests for the hook (open-on-empty +
+    // strict-mode latch + "Main" tab title) live in
+    // tests/use-chat-tabs-auto-create.test.ts — here we only pin that the
+    // panel wires it up.
+    expect(src).toMatch(
+      /from ['"]@\/hooks\/use-chat-tabs-auto-create['"]/,
+    );
+    expect(src).toContain('useChatTabsStoreAutoCreate');
+    expect(src).toMatch(/useChatTabsStoreAutoCreate\(\)/);
   });
 
   it('flips streaming off when the stream finishes or errors', () => {
@@ -339,12 +379,14 @@ describe('chat-panel.tsx — source guardrails', () => {
 
 let useChatStore: typeof import('../client/src/stores/chat-store').useChatStore;
 
+const CONV = 'default';
+
 beforeEach(async () => {
   const mod = await import('../client/src/stores/chat-store');
   useChatStore = mod.useChatStore;
   useChatStore.setState({
-    liveEvents: [],
-    conversationId: 'default',
+    liveEvents: {},
+    drafts: {},
     isStreaming: false,
   });
 });
@@ -364,20 +406,17 @@ function makeTextEvent(overrides: Partial<InteractionEvent> = {}): InteractionEv
 }
 
 describe('ChatPanel store contract', () => {
-  it('starts with an empty liveEvents buffer', () => {
+  it('starts with an empty liveEvents map', () => {
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents).toEqual([]);
+    expect(liveEvents).toEqual({});
   });
 
   it('appendLiveEvent seeds tool_call / thinking events into the live buffer', () => {
-    // Although ChatPanel only coalesces text chunks directly, the store's
-    // append path is used by future richer live handling (and by the test
-    // above to prove the store contract).
     const event = makeTextEvent({ id: 'tc1', role: 'assistant' });
-    useChatStore.getState().appendLiveEvent(event);
+    useChatStore.getState().appendLiveEvent(CONV, event);
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents).toHaveLength(1);
-    expect(liveEvents[0].id).toBe('tc1');
+    expect(liveEvents[CONV]).toHaveLength(1);
+    expect(liveEvents[CONV][0].id).toBe('tc1');
   });
 
   it('setStreaming toggles isStreaming (submit → true, done/error → false)', () => {
@@ -388,65 +427,145 @@ describe('ChatPanel store contract', () => {
   });
 
   it('coalesceAssistantText accumulates streamed SSE text into one assistant bubble', () => {
-    // Mirrors the SSE onmessage path in ChatPanel.
     const { coalesceAssistantText } = useChatStore.getState();
-    coalesceAssistantText('Hel');
-    coalesceAssistantText('lo ');
-    coalesceAssistantText('world');
+    coalesceAssistantText(CONV, 'Hel');
+    coalesceAssistantText(CONV, 'lo ');
+    coalesceAssistantText(CONV, 'world');
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents).toHaveLength(1);
-    expect(liveEvents[0].role).toBe('assistant');
-    expect(liveEvents[0].content).toEqual({ type: 'text', text: 'Hello world' });
+    expect(liveEvents[CONV]).toHaveLength(1);
+    expect(liveEvents[CONV][0].role).toBe('assistant');
+    expect(liveEvents[CONV][0].content).toEqual({ type: 'text', text: 'Hello world' });
   });
 
-  it('clearLive drops the live buffer after stream done', () => {
+  it('clearLive drops the conversation-scoped live buffer after stream done', () => {
     const store = useChatStore.getState();
-    store.coalesceAssistantText('partial turn');
-    expect(useChatStore.getState().liveEvents).toHaveLength(1);
-    useChatStore.getState().clearLive();
-    expect(useChatStore.getState().liveEvents).toEqual([]);
+    store.coalesceAssistantText(CONV, 'partial turn');
+    expect(useChatStore.getState().liveEvents[CONV]).toHaveLength(1);
+    useChatStore.getState().clearLive(CONV);
+    expect(useChatStore.getState().liveEvents[CONV] ?? []).toEqual([]);
   });
 
   it('removeLiveEvent filters out the optimistic echo by id on POST failure', () => {
     const { appendLiveEvent, removeLiveEvent } = useChatStore.getState();
-    appendLiveEvent(makeTextEvent({ id: 'opt-user', role: 'user' }));
-    appendLiveEvent(makeTextEvent({ id: 'keep-me', role: 'assistant' }));
-    expect(useChatStore.getState().liveEvents).toHaveLength(2);
-    removeLiveEvent('opt-user');
-    const remaining = useChatStore.getState().liveEvents;
+    appendLiveEvent(CONV, makeTextEvent({ id: 'opt-user', role: 'user' }));
+    appendLiveEvent(CONV, makeTextEvent({ id: 'keep-me', role: 'assistant' }));
+    expect(useChatStore.getState().liveEvents[CONV]).toHaveLength(2);
+    removeLiveEvent(CONV, 'opt-user');
+    const remaining = useChatStore.getState().liveEvents[CONV];
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe('keep-me');
   });
 
   it('removeLiveEvent is a no-op when the id is not in the buffer', () => {
     const { appendLiveEvent, removeLiveEvent } = useChatStore.getState();
-    appendLiveEvent(makeTextEvent({ id: 'only-one' }));
-    removeLiveEvent('not-there');
-    expect(useChatStore.getState().liveEvents).toHaveLength(1);
-    expect(useChatStore.getState().liveEvents[0].id).toBe('only-one');
+    appendLiveEvent(CONV, makeTextEvent({ id: 'only-one' }));
+    removeLiveEvent(CONV, 'not-there');
+    expect(useChatStore.getState().liveEvents[CONV]).toHaveLength(1);
+    expect(useChatStore.getState().liveEvents[CONV][0].id).toBe('only-one');
   });
 
-  it('appendLiveEvent is idempotent on id collisions (task006)', () => {
-    // Second line of defense against SSE chunk re-emission: appending the
-    // same event id twice must not produce two entries. mergeChatEvents
-    // dedups at render time, but preventing the duplicate from ever entering
-    // liveEvents keeps the buffer minimal and the helper's contract simple.
+  it('appendLiveEvent is idempotent on id collisions per-conversation (task007)', () => {
+    // task006's id-collision dedup must survive the per-conversation refactor.
     const { appendLiveEvent } = useChatStore.getState();
-    appendLiveEvent(makeTextEvent({ id: 'same' }));
+    appendLiveEvent(CONV, makeTextEvent({ id: 'same' }));
     appendLiveEvent(
+      CONV,
       makeTextEvent({ id: 'same', content: { type: 'text', text: 'different' } }),
     );
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents).toHaveLength(1);
-    // The first append wins — the second is silently dropped.
-    expect(liveEvents[0].content).toEqual({ type: 'text', text: 'hello' });
+    expect(liveEvents[CONV]).toHaveLength(1);
+    expect(liveEvents[CONV][0].content).toEqual({ type: 'text', text: 'hello' });
   });
 
-  it('appendLiveEvent keeps distinct ids in insertion order (task006)', () => {
+  it('appendLiveEvent keeps distinct ids in insertion order', () => {
     const { appendLiveEvent } = useChatStore.getState();
-    appendLiveEvent(makeTextEvent({ id: 'a' }));
-    appendLiveEvent(makeTextEvent({ id: 'b' }));
+    appendLiveEvent(CONV, makeTextEvent({ id: 'a' }));
+    appendLiveEvent(CONV, makeTextEvent({ id: 'b' }));
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(liveEvents[CONV].map((e) => e.id)).toEqual(['a', 'b']);
+  });
+
+  // ---- task007: per-conversation scoping -----------------------------------
+
+  it('appendLiveEvent keeps conversations isolated (tabA does not leak into tabB)', () => {
+    const { appendLiveEvent } = useChatStore.getState();
+    appendLiveEvent('tabA', makeTextEvent({ id: 'a-1' }));
+    appendLiveEvent('tabB', makeTextEvent({ id: 'b-1' }));
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents['tabA'].map((e) => e.id)).toEqual(['a-1']);
+    expect(liveEvents['tabB'].map((e) => e.id)).toEqual(['b-1']);
+  });
+
+  it('clearLive(tabA) does not touch tabB', () => {
+    const { appendLiveEvent, clearLive } = useChatStore.getState();
+    appendLiveEvent('tabA', makeTextEvent({ id: 'a-1' }));
+    appendLiveEvent('tabB', makeTextEvent({ id: 'b-1' }));
+    clearLive('tabA');
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents['tabA'] ?? []).toEqual([]);
+    expect(liveEvents['tabB'].map((e) => e.id)).toEqual(['b-1']);
+  });
+
+  it('id-collision dedup is per-conversation (same id in different tabs both land)', () => {
+    const { appendLiveEvent } = useChatStore.getState();
+    appendLiveEvent('tabA', makeTextEvent({ id: 'shared' }));
+    appendLiveEvent('tabB', makeTextEvent({ id: 'shared' }));
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents['tabA']).toHaveLength(1);
+    expect(liveEvents['tabB']).toHaveLength(1);
+  });
+
+  it('coalesceAssistantText is conversation-scoped', () => {
+    const { coalesceAssistantText } = useChatStore.getState();
+    coalesceAssistantText('tabA', 'Hello ');
+    coalesceAssistantText('tabB', 'World');
+    coalesceAssistantText('tabA', 'there');
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents['tabA']).toHaveLength(1);
+    expect(liveEvents['tabA'][0].content).toEqual({ type: 'text', text: 'Hello there' });
+    expect(liveEvents['tabB']).toHaveLength(1);
+    expect(liveEvents['tabB'][0].content).toEqual({ type: 'text', text: 'World' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// task007: drafts map on the chat store
+// ---------------------------------------------------------------------------
+
+describe('chat store drafts (task007)', () => {
+  it('drafts default to an empty map', () => {
+    const { drafts } = useChatStore.getState();
+    expect(drafts).toEqual({});
+  });
+
+  it('setDraft stores the draft text under the tab id', () => {
+    useChatStore.getState().setDraft('tabA', 'hello draft');
+    expect(useChatStore.getState().drafts['tabA']).toBe('hello draft');
+  });
+
+  it('getDraft returns the stored draft or empty string', () => {
+    const { setDraft, getDraft } = useChatStore.getState();
+    setDraft('tabA', 'hi');
+    expect(getDraft('tabA')).toBe('hi');
+    expect(getDraft('tabB')).toBe('');
+  });
+
+  it('setDraft is isolated per conversation', () => {
+    const { setDraft } = useChatStore.getState();
+    setDraft('tabA', 'A text');
+    setDraft('tabB', 'B text');
+    const { drafts } = useChatStore.getState();
+    expect(drafts['tabA']).toBe('A text');
+    expect(drafts['tabB']).toBe('B text');
+  });
+
+  it('clearing a draft sets it to empty string (does not mutate other tabs)', () => {
+    const { setDraft } = useChatStore.getState();
+    setDraft('tabA', 'keep');
+    setDraft('tabB', 'drop');
+    setDraft('tabB', '');
+    const { drafts } = useChatStore.getState();
+    expect(drafts['tabA']).toBe('keep');
+    expect(drafts['tabB']).toBe('');
   });
 });

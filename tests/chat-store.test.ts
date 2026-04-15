@@ -1,33 +1,36 @@
 // tests/chat-store.test.ts
 //
-// Tests for the chat store after the unified-capture task006 rewire.
+// Tests for the chat store after task007's per-tab conversation retarget.
 //
-// Before M2, the store held both persisted history (`messages`) and live
-// streaming chunks in the same buffer. Task006 splits those two layers:
-// React Query owns conversation history (via `useChatHistory`), and this
-// Zustand store now holds only the in-flight `liveEvents` buffer — the
-// chunks streaming in from the active SSE connection that have not yet been
-// flushed to the server's persisted store.
+// The store's contract evolved across milestones:
 //
-// The store's contract is intentionally tiny: a buffer, three mutators, a
-// streaming flag, and a setter. No more optimistic user messages, no more
-// conversationId-keyed message coalescing across conversations — live events
-// are always for the currently active stream.
+//   - Unified-capture task006 split history (React Query) from live events
+//     (this store). `liveEvents` was a flat `InteractionEvent[]`.
+//   - chat-workflows-tabs task007 keyed `liveEvents` by conversationId so
+//     two open tabs can stream simultaneously without cross-contamination.
+//     It also added the in-memory `drafts: Record<string, string>` map so
+//     the tab bar can decide whether to show the close-confirm dialog.
 //
-// Zustand stores are module-scoped singletons; we re-import in `beforeEach`
-// and hard-reset state to keep tests order-independent.
+// This file exercises the store directly — no React, no RTL. Zustand stores
+// are module-scoped singletons; we re-import in `beforeEach` and hard-reset
+// state to keep tests order-independent.
+//
+// Additional tab-scoping coverage (leak, dedup, draft isolation) lives in
+// `tests/chat-panel.test.ts` alongside the ChatPanel contract tests.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { InteractionEvent } from '../shared/types';
 
 let useChatStore: typeof import('../client/src/stores/chat-store').useChatStore;
 
+const CONV = 'default';
+
 beforeEach(async () => {
   const mod = await import('../client/src/stores/chat-store');
   useChatStore = mod.useChatStore;
   useChatStore.setState({
-    liveEvents: [],
-    conversationId: 'default',
+    liveEvents: {},
+    drafts: {},
     isStreaming: false,
   });
 });
@@ -47,48 +50,52 @@ function makeTextEvent(overrides: Partial<InteractionEvent> = {}): InteractionEv
   };
 }
 
-describe('useChatStore (live-events layer)', () => {
+describe('useChatStore (per-conversation live-events layer)', () => {
   it('1. has correct initial state', () => {
     const state = useChatStore.getState();
-    expect(state.liveEvents).toEqual([]);
-    expect(state.conversationId).toBe('default');
+    expect(state.liveEvents).toEqual({});
+    expect(state.drafts).toEqual({});
     expect(state.isStreaming).toBe(false);
   });
 
-  it('2. appendLiveEvent adds an event to the buffer', () => {
+  it('2. appendLiveEvent adds an event to the conversation buffer', () => {
     const event = makeTextEvent({ id: 'a1', content: { type: 'text', text: 'hi there' } });
-    useChatStore.getState().appendLiveEvent(event);
+    useChatStore.getState().appendLiveEvent(CONV, event);
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents).toHaveLength(1);
-    expect(liveEvents[0]).toEqual(event);
+    expect(liveEvents[CONV]).toHaveLength(1);
+    expect(liveEvents[CONV][0]).toEqual(event);
   });
 
   it('3. coalesceAssistantText appends to the last assistant text event', () => {
     const store = useChatStore.getState();
     // Seed a streaming assistant bubble.
     store.appendLiveEvent(
+      CONV,
       makeTextEvent({ id: 'a1', role: 'assistant', content: { type: 'text', text: 'hello' } }),
     );
     // Second chunk arrives — should merge into the existing bubble.
-    store.coalesceAssistantText(' world');
+    store.coalesceAssistantText(CONV, ' world');
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents).toHaveLength(1);
-    expect(liveEvents[0].role).toBe('assistant');
-    expect(liveEvents[0].content).toEqual({ type: 'text', text: 'hello world' });
+    expect(liveEvents[CONV]).toHaveLength(1);
+    expect(liveEvents[CONV][0].role).toBe('assistant');
+    expect(liveEvents[CONV][0].content).toEqual({
+      type: 'text',
+      text: 'hello world',
+    });
   });
 
   it('4. coalesceAssistantText creates a new assistant event when none exists', () => {
     // No prior assistant bubble in the buffer — the coalesce call must
     // materialise one rather than silently dropping the chunk.
-    useChatStore.getState().coalesceAssistantText('fresh start');
+    useChatStore.getState().coalesceAssistantText(CONV, 'fresh start');
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents).toHaveLength(1);
-    expect(liveEvents[0].role).toBe('assistant');
-    expect(liveEvents[0].content).toEqual({ type: 'text', text: 'fresh start' });
+    expect(liveEvents[CONV]).toHaveLength(1);
+    expect(liveEvents[CONV][0].role).toBe('assistant');
+    expect(liveEvents[CONV][0].content).toEqual({ type: 'text', text: 'fresh start' });
     // New events should carry a non-empty id and timestamp so the renderer
     // can key off them without clashes.
-    expect(liveEvents[0].id).toBeTruthy();
-    expect(liveEvents[0].timestamp).toBeTruthy();
+    expect(liveEvents[CONV][0].id).toBeTruthy();
+    expect(liveEvents[CONV][0].timestamp).toBeTruthy();
   });
 
   it('5. coalesceAssistantText creates a new event when the tail is not an assistant text bubble', () => {
@@ -112,27 +119,27 @@ describe('useChatStore (live-events layer)', () => {
       cost: null,
     };
     const store = useChatStore.getState();
-    store.appendLiveEvent(toolCallEvent);
-    store.coalesceAssistantText('hello');
+    store.appendLiveEvent(CONV, toolCallEvent);
+    store.coalesceAssistantText(CONV, 'hello');
 
     const { liveEvents } = useChatStore.getState();
-    expect(liveEvents).toHaveLength(2);
+    expect(liveEvents[CONV]).toHaveLength(2);
     // Original tool_call event must be untouched.
-    expect(liveEvents[0]).toEqual(toolCallEvent);
+    expect(liveEvents[CONV][0]).toEqual(toolCallEvent);
     // New tail is a fresh assistant text bubble carrying the chunk.
-    expect(liveEvents[1].role).toBe('assistant');
-    expect(liveEvents[1].content).toEqual({ type: 'text', text: 'hello' });
-    expect(liveEvents[1].id).toBeTruthy();
-    expect(liveEvents[1].id).not.toBe('tc1');
+    expect(liveEvents[CONV][1].role).toBe('assistant');
+    expect(liveEvents[CONV][1].content).toEqual({ type: 'text', text: 'hello' });
+    expect(liveEvents[CONV][1].id).toBeTruthy();
+    expect(liveEvents[CONV][1].id).not.toBe('tc1');
   });
 
-  it('6. clearLive empties the live event buffer', () => {
+  it('6. clearLive empties the live event buffer for that conversation', () => {
     const store = useChatStore.getState();
-    store.appendLiveEvent(makeTextEvent({ id: 'a' }));
-    store.appendLiveEvent(makeTextEvent({ id: 'b' }));
-    expect(useChatStore.getState().liveEvents).toHaveLength(2);
-    useChatStore.getState().clearLive();
-    expect(useChatStore.getState().liveEvents).toEqual([]);
+    store.appendLiveEvent(CONV, makeTextEvent({ id: 'a' }));
+    store.appendLiveEvent(CONV, makeTextEvent({ id: 'b' }));
+    expect(useChatStore.getState().liveEvents[CONV]).toHaveLength(2);
+    useChatStore.getState().clearLive(CONV);
+    expect(useChatStore.getState().liveEvents[CONV] ?? []).toEqual([]);
   });
 
   it('7. setStreaming toggles the flag', () => {

@@ -1,74 +1,122 @@
 // client/src/stores/chat-store.ts
 //
-// Live-events layer for the integrated chat surface.
+// Live-events + drafts layer for the integrated chat surface.
 //
-// Prior to the unified-capture milestone (task006), this store held the full
-// message list as an ephemeral in-memory buffer. The rewired design splits
-// responsibility in two:
+// History vs live split (unified-capture M4 / task006):
 //
 //   - Persisted conversation history is loaded via React Query
 //     (`useChatHistory`) from `GET /api/chat/conversations/:id/events`.
 //   - This store holds only the in-flight `liveEvents` buffer — chunks
 //     arriving on the active SSE stream that have not yet been flushed to the
 //     server's persisted store. When the stream emits `done`, the query is
-//     invalidated and `liveEvents` is cleared; the freshly-persisted events
-//     re-appear via the query cache.
+//     invalidated and the conversation's live buffer is cleared; the
+//     freshly-persisted events re-appear via the query cache.
 //
-// That gives us reload-survival (history re-fetches on mount) without
-// double-rendering the in-flight turn or racing the persistence write.
+// task007 — per-conversation scoping:
+//
+//   `liveEvents` is now a `Record<conversationId, InteractionEvent[]>` so two
+//   tabs streaming simultaneously stay isolated. Every reader/writer takes
+//   the target `conversationId` explicitly. The id-collision idempotence
+//   guard from task006 still holds — it's now per-conversation.
+//
+//   `drafts` is a `Record<conversationId, string>` (in-memory only) so the
+//   unsent input text survives tab switches. Drafts die on page refresh —
+//   persistence is intentionally out of scope for this task (no schema
+//   change on `/api/chat/tabs`). `ChatTabBar` inspects `drafts[tabId]` to
+//   decide whether to show the close-confirm dialog, and clears the entry
+//   via `setDraft(tabId, '')` whenever a tab closes.
+//
+// The hardcoded `'default'` `conversationId` field from M3 is gone —
+// `ChatPanel` now sources the active id through the `useActiveConversationId`
+// hook, which wraps `useChatTabsStore.activeTabId`.
 
 import { create } from 'zustand';
 import type { InteractionEvent } from '../../../shared/types';
 
 interface ChatState {
-  /** In-flight events for the active stream; cleared on `done`. */
-  liveEvents: InteractionEvent[];
-  /** Currently active conversation id. */
-  conversationId: string;
-  /** True while an assistant turn is streaming. */
+  /**
+   * In-flight events per conversation. Keyed by `conversationId` so two
+   * open tabs don't cross-contaminate. Cleared per-conversation on SSE `done`.
+   */
+  liveEvents: Record<string, InteractionEvent[]>;
+
+  /**
+   * In-memory draft input per conversation. Survives tab switches, dies on
+   * reload. Not persisted — schema-level persistence is a future milestone.
+   */
+  drafts: Record<string, string>;
+
+  /** True while an assistant turn is streaming (any tab). */
   isStreaming: boolean;
-  /** Append an event to the live buffer (e.g. a tool_call as it arrives). */
-  appendLiveEvent: (event: InteractionEvent) => void;
+
+  /** Append an event to the conversation's live buffer (idempotent on id). */
+  appendLiveEvent: (conversationId: string, event: InteractionEvent) => void;
+
   /**
-   * Remove a live event by id. Used to un-render the optimistic user echo
-   * when POST /api/chat/prompt fails so the stranded bubble doesn't stick
-   * around after the error banner surfaces.
+   * Remove a live event by id from the given conversation. Used to un-render
+   * the optimistic user echo when `POST /api/chat/prompt` fails so the
+   * stranded bubble doesn't stick around after the error banner surfaces.
    */
-  removeLiveEvent: (id: string) => void;
+  removeLiveEvent: (conversationId: string, id: string) => void;
+
   /**
-   * Merge an assistant text chunk into the last assistant text event in the
-   * buffer, or start a new one if the tail isn't an assistant text event.
-   * Mirrors the server-side `assistantTextBuffer` coalescing so the UI shows
-   * one growing bubble per turn rather than N chunks.
+   * Merge an assistant text chunk into the tail assistant text event for the
+   * given conversation, or start a new one if the tail isn't an assistant
+   * text event. Mirrors the server-side `assistantTextBuffer` coalescing.
    */
-  coalesceAssistantText: (text: string) => void;
-  /** Drop all live events (called after React Query revalidation). */
-  clearLive: () => void;
+  coalesceAssistantText: (conversationId: string, text: string) => void;
+
+  /** Drop the conversation's live buffer (called after React Query revalidation). */
+  clearLive: (conversationId: string) => void;
+
   /** Toggle the streaming flag (drives spinners / input-disabled state). */
   setStreaming: (v: boolean) => void;
+
+  /** Set (or clear, with '') the draft text for a conversation. */
+  setDraft: (conversationId: string, text: string) => void;
+
+  /** Read the draft for a conversation, or '' if none. */
+  getDraft: (conversationId: string) => string;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
-  liveEvents: [],
-  conversationId: 'default',
+export const useChatStore = create<ChatState>((set, get) => ({
+  liveEvents: {},
+  drafts: {},
   isStreaming: false,
 
-  appendLiveEvent: (event) =>
+  appendLiveEvent: (conversationId, event) =>
     set((s) => {
+      const existing = s.liveEvents[conversationId] ?? [];
       // Idempotent on id collisions — a second line of defense against the
       // server re-emitting the same SSE chunk (e.g. on reconnect) or a
       // workflow/hook_event chunk being appended here and then pulled back
-      // through the history revalidation before mergeChatEvents runs.
-      if (s.liveEvents.some((e) => e.id === event.id)) return s;
-      return { liveEvents: [...s.liveEvents, event] };
+      // through the history revalidation before mergeChatEvents runs. The
+      // check is per-conversation, so the same id can legitimately appear
+      // in two different tabs without one swallowing the other.
+      if (existing.some((e) => e.id === event.id)) return s;
+      return {
+        liveEvents: {
+          ...s.liveEvents,
+          [conversationId]: [...existing, event],
+        },
+      };
     }),
 
-  removeLiveEvent: (id) =>
-    set((s) => ({ liveEvents: s.liveEvents.filter((e) => e.id !== id) })),
-
-  coalesceAssistantText: (text) =>
+  removeLiveEvent: (conversationId, id) =>
     set((s) => {
-      const last = s.liveEvents[s.liveEvents.length - 1];
+      const existing = s.liveEvents[conversationId] ?? [];
+      return {
+        liveEvents: {
+          ...s.liveEvents,
+          [conversationId]: existing.filter((e) => e.id !== id),
+        },
+      };
+    }),
+
+  coalesceAssistantText: (conversationId, text) =>
+    set((s) => {
+      const existing = s.liveEvents[conversationId] ?? [];
+      const last = existing[existing.length - 1];
       if (
         last &&
         last.role === 'assistant' &&
@@ -78,7 +126,12 @@ export const useChatStore = create<ChatState>((set) => ({
           ...last,
           content: { type: 'text', text: last.content.text + text },
         };
-        return { liveEvents: [...s.liveEvents.slice(0, -1), updated] };
+        return {
+          liveEvents: {
+            ...s.liveEvents,
+            [conversationId]: [...existing.slice(0, -1), updated],
+          },
+        };
       }
       // No existing assistant text event — start a new one. This happens on
       // the first text chunk of a turn, or when text follows a tool_call /
@@ -88,7 +141,7 @@ export const useChatStore = create<ChatState>((set) => ({
           typeof crypto !== 'undefined' && 'randomUUID' in crypto
             ? crypto.randomUUID()
             : `live-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        conversationId: s.conversationId,
+        conversationId,
         parentEventId: null,
         timestamp: new Date().toISOString(),
         source: 'chat-ai',
@@ -96,10 +149,31 @@ export const useChatStore = create<ChatState>((set) => ({
         content: { type: 'text', text },
         cost: null,
       };
-      return { liveEvents: [...s.liveEvents, fresh] };
+      return {
+        liveEvents: {
+          ...s.liveEvents,
+          [conversationId]: [...existing, fresh],
+        },
+      };
     }),
 
-  clearLive: () => set({ liveEvents: [] }),
+  clearLive: (conversationId) =>
+    set((s) => ({
+      liveEvents: {
+        ...s.liveEvents,
+        [conversationId]: [],
+      },
+    })),
 
   setStreaming: (v) => set({ isStreaming: v }),
+
+  setDraft: (conversationId, text) =>
+    set((s) => ({
+      drafts: {
+        ...s.drafts,
+        [conversationId]: text,
+      },
+    })),
+
+  getDraft: (conversationId) => get().drafts[conversationId] ?? '',
 }));
