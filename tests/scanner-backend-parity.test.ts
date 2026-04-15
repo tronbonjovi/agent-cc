@@ -28,6 +28,13 @@
  * "legacy's degenerate single-source breakdown matches store's reducer
  * output". No new parity gap was introduced.
  *
+ * Task006 (countBySource dimension): same parity-by-construction story.
+ * The fixtures contain only JSONL-sourced events, so legacy's degenerate
+ * `countBySource` (everything under scanner-jsonl) must equal the store
+ * reducer's output, both at the summary level and per byDay entry. The
+ * gate below asserts all keys agree, not just `scanner-jsonl`. No new
+ * parity gap introduced.
+ *
  * Known parity gaps that this test intentionally works AROUND (rather
  * than faking values to make the test pass):
  *   - `stopReason`, `serviceTier`, `inferenceGeo`, `speed`,
@@ -603,6 +610,43 @@ describe('scanner backend parity — getCostSummary', () => {
         3,
       );
       expect(sDay.bySource['scanner-jsonl']).toBeCloseTo(sDay.cost, 3);
+    }
+
+    // countBySource (task006) — every fixture event lands as scanner-jsonl
+    // on both backends. The store reducer counts the deduped event rows;
+    // legacy's degenerate shim emits `records.length` under scanner-jsonl
+    // and 0 everywhere else. Counts must match key-for-key on both
+    // shapes, including the all-zero keys.
+    expect(s.countBySource).toBeDefined();
+    expect(l.countBySource).toBeDefined();
+    expect(Object.keys(s.countBySource).sort()).toEqual(
+      Object.keys(l.countBySource).sort(),
+    );
+    expect(s.countBySource['scanner-jsonl']).toBe(l.countBySource['scanner-jsonl']);
+    expect(s.countBySource['scanner-jsonl']).toBeGreaterThan(0);
+    for (const key of Object.keys(s.countBySource)) {
+      if (key === 'scanner-jsonl') continue;
+      expect(s.countBySource[key]).toBe(0);
+      expect(l.countBySource[key]).toBe(0);
+    }
+
+    // Per-day countBySource — same key-for-key parity discipline. Each day
+    // bucket on both backends must agree on the scanner-jsonl count and
+    // emit zero for every other key.
+    for (let i = 0; i < l.byDay.length; i++) {
+      const lDay = l.byDay[i];
+      const sDay = s.byDay[i];
+      expect(sDay.countBySource).toBeDefined();
+      expect(lDay.countBySource).toBeDefined();
+      expect(sDay.countBySource['scanner-jsonl']).toBe(
+        lDay.countBySource['scanner-jsonl'],
+      );
+      expect(sDay.countBySource['scanner-jsonl']).toBeGreaterThan(0);
+      for (const key of Object.keys(sDay.countBySource)) {
+        if (key === 'scanner-jsonl') continue;
+        expect(sDay.countBySource[key]).toBe(0);
+        expect(lDay.countBySource[key]).toBe(0);
+      }
     }
   });
 });

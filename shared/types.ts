@@ -832,6 +832,16 @@ export interface CostSummary {
   totalTokens: CostTokenBreakdown;
   /** Cost totals broken down by `InteractionSource`. See `CostBySource`. */
   bySource: CostBySource;
+  /**
+   * Event counts broken down by `InteractionSource` (task006). Unlike
+   * `bySource` (which excludes `cost === null` events), counts INCLUDE
+   * every event regardless of cost — deterministic sources like
+   * `chat-slash` / `chat-hook` / `chat-workflow` accrue counts even
+   * though they contribute zero cost. The asymmetry is the whole point:
+   * the AI-vs-deterministic ratio needs counts that the cost-only view
+   * can't supply. Always fully keyed (every `InteractionSource`).
+   */
+  countBySource: CostBySource;
   weeklyComparison: { thisWeek: number; lastWeek: number; changePct: number };
   monthlyTotalCost: number;
   byModel: Record<string, {
@@ -852,6 +862,9 @@ export interface CostSummary {
     cacheCost: number;
     /** Per-day cost broken down by `InteractionSource`. Always fully keyed. */
     bySource: CostBySource;
+    /** Per-day event counts by `InteractionSource` (task006). Includes
+     *  null-cost deterministic events. Always fully keyed. */
+    countBySource: CostBySource;
   }>;
   topSessions: Array<{
     sessionId: string;

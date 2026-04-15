@@ -382,4 +382,171 @@ describe("cost-indexer", () => {
       }
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Cost summary countBySource dimension — task006
+  //
+  // Same reducer, new field. countBySource is the asymmetric counterpart of
+  // bySource: it includes every event regardless of cost (so deterministic
+  // null-cost events still increment counts), and it must be filled in the
+  // SAME single iteration as costs — no second event walk.
+  // -------------------------------------------------------------------------
+
+  describe("reduceCostSummary — countBySource dimension", () => {
+    const today = new Date();
+    const isoAt = (hour: number): string => {
+      const d = new Date(today);
+      d.setUTCHours(hour, 0, 0, 0);
+      return d.toISOString();
+    };
+    const isoDaysAgo = (daysAgo: number, hour = 10): string => {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - daysAgo);
+      d.setUTCHours(hour, 0, 0, 0);
+      return d.toISOString();
+    };
+
+    function aiEvent(
+      id: string,
+      source: InteractionSource,
+      usd: number,
+      ts: string,
+    ): InteractionEvent {
+      return {
+        id,
+        conversationId: `sess-${id}`,
+        timestamp: ts,
+        source,
+        role: "assistant",
+        content: { type: "text", text: `text-${id}` },
+        cost: {
+          usd,
+          tokensIn: 100,
+          tokensOut: 50,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          durationMs: 0,
+          model: "claude-opus-4-6",
+        },
+      };
+    }
+
+    function deterministicEvent(
+      id: string,
+      source: InteractionSource,
+      ts: string,
+    ): InteractionEvent {
+      return {
+        id,
+        conversationId: `sess-${id}`,
+        timestamp: ts,
+        source,
+        role: "system",
+        content: { type: "system", subtype: "info", text: `det-${id}` },
+        cost: null,
+      };
+    }
+
+    it("countBySource sums event counts per source and is fully keyed", () => {
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "scanner-jsonl", 1.0, isoAt(1)),
+        aiEvent("e2", "scanner-jsonl", 0.5, isoAt(2)),
+        aiEvent("e3", "chat-ai", 2.0, isoAt(3)),
+        aiEvent("e4", "github-issue", 0.25, isoAt(4)),
+      ];
+      const summary = reduceCostSummary(events, events);
+
+      // Every InteractionSource key must be present
+      for (const key of ALL_INTERACTION_SOURCES) {
+        expect(summary.countBySource[key]).toBeDefined();
+      }
+      expect(summary.countBySource["scanner-jsonl"]).toBe(2);
+      expect(summary.countBySource["chat-ai"]).toBe(1);
+      expect(summary.countBySource["github-issue"]).toBe(1);
+      // Sources with no events stay at 0
+      expect(summary.countBySource["chat-slash"]).toBe(0);
+      expect(summary.countBySource["chat-hook"]).toBe(0);
+      expect(summary.countBySource["chat-workflow"]).toBe(0);
+    });
+
+    it("countBySource INCLUDES null-cost deterministic events (asymmetry vs bySource)", () => {
+      // The whole point of countBySource: deterministic events have no
+      // cost, so bySource leaves them at 0, but the count reflects them.
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "chat-ai", 1.0, isoAt(1)),
+        deterministicEvent("d1", "chat-slash", isoAt(2)),
+        deterministicEvent("d2", "chat-slash", isoAt(3)),
+        deterministicEvent("d3", "chat-hook", isoAt(4)),
+        deterministicEvent("d4", "chat-workflow", isoAt(5)),
+      ];
+      const summary = reduceCostSummary(events, events);
+
+      // Costs: only the AI event contributes — deterministic stays at 0
+      expect(summary.bySource["chat-ai"]).toBeCloseTo(1.0, 3);
+      expect(summary.bySource["chat-slash"]).toBe(0);
+      expect(summary.bySource["chat-hook"]).toBe(0);
+      expect(summary.bySource["chat-workflow"]).toBe(0);
+
+      // Counts: every event contributes regardless of cost
+      expect(summary.countBySource["chat-ai"]).toBe(1);
+      expect(summary.countBySource["chat-slash"]).toBe(2);
+      expect(summary.countBySource["chat-hook"]).toBe(1);
+      expect(summary.countBySource["chat-workflow"]).toBe(1);
+    });
+
+    it("byDay.countBySource splits per day with the same null-cost-included rule", () => {
+      const day0 = isoDaysAgo(0, 10);
+      const day1 = isoDaysAgo(1, 10);
+      const day0Key = day0.slice(0, 10);
+      const day1Key = day1.slice(0, 10);
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "scanner-jsonl", 1.0, day1),
+        aiEvent("e2", "chat-ai", 0.5, day1),
+        deterministicEvent("d1", "chat-slash", day1),
+        aiEvent("e3", "scanner-jsonl", 2.0, day0),
+        deterministicEvent("d2", "chat-hook", day0),
+        deterministicEvent("d3", "chat-workflow", day0),
+      ];
+      const summary = reduceCostSummary(events, events);
+
+      const byDate = Object.fromEntries(summary.byDay.map((d) => [d.date, d]));
+      const d0 = byDate[day0Key];
+      const d1 = byDate[day1Key];
+
+      // Each day entry must carry a fully-keyed countBySource
+      for (const key of ALL_INTERACTION_SOURCES) {
+        expect(d0.countBySource[key]).toBeDefined();
+        expect(d1.countBySource[key]).toBeDefined();
+      }
+
+      // Day 1: 1 scanner-jsonl + 1 chat-ai + 1 chat-slash
+      expect(d1.countBySource["scanner-jsonl"]).toBe(1);
+      expect(d1.countBySource["chat-ai"]).toBe(1);
+      expect(d1.countBySource["chat-slash"]).toBe(1);
+      expect(d1.countBySource["chat-hook"]).toBe(0);
+
+      // Day 0: 1 scanner-jsonl + 1 chat-hook + 1 chat-workflow
+      expect(d0.countBySource["scanner-jsonl"]).toBe(1);
+      expect(d0.countBySource["chat-hook"]).toBe(1);
+      expect(d0.countBySource["chat-workflow"]).toBe(1);
+      expect(d0.countBySource["chat-ai"]).toBe(0);
+    });
+
+    it("legacy-style single-source fixture yields a degenerate countBySource (all scanner-jsonl)", () => {
+      // Mirrors the bySource degenerate case — every event is scanner-jsonl,
+      // every other key is 0.
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "scanner-jsonl", 0.3, isoAt(1)),
+        aiEvent("e2", "scanner-jsonl", 0.7, isoAt(2)),
+        aiEvent("e3", "scanner-jsonl", 0.5, isoAt(3)),
+      ];
+      const summary = reduceCostSummary(events, events);
+
+      expect(summary.countBySource["scanner-jsonl"]).toBe(3);
+      for (const key of ALL_INTERACTION_SOURCES) {
+        if (key === "scanner-jsonl") continue;
+        expect(summary.countBySource[key]).toBe(0);
+      }
+    });
+  });
 });

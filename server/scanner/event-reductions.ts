@@ -292,7 +292,29 @@ export function reduceCostSummary(
   // `chat-slash` / `chat-hook` / `chat-workflow` therefore stay at zero in
   // the breakdown unless a future source carries a non-null cost.
   const bySource = emptyBySource();
+  // `countBySource` tracks event counts grouped by source. Two rules
+  // working together (task006):
+  //   1. Cost-bearing events (assistant turns) are always counted.
+  //   2. Deterministic events (`chat-slash` / `chat-hook` / `chat-workflow`)
+  //      are counted even though their cost is null — that's the whole
+  //      point of the dimension: the AI-vs-deterministic ratio needs
+  //      counts because deterministic sources can't be distinguished by
+  //      cost (they're all $0).
+  //   3. Plain user-input events (role === 'user' with cost === null)
+  //      are NOT counted — they're inputs, not "calls". Counting them
+  //      would also break parity with the legacy backend, which only
+  //      sees cost records (assistant turns) and wouldn't know about
+  //      user JSONL rows at all.
+  // Increment in the SAME pass — no second walk over windowEvents.
+  const countBySource = emptyBySource();
   for (const e of windowEvents) {
+    const isDeterministic =
+      e.source === 'chat-slash' ||
+      e.source === 'chat-hook' ||
+      e.source === 'chat-workflow';
+    if (e.cost !== null || isDeterministic) {
+      countBySource[e.source] = (countBySource[e.source] || 0) + 1;
+    }
     if (e.cost === null) continue;
     const usd = e.cost.usd || 0;
     totalCost += usd;
@@ -390,15 +412,41 @@ export function reduceCostSummary(
     .sort((a, b) => b.cost - a.cost);
 
   // ---- By day ----
+  // Same single-pass discipline as the totals block: increment per-day
+  // counts on every event (including null-cost deterministic), but only
+  // accumulate cost / compute / cache / bySource on cost-bearing events.
   const dayCost: Record<
     string,
-    { cost: number; compute: number; cache: number; bySource: CostBySource }
+    {
+      cost: number;
+      compute: number;
+      cache: number;
+      bySource: CostBySource;
+      countBySource: CostBySource;
+    }
   > = {};
   for (const e of windowEvents) {
-    if (e.cost === null) continue;
     const d = utcDay(e.timestamp);
     if (!dayCost[d])
-      dayCost[d] = { cost: 0, compute: 0, cache: 0, bySource: emptyBySource() };
+      dayCost[d] = {
+        cost: 0,
+        compute: 0,
+        cache: 0,
+        bySource: emptyBySource(),
+        countBySource: emptyBySource(),
+      };
+    // Same count rule as the totals block: cost-bearing OR deterministic.
+    // Plain user-input events (role=user, cost=null) are excluded so per-day
+    // counts stay parity-aligned with legacy.
+    const isDeterministic =
+      e.source === 'chat-slash' ||
+      e.source === 'chat-hook' ||
+      e.source === 'chat-workflow';
+    if (e.cost !== null || isDeterministic) {
+      dayCost[d].countBySource[e.source] =
+        (dayCost[d].countBySource[e.source] || 0) + 1;
+    }
+    if (e.cost === null) continue;
     const pricing = getPricing(e.cost.model || '');
     const input = e.cost.tokensIn || 0;
     const output = e.cost.tokensOut || 0;
@@ -423,6 +471,9 @@ export function reduceCostSummary(
       computeCost: round3(data.compute),
       cacheCost: round3(data.cache),
       bySource: roundBySource(data.bySource),
+      // countBySource holds integer counts — no rounding needed, but we
+      // still pass through a copy so the returned shape is a fresh object.
+      countBySource: copyBySource(data.countBySource),
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -478,6 +529,7 @@ export function reduceCostSummary(
     totalCost: round3(totalCost),
     totalTokens,
     bySource: roundBySource(bySource),
+    countBySource: copyBySource(countBySource),
     weeklyComparison: {
       thisWeek: round2(thisWeekCost),
       lastWeek: round2(lastWeekCost),
@@ -505,6 +557,19 @@ function roundBySource(src: CostBySource): CostBySource {
   const out = {} as CostBySource;
   for (const key of ALL_INTERACTION_SOURCES) {
     out[key] = round3(src[key] || 0);
+  }
+  return out;
+}
+
+/**
+ * Copy every key from a `CostBySource` into a fresh object. Used for
+ * `countBySource` (integer counts — no rounding) so the returned shape
+ * doesn't share the per-day accumulator's reference.
+ */
+function copyBySource(src: CostBySource): CostBySource {
+  const out = {} as CostBySource;
+  for (const key of ALL_INTERACTION_SOURCES) {
+    out[key] = src[key] || 0;
   }
   return out;
 }

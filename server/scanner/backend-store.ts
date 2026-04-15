@@ -19,6 +19,15 @@
  * don't carry a source). Both shapes are fully keyed over every
  * `InteractionSource` variant — no new parity gap introduced.
  *
+ * Task006 adds `countBySource` (event counts per source) to the same
+ * shape — same single-pass reducer, same degenerate legacy shim under
+ * `scanner-jsonl`. Counts INCLUDE null-cost deterministic events
+ * (chat-slash / chat-hook / chat-workflow), unlike `bySource` which
+ * excludes them — the asymmetry is the whole point of the dimension.
+ * No new parity gap introduced (legacy only ever sees scanner-jsonl
+ * records, so its degenerate count agrees with the store's reducer
+ * output on any JSONL-only fixture).
+ *
  * Parity with legacy is within the store's recordable surface:
  *   - Cost / token / model-breakdown reductions match legacy's
  *     `getSessionCost` / `getCostSummary` / `getSessionCostDetail` on

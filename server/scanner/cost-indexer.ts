@@ -390,16 +390,30 @@ export function getCostSummary(days: number): CostSummary {
     dayCost[d].compute += computePart;
     dayCost[d].cache += cachePart;
   }
+  // Per-day record counts for the legacy degenerate countBySource (task006).
+  // Same logic as the cost shim: every cost record came from JSONL, so all
+  // counts go under `scanner-jsonl` and every other key stays at 0.
+  const dayRecordCount: Record<string, number> = {};
+  for (const r of records) {
+    const d = r.timestamp.slice(0, 10);
+    dayRecordCount[d] = (dayRecordCount[d] || 0) + 1;
+  }
   const byDay = Object.entries(dayCost)
     .map(([date, data]) => {
       const perDay = emptyBySource();
       perDay["scanner-jsonl"] = Math.round(data.cost * 1000) / 1000;
+      // task006 degenerate countBySource — fully keyed, all counts under
+      // scanner-jsonl. Mirrors the cost shim above. The full key set
+      // matters for the parity test (store backend always emits every key).
+      const perDayCount = emptyBySource();
+      perDayCount["scanner-jsonl"] = dayRecordCount[date] || 0;
       return {
         date,
         cost: Math.round(data.cost * 1000) / 1000,
         computeCost: Math.round(data.compute * 1000) / 1000,
         cacheCost: Math.round(data.cache * 1000) / 1000,
         bySource: perDay,
+        countBySource: perDayCount,
       };
     })
     .sort((a, b) => a.date.localeCompare(b.date));
@@ -408,6 +422,13 @@ export function getCostSummary(days: number): CostSummary {
   // is degenerate in the legacy path.
   const bySource = emptyBySource();
   bySource["scanner-jsonl"] = Math.round(totalCost * 1000) / 1000;
+
+  // Top-level countBySource (task006 degenerate shim). Legacy CostRecord
+  // has no `source` field — every record came from JSONL ingestion, so all
+  // counts land under `scanner-jsonl`. Fully keyed so clients can assume
+  // shape parity with the store backend.
+  const countBySource = emptyBySource();
+  countBySource["scanner-jsonl"] = records.length;
 
   // Top sessions — aggregate by root session ID
   const sessionCosts: Record<string, {
@@ -466,6 +487,7 @@ export function getCostSummary(days: number): CostSummary {
     totalCost: Math.round(totalCost * 1000) / 1000,
     totalTokens,
     bySource,
+    countBySource,
     weeklyComparison: {
       thisWeek: Math.round(thisWeekCost * 100) / 100,
       lastWeek: Math.round(lastWeekCost * 100) / 100,
