@@ -1,11 +1,13 @@
 /**
  * Parity tests for the store-backed scanner backend (M5 scanner-ingester
- * task004).
+ * tasks 003–007).
  *
- * Strategy: for each of the four analytics methods, ingest a synthetic
+ * Strategy: for each method on `IScannerBackend`, ingest a synthetic
  * JSONL fixture into a temp `interactions.db`, run BOTH the legacy and
  * store backends against the SAME source files, and assert field-by-field
- * equality on the shapes we can compare.
+ * equality on the shapes we can compare. Anything legitimately divergent
+ * is enumerated below as a documented gap and explicitly skipped — never
+ * faked to make the test pass.
  *
  * Test isolation discipline (mirrors `tests/ingester.test.ts`):
  *   - Redirect `HOME` / `USERPROFILE` to a throwaway temp dir BEFORE
@@ -21,35 +23,67 @@
  *     ingester's `EXTRA_PROJECT_DIRS`-based walk both discover them
  *     identically.
  *
- * Task005 (bySource dimension): the parity test below also asserts both
- * backends agree on the new `CostSummary.bySource` + `byDay[].bySource`
- * fields. Every fixture here comes from JSONL ingestion, so both legacy
- * and store attribute 100% of cost to `scanner-jsonl` — the check is
- * "legacy's degenerate single-source breakdown matches store's reducer
- * output". No new parity gap was introduced.
+ * Coverage discipline (task007): every entry in `SCANNER_BACKEND_METHODS`
+ * MUST have a `describe('scanner backend parity — <method>', ...)` block
+ * in this file. The coverage-guard test at the bottom enforces that by
+ * grepping the file's own source against the canonical method list, so
+ * adding a new method to `IScannerBackend` forces a parity case to land
+ * with it. The `name` constant is covered by an identity assertion in
+ * the same guard block, not its own describe.
+ *
+ * Task005 (bySource dimension): the cost-summary parity case below also
+ * asserts both backends agree on the new `CostSummary.bySource` +
+ * `byDay[].bySource` fields. Every fixture here comes from JSONL
+ * ingestion, so both legacy and store attribute 100% of cost to
+ * `scanner-jsonl` — the check is "legacy's degenerate single-source
+ * breakdown matches store's reducer output". No new parity gap.
  *
  * Task006 (countBySource dimension): same parity-by-construction story.
  * The fixtures contain only JSONL-sourced events, so legacy's degenerate
  * `countBySource` (everything under scanner-jsonl) must equal the store
  * reducer's output, both at the summary level and per byDay entry. The
- * gate below asserts all keys agree, not just `scanner-jsonl`. No new
- * parity gap introduced.
+ * gate below asserts all keys agree, not just `scanner-jsonl`.
  *
- * Known parity gaps that this test intentionally works AROUND (rather
- * than faking values to make the test pass):
- *   - `stopReason`, `serviceTier`, `inferenceGeo`, `speed`,
- *     `serverToolUse` on assistant timeline messages — the store
- *     schema doesn't persist them. We don't compare these fields; we
- *     assert the store emits empty-string / zero defaults and let the
- *     legacy field sit alongside. task007's parity gate flags this.
- *   - `projectName` in `CostSummary.byProject` — legacy reads the
- *     project entity table to derive a pretty name; in a test env
- *     that table is empty and legacy falls back to the raw key, which
- *     the store already matches.
- *   - `firstMessage` on `SessionCostDetail` and `topSessions` —
- *     store has no firstMessage; both legacy (empty slice) and store
- *     (empty slice) produce '' when the session parser's firstMessage
- *     text is empty, which our fixtures arrange.
+ * ---------------------------------------------------------------------
+ * Documented parity gaps (the canonical list lives in
+ * `server/scanner/backend-store.ts` lines 31–49 — this header references
+ * it rather than duplicating the rationale):
+ *
+ *   1. Assistant message metadata. `stopReason`, `serviceTier`,
+ *      `inferenceGeo`, `speed`, `serverToolUse` on `assistant_text`
+ *      timeline messages are not in the store schema. Store emits
+ *      safe defaults; this file does not assert them on either backend.
+ *
+ *   2. Session metadata. `slug`, `firstMessage`, `sizeBytes`, `isActive`,
+ *      `cwd`, `version`, `gitBranch` on `SessionData` are not persisted
+ *      by the ingester. Store emits safe defaults via
+ *      `rollupToSessionData`. The `pickComparable()` helper used by the
+ *      `listSessions` and `getSessionById` parity blocks is the single
+ *      place this skip list lives — change it there if a new field is
+ *      either persisted or proven divergent.
+ *
+ *   3. Assistant `thinking` blocks. Always empty in persisted JSONL,
+ *      dropped by the mapper on both sides — no divergence in practice.
+ *      Listed for completeness so a future schema change can't silently
+ *      regress it.
+ *
+ *   4. `system_event` / `skill_invocation` timeline variants. Not
+ *      persisted by `jsonl-to-event.ts` (type filter to assistant/user
+ *      only). Any fixture that depends on these variants is out of
+ *      scope for parity; do not write one.
+ *
+ *   5. `projectName` in `CostSummary.byProject`. Legacy reads the
+ *      project entity table to derive a pretty name; in this test env
+ *      that table is empty and legacy falls back to the raw key, which
+ *      the store already matches by accident. This is a test-env
+ *      coincidence, not structural parity — flagged so future readers
+ *      don't read the silent agreement as load-bearing.
+ *
+ *   6. `firstMessage` on `topSessions` and `SessionCostDetail`. Store
+ *      has no `firstMessage`; both legacy (empty slice) and store
+ *      (empty slice) emit '' under the fixture shapes used here. The
+ *      cost-summary case compares ids + cost only and skips the text.
+ * ---------------------------------------------------------------------
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -182,6 +216,53 @@ function writeSession(
   const filePath = path.join(dir, `${sessionId}.jsonl`);
   fs.writeFileSync(filePath, content);
   return filePath;
+}
+
+/**
+ * Project a `SessionData` down to the fields BOTH backends agree on. Skip
+ * fields are documented gap group #2 in the file header — this helper is
+ * the single source of truth for the skip list so changes land in one
+ * spot. If a field gets newly persisted by the ingester (closing the gap)
+ * or surfaces as divergent, update the picked set here and the gap list
+ * in the header simultaneously.
+ *
+ * Skipped fields and their rationale (see backend-store.ts:120-137 for the
+ * full details):
+ *   - `slug`              — store schema has no slug column
+ *   - `firstMessage`      — store has no firstMessage projection
+ *   - `sizeBytes`         — store has no file-size column
+ *   - `isActive`          — active-session marker lives in ~/.claude/sessions/
+ *   - `cwd`/`version`/`gitBranch` — metadata not persisted by the mapper
+ *   - `hasSummary`        — optional, not surfaced through either backend here
+ */
+interface ComparableSession {
+  id: string;
+  firstTs: string | null;
+  lastTs: string | null;
+  messageCount: number;
+  isEmpty: boolean;
+  projectKey: string;
+  filePath: string;
+}
+
+function pickComparable(session: {
+  id: string;
+  firstTs: string | null;
+  lastTs: string | null;
+  messageCount: number;
+  isEmpty: boolean;
+  projectKey: string;
+  filePath: string;
+}): ComparableSession {
+  return {
+    id: session.id,
+    firstTs: session.firstTs,
+    lastTs: session.lastTs,
+    messageCount: session.messageCount,
+    isEmpty: session.isEmpty,
+    projectKey: session.projectKey,
+    filePath: session.filePath,
+  };
 }
 
 beforeAll(async () => {
@@ -710,5 +791,302 @@ describe('scanner backend parity — getSessionCostDetail', () => {
     const s = mods.store.getSessionCostDetail('this-id-does-not-exist');
     expect(l).toBeNull();
     expect(s).toBeNull();
+  });
+});
+
+describe('scanner backend parity — listSessions', () => {
+  // Helper: produce a small multi-session multi-project fixture used by
+  // both this block and the getStats block below. Returns the session ids
+  // we wrote so each test can assert against a known expected set.
+  function writeMultiProjectFixture(): string[] {
+    writeSession(
+      '-tmp-proj-a',
+      'session-list-a1',
+      userRecord('u-1', 'q', '2026-04-13T10:00:00Z') +
+        assistantRecord('a-1', 'r', '2026-04-13T10:00:01Z') +
+        userRecord('u-2', 'q2', '2026-04-13T10:00:02Z') +
+        assistantRecord('a-2', 'r2', '2026-04-13T10:00:03Z'),
+    );
+    writeSession(
+      '-tmp-proj-a',
+      'session-list-a2',
+      userRecord('u-3', 'q', '2026-04-14T11:00:00Z') +
+        assistantRecord('a-3', 'r', '2026-04-14T11:00:01Z') +
+        userRecord('u-4', 'q2', '2026-04-14T11:00:02Z') +
+        assistantRecord('a-4', 'r2', '2026-04-14T11:00:03Z'),
+    );
+    writeSession(
+      '-tmp-proj-b',
+      'session-list-b1',
+      userRecord('u-5', 'q', '2026-04-15T12:00:00Z') +
+        assistantRecord('a-5', 'r', '2026-04-15T12:00:01Z') +
+        userRecord('u-6', 'q2', '2026-04-15T12:00:02Z') +
+        assistantRecord('a-6', 'r2', '2026-04-15T12:00:03Z'),
+    );
+    return ['session-list-a1', 'session-list-a2', 'session-list-b1'];
+  }
+
+  it('returns the same set of comparable session fields across both backends', () => {
+    const expectedIds = writeMultiProjectFixture();
+
+    mods.scanAllSessions();
+    mods.ingestAllOnce([projectsDir]);
+
+    const legacyList = mods.legacy.listSessions();
+    const storeList = mods.store.listSessions();
+
+    // Length parity — both backends must see every fixture session.
+    expect(legacyList.length).toBe(expectedIds.length);
+    expect(storeList.length).toBe(expectedIds.length);
+
+    // Sort by id before per-row comparison. Both backends use different
+    // natural orderings (legacy: lastTs desc, store: rollup query order),
+    // so we normalize on a deterministic key for the diff. Sorting by id
+    // is stable because session ids are unique by construction.
+    const sortById = <T extends { id: string }>(rows: T[]): T[] =>
+      [...rows].sort((a, b) => a.id.localeCompare(b.id));
+
+    const legacySorted = sortById(legacyList).map(pickComparable);
+    const storeSorted = sortById(storeList).map(pickComparable);
+
+    expect(storeSorted).toEqual(legacySorted);
+
+    // Sanity: every expected id is present on both sides.
+    const legacyIds = legacySorted.map((s) => s.id).sort();
+    const storeIds = storeSorted.map((s) => s.id).sort();
+    expect(legacyIds).toEqual([...expectedIds].sort());
+    expect(storeIds).toEqual([...expectedIds].sort());
+  });
+
+  it('produces stable sort-key parity when ordered by lastTs desc + id tiebreaker', () => {
+    // Same fixture, different question: do both backends agree on the
+    // chronological ordering once we apply a deterministic sort key? This
+    // catches the case where two backends return parity-equal sets but
+    // diverge on per-row ordering, which would silently break any UI
+    // that consumes `listSessions()` in a stream and trusts the order.
+    writeMultiProjectFixture();
+
+    mods.scanAllSessions();
+    mods.ingestAllOnce([projectsDir]);
+
+    const sortByLastTsDesc = <T extends { lastTs: string | null; id: string }>(
+      rows: T[],
+    ): T[] =>
+      [...rows].sort((a, b) => {
+        const aTs = a.lastTs || '';
+        const bTs = b.lastTs || '';
+        if (aTs !== bTs) return bTs.localeCompare(aTs);
+        return a.id.localeCompare(b.id);
+      });
+
+    const legacySorted = sortByLastTsDesc(mods.legacy.listSessions()).map(
+      pickComparable,
+    );
+    const storeSorted = sortByLastTsDesc(mods.store.listSessions()).map(
+      pickComparable,
+    );
+
+    expect(storeSorted).toEqual(legacySorted);
+  });
+});
+
+describe('scanner backend parity — getStats', () => {
+  it('returns identical comparable stat fields for a multi-session fixture', () => {
+    // Reuse the same 3-session / 2-project fixture shape from listSessions.
+    // Each session has 4 messages (>= 3) so emptyCount should be 0 on both
+    // backends.
+    writeSession(
+      '-tmp-proj-a',
+      'session-stats-a1',
+      userRecord('u-1', 'q', '2026-04-13T10:00:00Z') +
+        assistantRecord('a-1', 'r', '2026-04-13T10:00:01Z') +
+        userRecord('u-2', 'q2', '2026-04-13T10:00:02Z') +
+        assistantRecord('a-2', 'r2', '2026-04-13T10:00:03Z'),
+    );
+    writeSession(
+      '-tmp-proj-a',
+      'session-stats-a2',
+      userRecord('u-3', 'q', '2026-04-14T11:00:00Z') +
+        assistantRecord('a-3', 'r', '2026-04-14T11:00:01Z') +
+        userRecord('u-4', 'q2', '2026-04-14T11:00:02Z') +
+        assistantRecord('a-4', 'r2', '2026-04-14T11:00:03Z'),
+    );
+    writeSession(
+      '-tmp-proj-b',
+      'session-stats-b1',
+      userRecord('u-5', 'q', '2026-04-15T12:00:00Z') +
+        assistantRecord('a-5', 'r', '2026-04-15T12:00:01Z') +
+        userRecord('u-6', 'q2', '2026-04-15T12:00:02Z') +
+        assistantRecord('a-6', 'r2', '2026-04-15T12:00:03Z'),
+    );
+
+    mods.scanAllSessions();
+    mods.ingestAllOnce([projectsDir]);
+
+    const l = mods.legacy.getStats();
+    const s = mods.store.getStats();
+
+    // Comparable fields: totalCount + emptyCount.
+    expect(s.totalCount).toBe(l.totalCount);
+    expect(s.totalCount).toBe(3);
+    expect(s.emptyCount).toBe(l.emptyCount);
+    expect(s.emptyCount).toBe(0);
+
+    // Skipped (documented gaps):
+    //   - `totalSize` — store has no per-file size column, always 0.
+    //     Legacy reads stat().size from disk. We assert the store's
+    //     defaulted value rather than comparing — that's the gap.
+    //   - `activeCount` — active-session marker lives in
+    //     `~/.claude/sessions/`, not the store. Always 0 on store.
+    expect(s.totalSize).toBe(0);
+    expect(s.activeCount).toBe(0);
+  });
+
+  it('returns zeroed stats on both backends when no sessions exist', () => {
+    // No fixtures written. Both backends should agree on a fully-zeroed
+    // stat block — this is the "fresh install" parity baseline.
+    mods.scanAllSessions();
+    mods.ingestAllOnce([projectsDir]);
+
+    const l = mods.legacy.getStats();
+    const s = mods.store.getStats();
+
+    expect(s.totalCount).toBe(l.totalCount);
+    expect(s.totalCount).toBe(0);
+    expect(s.emptyCount).toBe(l.emptyCount);
+    expect(s.emptyCount).toBe(0);
+  });
+});
+
+describe('scanner backend parity — getSessionById', () => {
+  it('returns identical comparable fields for a known session id', () => {
+    const sessionId = 'session-by-id-known';
+    writeSession(
+      '-tmp-proj',
+      sessionId,
+      userRecord('u-1', 'q', '2026-04-15T10:00:00Z') +
+        assistantRecord('a-1', 'r', '2026-04-15T10:00:01Z') +
+        userRecord('u-2', 'q2', '2026-04-15T10:00:02Z') +
+        assistantRecord('a-2', 'r2', '2026-04-15T10:00:03Z'),
+    );
+
+    mods.scanAllSessions();
+    mods.ingestAllOnce([projectsDir]);
+
+    const l = mods.legacy.getSessionById(sessionId);
+    const s = mods.store.getSessionById(sessionId);
+
+    expect(l).toBeDefined();
+    expect(s).toBeDefined();
+    expect(pickComparable(s!)).toEqual(pickComparable(l!));
+    expect(s!.id).toBe(sessionId);
+  });
+
+  it('returns undefined for an unknown session id on both backends', () => {
+    // Populate one real session so neither backend short-circuits on an
+    // empty store. Then query a clearly-bogus id.
+    writeSession(
+      '-tmp-proj',
+      'session-by-id-real',
+      userRecord('u-1', 'q', '2026-04-15T10:00:00Z') +
+        assistantRecord('a-1', 'r', '2026-04-15T10:00:01Z') +
+        userRecord('u-2', 'q2', '2026-04-15T10:00:02Z'),
+    );
+
+    mods.scanAllSessions();
+    mods.ingestAllOnce([projectsDir]);
+
+    const l = mods.legacy.getSessionById('this-id-does-not-exist');
+    const s = mods.store.getSessionById('this-id-does-not-exist');
+    expect(l).toBeUndefined();
+    expect(s).toBeUndefined();
+  });
+
+  it('hides subagent ids from the parent rollup on both backends', () => {
+    // Subagent layout: parent JSONL at `<projectsDir>/<projectKey>/<id>.jsonl`,
+    // subagent JSONL at `<projectsDir>/<projectKey>/<id>/subagents/agent-<sub>.jsonl`.
+    // The ingester maps the subagent file to conversationId
+    // `<id>:sub:<sub>` (see ingester.ts deriveConversationId), then
+    // listParentRollups() in backend-store.ts filters out anything
+    // containing `:sub:`. Legacy never even discovers subagent files
+    // because session-scanner walks `.jsonl` only at the project-dir top
+    // level (not recursive). Both should return undefined for a `:sub:`
+    // lookup — that's what we assert here.
+    const parentId = 'session-with-subagent';
+    const subAgentId = 'b1234567';
+    writeSession(
+      '-tmp-proj',
+      parentId,
+      userRecord('u-1', 'kick off subagent', '2026-04-15T10:00:00Z') +
+        assistantRecord('a-1', 'launching', '2026-04-15T10:00:01Z') +
+        userRecord('u-2', 'continue', '2026-04-15T10:00:02Z') +
+        assistantRecord('a-2', 'done', '2026-04-15T10:00:03Z'),
+    );
+
+    // Materialize a real subagent jsonl alongside the parent so the
+    // ingester picks it up via walkJsonlFiles (recursive) and the store
+    // creates a `<parentId>:sub:<subAgentId>` conversation row.
+    const subDir = path.join(projectsDir, '-tmp-proj', parentId, 'subagents');
+    fs.mkdirSync(subDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(subDir, `agent-${subAgentId}.jsonl`),
+      userRecord('su-1', 'sub task', '2026-04-15T10:00:01Z') +
+        assistantRecord('sa-1', 'sub reply', '2026-04-15T10:00:01Z'),
+    );
+
+    mods.scanAllSessions();
+    mods.ingestAllOnce([projectsDir]);
+
+    // Parent id resolves on both backends and points at the same row.
+    const lParent = mods.legacy.getSessionById(parentId);
+    const sParent = mods.store.getSessionById(parentId);
+    expect(lParent).toBeDefined();
+    expect(sParent).toBeDefined();
+    expect(pickComparable(sParent!)).toEqual(pickComparable(lParent!));
+
+    // Subagent id is hidden from listSessions/getSessionById on both
+    // backends — legacy by directory-walk shape, store by the
+    // listParentRollups filter. If this assertion ever flips, a new
+    // parity gap has appeared and task007's STOP-and-report rule kicks in.
+    const subId = `${parentId}:sub:${subAgentId}`;
+    const lSub = mods.legacy.getSessionById(subId);
+    const sSub = mods.store.getSessionById(subId);
+    expect(lSub).toBeUndefined();
+    expect(sSub).toBeUndefined();
+  });
+});
+
+describe('scanner backend parity — coverage guard', () => {
+  it('both backends report their declared name constant', () => {
+    expect(mods.legacy.name).toBe('legacy');
+    expect(mods.store.name).toBe('store');
+  });
+
+  it('every SCANNER_BACKEND_METHODS entry has a parity describe block in this file', async () => {
+    // Self-read this test file and assert that for every method on
+    // IScannerBackend (except `name`, which is the identity case above),
+    // there's a matching `describe('scanner backend parity — <method>', ...)`
+    // block. The point is to force any future addition to
+    // `SCANNER_BACKEND_METHODS` to land with its own parity case — if
+    // someone bolts on `getProjectStats` and forgets the parity block,
+    // this guard fails immediately rather than letting a silent
+    // regression sneak through.
+    //
+    // We use process.cwd() + relative path rather than __filename /
+    // import.meta.url so the lookup is independent of vitest's ESM
+    // shim story. Vitest runs from the repo root, so this resolves
+    // deterministically.
+    const testFilePath = path.resolve(
+      process.cwd(),
+      'tests/scanner-backend-parity.test.ts',
+    );
+    const src = await fs.promises.readFile(testFilePath, 'utf8');
+
+    const backendMod = await import('../server/scanner/backend');
+    for (const method of backendMod.SCANNER_BACKEND_METHODS) {
+      if (method === 'name') continue; // covered by the identity assertion above
+      const pattern = new RegExp(`parity — ${method}\\b`);
+      expect(src, `no parity describe block found for ${method}`).toMatch(pattern);
+    }
   });
 });
