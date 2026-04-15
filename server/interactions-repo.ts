@@ -99,7 +99,13 @@ export function rowToEvent(row: EventRow): InteractionEvent {
 // Writes
 // ---------------------------------------------------------------------------
 
-const INSERT_SQL = `
+/**
+ * Canonical upsert SQL for the `events` table. Exported so other modules
+ * (notably `server/scanner/ingester.ts`, which needs to run this insert inside
+ * its own shared transaction alongside `ingestion_state` updates) can reuse
+ * the exact same statement — any future schema change touches one place.
+ */
+export const INSERT_EVENT_SQL = `
   INSERT OR REPLACE INTO events (
     id, conversation_id, parent_event_id, timestamp, source, role,
     content_json, cost_json, metadata_json
@@ -108,12 +114,13 @@ const INSERT_SQL = `
 
 /**
  * Bind an `InteractionEvent` to the positional parameter list expected by
- * `INSERT_SQL`. Centralized so single + batch inserts stay in lock-step.
+ * `INSERT_EVENT_SQL`. Centralized so every caller — single insert, batch
+ * insert, ingester transaction — stays in lock-step with the column order.
  *
  * `parentEventId` may be `undefined` on the input shape (TS optional) or
  * `null` (DB-backed); both collapse to `null` for SQLite. Same for `metadata`.
  */
-function eventToParams(e: InteractionEvent): unknown[] {
+export function eventToParams(e: InteractionEvent): unknown[] {
   return [
     e.id,
     e.conversationId,
@@ -134,7 +141,7 @@ function eventToParams(e: InteractionEvent): unknown[] {
  */
 export function insertEvent(e: InteractionEvent): void {
   const db = openDb();
-  const stmt = db.prepare(INSERT_SQL);
+  const stmt = db.prepare(INSERT_EVENT_SQL);
   stmt.run(...eventToParams(e));
 }
 
@@ -148,7 +155,7 @@ export function insertEventsBatch(events: InteractionEvent[]): void {
   if (events.length === 0) return;
 
   const db = openDb();
-  const stmt = db.prepare(INSERT_SQL);
+  const stmt = db.prepare(INSERT_EVENT_SQL);
 
   const insertMany = db.transaction((batch: InteractionEvent[]) => {
     for (const e of batch) {

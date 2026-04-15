@@ -35,6 +35,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { openDb } from '../interactions-db';
+import { INSERT_EVENT_SQL, eventToParams } from '../interactions-repo';
 import { jsonlLinesToEvents } from './jsonl-to-event';
 import { discoverSubagents } from './subagent-discovery';
 import type { InteractionEvent } from '../../shared/types';
@@ -46,14 +47,14 @@ import type { InteractionEvent } from '../../shared/types';
 /** Debounce window for fs.watch change events — coalesces noisy writes. */
 const WATCH_DEBOUNCE_MS = 500;
 
-/** SQL for event + ingestion-state upsert, replicated from interactions-repo
- *  so we can run them in a single shared transaction. */
-const INSERT_EVENT_SQL = `
-  INSERT OR REPLACE INTO events (
-    id, conversation_id, parent_event_id, timestamp, source, role,
-    content_json, cost_json, metadata_json
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-`;
+/**
+ * Event-insert SQL and its param binder live in `interactions-repo` and are
+ * reused here via import — see `INSERT_EVENT_SQL` / `eventToParams` above.
+ * We don't use `insertEventsBatch` because that function wraps its own
+ * transaction; the ingester needs events + `ingestion_state` to commit in a
+ * single shared transaction, so it prepares the statement locally but shares
+ * the SQL string and param ordering.
+ */
 
 const UPSERT_STATE_SQL = `
   INSERT INTO ingestion_state (file_path, last_offset, last_ingested_at, event_count)
@@ -287,17 +288,7 @@ export function ingestFileOnce(filePath: string): number {
       deleteByConv.run(conversationId);
     }
     for (const e of events) {
-      insertEvent.run(
-        e.id,
-        e.conversationId,
-        e.parentEventId ?? null,
-        e.timestamp,
-        e.source,
-        e.role,
-        JSON.stringify(e.content),
-        e.cost === null ? null : JSON.stringify(e.cost),
-        e.metadata === undefined ? null : JSON.stringify(e.metadata),
-      );
+      insertEvent.run(...eventToParams(e));
     }
     upsertState.run(filePath, newOffset, now, nextCount);
   });

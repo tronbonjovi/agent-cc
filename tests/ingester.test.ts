@@ -39,14 +39,25 @@ let tempDataDir: string;
 let tempProjectDir: string;
 let originalEnvData: string | undefined;
 let originalEnvExtra: string | undefined;
+let originalHome: string | undefined;
+let originalUserProfile: string | undefined;
+let fakeHomeDir: string;
 
 beforeEach(() => {
   originalEnvData = process.env.AGENT_CC_DATA;
   originalEnvExtra = process.env.EXTRA_PROJECT_DIRS;
+  originalHome = process.env.HOME;
+  originalUserProfile = process.env.USERPROFILE;
 
   tempDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingester-data-'));
   tempProjectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingester-proj-'));
+  // Redirect HOME/USERPROFILE so `os.homedir()` (and therefore
+  // `getDefaultRoots()`) never touches the real user's `~/.claude/projects`
+  // during tests — test isolation must not depend on what's on the dev box.
+  fakeHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ingester-home-'));
   process.env.AGENT_CC_DATA = tempDataDir;
+  process.env.HOME = fakeHomeDir;
+  process.env.USERPROFILE = fakeHomeDir;
   delete process.env.EXTRA_PROJECT_DIRS;
 });
 
@@ -60,8 +71,14 @@ afterEach(() => {
   if (originalEnvExtra === undefined) delete process.env.EXTRA_PROJECT_DIRS;
   else process.env.EXTRA_PROJECT_DIRS = originalEnvExtra;
 
-  for (const dir of [tempDataDir, tempProjectDir]) {
-    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+  if (originalHome === undefined) delete process.env.HOME;
+  else process.env.HOME = originalHome;
+
+  if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+  else process.env.USERPROFILE = originalUserProfile;
+
+  for (const dir of [tempDataDir, tempProjectDir, fakeHomeDir]) {
+    if (dir && fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -332,26 +349,30 @@ describe('ingester — ingestAllOnce', () => {
     expect(getEventsByConversation('session-b2')).toHaveLength(1);
   });
 
-  it('respects EXTRA_PROJECT_DIRS when no roots are passed', () => {
+  it('respects EXTRA_PROJECT_DIRS via the default resolver when no roots are passed', () => {
+    // This test exercises the real `getDefaultRoots()` code path — no
+    // explicit roots argument. Because beforeEach redirected HOME to an
+    // empty fake home (no `.claude/projects` under it), the default resolver
+    // should produce exactly one root: the value of EXTRA_PROJECT_DIRS.
     const extraRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ingester-extra-'));
     try {
       writeSession(
         extraRoot,
         '-extra-proj',
-        'session-extra',
+        'session-extra-resolver',
         userLine('u-extra', 'from extra', '2026-04-15T10:00:00Z'),
       );
 
-      // Point the ingester at a non-existent home but a valid EXTRA_PROJECT_DIRS
       process.env.EXTRA_PROJECT_DIRS = extraRoot;
 
-      // Pass an empty default-home override so we only pick up EXTRA_PROJECT_DIRS.
-      // ingestAllOnce with no arg uses the default resolver (~/.claude/projects +
-      // EXTRA_PROJECT_DIRS). In test isolation we only trust the extra root.
-      const total = ingestAllOnce([extraRoot]);
-      expect(total).toBe(1);
+      // Call with NO arguments so the env-var wiring is actually tested.
+      const total = ingestAllOnce();
 
-      expect(getEventsByConversation('session-extra')).toHaveLength(1);
+      // Assert on the specific conversation id rather than a blanket count —
+      // even if a stray `.claude/projects` ever bled through, we'd still only
+      // count events we put there ourselves.
+      expect(getEventsByConversation('session-extra-resolver')).toHaveLength(1);
+      expect(total).toBeGreaterThanOrEqual(1);
     } finally {
       fs.rmSync(extraRoot, { recursive: true, force: true });
     }
