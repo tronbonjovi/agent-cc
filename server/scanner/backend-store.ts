@@ -2,37 +2,46 @@
  * Store-backed scanner backend — queries `interactions.db` via
  * `interactions-repo` instead of re-parsing JSONL on every request.
  *
- * Scope at task003:
- *   - `listSessions`, `getStats`, `getSessionById` are implemented from
- *     the `listConversationRollups` helper added to `interactions-repo`.
- *     Enough to drive the Sessions list UI when the flag is flipped.
+ * Scope at task004 (this file's current state):
+ *   - `listSessions`, `getStats`, `getSessionById` (task003) are implemented
+ *     from `listConversationRollups`.
  *   - `getSessionMessages`, `getSessionCost`, `getCostSummary`, and
- *     `getSessionCostDetail` are intentionally stubbed and throw a
- *     distinctive error. The parity gate (task007) will exercise every
- *     method; anything still throwing at that point is a known gap and
- *     either:
- *       (a) gets a real implementation in task007's follow-up, or
- *       (b) widens `InteractionEvent.metadata` in a dedicated task before
- *           task008 can promote `SCANNER_BACKEND=store` to the default.
+ *     `getSessionCostDetail` are now implemented via `event-reductions.ts`
+ *     + the per-session `listEventsBySessionId` and windowed
+ *     `listEventsBetween` / `listAllEvents` repo helpers added in task004.
+ *
+ * Parity with legacy is within the store's recordable surface:
+ *   - Cost / token / model-breakdown reductions match legacy's
+ *     `getSessionCost` / `getCostSummary` / `getSessionCostDetail` on
+ *     fixtures that only use assistant text + tool_use + user tool_result
+ *     blocks (the three shapes the JSONL mapper records as events).
+ *   - `getSessionMessages` produces the same `user_text` / `assistant_text`
+ *     / `tool_call` / `tool_result` timeline variants for the same inputs,
+ *     with legitimate gaps called out inline below:
+ *       - `thinking` blocks are always empty in persisted JSONL — dropped.
+ *       - `system_event` / `skill_invocation` records are not persisted
+ *         by the current mapper (jsonl-to-event.ts skips type !== assistant/user),
+ *         so any fixture that depends on those variants would fail
+ *         parity — task007 flags this as a known gap.
+ *       - `stopReason` on assistant_text is always '' from the store
+ *         because `InteractionCost` doesn't carry it.
  *
  * The legacy backend stays the default throughout M5 — any user setting
- * `SCANNER_BACKEND=store` today is opting into incomplete parity and
- * should expect the stubs below to surface on unsupported pages.
+ * `SCANNER_BACKEND=store` today is opting into the gaps above; task008
+ * only promotes the default once those are either closed or documented.
  *
- * Design notes:
- *   - `listConversations` from `interactions-repo` groups by
- *     `conversation_id`; session ids and conversation ids are 1:1 for
- *     parent sessions but subagents carry `<sessionId>:sub:<agentId>`
- *     as their conversationId (see ingester task002). We filter those
- *     out of the session listing so the Sessions page doesn't double-
- *     count.
- *   - `SessionData` fields we can populate from rollups: `id`, `firstTs`,
- *     `lastTs`, `messageCount`, and a reconstructed `filePath` from the
- *     sample metadata. Fields we can't (today) populate accurately:
- *     `slug`, `firstMessage`, `sizeBytes`, `isActive`, `projectKey`,
- *     `cwd`, `version`, `gitBranch`. Those get safe defaults so the
- *     response shape stays byte-compatible, but task007 will catch the
- *     content divergence.
+ * Design notes (from task003, still current):
+ *   - `listConversations` groups by `conversation_id`; sessions and
+ *     conversations are 1:1 for parents but subagents carry
+ *     `<sessionId>:sub:<agentId>`. `listParentRollups` filters sidechains
+ *     out of the session listing; the cost + message queries explicitly
+ *     pull BOTH via `listEventsBySessionId` so subagent events still roll
+ *     up into their parent's totals.
+ *   - `SessionData` fields we can't populate from rollups (`slug`,
+ *     `firstMessage`, `sizeBytes`, `isActive`, `cwd`, `version`,
+ *     `gitBranch`) keep their safe defaults — task007's parity gate
+ *     catches the divergence and task008 decides whether to widen the
+ *     ingester's metadata.
  */
 
 import path from 'path';
@@ -42,29 +51,38 @@ import type {
   CostSummary,
   SessionCostDetail,
   SessionCostData,
+  InteractionEvent,
+  TextContent,
+  ToolCallContent,
+  ToolResultContent,
 } from '../../shared/types';
 import type {
   TimelineMessage,
   TimelineMessageType,
+  TokenUsage,
 } from '../../shared/session-types';
 import type { IScannerBackend, SessionMessagesResult } from './backend';
 import {
   listConversationRollups,
+  listEventsBySessionId,
+  listEventsBetween,
+  listAllEvents,
   type ConversationRollupRow,
 } from '../interactions-repo';
+import {
+  reduceSessionCost,
+  reduceSessionCostDetail,
+  reduceCostSummary,
+} from './event-reductions';
 
 /** Subagent conversationIds carry this separator (see ingester task002). */
 const SUBAGENT_ID_SEPARATOR = ':sub:';
 
-/** Distinctive error thrown by unsupported methods — the parity gate
- *  (task007) greps for this prefix to enumerate remaining gaps. */
+/** Distinctive error thrown by any future unsupported methods — the
+ *  parity gate (task007) greps for this prefix. After task004 every
+ *  method on the store backend is implemented, but keep the constant
+ *  exported so a regression would still show the expected string. */
 const PARITY_GAP_PREFIX = 'backend-store: parity gap';
-
-function parityGap(method: string, detail: string): Error {
-  return new Error(
-    `${PARITY_GAP_PREFIX} — ${method}: ${detail} — see task007 parity gate`
-  );
-}
 
 /**
  * Reconstruct a `SessionData` from a store rollup. Populates what the
@@ -134,41 +152,232 @@ export const storeBackend: IScannerBackend = {
   },
 
   getSessionMessages(
-    _filePath: string,
-    _offset: number,
-    _limit: number,
-    _types?: Set<TimelineMessageType>
+    filePath: string,
+    offset: number,
+    limit: number,
+    types?: Set<TimelineMessageType>
   ): SessionMessagesResult {
-    throw parityGap(
-      'getSessionMessages',
-      'store has InteractionEvent rows but not TimelineMessage reconstruction (7 variants w/ tool-call/result pairing and tree ancestry)'
-    );
+    // Session id is the JSONL basename — matches the ingester's
+    // `conversationId = basename(filePath, '.jsonl')` convention so the
+    // store lookup keys line up without needing the filesystem.
+    const sessionId = deriveSessionIdFromFilePath(filePath);
+    if (!sessionId) return { messages: [], totalMessages: 0 };
+
+    const events = listEventsBySessionId(sessionId);
+
+    // Map each InteractionEvent to its corresponding TimelineMessage
+    // variant. One event yields at most one message (the JSONL mapper
+    // already split multi-block assistant records into one event per
+    // block, so we don't need a second fan-out here).
+    const messages: TimelineMessage[] = [];
+    for (const e of events) {
+      const msg = eventToTimelineMessage(e);
+      if (msg) messages.push(msg);
+    }
+
+    // Sort chronologically — parent + sidechain ids interleave by
+    // timestamp, matching what `parseSessionMessages` does for the
+    // legacy path. ISO-8601 strings sort lexicographically.
+    messages.sort((a, b) => {
+      if (a.timestamp < b.timestamp) return -1;
+      if (a.timestamp > b.timestamp) return 1;
+      return 0;
+    });
+
+    const filtered = types ? messages.filter((m) => types.has(m.type)) : messages;
+    const totalMessages = filtered.length;
+    const sliced = filtered.slice(offset, offset + limit);
+    return { messages: sliced, totalMessages };
   },
 
   getSessionCost(
     _sessions: SessionData[],
-    _sessionId: string
+    sessionId: string
   ): SessionCostData | null {
-    throw parityGap(
-      'getSessionCost',
-      'per-model token breakdown requires parsing cost_json across every event and grouping by InteractionCost.model'
-    );
+    // Legacy's `getSessionCost` takes the sessions list only to match
+    // the id against a pre-cached map; we look up events directly and
+    // ignore `_sessions` (the interface carries it for legacy shape
+    // compatibility). Returns null when no cost-bearing events exist,
+    // matching legacy's "no entry in cachedSessionCosts" behavior.
+    const events = listEventsBySessionId(sessionId);
+    return reduceSessionCost(events, sessionId);
   },
 
-  getCostSummary(_days: number): CostSummary {
-    throw parityGap(
-      'getCostSummary',
-      'day-by-day bucketing + top-model breakdown not yet composed from interactions-repo'
-    );
+  getCostSummary(days: number): CostSummary {
+    // Two queries: windowed for totals/breakdowns, full history for
+    // the week-over-week + 30d rollups. Legacy does the same split via
+    // `queryCosts({days})` + `Object.values(db.costRecords)`.
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffIso = cutoff.toISOString();
+    const endIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const windowEvents = listEventsBetween(cutoffIso, endIso);
+    const allEvents = listAllEvents();
+    return reduceCostSummary(windowEvents, allEvents);
   },
 
-  getSessionCostDetail(_sessionId: string): SessionCostDetail | null {
-    throw parityGap(
-      'getSessionCostDetail',
-      'per-session model drill-down requires the same per-model aggregation as getSessionCost'
-    );
+  getSessionCostDetail(sessionId: string): SessionCostDetail | null {
+    const events = listEventsBySessionId(sessionId);
+    if (events.length === 0) return null;
+    // firstMessage isn't in the store schema — pass an empty string and
+    // the reducer slices it to the same `.slice(0, 200)` legacy applies.
+    // task007 will flag the mismatch if any UI reads this field.
+    return reduceSessionCostDetail(events, sessionId, '');
   },
 };
+
+// ---------------------------------------------------------------------------
+// Helpers — InteractionEvent → TimelineMessage
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive the session id from a session JSONL path. Matches the ingester's
+ * `conversationId = basename(filePath, '.jsonl')` convention.
+ */
+function deriveSessionIdFromFilePath(filePath: string): string {
+  if (!filePath) return '';
+  const normalized = filePath.replace(/\\/g, '/');
+  const base = path.basename(normalized);
+  return base.replace(/\.jsonl$/, '');
+}
+
+/**
+ * Build an empty `TokenUsage` — store events don't carry all the fields
+ * the legacy parser sets (serviceTier, inferenceGeo, speed, serverToolUse).
+ * Those are absent from `InteractionCost`, so the store backend always
+ * returns empty strings / zeroed web-tool counts. For parity-testable
+ * fixtures this matches what legacy returns when the JSONL usage block
+ * omits those fields (the common case).
+ */
+function emptyUsage(): TokenUsage {
+  return {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheCreationTokens: 0,
+    serviceTier: '',
+    inferenceGeo: '',
+    speed: '',
+    serverToolUse: { webSearchRequests: 0, webFetchRequests: 0 },
+  };
+}
+
+function usageFromCost(event: InteractionEvent): TokenUsage {
+  const usage = emptyUsage();
+  if (event.cost === null) return usage;
+  usage.inputTokens = event.cost.tokensIn || 0;
+  usage.outputTokens = event.cost.tokensOut || 0;
+  usage.cacheReadTokens = event.cost.cacheReadTokens || 0;
+  usage.cacheCreationTokens = event.cost.cacheCreationTokens || 0;
+  return usage;
+}
+
+/**
+ * Map one `InteractionEvent` to the TimelineMessage variant it represents.
+ * Returns null for events the store doesn't have a timeline variant for
+ * (e.g. deterministic system events that the mapper currently drops).
+ *
+ * The `uuid` on the timeline message is the source JSONL record's uuid,
+ * pulled from `metadata.sourceUuid` that the ingester stamps on every
+ * event. When the metadata is missing we fall back to the event id,
+ * which preserves uniqueness even if the value doesn't match what the
+ * legacy parser would have emitted (task007 will catch that).
+ */
+function eventToTimelineMessage(event: InteractionEvent): TimelineMessage | null {
+  const sourceUuid =
+    (event.metadata?.sourceUuid as string | undefined) || event.id;
+  const isSidechain = event.conversationId.includes(':sub:');
+  const timestamp = event.timestamp;
+
+  const content = event.content;
+  const role = event.role;
+
+  if (content.type === 'text') {
+    const text = (content as TextContent).text;
+    if (role === 'user') {
+      return {
+        type: 'user_text',
+        uuid: sourceUuid,
+        timestamp,
+        text,
+        isMeta: false,
+        isSidechain,
+      };
+    }
+    if (role === 'assistant') {
+      return {
+        type: 'assistant_text',
+        uuid: sourceUuid,
+        timestamp,
+        model: event.cost?.model || '',
+        text,
+        stopReason: '',
+        usage: usageFromCost(event),
+        isSidechain,
+      };
+    }
+    return null;
+  }
+
+  if (content.type === 'tool_call') {
+    const tc = content as ToolCallContent;
+    // Tool calls in the store are emitted with role 'assistant' (see
+    // jsonl-to-event's assistant handler). Preserve the callId so the
+    // frontend can pair it with its result.
+    const input =
+      tc.input && typeof tc.input === 'object' && !Array.isArray(tc.input)
+        ? (tc.input as Record<string, unknown>)
+        : {};
+    return {
+      type: 'tool_call',
+      uuid: sourceUuid,
+      timestamp,
+      callId: tc.toolUseId || '',
+      name: tc.toolName || '',
+      input,
+      isSidechain,
+    };
+  }
+
+  if (content.type === 'tool_result') {
+    const tr = content as ToolResultContent;
+    let text = '';
+    if (typeof tr.output === 'string') {
+      text = tr.output;
+    } else if (Array.isArray(tr.output)) {
+      // Legacy's `extractText` walks an array of blocks and concatenates
+      // `.text` fields — replicate just enough to stay in parity on
+      // text-only array forms.
+      text = tr.output
+        .map((block) => {
+          if (
+            block &&
+            typeof block === 'object' &&
+            !Array.isArray(block) &&
+            typeof (block as Record<string, unknown>).text === 'string'
+          ) {
+            return (block as Record<string, unknown>).text as string;
+          }
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+    return {
+      type: 'tool_result',
+      uuid: sourceUuid,
+      timestamp,
+      toolUseId: tr.toolUseId || '',
+      content: text,
+      isError: tr.isError === true,
+      isSidechain,
+    };
+  }
+
+  // thinking / system content — not emitted as timeline messages by the
+  // store backend. See module header for the parity gap rationale.
+  return null;
+}
 
 /** Exported for tests and for the parity gate to introspect which
  *  methods still throw the distinctive error string. */

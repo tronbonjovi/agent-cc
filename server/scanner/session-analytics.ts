@@ -294,6 +294,26 @@ function isCacheValid(): boolean {
   return Date.now() - cacheTimestamp < CACHE_TTL;
 }
 
+/**
+ * Reset the analytics cache — forces the next `getSessionCost` /
+ * `getCostAnalytics` / `getFileHeatmap` / `getHealthAnalytics` call to
+ * re-run `runFullScan` from scratch.
+ *
+ * Added for the M5 scanner-backend parity tests (task004), which ingest
+ * a fresh fixture per describe block and need legacy's per-session cost
+ * map to pick up the new data rather than serving the previous test's
+ * 5-minute-TTL'd cache. Safe to call at any point; production code
+ * never needs this because the TTL handles invalidation on its own.
+ */
+export function invalidateAnalyticsCache(): void {
+  cacheTimestamp = 0;
+  cachedCostAnalytics = null;
+  cachedFileHeatmap = null;
+  cachedHealthAnalytics = null;
+  cachedSessionCosts = new Map();
+  cachedSessionHealthMap = new Map();
+}
+
 function runFullScan(sessions: SessionData[]): void {
   const start = performance.now();
   const nonEmpty = sessions.filter(s => !s.isEmpty && s.messageCount > 0);

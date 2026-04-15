@@ -348,6 +348,78 @@ export function listConversationRollups(): ConversationRollupRow[] {
 }
 
 /**
+ * Return every event whose `conversation_id` matches exactly OR is a
+ * descendant-sidechain id of the form `<conversationId>:sub:<agentId>`
+ * (see ingester task002). Sorted chronologically so message-timeline
+ * and cost aggregations can stream-consume a single ordered array.
+ *
+ * Added by M5 scanner-ingester task004 — `backend-store.getSessionMessages`
+ * and `backend-store.getSessionCost` both need the full parent+sidechain
+ * event set for a single session id, and doing it as one SQL pass keeps
+ * the store backend from N+1ing per subagent.
+ */
+export function listEventsBySessionId(sessionId: string): InteractionEvent[] {
+  const db = openDb();
+  const rows = db
+    .prepare(
+      `SELECT id, conversation_id, parent_event_id, timestamp, source, role,
+              content_json, cost_json, metadata_json
+       FROM events
+       WHERE conversation_id = ?
+          OR conversation_id LIKE ?
+       ORDER BY timestamp ASC`
+    )
+    .all(sessionId, `${sessionId}:sub:%`) as EventRow[];
+  return rows.map(rowToEvent);
+}
+
+/**
+ * Return every event whose `timestamp` is in the half-open interval
+ * `[startIso, endIso)`. Used by `backend-store.getCostSummary` to narrow
+ * to the last N days without pulling the full `events` table. Sorted
+ * chronologically so day-bucketing is a single pass.
+ *
+ * ISO-8601 strings sort lexicographically in chronological order, so
+ * SQL `BETWEEN` / `<` / `>=` against the raw column gives the correct
+ * window without any date parsing.
+ */
+export function listEventsBetween(
+  startIso: string,
+  endIso: string
+): InteractionEvent[] {
+  const db = openDb();
+  const rows = db
+    .prepare(
+      `SELECT id, conversation_id, parent_event_id, timestamp, source, role,
+              content_json, cost_json, metadata_json
+       FROM events
+       WHERE timestamp >= ? AND timestamp < ?
+       ORDER BY timestamp ASC`
+    )
+    .all(startIso, endIso) as EventRow[];
+  return rows.map(rowToEvent);
+}
+
+/**
+ * Return every event in the store, ordered chronologically. Used by
+ * `getCostSummary` for the "this week vs last week" and "30d total"
+ * rollups that legacy's cost indexer computes over ALL records rather
+ * than the filtered `days` window.
+ */
+export function listAllEvents(): InteractionEvent[] {
+  const db = openDb();
+  const rows = db
+    .prepare(
+      `SELECT id, conversation_id, parent_event_id, timestamp, source, role,
+              content_json, cost_json, metadata_json
+       FROM events
+       ORDER BY timestamp ASC`
+    )
+    .all() as EventRow[];
+  return rows.map(rowToEvent);
+}
+
+/**
  * Return a `{ source: count }` map across all events. Cheap aggregate the
  * dashboard uses to render per-stream activity totals.
  */
