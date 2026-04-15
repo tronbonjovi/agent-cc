@@ -238,5 +238,8 @@ describe("runClaudeStreaming", () => {
     expect(args).toContain("--no-session-persistence");
     expect(args).toContain("--output-format");
     expect(args).toContain("stream-json");
+    // Regression: `claude -p --output-format stream-json` exits 1 without
+    // --verbose. Bug C shipped because this assertion was missing.
+    expect(args).toContain("--verbose");
   });
 });

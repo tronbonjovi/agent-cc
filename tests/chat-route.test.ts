@@ -532,6 +532,59 @@ describe("chat route", () => {
     errSpy.mockRestore();
   });
 
+  it("stream errors are logged even with no SSE subscribers", async () => {
+    // Regression for Bug C: runClaudeStreaming blew up on the real CLI
+    // (missing --verbose) but chat.ts only fanned the error to SSE
+    // subscribers. With no one listening, the failure vanished — 200 OK,
+    // user event persisted, no assistant event, no error in logs.
+    //
+    // This test simulates the same failure shape: the generator throws
+    // after yielding nothing, no SSE subscriber is attached, and we assert
+    // the route wrote a `[chat] stream failed` line to console.error.
+    async function* throwingGenerator() {
+      // Yield nothing. Throw on the first iteration.
+      throw new Error("simulated claude exit 1");
+      // eslint-disable-next-line @typescript-eslint/no-unreachable
+      yield { type: "done" as const, raw: null };
+    }
+    mockedRunClaudeStreaming.mockImplementation(() => throwingGenerator());
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/chat/prompt")
+      .send({ conversationId: "c-silent", text: "hi" });
+    expect(res.status).toBe(200);
+
+    // Wait for the fire-and-forget block to hit its catch.
+    await waitFor(() =>
+      errSpy.mock.calls.some((call) =>
+        call.some(
+          (arg) =>
+            typeof arg === "string" && arg.includes("[chat] stream failed"),
+        ),
+      ),
+    );
+
+    // The logged line must reference both the conversationId and the
+    // underlying error message so operators can diagnose without repro.
+    const flattened = errSpy.mock.calls
+      .map((c) => c.map(String).join(" "))
+      .join("\n");
+    expect(flattened).toContain("c-silent");
+    expect(flattened).toContain("simulated claude exit 1");
+
+    // Only the user event should have been persisted — no assistant event
+    // because the stream never produced any text chunks.
+    const assistantEvents = persistedEvents().filter(
+      (e) => e.role === "assistant",
+    );
+    expect(assistantEvents).toHaveLength(0);
+
+    errSpy.mockRestore();
+  });
+
   it("conversationId is preserved on every event", async () => {
     mockedRunClaudeStreaming.mockImplementation(() =>
       yieldChunks([

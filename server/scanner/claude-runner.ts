@@ -177,12 +177,15 @@ export async function* runClaudeStreaming(
   const { prompt, timeoutMs = 60000, signal } = opts;
 
   const env = buildClaudeEnv();
+  // `--verbose` is mandatory when combining `-p` (print mode) with
+  // `--output-format stream-json`; the CLI exits 1 without it.
   const args = [
     "-p",
     prompt,
     "--no-session-persistence",
     "--output-format",
     "stream-json",
+    "--verbose",
   ];
 
   const child = spawn("claude", args, {

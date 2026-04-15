@@ -315,6 +315,16 @@ router.post("/prompt", async (req: Request, res: Response) => {
         }
       }
     } catch (err) {
+      // Log before fan-out so a failure is visible in server logs even when
+      // no SSE subscribers are attached. Bug C shipped because this branch
+      // only notified subscribers, and the failing CLI invocation left the
+      // assistant-event write path silently empty.
+      console.error(
+        "[chat] stream failed for",
+        conversationId,
+        "—",
+        (err as Error).message ?? err,
+      );
       const subs = activeStreams.get(conversationId) ?? [];
       for (const sub of subs) {
         sub.write(
