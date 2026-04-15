@@ -111,6 +111,17 @@ describe('chat-panel.tsx — source guardrails', () => {
     expect(src).toMatch(/onerror/);
   });
 
+  it('reads isStreaming from the store and disables the input + button while streaming', () => {
+    // Guard against rapid re-submits during an active SSE stream: the store
+    // exposes `isStreaming`, ChatPanel must subscribe to it, early-return in
+    // handleSubmit, and pass `disabled={isStreaming}` to both Input and Button.
+    expect(src).toMatch(/useChatStore\(\(s\)\s*=>\s*s\.isStreaming\)/);
+    expect(src).toMatch(/if\s*\(\s*isStreaming\s*\)\s*return/);
+    // Both primitives need the disabled prop wired to the same flag.
+    const disabledMatches = src.match(/disabled=\{isStreaming\}/g) ?? [];
+    expect(disabledMatches.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('has an Enter-key submit handler on the input', () => {
     expect(src).toMatch(/onKeyDown/);
     expect(src).toMatch(/e\.key\s*===\s*['"]Enter['"]/);

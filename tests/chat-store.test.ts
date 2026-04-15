@@ -91,7 +91,42 @@ describe('useChatStore (live-events layer)', () => {
     expect(liveEvents[0].timestamp).toBeTruthy();
   });
 
-  it('5. clearLive empties the live event buffer', () => {
+  it('5. coalesceAssistantText creates a new event when the tail is not an assistant text bubble', () => {
+    // Branch (c): the buffer's tail is a non-text event (here a tool_call)
+    // rather than an assistant text bubble. The coalesce path must NOT mutate
+    // the tool_call — it has to materialise a fresh assistant text event
+    // alongside it so the tool_call stays intact in the transcript.
+    const toolCallEvent: InteractionEvent = {
+      id: 'tc1',
+      conversationId: 'default',
+      parentEventId: null,
+      timestamp: '2026-04-15T00:00:00.000Z',
+      source: 'chat-ai',
+      role: 'assistant',
+      content: {
+        type: 'tool_call',
+        toolName: 'Read',
+        input: { file_path: '/tmp/x' },
+        toolUseId: 'tu_1',
+      },
+      cost: null,
+    };
+    const store = useChatStore.getState();
+    store.appendLiveEvent(toolCallEvent);
+    store.coalesceAssistantText('hello');
+
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents).toHaveLength(2);
+    // Original tool_call event must be untouched.
+    expect(liveEvents[0]).toEqual(toolCallEvent);
+    // New tail is a fresh assistant text bubble carrying the chunk.
+    expect(liveEvents[1].role).toBe('assistant');
+    expect(liveEvents[1].content).toEqual({ type: 'text', text: 'hello' });
+    expect(liveEvents[1].id).toBeTruthy();
+    expect(liveEvents[1].id).not.toBe('tc1');
+  });
+
+  it('6. clearLive empties the live event buffer', () => {
     const store = useChatStore.getState();
     store.appendLiveEvent(makeTextEvent({ id: 'a' }));
     store.appendLiveEvent(makeTextEvent({ id: 'b' }));
@@ -100,7 +135,7 @@ describe('useChatStore (live-events layer)', () => {
     expect(useChatStore.getState().liveEvents).toEqual([]);
   });
 
-  it('6. setStreaming toggles the flag', () => {
+  it('7. setStreaming toggles the flag', () => {
     useChatStore.getState().setStreaming(true);
     expect(useChatStore.getState().isStreaming).toBe(true);
     useChatStore.getState().setStreaming(false);

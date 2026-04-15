@@ -35,6 +35,7 @@ import type { InteractionEvent } from '../../../../shared/types';
 export function ChatPanel() {
   const conversationId = useChatStore((s) => s.conversationId);
   const liveEvents = useChatStore((s) => s.liveEvents);
+  const isStreaming = useChatStore((s) => s.isStreaming);
   const coalesceAssistantText = useChatStore((s) => s.coalesceAssistantText);
   const clearLive = useChatStore((s) => s.clearLive);
   const setStreaming = useChatStore((s) => s.setStreaming);
@@ -96,6 +97,10 @@ export function ChatPanel() {
   const handleSubmit = async () => {
     const text = input.trim();
     if (!text) return;
+    // Guard against rapid re-submits while an SSE stream is still active.
+    // The store's `isStreaming` flag is flipped off by the `done` handler
+    // (or `onerror`), so this naturally re-opens once the turn completes.
+    if (isStreaming) return;
     setInput('');
     setStreaming(true);
 
@@ -131,8 +136,11 @@ export function ChatPanel() {
             if (e.key === 'Enter') handleSubmit();
           }}
           placeholder="Message Claude..."
+          disabled={isStreaming}
         />
-        <Button onClick={handleSubmit}>Send</Button>
+        <Button onClick={handleSubmit} disabled={isStreaming}>
+          Send
+        </Button>
       </div>
     </div>
   );
