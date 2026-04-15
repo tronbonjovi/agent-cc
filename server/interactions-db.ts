@@ -98,6 +98,23 @@ const MIGRATIONS: Migration[] = [
         ON events (source);
     `,
   },
+  {
+    version: 2,
+    name: 'create_ingestion_state_table',
+    // Byte-offset resumption for the scanner ingester (M5 task002). The
+    // ingester records the last byte offset it processed per source file so a
+    // restart doesn't re-read the whole JSONL. Rows are upserted after every
+    // successful batch insert inside the same transaction as the events, so
+    // the (events, offset) pair is always consistent.
+    sql: `
+      CREATE TABLE IF NOT EXISTS ingestion_state (
+        file_path         TEXT PRIMARY KEY,
+        last_offset       INTEGER NOT NULL,
+        last_ingested_at  TEXT NOT NULL,
+        event_count       INTEGER NOT NULL DEFAULT 0
+      );
+    `,
+  },
 ];
 
 // ---------------------------------------------------------------------------

@@ -58,16 +58,18 @@ afterEach(() => {
 });
 
 describe('interactions-db', () => {
-  it('opens a fresh DB and runs migrations to version 1', () => {
+  it('opens a fresh DB and runs all registered migrations', () => {
     const db = openDb();
     const rows = db
       .prepare('SELECT version, name, applied_at FROM migrations ORDER BY version')
       .all() as MigrationRow[];
 
-    expect(rows.length).toBe(1);
-    expect(rows[0].version).toBe(1);
-    expect(rows[0].name).toBe('create_events_table');
-    expect(rows[0].applied_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // Migration v1 must exist and be the events table.
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    const v1 = rows.find((r) => r.version === 1);
+    expect(v1).toBeDefined();
+    expect(v1!.name).toBe('create_events_table');
+    expect(v1!.applied_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it('is idempotent on reopen — migrations are not re-applied', () => {
@@ -78,16 +80,21 @@ describe('interactions-db', () => {
     expect(beforeRows).toBeDefined();
     const firstAppliedAt = beforeRows!.applied_at;
 
+    const initialCount = (
+      db1.prepare('SELECT COUNT(*) AS c FROM migrations').get() as CountRow
+    ).c;
+
     closeDb();
 
-    // Reopen — should hit the cache check and skip re-running migration 1.
+    // Reopen — should hit the cache check and skip re-running migrations.
     const db2 = openDb();
     const afterRows = db2
-      .prepare('SELECT version, applied_at FROM migrations')
+      .prepare('SELECT version, applied_at FROM migrations ORDER BY version')
       .all() as MigrationRow[];
 
-    expect(afterRows.length).toBe(1);
-    expect(afterRows[0].applied_at).toBe(firstAppliedAt);
+    expect(afterRows.length).toBe(initialCount);
+    const v1After = afterRows.find((r) => r.version === 1);
+    expect(v1After!.applied_at).toBe(firstAppliedAt);
   });
 
   it('creates the events table with the InteractionEvent column shape', () => {
