@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { useTerminalGroupStore } from "@/stores/terminal-group-store";
 import { getTerminalInstanceManager } from "@/lib/terminal-instance-manager";
 import { useTheme } from "@/hooks/use-theme";
@@ -10,17 +10,19 @@ import type { TerminalPanelState } from "@shared/types";
 
 export function TerminalPanel() {
   const collapsed = useTerminalGroupStore((s) => s.collapsed);
+  // Task008: `height` is NO LONGER used to size this component — the outer
+  // vertical <Panel> in layout.tsx owns that via react-resizable-panels.
+  // We still subscribe here so the persistence PATCH below re-fires when
+  // the outer Panel writes a new height back into the store.
   const height = useTerminalGroupStore((s) => s.height);
   const groups = useTerminalGroupStore((s) => s.groups);
   const activeGroupId = useTerminalGroupStore((s) => s.activeGroupId);
   const explorerWidth = useTerminalGroupStore((s) => s.explorerWidth);
-  const setHeight = useTerminalGroupStore((s) => s.setHeight);
   const loadFromServer = useTerminalGroupStore((s) => s.loadFromServer);
   const createGroup = useTerminalGroupStore((s) => s.createGroup);
   const toSerializable = useTerminalGroupStore((s) => s.toSerializable);
   const markUnread = useTerminalGroupStore((s) => s.markUnread);
 
-  const isResizingRef = useRef(false);
   const initializedRef = useRef(false);
   const serverLoadedRef = useRef(false);
   const { resolvedTheme } = useTheme();
@@ -143,35 +145,6 @@ export function TerminalPanel() {
     });
   }, [resolvedTheme]);
 
-  // Drag-to-resize
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      isResizingRef.current = true;
-      const startY = e.clientY;
-      const startHeight = height;
-
-      const handleMouseMove = (moveEvent: MouseEvent) => {
-        const delta = startY - moveEvent.clientY;
-        const newHeight = Math.max(
-          100,
-          Math.min(startHeight + delta, window.innerHeight - 200)
-        );
-        setHeight(newHeight);
-      };
-
-      const handleMouseUp = () => {
-        isResizingRef.current = false;
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    },
-    [height, setHeight]
-  );
-
   if (collapsed) {
     return (
       <div className="border-t border-border bg-background">
@@ -180,16 +153,11 @@ export function TerminalPanel() {
     );
   }
 
+  // Task008: this component now fills its parent <Panel> rather than
+  // owning a pixel height. The resize handle lives on the outer vertical
+  // PanelGroup in layout.tsx — single source of truth.
   return (
-    <div style={{ height }} className="flex flex-col border-t bg-background">
-      {/* Drag handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="h-1.5 cursor-row-resize flex items-center justify-center hover:bg-accent/50 transition-colors group"
-      >
-        <div className="w-10 h-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
-      </div>
-
+    <div className="h-full flex flex-col border-t bg-background">
       <TerminalToolbar />
 
       <div className="flex-1 flex min-h-0">

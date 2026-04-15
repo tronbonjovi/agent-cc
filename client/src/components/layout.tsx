@@ -11,6 +11,13 @@ import { SyncIndicator } from "@/components/sync-indicator";
 import { UpdateIndicator } from "@/components/update-indicator";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { TerminalPanel } from "./terminal-panel";
+import { ChatPanel } from "./chat/chat-panel";
+import { useLayoutStore } from "@/stores/layout-store";
+import { useTerminalGroupStore } from "@/stores/terminal-group-store";
+// react-resizable-panels v4.x API: Group + Panel + Separator,
+// `orientation` instead of `direction`.
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 
 import {
   LayoutDashboard,
@@ -21,6 +28,7 @@ import {
   Kanban,
   BookOpen,
   Menu,
+  MessageSquare,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import React from "react";
@@ -66,6 +74,50 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const counts = (status?.entityCounts || {}) as Record<string, number>;
   const isScanning = status?.scanning;
   const appName = settings?.appName || "Agent CC";
+
+  // Right-side chat panel state (persisted in localStorage via zustand).
+  // task006 mounts <ChatPanel /> into the slot and adds the sidebar toggle.
+  const chatPanelWidth = useLayoutStore((s) => s.chatPanelWidth);
+  const chatPanelCollapsed = useLayoutStore((s) => s.chatPanelCollapsed);
+  const setChatPanelWidth = useLayoutStore((s) => s.setChatPanelWidth);
+  const toggleChatPanel = useLayoutStore((s) => s.toggleChatPanel);
+
+  // Task008: the outer vertical Panel wrapping the terminal component is
+  // the single source of truth for terminal height. We size it from the
+  // persisted store value and write back on resize so server persistence
+  // (the PATCH /api/terminal/panel flow inside the terminal panel) keeps
+  // working.
+  const terminalHeight = useTerminalGroupStore((s) => s.height);
+  const setTerminalHeight = useTerminalGroupStore((s) => s.setHeight);
+  const terminalCollapsed = useTerminalGroupStore((s) => s.collapsed);
+  // Imperative handle on the terminal Panel. The collapse toggle
+  // drives size changes through this ref rather than via a structural
+  // conditional — the PanelGroup stays mounted so <main> children
+  // keep their React identity and don't refetch on every collapse.
+  const terminalPanelRef = useRef<PanelImperativeHandle | null>(null);
+
+  // Collapsed height = the toolbar's own height (h-8 = 32px). The
+  // terminal Panel clamps to this via dynamic min/max when collapsed,
+  // so TerminalPanel's collapsed-render (toolbar-only) fits exactly
+  // with no blank gap above or below.
+  const TERMINAL_COLLAPSED_PX = 32;
+
+  // Sync the Panel's size to the store's collapsed flag. The grab
+  // handle never touches this — only the toolbar chevron does.
+  useEffect(() => {
+    const ref = terminalPanelRef.current;
+    if (!ref) return;
+    if (terminalCollapsed) {
+      ref.resize(TERMINAL_COLLAPSED_PX);
+    } else {
+      ref.resize(terminalHeight);
+    }
+    // terminalHeight intentionally omitted — when the user drags the
+    // handle we don't want this effect re-firing and yanking the Panel
+    // back to the old persisted value. Only collapse toggles drive the
+    // imperative resize.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminalCollapsed]);
 
   // Reset sidebar state when breakpoint changes (unless user manually toggled within same tier)
   useEffect(() => {
@@ -217,6 +269,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
           <ThemeSwitcher collapsed={collapsed} />
           <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
+          {/*
+            Chat panel toggle — calls the layout store's toggleChatPanel().
+            aria-pressed reflects whether the panel is currently open so
+            assistive tech and visual state stay in sync. When open, the
+            button gets a subtle bg-accent treatment; no animations (per
+            project memory feedback_no_bounce_animations).
+          */}
+          <button
+            data-testid="sidebar-chat-toggle"
+            onClick={() => toggleChatPanel()}
+            aria-pressed={!chatPanelCollapsed}
+            aria-label={chatPanelCollapsed ? "Open chat panel" : "Close chat panel"}
+            className={cn(
+              "flex items-center h-10 text-muted-foreground hover:text-foreground transition-colors",
+              collapsed ? "justify-center" : "px-4 gap-2.5",
+              !chatPanelCollapsed && "bg-accent/40 text-foreground",
+            )}
+          >
+            <MessageSquare className="h-4 w-4 flex-shrink-0" />
+            {!collapsed && <span className="text-sm">Chat</span>}
+          </button>
+          <div className="mx-3 h-px bg-gradient-to-r from-transparent via-border/40 to-transparent" />
           <button
             onClick={() => {
               manualToggleRef.current = true;
@@ -260,28 +334,122 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </Sheet>
       )}
 
-      {/* Main content */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile hamburger button */}
-        {mobile && (
-          <div className="flex items-center h-14 px-4 border-b bg-background">
-            <button
-              onClick={() => setMobileDrawerOpen(true)}
-              className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Open mobile menu"
+      {/*
+        3-column resizable shell:
+          [sidebar (already rendered above as a flex sibling)]
+          [ center column: main content (top) + terminal (bottom) ]
+          [ right: chat panel slot — task005 mounts <ChatPanel /> here ]
+
+        Sidebar stays outside the PanelGroup so its existing
+        breakpoint-aware collapse logic keeps working unchanged.
+        The horizontal PanelGroup sizes center + chat; the center
+        column itself is a nested vertical PanelGroup so the terminal
+        is constrained to the center and no longer spans under chat.
+      */}
+      <PanelGroup orientation="horizontal" className="flex-1 min-w-0">
+        <Panel defaultSize="70%" minSize="30%">
+          <main className="h-full flex flex-col overflow-hidden">
+            {/* Mobile hamburger button */}
+            {mobile && (
+              <div className="flex items-center h-14 px-4 border-b bg-background">
+                <button
+                  onClick={() => setMobileDrawerOpen(true)}
+                  className="p-2 -ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Open mobile menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <span className="ml-2 font-semibold text-sm">{appName}</span>
+              </div>
+            )}
+            {/*
+              Terminal area: the PanelGroup stays mounted regardless of
+              collapse state so <main> children keep stable React
+              identity (no refetch on collapse toggle). Collapse state
+              is driven by:
+                1. Dynamic min/max clamping the terminal Panel to its
+                   toolbar height when collapsed, normal floor/ceiling
+                   otherwise.
+                2. An imperative panelRef.resize() in a useEffect so the
+                   Panel actually snaps to the new size on toggle.
+                3. CSS hiding the resize handle when collapsed so the
+                   user cannot drag the panel open or closed — the
+                   toolbar chevron is the only open/close mechanism.
+
+              groupResizeBehavior "preserve-pixel-size" keeps the
+              terminal at the user's chosen height when the window
+              resizes; main stays relative so the library's "≥1
+              relative panel per group" invariant is satisfied.
+            */}
+            <PanelGroup orientation="vertical" className="flex-1 min-h-0">
+              <Panel minSize="20%">
+                <div className="h-full overflow-hidden">
+                  <div className="page-enter h-full">
+                    {children}
+                  </div>
+                </div>
+              </Panel>
+              <PanelResizeHandle
+                className={cn(
+                  "group bg-border transition-colors flex items-center justify-center",
+                  terminalCollapsed
+                    ? "h-0 pointer-events-none opacity-0"
+                    : "h-1.5 hover:bg-accent/50 cursor-row-resize"
+                )}
+              >
+                {!terminalCollapsed && (
+                  <div className="w-10 h-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
+                )}
+              </PanelResizeHandle>
+              <Panel
+                panelRef={terminalPanelRef}
+                defaultSize={terminalCollapsed ? TERMINAL_COLLAPSED_PX : terminalHeight}
+                minSize={terminalCollapsed ? TERMINAL_COLLAPSED_PX : 100}
+                maxSize={terminalCollapsed ? TERMINAL_COLLAPSED_PX : undefined}
+                groupResizeBehavior="preserve-pixel-size"
+                onResize={(panelSize) => {
+                  // When collapsed, the Panel is clamped at the toolbar
+                  // height — do NOT persist that as the user's expanded
+                  // height. Only writes from the expanded state update
+                  // the store.
+                  if (terminalCollapsed) return;
+                  const px = Math.round(panelSize.inPixels);
+                  if (Number.isFinite(px) && px !== terminalHeight) {
+                    setTerminalHeight(px);
+                  }
+                }}
+              >
+                <TerminalPanel />
+              </Panel>
+            </PanelGroup>
+          </main>
+        </Panel>
+        {!chatPanelCollapsed && (
+          <>
+            <PanelResizeHandle className="group w-1.5 bg-border hover:bg-accent/50 transition-colors flex items-center justify-center cursor-col-resize">
+              <div className="h-10 w-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
+            </PanelResizeHandle>
+            <Panel
+              defaultSize={chatPanelWidth}
+              minSize={240}
+              maxSize={800}
+              onResize={(panelSize) => {
+                const px = Math.round(panelSize.inPixels);
+                if (Number.isFinite(px) && px !== chatPanelWidth) {
+                  setChatPanelWidth(px);
+                }
+              }}
             >
-              <Menu className="h-5 w-5" />
-            </button>
-            <span className="ml-2 font-semibold text-sm">{appName}</span>
-          </div>
+              <div
+                data-testid="chat-panel-slot"
+                className="h-full border-l bg-background overflow-hidden"
+              >
+                <ChatPanel />
+              </div>
+            </Panel>
+          </>
         )}
-        <div className="flex-1 overflow-hidden">
-          <div className="page-enter h-full">
-            {children}
-          </div>
-        </div>
-        <TerminalPanel />
-      </main>
+      </PanelGroup>
     </div>
   );
 }

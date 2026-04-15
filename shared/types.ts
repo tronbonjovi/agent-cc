@@ -853,6 +853,16 @@ export interface CostSummary {
   };
 }
 
+// --- Integrated Chat (walking skeleton) ---
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant';
+  text: string;
+  timestamp: string; // ISO
+}
+
 export interface SessionCostDetail {
   sessionId: string;
   firstMessage: string;
