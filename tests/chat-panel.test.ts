@@ -207,11 +207,71 @@ describe('chat-panel.tsx — source guardrails', () => {
     expect(src).toMatch(/chunk\.type\s*===\s*['"]done['"]/);
   });
 
-  it('renders events through InteractionEventRenderer, concatenating history + live', () => {
-    // The render path must feed [...history, ...liveEvents] into the renderer.
+  it('renders events through InteractionEventRenderer, merging history + live via mergeChatEvents', () => {
+    // task006: the render path must run history + liveEvents through the
+    // pure mergeChatEvents helper so workflow_event / hook_event chunks
+    // that get both appended live AND pulled back via history refetch
+    // don't render twice.
     expect(src).toMatch(/<InteractionEventRenderer\s+events=\{/);
-    expect(src).toMatch(/\.\.\.historyEvents/);
-    expect(src).toMatch(/\.\.\.liveEvents/);
+    expect(src).toMatch(/from ['"]@\/lib\/chat-event-merge['"]/);
+    expect(src).toContain('mergeChatEvents');
+    expect(src).toMatch(/mergeChatEvents\(\s*historyEvents\s*,\s*liveEvents\s*\)/);
+    // The raw concat must be gone — otherwise the dedup is bypassed.
+    expect(src).not.toMatch(/\[\s*\.\.\.historyEvents\s*,\s*\.\.\.liveEvents\s*\]/);
+  });
+
+  it('workflow_event SSE branch appends live AND invalidates history', () => {
+    // task006: rich live rendering. The branch must call appendLiveEvent
+    // BEFORE the invalidateQueries call so the step renders instantly, and
+    // must still invalidate so the persisted copy promotes to history.
+    const branch = src.match(
+      /chunk\.type\s*===\s*['"]workflow_event['"][\s\S]*?\}\s*else\s+if/,
+    );
+    expect(branch, 'workflow_event branch not found').not.toBeNull();
+    const body = branch![0];
+    const appendIdx = body.indexOf('appendLiveEvent(');
+    const invalidateIdx = body.indexOf('invalidateQueries');
+    expect(appendIdx).toBeGreaterThan(-1);
+    expect(invalidateIdx).toBeGreaterThan(-1);
+    expect(appendIdx).toBeLessThan(invalidateIdx);
+  });
+
+  it('hook_event SSE branch appends live AND invalidates history', () => {
+    // task006 parallel to workflow_event. The branch is the last else-if
+    // in the chain, so anchor on the closing brace of the handler block
+    // rather than the next `else if`.
+    const branch = src.match(
+      /chunk\.type\s*===\s*['"]hook_event['"][\s\S]*?\n\s{8}\}/,
+    );
+    expect(branch, 'hook_event branch not found').not.toBeNull();
+    const body = branch![0];
+    const appendIdx = body.indexOf('appendLiveEvent(');
+    const invalidateIdx = body.indexOf('invalidateQueries');
+    expect(appendIdx).toBeGreaterThan(-1);
+    expect(invalidateIdx).toBeGreaterThan(-1);
+    expect(appendIdx).toBeLessThan(invalidateIdx);
+  });
+
+  it('drops the stale "intentionally ignored in the live stream" comment', () => {
+    // task006 comment cleanup: once workflow_event and hook_event are
+    // rendered live, the blanket "ignored in the live stream" note is
+    // actively misleading. Lock the cleanup.
+    expect(src).not.toContain('intentionally ignored in the live stream');
+  });
+
+  it('does not retarget to useChatTabsStore (task007 owns that)', () => {
+    // Regression lock: task007 retargets ChatPanel from
+    // useChatStore.conversationId to useChatTabsStore.activeTabId. Doing
+    // that work inside task006 would block the handoff and collide with a
+    // gate the user has explicitly called out as a repeat-offender trap.
+    //
+    // The existing file comment in chat-panel.tsx already mentions
+    // useChatTabsStore to document the boundary — we only care that there
+    // is no import of it and no invocation of it as a hook, which is what
+    // the retarget would actually look like in code.
+    expect(src).not.toMatch(/from ['"]@\/stores\/chat-tabs-store['"]/);
+    expect(src).not.toMatch(/import[\s\S]*?useChatTabsStore[\s\S]*?from/);
+    expect(src).not.toMatch(/useChatTabsStore\s*\(/);
   });
 
   it('flips streaming off when the stream finishes or errors', () => {
@@ -364,5 +424,29 @@ describe('ChatPanel store contract', () => {
     removeLiveEvent('not-there');
     expect(useChatStore.getState().liveEvents).toHaveLength(1);
     expect(useChatStore.getState().liveEvents[0].id).toBe('only-one');
+  });
+
+  it('appendLiveEvent is idempotent on id collisions (task006)', () => {
+    // Second line of defense against SSE chunk re-emission: appending the
+    // same event id twice must not produce two entries. mergeChatEvents
+    // dedups at render time, but preventing the duplicate from ever entering
+    // liveEvents keeps the buffer minimal and the helper's contract simple.
+    const { appendLiveEvent } = useChatStore.getState();
+    appendLiveEvent(makeTextEvent({ id: 'same' }));
+    appendLiveEvent(
+      makeTextEvent({ id: 'same', content: { type: 'text', text: 'different' } }),
+    );
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents).toHaveLength(1);
+    // The first append wins — the second is silently dropped.
+    expect(liveEvents[0].content).toEqual({ type: 'text', text: 'hello' });
+  });
+
+  it('appendLiveEvent keeps distinct ids in insertion order (task006)', () => {
+    const { appendLiveEvent } = useChatStore.getState();
+    appendLiveEvent(makeTextEvent({ id: 'a' }));
+    appendLiveEvent(makeTextEvent({ id: 'b' }));
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents.map((e) => e.id)).toEqual(['a', 'b']);
   });
 });

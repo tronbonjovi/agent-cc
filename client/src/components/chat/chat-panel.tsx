@@ -16,11 +16,13 @@
 // on revalidation. The UX cost is a brief skeleton while the POST round-trips
 // (tightened in a later milestone).
 //
-// Chunk handling is intentionally narrow: text chunks are coalesced into the
-// live assistant bubble via `coalesceAssistantText`; tool_call / tool_result
-// / thinking / system chunks are ignored in the live stream and picked up
-// through query revalidation on `done`. Richer live chunk rendering is owned
-// by the `chat-workflows-tabs` milestone, not this task.
+// Chunk handling: text chunks are coalesced into the live assistant bubble
+// via `coalesceAssistantText`. workflow_event and hook_event chunks are
+// appended to liveEvents for instant render AND trigger a history
+// invalidation — the subsequent revalidation pulls the persisted copy back,
+// and `mergeChatEvents` drops the live duplicate at render time. Other chunk
+// types (tool_call, tool_result, thinking, system) are still picked up
+// through query revalidation on `done`.
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -32,6 +34,7 @@ import { useChatHistory } from '@/hooks/use-chat-history';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
 import { ChatTabBar } from '@/components/chat/chat-tab-bar';
 import { parseSlashCommand, dispatchCommand } from '@/lib/chat-commands';
+import { mergeChatEvents } from '@/lib/chat-event-merge';
 import type { InteractionEvent } from '../../../../shared/types';
 import { extractChunkText } from '../../../../shared/chat-chunk';
 
@@ -79,29 +82,24 @@ export function ChatPanel() {
           });
           clearLive();
         } else if (chunk.type === 'workflow_event') {
-          // task004 — chat-workflows-tabs. The server has already persisted
-          // the workflow step event via insertEvent; we just pull it into
-          // the React Query cache so it renders on the next revalidation.
-          // We deliberately do NOT render mid-stream here — task006 owns
-          // rich live rendering of workflow events. The visible-but-laggy
-          // UX (steps only show after the query refetch) is intentional
-          // until task006 lands.
+          // Append to liveEvents for instant render, then invalidate history
+          // so the persisted copy lands on the next refetch. mergeChatEvents
+          // dedups the live copy when that revalidation completes.
+          if (chunk.event && typeof chunk.event === 'object') {
+            appendLiveEvent(chunk.event as InteractionEvent);
+          }
           queryClient.invalidateQueries({
             queryKey: ['chat-history', conversationId],
           });
         } else if (chunk.type === 'hook_event') {
-          // task005 — chat-workflows-tabs. Server has already persisted
-          // the hook event via insertEvent; we pull it into the React
-          // Query cache on the next revalidation. Rich live rendering of
-          // hook fires is task006 — keeping this branch invalidate-only
-          // matches the workflow_event handling directly above.
+          // Same append + invalidate + merge-dedup flow as workflow_event.
+          if (chunk.event && typeof chunk.event === 'object') {
+            appendLiveEvent(chunk.event as InteractionEvent);
+          }
           queryClient.invalidateQueries({
             queryKey: ['chat-history', conversationId],
           });
         }
-        // Other chunk types (tool_call, tool_result, thinking, system) are
-        // intentionally ignored in the live stream — they'll appear on the
-        // next revalidation once the backend has persisted them.
       } catch (err) {
         // Log loudly so the next regression is visible in devtools rather
         // than silently swallowed the way the Bug-D investigation had to
@@ -119,6 +117,7 @@ export function ChatPanel() {
   }, [
     conversationId,
     coalesceAssistantText,
+    appendLiveEvent,
     clearLive,
     setStreaming,
     queryClient,
@@ -226,12 +225,14 @@ export function ChatPanel() {
     }
   };
 
-  // Concatenate persisted history with in-flight live events. React Query
-  // returns `undefined` while the first load is in flight; fall back to an
-  // empty array so the renderer just shows the live events (if any) or the
-  // empty-state placeholder.
+  // Merge persisted history with in-flight live events, de-duping any id
+  // that already landed in history (workflow_event and hook_event SSE
+  // chunks are appended to liveEvents AND pulled back on the history
+  // revalidation — mergeChatEvents drops the live copy so the event doesn't
+  // render twice). React Query returns `undefined` while the first load is
+  // in flight; fall back to an empty array.
   const historyEvents: InteractionEvent[] = history.data?.events ?? [];
-  const allEvents: InteractionEvent[] = [...historyEvents, ...liveEvents];
+  const allEvents: InteractionEvent[] = mergeChatEvents(historyEvents, liveEvents);
 
   return (
     <div className="flex flex-col h-full" data-testid="chat-panel">

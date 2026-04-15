@@ -54,7 +54,14 @@ export const useChatStore = create<ChatState>((set) => ({
   isStreaming: false,
 
   appendLiveEvent: (event) =>
-    set((s) => ({ liveEvents: [...s.liveEvents, event] })),
+    set((s) => {
+      // Idempotent on id collisions — a second line of defense against the
+      // server re-emitting the same SSE chunk (e.g. on reconnect) or a
+      // workflow/hook_event chunk being appended here and then pulled back
+      // through the history revalidation before mergeChatEvents runs.
+      if (s.liveEvents.some((e) => e.id === event.id)) return s;
+      return { liveEvents: [...s.liveEvents, event] };
+    }),
 
   removeLiveEvent: (id) =>
     set((s) => ({ liveEvents: s.liveEvents.filter((e) => e.id !== id) })),
