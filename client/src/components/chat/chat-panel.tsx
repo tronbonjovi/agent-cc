@@ -31,6 +31,7 @@ import { useChatStore } from '@/stores/chat-store';
 import { useChatHistory } from '@/hooks/use-chat-history';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
 import { ChatTabBar } from '@/components/chat/chat-tab-bar';
+import { parseSlashCommand, dispatchCommand } from '@/lib/chat-commands';
 import type { InteractionEvent } from '../../../../shared/types';
 import { extractChunkText } from '../../../../shared/chat-chunk';
 
@@ -110,6 +111,43 @@ export function ChatPanel() {
     // The store's `isStreaming` flag is flipped off by the `done` handler
     // (or `onerror`), so this naturally re-opens once the turn completes.
     if (isStreaming) return;
+
+    // Archon slash-command interceptor (task003). If the input parses as
+    // `/<name> <args>` we dispatch it to the server-side workflow
+    // executor FIRST. Three outcomes:
+    //
+    //   - handled=true  → server accepted; clear input, do NOT POST to
+    //                     AI. Server streams the result back over the
+    //                     existing SSE channel (wired in task004).
+    //   - handled=false → server returned 404 (unknown workflow); fall
+    //                     through and POST to AI as a normal prompt.
+    //   - threw         → real dispatch failure (5xx / network); surface
+    //                     via the existing error banner and abort. Do
+    //                     NOT fall through — double-execution on a
+    //                     transient hiccup would be worse than erroring.
+    //
+    // IMPORTANT: `conversationId` here is the M3 single-conversation id
+    // from useChatStore, NOT useChatTabsStore.activeTabId. The tab-store
+    // → chat-store retarget lands in task007.
+    const parsed = parseSlashCommand(text);
+    if (parsed) {
+      try {
+        const result = await dispatchCommand(parsed, conversationId);
+        if (result.handled) {
+          setInput('');
+          setLastError(null);
+          return;
+        }
+        // handled=false → fall through to the AI prompt path below.
+      } catch (err) {
+        console.error('[chat-panel] workflow dispatch error', err);
+        setLastError(
+          err instanceof Error ? err.message : 'Workflow dispatch failed',
+        );
+        return;
+      }
+    }
+
     setInput('');
     setLastError(null);
     setStreaming(true);

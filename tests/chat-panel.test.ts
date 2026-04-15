@@ -118,17 +118,35 @@ describe('chat-panel.tsx — source guardrails', () => {
     // next to an error banner with no explanation.
     expect(src).toContain('removeLiveEvent');
     expect(src).toMatch(/useChatStore\(\(s\)\s*=>\s*s\.removeLiveEvent\)/);
-    // Must be called in the !res.ok branch AND the catch branch.
+    // Must be called in the !res.ok branch AND the catch branch of the
+    // AI-prompt fetch. Scope the match to the try/catch that wraps the
+    // `/api/chat/prompt` POST specifically — task003 added a *separate*
+    // earlier try/catch for the slash-command dispatch path, which runs
+    // before the optimistic echo is appended and therefore has nothing
+    // to remove. Targeting the prompt fetch's enclosing try keeps this
+    // guardrail honest as future milestones add more pre-send logic.
     const submitBody = src.match(
       /const handleSubmit\s*=\s*async\s*\(\s*\)\s*=>\s*\{[\s\S]*?\n  \};/,
     );
     expect(submitBody, 'handleSubmit body not found').not.toBeNull();
     const body = submitBody![0];
-    const notOkBranch = body.match(/if\s*\(\s*!res\.ok\s*\)\s*\{[\s\S]*?\n\s{4}\}/);
+    // Anchor on the prompt URL and inspect only the surrounding region:
+    // from the URL forward we must see the `!res.ok` branch (and its
+    // removeLiveEvent call) and then the enclosing `catch (err)` block
+    // (with its own removeLiveEvent call). Scoping this way avoids
+    // picking up the earlier slash-command dispatch try/catch.
+    const promptIdx = body.indexOf('/api/chat/prompt');
+    expect(promptIdx, 'prompt fetch call not found').toBeGreaterThan(-1);
+    const promptTail = body.slice(promptIdx);
+    const notOkBranch = promptTail.match(
+      /if\s*\(\s*!res\.ok\s*\)\s*\{[\s\S]*?\n\s{6}\}/,
+    );
     expect(notOkBranch, '!res.ok branch not found').not.toBeNull();
     expect(notOkBranch![0]).toContain('removeLiveEvent(optimisticId)');
-    const catchBranch = body.match(/catch\s*\(\s*err\s*\)\s*\{[\s\S]*?\n\s{4}\}/);
-    expect(catchBranch, 'catch branch not found').not.toBeNull();
+    const catchBranch = promptTail.match(
+      /catch\s*\(\s*err\s*\)\s*\{[\s\S]*?\n\s{4}\}/,
+    );
+    expect(catchBranch, 'AI-prompt catch branch not found').not.toBeNull();
     expect(catchBranch![0]).toContain('removeLiveEvent(optimisticId)');
   });
 
