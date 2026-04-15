@@ -6,7 +6,18 @@ import { storage } from "../storage";
 import { getPricing, computeCost, getModelFamily } from "./pricing";
 import { getCachedSessions } from "./session-scanner";
 import { encodeProjectKey } from "./utils";
-import type { CostRecord, CostSummary, SessionCostDetail, CostTokenBreakdown } from "@shared/types";
+import type { CostRecord, CostBySource, CostSummary, SessionCostDetail, CostTokenBreakdown } from "@shared/types";
+import { ALL_INTERACTION_SOURCES } from "@shared/types";
+
+/** Fully-keyed zero `CostBySource`. Mirrors `event-reductions.emptyBySource()`;
+ *  duplicated here so `cost-indexer.ts` doesn't need to import the store-path
+ *  reducer module (which would otherwise pull event-reductions into the
+ *  legacy bundle for no reason). */
+function emptyBySource(): CostBySource {
+  const out = {} as CostBySource;
+  for (const s of ALL_INTERACTION_SOURCES) out[s] = 0;
+  return out;
+}
 
 /** Create a deterministic record ID for dedup.
  *  Includes lineIndex to distinguish multiple assistant responses in the same second. */
@@ -362,7 +373,13 @@ export function getCostSummary(days: number): CostSummary {
     })
     .sort((a, b) => b.cost - a.cost);
 
-  // By day
+  // By day — legacy `CostRecord` has no `source` field because every
+  // record comes from parsing `~/.claude/projects/**/*.jsonl`, which by
+  // definition is the `scanner-jsonl` source. The `bySource` breakdown is
+  // therefore degenerate: everything goes into `scanner-jsonl` and the
+  // other keys stay zero. Task005 keeps the shape fully keyed so clients
+  // (and the store-backed parity test) can assume the same key set on
+  // both backends.
   const dayCost: Record<string, { cost: number; compute: number; cache: number }> = {};
   for (const r of records) {
     const d = r.timestamp.slice(0, 10);
@@ -374,13 +391,23 @@ export function getCostSummary(days: number): CostSummary {
     dayCost[d].cache += cachePart;
   }
   const byDay = Object.entries(dayCost)
-    .map(([date, data]) => ({
-      date,
-      cost: Math.round(data.cost * 1000) / 1000,
-      computeCost: Math.round(data.compute * 1000) / 1000,
-      cacheCost: Math.round(data.cache * 1000) / 1000,
-    }))
+    .map(([date, data]) => {
+      const perDay = emptyBySource();
+      perDay["scanner-jsonl"] = Math.round(data.cost * 1000) / 1000;
+      return {
+        date,
+        cost: Math.round(data.cost * 1000) / 1000,
+        computeCost: Math.round(data.compute * 1000) / 1000,
+        cacheCost: Math.round(data.cache * 1000) / 1000,
+        bySource: perDay,
+      };
+    })
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  // Top-level bySource breakdown — see `byDay` comment above for why this
+  // is degenerate in the legacy path.
+  const bySource = emptyBySource();
+  bySource["scanner-jsonl"] = Math.round(totalCost * 1000) / 1000;
 
   // Top sessions — aggregate by root session ID
   const sessionCosts: Record<string, {
@@ -438,6 +465,7 @@ export function getCostSummary(days: number): CostSummary {
   return {
     totalCost: Math.round(totalCost * 1000) / 1000,
     totalTokens,
+    bySource,
     weeklyComparison: {
       thisWeek: Math.round(thisWeekCost * 100) / 100,
       lastWeek: Math.round(lastWeekCost * 100) / 100,

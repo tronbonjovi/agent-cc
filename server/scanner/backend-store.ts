@@ -12,6 +12,13 @@
  *     uses two bounded range queries (days-window + 30-day rollup) so it
  *     never pulls the full `events` table into memory.
  *
+ * Task005 adds a `bySource: Record<InteractionSource, number>` breakdown
+ * on `CostSummary` (both summary-level and per-day). Store backend groups
+ * events by `event.source` in `reduceCostSummary`; legacy backend emits a
+ * degenerate single-key `scanner-jsonl` breakdown (its `CostRecord` rows
+ * don't carry a source). Both shapes are fully keyed over every
+ * `InteractionSource` variant — no new parity gap introduced.
+ *
  * Parity with legacy is within the store's recordable surface:
  *   - Cost / token / model-breakdown reductions match legacy's
  *     `getSessionCost` / `getCostSummary` / `getSessionCostDetail` on

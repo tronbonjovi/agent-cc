@@ -25,9 +25,11 @@ import type {
   InteractionEvent,
   SessionCostData,
   CostTokenBreakdown,
+  CostBySource,
   CostSummary,
   SessionCostDetail,
 } from '../../shared/types';
+import { ALL_INTERACTION_SOURCES } from '../../shared/types';
 import { getPricing } from './pricing';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +50,18 @@ function emptyModel(): ModelAccumulator {
 
 function emptyTokens(): CostTokenBreakdown {
   return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
+}
+
+/**
+ * Fully-keyed zero record over every `InteractionSource`. Used so the
+ * `bySource` breakdown on `CostSummary` (and on each `byDay` entry) always
+ * has the same key set — clients can assume the shape without guarding
+ * against undefined keys.
+ */
+export function emptyBySource(): CostBySource {
+  const out = {} as CostBySource;
+  for (const s of ALL_INTERACTION_SOURCES) out[s] = 0;
+  return out;
 }
 
 /** Round USD to 4 decimals — matches `session-analytics.getSessionCost`. */
@@ -273,13 +287,20 @@ export function reduceCostSummary(
   // ---- Totals over the window ----
   let totalCost = 0;
   const totalTokens = emptyTokens();
+  // `bySource` tracks cost totals grouped by the `source` on each event.
+  // Deterministic events (cost === null) contribute 0 and are skipped —
+  // `chat-slash` / `chat-hook` / `chat-workflow` therefore stay at zero in
+  // the breakdown unless a future source carries a non-null cost.
+  const bySource = emptyBySource();
   for (const e of windowEvents) {
     if (e.cost === null) continue;
-    totalCost += e.cost.usd || 0;
+    const usd = e.cost.usd || 0;
+    totalCost += usd;
     totalTokens.input += e.cost.tokensIn || 0;
     totalTokens.output += e.cost.tokensOut || 0;
     totalTokens.cacheRead += e.cost.cacheReadTokens || 0;
     totalTokens.cacheCreation += e.cost.cacheCreationTokens || 0;
+    bySource[e.source] = (bySource[e.source] || 0) + usd;
   }
 
   // ---- Weekly comparison (14-day lookback) ----
@@ -371,12 +392,13 @@ export function reduceCostSummary(
   // ---- By day ----
   const dayCost: Record<
     string,
-    { cost: number; compute: number; cache: number }
+    { cost: number; compute: number; cache: number; bySource: CostBySource }
   > = {};
   for (const e of windowEvents) {
     if (e.cost === null) continue;
     const d = utcDay(e.timestamp);
-    if (!dayCost[d]) dayCost[d] = { cost: 0, compute: 0, cache: 0 };
+    if (!dayCost[d])
+      dayCost[d] = { cost: 0, compute: 0, cache: 0, bySource: emptyBySource() };
     const pricing = getPricing(e.cost.model || '');
     const input = e.cost.tokensIn || 0;
     const output = e.cost.tokensOut || 0;
@@ -387,9 +409,12 @@ export function reduceCostSummary(
     const cachePart =
       (cacheRead * pricing.cacheRead + cacheCreation * pricing.cacheCreation) /
       1_000_000;
-    dayCost[d].cost += e.cost.usd || 0;
+    const usd = e.cost.usd || 0;
+    dayCost[d].cost += usd;
     dayCost[d].compute += computePart;
     dayCost[d].cache += cachePart;
+    dayCost[d].bySource[e.source] =
+      (dayCost[d].bySource[e.source] || 0) + usd;
   }
   const byDay = Object.entries(dayCost)
     .map(([date, data]) => ({
@@ -397,6 +422,7 @@ export function reduceCostSummary(
       cost: round3(data.cost),
       computeCost: round3(data.compute),
       cacheCost: round3(data.cache),
+      bySource: roundBySource(data.bySource),
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -451,6 +477,7 @@ export function reduceCostSummary(
   return {
     totalCost: round3(totalCost),
     totalTokens,
+    bySource: roundBySource(bySource),
     weeklyComparison: {
       thisWeek: round2(thisWeekCost),
       lastWeek: round2(lastWeekCost),
@@ -467,6 +494,19 @@ export function reduceCostSummary(
       max20x: { limit: 200, label: 'Max $200/mo' },
     },
   };
+}
+
+/**
+ * Round every `bySource` value to 3 decimals in place. Keeps the full key
+ * set intact — clients rely on `bySource` always having every
+ * `InteractionSource` key present (see `emptyBySource()`).
+ */
+function roundBySource(src: CostBySource): CostBySource {
+  const out = {} as CostBySource;
+  for (const key of ALL_INTERACTION_SOURCES) {
+    out[key] = round3(src[key] || 0);
+  }
+  return out;
 }
 
 /**

@@ -21,6 +21,13 @@
  *     ingester's `EXTRA_PROJECT_DIRS`-based walk both discover them
  *     identically.
  *
+ * Task005 (bySource dimension): the parity test below also asserts both
+ * backends agree on the new `CostSummary.bySource` + `byDay[].bySource`
+ * fields. Every fixture here comes from JSONL ingestion, so both legacy
+ * and store attribute 100% of cost to `scanner-jsonl` — the check is
+ * "legacy's degenerate single-source breakdown matches store's reducer
+ * output". No new parity gap was introduced.
+ *
  * Known parity gaps that this test intentionally works AROUND (rather
  * than faking values to make the test pass):
  *   - `stopReason`, `serviceTier`, `inferenceGeo`, `speed`,
@@ -566,6 +573,37 @@ describe('scanner backend parity — getCostSummary', () => {
     const sIds = s.topSessions.map((t: { sessionId: string }) => t.sessionId).sort();
     const lIds = l.topSessions.map((t: { sessionId: string }) => t.sessionId).sort();
     expect(sIds).toEqual(lIds);
+
+    // bySource (task005) — fixtures only contain events ingested from JSONL,
+    // which both backends attribute to `scanner-jsonl`. The breakdown must
+    // be fully keyed on both backends and the scanner-jsonl bucket must
+    // equal the total on both. Every other key is 0 (degenerate case).
+    expect(s.bySource).toBeDefined();
+    expect(l.bySource).toBeDefined();
+    expect(Object.keys(s.bySource).sort()).toEqual(Object.keys(l.bySource).sort());
+    expect(s.bySource['scanner-jsonl']).toBeCloseTo(l.bySource['scanner-jsonl'], 3);
+    expect(s.bySource['scanner-jsonl']).toBeCloseTo(s.totalCost, 3);
+    expect(l.bySource['scanner-jsonl']).toBeCloseTo(l.totalCost, 3);
+    for (const key of Object.keys(s.bySource)) {
+      if (key === 'scanner-jsonl') continue;
+      expect(s.bySource[key]).toBe(0);
+      expect(l.bySource[key]).toBe(0);
+    }
+
+    // Per-day bySource — every byDay entry on both backends must carry a
+    // fully-keyed bySource record, matching the day-level cost total under
+    // `scanner-jsonl`.
+    for (let i = 0; i < l.byDay.length; i++) {
+      const lDay = l.byDay[i];
+      const sDay = s.byDay[i];
+      expect(sDay.bySource).toBeDefined();
+      expect(lDay.bySource).toBeDefined();
+      expect(sDay.bySource['scanner-jsonl']).toBeCloseTo(
+        lDay.bySource['scanner-jsonl'],
+        3,
+      );
+      expect(sDay.bySource['scanner-jsonl']).toBeCloseTo(sDay.cost, 3);
+    }
   });
 });
 

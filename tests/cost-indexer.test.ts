@@ -3,6 +3,9 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { parseJSONLForCosts, createCostRecordId, extractParentSessionId } from "../server/scanner/cost-indexer";
+import { reduceCostSummary, emptyBySource } from "../server/scanner/event-reductions";
+import { ALL_INTERACTION_SOURCES } from "../shared/types";
+import type { InteractionEvent, InteractionSource } from "../shared/types";
 
 describe("cost-indexer", () => {
   describe("createCostRecordId", () => {
@@ -188,6 +191,195 @@ describe("cost-indexer", () => {
       const { records } = parseJSONLForCosts(filePath, "sess", null, "proj", 0);
       expect(records).toHaveLength(2);
       expect(records[0].id).not.toBe(records[1].id);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Cost summary bySource dimension — task005
+  //
+  // `reduceCostSummary` is the shared reducer both the store backend and the
+  // legacy cost-indexer normalize their rollups through for bySource. These
+  // tests exercise the reducer directly with a synthetic `InteractionEvent[]`
+  // fixture so we can assert the new dimension without standing up the full
+  // ingester / JSONL / SQLite pipeline. The parity test
+  // (`scanner-backend-parity.test.ts`) still asserts the legacy cost-indexer
+  // path produces the same shape end-to-end when both backends read the
+  // same JSONL.
+  // -------------------------------------------------------------------------
+
+  describe("reduceCostSummary — bySource dimension", () => {
+    // Today in the fixtures is deliberately inside the default `days` window
+    // that reduceCostSummary uses internally (7/14/30-day lookbacks start
+    // from `new Date()`). Using "today" keeps the fixtures in every window.
+    const today = new Date();
+    const isoAt = (hour: number): string => {
+      const d = new Date(today);
+      d.setUTCHours(hour, 0, 0, 0);
+      return d.toISOString();
+    };
+    const isoDaysAgo = (daysAgo: number, hour = 10): string => {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - daysAgo);
+      d.setUTCHours(hour, 0, 0, 0);
+      return d.toISOString();
+    };
+
+    function aiEvent(
+      id: string,
+      source: InteractionSource,
+      usd: number,
+      ts: string,
+      sessionId = `sess-${id}`,
+    ): InteractionEvent {
+      return {
+        id,
+        conversationId: sessionId,
+        timestamp: ts,
+        source,
+        role: "assistant",
+        content: { type: "text", text: `text-${id}` },
+        cost: {
+          usd,
+          tokensIn: 100,
+          tokensOut: 50,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          durationMs: 0,
+          model: "claude-opus-4-6",
+        },
+      };
+    }
+
+    function deterministicEvent(
+      id: string,
+      source: InteractionSource,
+      ts: string,
+    ): InteractionEvent {
+      return {
+        id,
+        conversationId: `sess-${id}`,
+        timestamp: ts,
+        source,
+        role: "system",
+        content: { type: "system", subtype: "info", text: `det-${id}` },
+        cost: null,
+      };
+    }
+
+    it("emptyBySource returns every InteractionSource key with value 0", () => {
+      const empty = emptyBySource();
+      for (const key of ALL_INTERACTION_SOURCES) {
+        expect(empty[key]).toBe(0);
+      }
+      expect(Object.keys(empty).sort()).toEqual([...ALL_INTERACTION_SOURCES].sort());
+    });
+
+    it("totalCost sums every cost-bearing event regardless of source", () => {
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "scanner-jsonl", 0.5, isoAt(1)),
+        aiEvent("e2", "chat-ai", 1.25, isoAt(2)),
+        aiEvent("e3", "chat-workflow", 0.75, isoAt(3)),
+      ];
+      const summary = reduceCostSummary(events, events);
+      expect(summary.totalCost).toBeCloseTo(2.5, 3);
+    });
+
+    it("bySource groups costs by event source and is fully keyed", () => {
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "scanner-jsonl", 1.0, isoAt(1)),
+        aiEvent("e2", "scanner-jsonl", 0.5, isoAt(2)),
+        aiEvent("e3", "chat-ai", 2.0, isoAt(3)),
+        aiEvent("e4", "github-issue", 0.25, isoAt(4)),
+      ];
+      const summary = reduceCostSummary(events, events);
+
+      // Every InteractionSource key must be present — clients can assume shape
+      for (const key of ALL_INTERACTION_SOURCES) {
+        expect(summary.bySource[key]).toBeDefined();
+      }
+      expect(summary.bySource["scanner-jsonl"]).toBeCloseTo(1.5, 3);
+      expect(summary.bySource["chat-ai"]).toBeCloseTo(2.0, 3);
+      expect(summary.bySource["github-issue"]).toBeCloseTo(0.25, 3);
+      // Sources with no events stay at 0
+      expect(summary.bySource["chat-slash"]).toBe(0);
+      expect(summary.bySource["chat-hook"]).toBe(0);
+      expect(summary.bySource["telegram"]).toBe(0);
+      expect(summary.bySource["discord"]).toBe(0);
+      expect(summary.bySource["imessage"]).toBe(0);
+
+      // Sum of the per-source breakdown must equal totalCost
+      const bySourceSum = Object.values(summary.bySource).reduce((s, v) => s + v, 0);
+      expect(bySourceSum).toBeCloseTo(summary.totalCost, 3);
+    });
+
+    it("byDay splits per-day entries and each entry carries its own bySource", () => {
+      // Two days — the reducer's window reads "today" as ISO UTC day, so
+      // pick explicit days-ago offsets that land in two distinct UTC dates.
+      const day0 = isoDaysAgo(0, 10);
+      const day1 = isoDaysAgo(1, 10);
+      const day0Key = day0.slice(0, 10);
+      const day1Key = day1.slice(0, 10);
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "scanner-jsonl", 1.0, day1),
+        aiEvent("e2", "chat-ai", 0.5, day1),
+        aiEvent("e3", "scanner-jsonl", 2.0, day0),
+      ];
+      const summary = reduceCostSummary(events, events);
+
+      const byDate = Object.fromEntries(summary.byDay.map((d) => [d.date, d]));
+      expect(Object.keys(byDate)).toHaveLength(2);
+
+      const d0 = byDate[day0Key];
+      const d1 = byDate[day1Key];
+      expect(d0.cost).toBeCloseTo(2.0, 3);
+      expect(d1.cost).toBeCloseTo(1.5, 3);
+
+      // Each day entry must carry a fully-keyed bySource record
+      for (const key of ALL_INTERACTION_SOURCES) {
+        expect(d0.bySource[key]).toBeDefined();
+        expect(d1.bySource[key]).toBeDefined();
+      }
+      expect(d0.bySource["scanner-jsonl"]).toBeCloseTo(2.0, 3);
+      expect(d0.bySource["chat-ai"]).toBe(0);
+      expect(d1.bySource["scanner-jsonl"]).toBeCloseTo(1.0, 3);
+      expect(d1.bySource["chat-ai"]).toBeCloseTo(0.5, 3);
+    });
+
+    it("events with null cost (deterministic sources) contribute 0 to every sum", () => {
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "scanner-jsonl", 1.0, isoAt(1)),
+        // Deterministic events — no usd cost, should contribute nothing
+        deterministicEvent("d1", "chat-slash", isoAt(2)),
+        deterministicEvent("d2", "chat-hook", isoAt(3)),
+        deterministicEvent("d3", "chat-workflow", isoAt(4)),
+      ];
+      const summary = reduceCostSummary(events, events);
+      expect(summary.totalCost).toBeCloseTo(1.0, 3);
+      expect(summary.bySource["scanner-jsonl"]).toBeCloseTo(1.0, 3);
+      // None of the deterministic sources should have accrued cost
+      expect(summary.bySource["chat-slash"]).toBe(0);
+      expect(summary.bySource["chat-hook"]).toBe(0);
+      expect(summary.bySource["chat-workflow"]).toBe(0);
+    });
+
+    it("legacy-style single-source fixture yields a degenerate bySource (all scanner-jsonl)", () => {
+      // Legacy `cost-indexer.getCostSummary` feeds records tagged (implicitly)
+      // as scanner-jsonl. The same shape via the reducer must land the entire
+      // total under `scanner-jsonl` with every other key at 0 — which is what
+      // the legacy backend returns in the degenerate single-source case.
+      const events: InteractionEvent[] = [
+        aiEvent("e1", "scanner-jsonl", 0.3, isoAt(1)),
+        aiEvent("e2", "scanner-jsonl", 0.7, isoAt(2)),
+        aiEvent("e3", "scanner-jsonl", 0.5, isoAt(3)),
+      ];
+      const summary = reduceCostSummary(events, events);
+
+      expect(summary.totalCost).toBeCloseTo(1.5, 3);
+      expect(summary.bySource["scanner-jsonl"]).toBeCloseTo(1.5, 3);
+      for (const key of ALL_INTERACTION_SOURCES) {
+        if (key === "scanner-jsonl") continue;
+        expect(summary.bySource[key]).toBe(0);
+      }
     });
   });
 });

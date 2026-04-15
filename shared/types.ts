@@ -815,9 +815,23 @@ export interface CostTokenBreakdown {
   cacheCreation: number;
 }
 
+/**
+ * Cost totals grouped by `InteractionSource`. Always fully keyed — every
+ * `InteractionSource` variant is present, with 0 for variants that didn't
+ * contribute anything. Clients can assume shape without defensive checks.
+ *
+ * The legacy scanner backend only sees `scanner-jsonl` events (it reads
+ * from JSONL on disk), so its breakdown is degenerate: the full cost sits
+ * under `scanner-jsonl` and every other key is 0. The store backend
+ * populates whichever keys it sees in the events table.
+ */
+export type CostBySource = Record<InteractionSource, number>;
+
 export interface CostSummary {
   totalCost: number;
   totalTokens: CostTokenBreakdown;
+  /** Cost totals broken down by `InteractionSource`. See `CostBySource`. */
+  bySource: CostBySource;
   weeklyComparison: { thisWeek: number; lastWeek: number; changePct: number };
   monthlyTotalCost: number;
   byModel: Record<string, {
@@ -836,6 +850,8 @@ export interface CostSummary {
     cost: number;
     computeCost: number;
     cacheCost: number;
+    /** Per-day cost broken down by `InteractionSource`. Always fully keyed. */
+    bySource: CostBySource;
   }>;
   topSessions: Array<{
     sessionId: string;
@@ -904,6 +920,24 @@ export type InteractionSource =
   | 'telegram'
   | 'discord'
   | 'imessage';
+
+/**
+ * Every `InteractionSource` variant as a readonly tuple — single source of
+ * truth for code that needs to enumerate sources (e.g. initializing a
+ * fully-keyed `CostBySource` object with zeros). Keep in the same order as
+ * the union above so diffs stay readable.
+ */
+export const ALL_INTERACTION_SOURCES: readonly InteractionSource[] = [
+  'chat-ai',
+  'chat-slash',
+  'chat-hook',
+  'chat-workflow',
+  'scanner-jsonl',
+  'github-issue',
+  'telegram',
+  'discord',
+  'imessage',
+] as const;
 
 export type InteractionRole = 'user' | 'assistant' | 'system' | 'tool';
 
