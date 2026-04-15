@@ -6,6 +6,7 @@ import { runFullScan } from "./scanner/index";
 import { startWatcher } from "./scanner/watcher";
 import { storage } from "./storage";
 import { attachTerminalWebSocket } from "./terminal";
+import { shutdownChatStreams } from "./routes/chat";
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -98,14 +99,30 @@ if (cliArgs.includes("--report")) {
 
     const terminalManager = attachTerminalWebSocket(httpServer, allowedOrigins);
 
-    process.on("SIGTERM", () => {
+    // Graceful shutdown. Open SSE subscribers (each with a 15s keepalive
+    // interval) used to pin the event loop past `httpServer.close`, so
+    // `systemctl stop agent-cc` sat in `deactivating (stop-sigterm)` for
+    // 90s until TimeoutStopSec fired SIGKILL — adding a 90s penalty to
+    // every deploy. Order: tear down chat SSE subscribers, terminal WS
+    // connections, and close the HTTP server, then schedule a hard exit
+    // as a safety net. The timer is `.unref()`ed so it doesn't itself
+    // keep the loop alive during a clean drain.
+    const shuttingDown = { value: false };
+    const gracefulShutdown = (signal: string) => {
+      if (shuttingDown.value) return;
+      shuttingDown.value = true;
+      log(`received ${signal}, shutting down`);
+      shutdownChatStreams();
       terminalManager.shutdown();
       httpServer.close(() => process.exit(0));
-    });
-    process.on("SIGINT", () => {
-      terminalManager.shutdown();
-      httpServer.close(() => process.exit(0));
-    });
+      const safetyTimer = setTimeout(() => {
+        log("graceful shutdown timeout — forcing exit");
+        process.exit(0);
+      }, 5000);
+      safetyTimer.unref();
+    };
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
     app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
       const status = err.status || err.statusCode || 500;

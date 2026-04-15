@@ -53,7 +53,19 @@ const CHAT_SOURCES: ReadonlySet<InteractionSource> = new Set<InteractionSource>(
 
 // In-memory conversation → subscribed SSE responses.
 // The skeleton makes no effort to persist, fan-out is best-effort.
-const activeStreams = new Map<string, Response[]>();
+//
+// Each subscriber owns a 15s keepalive interval created at subscribe time
+// and cleared on natural disconnect. We track the handle alongside the
+// response so `shutdownChatStreams()` can walk every active subscriber,
+// clear the interval (otherwise the node event loop stays alive), and end
+// the HTTP response — without that, `systemctl stop agent-cc` sat in
+// `deactivating (stop-sigterm)` for 90s on every deploy because the open
+// SSE sockets + intervals kept the process "working" until SIGKILL.
+interface ActiveSub {
+  res: Response;
+  keepalive: NodeJS.Timeout;
+}
+const activeStreams = new Map<string, ActiveSub[]>();
 
 const router = Router();
 
@@ -231,7 +243,7 @@ router.post("/prompt", async (req: Request, res: Response) => {
         // delays user-visible output.
         const subs = activeStreams.get(conversationId) ?? [];
         for (const sub of subs) {
-          sub.write(`data: ${JSON.stringify(chunk)}\n\n`);
+          sub.res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         }
 
         switch (chunk.type) {
@@ -318,7 +330,7 @@ router.post("/prompt", async (req: Request, res: Response) => {
       );
       const subs = activeStreams.get(conversationId) ?? [];
       for (const sub of subs) {
-        sub.write(
+        sub.res.write(
           `data: ${JSON.stringify({ type: "error", message: String(err) })}\n\n`,
         );
       }
@@ -335,18 +347,19 @@ router.get("/stream/:conversationId", (req: Request, res: Response) => {
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
-  const subs = activeStreams.get(conversationId) ?? [];
-  subs.push(res);
-  activeStreams.set(conversationId, subs);
-
   const keepalive = setInterval(() => {
     res.write(": keepalive\n\n");
   }, 15000);
 
+  const sub: ActiveSub = { res, keepalive };
+  const subs = activeStreams.get(conversationId) ?? [];
+  subs.push(sub);
+  activeStreams.set(conversationId, subs);
+
   req.on("close", () => {
     clearInterval(keepalive);
     const current = activeStreams.get(conversationId) ?? [];
-    const remaining = current.filter((r) => r !== res);
+    const remaining = current.filter((s) => s.res !== res);
     if (remaining.length === 0) {
       activeStreams.delete(conversationId);
     } else {
@@ -354,6 +367,47 @@ router.get("/stream/:conversationId", (req: Request, res: Response) => {
     }
   });
 });
+
+/**
+ * Tear down every active SSE subscriber so the node event loop can drain
+ * and the process can exit cleanly on SIGTERM / SIGINT. Called from the
+ * top-level signal handler in `server/index.ts`. Idempotent: calling it on
+ * an empty map is a no-op.
+ *
+ * Order of operations per subscriber:
+ *   1. Clear the 15s keepalive interval (otherwise the loop stays alive).
+ *   2. Write a terminal `{ type: "close", reason: "shutdown" }` SSE frame
+ *      so any attached client can distinguish "server going away" from a
+ *      transient disconnect without retry.
+ *   3. End the HTTP response so the socket closes.
+ *
+ * Writes are wrapped in try/catch because by the time we get here the
+ * underlying socket may already be half-closed; we want to continue
+ * tearing down the rest of the map regardless.
+ */
+export function shutdownChatStreams(): void {
+  // Snapshot the values up front so iteration is stable even if something
+  // else mutates the map during teardown.
+  const allSubs = Array.from(activeStreams.values());
+  for (const subs of allSubs) {
+    for (const sub of subs) {
+      clearInterval(sub.keepalive);
+      try {
+        sub.res.write(
+          `data: ${JSON.stringify({ type: "close", reason: "shutdown" })}\n\n`,
+        );
+      } catch {
+        // Socket already dead — drop the frame and keep tearing down.
+      }
+      try {
+        sub.res.end();
+      } catch {
+        // res.end on an already-ended response is harmless but noisy.
+      }
+    }
+  }
+  activeStreams.clear();
+}
 
 // ---------------------------------------------------------------------------
 // task005 — chat load API
