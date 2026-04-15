@@ -1,21 +1,22 @@
 // tests/chat-panel.test.ts
 //
-// Tests for the ChatPanel component — chat-skeleton task005.
+// Tests for the ChatPanel component — originally authored in chat-skeleton
+// task005 and rewritten in unified-capture task006 when the store layer split
+// into React-Query-owned history + Zustand-owned live events.
 //
 // Follows the repo convention: client/ is excluded from vitest, so React
 // components can't be rendered here. Instead we use:
 //   1. Source-text guardrails on chat-panel.tsx to verify structure, imports,
-//      SSE + fetch wiring, and generic placeholder text.
+//      SSE + fetch wiring, history-query integration, and generic placeholder
+//      text.
 //   2. Pure-logic tests that exercise the chat store directly (the same store
 //      the component consumes) to prove the state transitions the component
 //      relies on actually work end-to-end.
-//
-// See tests/layout.test.ts and tests/chat-store.test.ts for the same pattern.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import type { ChatMessage } from '../shared/types';
+import type { InteractionEvent } from '../shared/types';
 
 const ROOT = path.resolve(__dirname, '..');
 const CHAT_PANEL_PATH = path.resolve(ROOT, 'client/src/components/chat/chat-panel.tsx');
@@ -31,13 +32,28 @@ describe('chat-panel.tsx — source guardrails', () => {
     expect(src).toMatch(/export\s+function\s+ChatPanel/);
   });
 
-  it('renders the chat-panel test id (mount hook for task006 wiring)', () => {
+  it('renders the chat-panel test id', () => {
     expect(src).toContain('data-testid="chat-panel"');
   });
 
   it('imports the chat store', () => {
     expect(src).toMatch(/from ['"]@\/stores\/chat-store['"]/);
     expect(src).toContain('useChatStore');
+  });
+
+  it('imports useChatHistory and InteractionEventRenderer', () => {
+    // Two-layer model: history query + live events store, rendered through
+    // the unified-capture InteractionEventRenderer.
+    expect(src).toMatch(/from ['"]@\/hooks\/use-chat-history['"]/);
+    expect(src).toContain('useChatHistory');
+    expect(src).toMatch(/from ['"]@\/components\/chat\/interaction-event-renderer['"]/);
+    expect(src).toContain('InteractionEventRenderer');
+  });
+
+  it('imports useQueryClient from @tanstack/react-query', () => {
+    expect(src).toMatch(
+      /import\s*\{[^}]*\buseQueryClient\b[^}]*\}\s*from\s*['"]@tanstack\/react-query['"]/,
+    );
   });
 
   it('imports the shadcn ScrollArea, Button, and Input UI primitives', () => {
@@ -52,7 +68,6 @@ describe('chat-panel.tsx — source guardrails', () => {
   });
 
   it('closes the EventSource on unmount (cleanup return)', () => {
-    // The useEffect cleanup must call .close() on the stored ref.
     expect(src).toMatch(/\.close\(\)/);
   });
 
@@ -66,15 +81,33 @@ describe('chat-panel.tsx — source guardrails', () => {
     expect(src).toMatch(/JSON\.stringify\(\s*\{\s*conversationId\s*,\s*text\s*\}/);
   });
 
-  it('dispatches text chunks via appendAssistantChunk', () => {
-    expect(src).toContain('appendAssistantChunk');
-    // Guard: the text-chunk branch actually calls it.
+  it('coalesces text chunks via coalesceAssistantText (not optimistic append)', () => {
+    // New live-events path: text chunks merge into the tail assistant bubble.
+    expect(src).toContain('coalesceAssistantText');
     expect(src).toMatch(/chunk\.type\s*===\s*['"]text['"]/);
+    // Legacy API should be gone — if this reappears the wrong store is wired.
+    expect(src).not.toContain('appendMessage(');
+    expect(src).not.toContain('appendAssistantChunk');
+  });
+
+  it('invalidates the chat-history query and clears live events on done', () => {
+    // On SSE `done`, ChatPanel asks React Query to refetch the persisted
+    // history and drops its in-flight buffer so the turn doesn't double-render.
+    expect(src).toContain('invalidateQueries');
+    expect(src).toMatch(/queryKey\s*:\s*\[\s*['"]chat-history['"]\s*,\s*conversationId\s*\]/);
+    expect(src).toContain('clearLive()');
+    expect(src).toMatch(/chunk\.type\s*===\s*['"]done['"]/);
+  });
+
+  it('renders events through InteractionEventRenderer, concatenating history + live', () => {
+    // The render path must feed [...history, ...liveEvents] into the renderer.
+    expect(src).toMatch(/<InteractionEventRenderer\s+events=\{/);
+    expect(src).toMatch(/\.\.\.historyEvents/);
+    expect(src).toMatch(/\.\.\.liveEvents/);
   });
 
   it('flips streaming off when the stream finishes or errors', () => {
     expect(src).toContain('setStreaming(false)');
-    expect(src).toMatch(/chunk\.type\s*===\s*['"]done['"]/);
     expect(src).toMatch(/onerror/);
   });
 
@@ -85,7 +118,6 @@ describe('chat-panel.tsx — source guardrails', () => {
 
   it('uses a generic placeholder (no user-specific project names)', () => {
     expect(src).toMatch(/placeholder=["']Message Claude/);
-    // Negative guard: no hardcoded project-specific strings in placeholder.
     expect(src).not.toMatch(/placeholder=["'][^"']*(Nicora|findash|pii-washer)/i);
   });
 
@@ -95,7 +127,6 @@ describe('chat-panel.tsx — source guardrails', () => {
   });
 
   it('has no bounce/scale cartoonish animations', () => {
-    // Matches the safety-test spirit: no animate-bounce or scale-on-click transforms.
     expect(src).not.toMatch(/animate-bounce/);
     expect(src).not.toMatch(/active:scale-/);
   });
@@ -111,46 +142,41 @@ beforeEach(async () => {
   const mod = await import('../client/src/stores/chat-store');
   useChatStore = mod.useChatStore;
   useChatStore.setState({
-    messages: [],
+    liveEvents: [],
     conversationId: 'default',
     isStreaming: false,
   });
 });
 
-const makeMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
-  id: 'm1',
-  conversationId: 'default',
-  role: 'user',
-  text: 'hello',
-  timestamp: '2026-04-14T00:00:00.000Z',
-  ...overrides,
-});
+function makeTextEvent(overrides: Partial<InteractionEvent> = {}): InteractionEvent {
+  return {
+    id: 'e1',
+    conversationId: 'default',
+    parentEventId: null,
+    timestamp: '2026-04-15T00:00:00.000Z',
+    source: 'chat-ai',
+    role: 'assistant',
+    content: { type: 'text', text: 'hello' },
+    cost: null,
+    ...overrides,
+  };
+}
 
 describe('ChatPanel store contract', () => {
-  it('starts empty so ChatPanel renders an empty message list initially', () => {
-    const { messages } = useChatStore.getState();
-    expect(messages).toEqual([]);
+  it('starts with an empty liveEvents buffer', () => {
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents).toEqual([]);
   });
 
-  it('seed messages are visible to ChatPanel via the store selector', () => {
-    const m1 = makeMessage({ id: 'u1', text: 'first' });
-    const m2 = makeMessage({ id: 'a1', role: 'assistant', text: 'second' });
-    useChatStore.getState().appendMessage(m1);
-    useChatStore.getState().appendMessage(m2);
-    const { messages } = useChatStore.getState();
-    expect(messages).toHaveLength(2);
-    expect(messages.map((m) => m.text)).toEqual(['first', 'second']);
-  });
-
-  it('appending a user message (the submit path) stores it with role=user', () => {
-    // Mirrors what ChatPanel.handleSubmit does before POSTing to /api/chat/prompt.
-    useChatStore.getState().appendMessage(
-      makeMessage({ id: 'u1', role: 'user', text: 'hi there' })
-    );
-    const { messages } = useChatStore.getState();
-    expect(messages).toHaveLength(1);
-    expect(messages[0].role).toBe('user');
-    expect(messages[0].text).toBe('hi there');
+  it('appendLiveEvent seeds tool_call / thinking events into the live buffer', () => {
+    // Although ChatPanel only coalesces text chunks directly, the store's
+    // append path is used by future richer live handling (and by the test
+    // above to prove the store contract).
+    const event = makeTextEvent({ id: 'tc1', role: 'assistant' });
+    useChatStore.getState().appendLiveEvent(event);
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents).toHaveLength(1);
+    expect(liveEvents[0].id).toBe('tc1');
   });
 
   it('setStreaming toggles isStreaming (submit → true, done/error → false)', () => {
@@ -160,29 +186,23 @@ describe('ChatPanel store contract', () => {
     expect(useChatStore.getState().isStreaming).toBe(false);
   });
 
-  it('appendAssistantChunk accumulates streamed SSE text into one assistant bubble', () => {
+  it('coalesceAssistantText accumulates streamed SSE text into one assistant bubble', () => {
     // Mirrors the SSE onmessage path in ChatPanel.
-    const { appendAssistantChunk } = useChatStore.getState();
-    appendAssistantChunk('default', 'Hel');
-    appendAssistantChunk('default', 'lo ');
-    appendAssistantChunk('default', 'world');
-    const { messages } = useChatStore.getState();
-    expect(messages).toHaveLength(1);
-    expect(messages[0].role).toBe('assistant');
-    expect(messages[0].text).toBe('Hello world');
+    const { coalesceAssistantText } = useChatStore.getState();
+    coalesceAssistantText('Hel');
+    coalesceAssistantText('lo ');
+    coalesceAssistantText('world');
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents).toHaveLength(1);
+    expect(liveEvents[0].role).toBe('assistant');
+    expect(liveEvents[0].content).toEqual({ type: 'text', text: 'Hello world' });
   });
 
-  it('appendAssistantChunk after a user message creates a new assistant bubble', () => {
-    // Typical flow: user submits → user msg appended → SSE starts → first
-    // text chunk arrives → new assistant bubble appears underneath.
-    useChatStore.getState().appendMessage(
-      makeMessage({ id: 'u1', role: 'user', text: 'ping' })
-    );
-    useChatStore.getState().appendAssistantChunk('default', 'pong');
-    const { messages } = useChatStore.getState();
-    expect(messages).toHaveLength(2);
-    expect(messages[0].role).toBe('user');
-    expect(messages[1].role).toBe('assistant');
-    expect(messages[1].text).toBe('pong');
+  it('clearLive drops the live buffer after stream done', () => {
+    const store = useChatStore.getState();
+    store.coalesceAssistantText('partial turn');
+    expect(useChatStore.getState().liveEvents).toHaveLength(1);
+    useChatStore.getState().clearLive();
+    expect(useChatStore.getState().liveEvents).toEqual([]);
   });
 });

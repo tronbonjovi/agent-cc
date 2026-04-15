@@ -1,88 +1,106 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import type { ChatMessage } from '../shared/types';
+// tests/chat-store.test.ts
+//
+// Tests for the chat store after the unified-capture task006 rewire.
+//
+// Before M2, the store held both persisted history (`messages`) and live
+// streaming chunks in the same buffer. Task006 splits those two layers:
+// React Query owns conversation history (via `useChatHistory`), and this
+// Zustand store now holds only the in-flight `liveEvents` buffer — the
+// chunks streaming in from the active SSE connection that have not yet been
+// flushed to the server's persisted store.
+//
+// The store's contract is intentionally tiny: a buffer, three mutators, a
+// streaming flag, and a setter. No more optimistic user messages, no more
+// conversationId-keyed message coalescing across conversations — live events
+// are always for the currently active stream.
+//
+// Zustand stores are module-scoped singletons; we re-import in `beforeEach`
+// and hard-reset state to keep tests order-independent.
 
-// Zustand stores are module-scoped singletons — import fresh and reset per test.
+import { describe, it, expect, beforeEach } from 'vitest';
+import type { InteractionEvent } from '../shared/types';
+
 let useChatStore: typeof import('../client/src/stores/chat-store').useChatStore;
 
 beforeEach(async () => {
   const mod = await import('../client/src/stores/chat-store');
   useChatStore = mod.useChatStore;
   useChatStore.setState({
-    messages: [],
+    liveEvents: [],
     conversationId: 'default',
     isStreaming: false,
   });
 });
 
-const makeUserMessage = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
-  id: 'u1',
-  conversationId: 'default',
-  role: 'user',
-  text: 'hello',
-  timestamp: '2026-04-14T00:00:00.000Z',
-  ...overrides,
-});
+// Helper: build a minimal InteractionEvent of a given variant.
+function makeTextEvent(overrides: Partial<InteractionEvent> = {}): InteractionEvent {
+  return {
+    id: 'e1',
+    conversationId: 'default',
+    parentEventId: null,
+    timestamp: '2026-04-15T00:00:00.000Z',
+    source: 'chat-ai',
+    role: 'assistant',
+    content: { type: 'text', text: 'hello' },
+    cost: null,
+    ...overrides,
+  };
+}
 
-describe('useChatStore', () => {
-  it('has correct initial state', () => {
+describe('useChatStore (live-events layer)', () => {
+  it('1. has correct initial state', () => {
     const state = useChatStore.getState();
-    expect(state.messages).toEqual([]);
+    expect(state.liveEvents).toEqual([]);
     expect(state.conversationId).toBe('default');
     expect(state.isStreaming).toBe(false);
   });
 
-  it('appendMessage adds a message', () => {
-    const msg = makeUserMessage({ text: 'hi there' });
-    useChatStore.getState().appendMessage(msg);
-    const { messages } = useChatStore.getState();
-    expect(messages).toHaveLength(1);
-    expect(messages[0]).toEqual(msg);
+  it('2. appendLiveEvent adds an event to the buffer', () => {
+    const event = makeTextEvent({ id: 'a1', content: { type: 'text', text: 'hi there' } });
+    useChatStore.getState().appendLiveEvent(event);
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents).toHaveLength(1);
+    expect(liveEvents[0]).toEqual(event);
   });
 
-  it('appendAssistantChunk creates a new assistant message when none exists', () => {
-    useChatStore.getState().appendAssistantChunk('default', 'hello');
-    const { messages } = useChatStore.getState();
-    expect(messages).toHaveLength(1);
-    expect(messages[0].role).toBe('assistant');
-    expect(messages[0].conversationId).toBe('default');
-    expect(messages[0].text).toBe('hello');
-    expect(messages[0].id).toBeTruthy();
-    expect(messages[0].timestamp).toBeTruthy();
-  });
-
-  it('appendAssistantChunk appends to existing assistant message with same conversationId', () => {
+  it('3. coalesceAssistantText appends to the last assistant text event', () => {
     const store = useChatStore.getState();
-    store.appendAssistantChunk('default', 'hello');
-    store.appendAssistantChunk('default', ' world');
-    const { messages } = useChatStore.getState();
-    expect(messages).toHaveLength(1);
-    expect(messages[0].text).toBe('hello world');
-    expect(messages[0].role).toBe('assistant');
+    // Seed a streaming assistant bubble.
+    store.appendLiveEvent(
+      makeTextEvent({ id: 'a1', role: 'assistant', content: { type: 'text', text: 'hello' } }),
+    );
+    // Second chunk arrives — should merge into the existing bubble.
+    store.coalesceAssistantText(' world');
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents).toHaveLength(1);
+    expect(liveEvents[0].role).toBe('assistant');
+    expect(liveEvents[0].content).toEqual({ type: 'text', text: 'hello world' });
   });
 
-  it('appendAssistantChunk creates a new message for a different conversationId', () => {
+  it('4. coalesceAssistantText creates a new assistant event when none exists', () => {
+    // No prior assistant bubble in the buffer — the coalesce call must
+    // materialise one rather than silently dropping the chunk.
+    useChatStore.getState().coalesceAssistantText('fresh start');
+    const { liveEvents } = useChatStore.getState();
+    expect(liveEvents).toHaveLength(1);
+    expect(liveEvents[0].role).toBe('assistant');
+    expect(liveEvents[0].content).toEqual({ type: 'text', text: 'fresh start' });
+    // New events should carry a non-empty id and timestamp so the renderer
+    // can key off them without clashes.
+    expect(liveEvents[0].id).toBeTruthy();
+    expect(liveEvents[0].timestamp).toBeTruthy();
+  });
+
+  it('5. clearLive empties the live event buffer', () => {
     const store = useChatStore.getState();
-    store.appendAssistantChunk('default', 'hello');
-    store.appendAssistantChunk('other', 'hi');
-    const { messages } = useChatStore.getState();
-    expect(messages).toHaveLength(2);
-    expect(messages[0].conversationId).toBe('default');
-    expect(messages[0].text).toBe('hello');
-    expect(messages[1].conversationId).toBe('other');
-    expect(messages[1].text).toBe('hi');
+    store.appendLiveEvent(makeTextEvent({ id: 'a' }));
+    store.appendLiveEvent(makeTextEvent({ id: 'b' }));
+    expect(useChatStore.getState().liveEvents).toHaveLength(2);
+    useChatStore.getState().clearLive();
+    expect(useChatStore.getState().liveEvents).toEqual([]);
   });
 
-  it('clear empties messages', () => {
-    const store = useChatStore.getState();
-    store.appendMessage(makeUserMessage({ id: 'a' }));
-    store.appendMessage(makeUserMessage({ id: 'b' }));
-    store.appendMessage(makeUserMessage({ id: 'c' }));
-    expect(useChatStore.getState().messages).toHaveLength(3);
-    useChatStore.getState().clear();
-    expect(useChatStore.getState().messages).toHaveLength(0);
-  });
-
-  it('setStreaming toggles the flag', () => {
+  it('6. setStreaming toggles the flag', () => {
     useChatStore.getState().setStreaming(true);
     expect(useChatStore.getState().isStreaming).toBe(true);
     useChatStore.getState().setStreaming(false);
