@@ -1023,3 +1023,29 @@ export function isAiEvent(e: InteractionEvent): boolean {
 export function isDeterministicEvent(e: InteractionEvent): boolean {
   return e.source === 'chat-slash' || e.source === 'chat-hook' || e.source === 'chat-workflow';
 }
+
+// ---------------------------------------------------------------------------
+// Chat UI tab state — chat-workflows-tabs milestone (task001)
+// ---------------------------------------------------------------------------
+//
+// Persisted across sessions in `DBData.chatUIState`. Held on the client by a
+// Zustand store (`client/src/stores/chat-tabs-store.ts`) and hydrated via
+// `GET /api/chat/tabs`. Every mutation on the client optimistically updates
+// local state and persists the full new shape via `PUT /api/chat/tabs`; on
+// failure the client reverts. Keeping openTabs and tabOrder separate lets
+// us reorder without rewriting the tab metadata, but for the skeleton the
+// two arrays are kept in lockstep.
+
+/** One open chat tab. `conversationId` is the durable key; `title` is UI label. */
+export interface ChatTabEntry {
+  conversationId: string;
+  title: string;
+}
+
+/** Full persisted chat tab state. */
+export interface ChatTabState {
+  openTabs: ChatTabEntry[];
+  activeTabId: string | null;
+  tabOrder: string[];
+}
+

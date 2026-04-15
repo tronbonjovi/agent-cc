@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, TerminalPanelState, CostRecord, CostIndexState } from "@shared/types";
+import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, TerminalPanelState, CostRecord, CostIndexState, ChatTabState } from "@shared/types";
 
 const dataDir = process.env.AGENT_CC_DATA
   ? path.resolve(process.env.AGENT_CC_DATA)
@@ -36,6 +36,14 @@ export interface DBData {
   costIndexState: CostIndexState;
   boardConfig: { projectColors: Record<string, string>; archivedMilestones: string[] };
   staleCounts: Record<string, number>;
+  /**
+   * Persisted chat UI tab state — which conversations are currently open as
+   * tabs, their ordering, and which one is active. Hydrated on the client by
+   * `client/src/stores/chat-tabs-store.ts` via `GET /api/chat/tabs`, and
+   * written back by `PUT /api/chat/tabs`. Missing on older DBs (migration-safe
+   * default is applied below).
+   */
+  chatUIState: ChatTabState;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -87,6 +95,7 @@ function defaultData(): DBData {
     costIndexState: { files: {}, totalRecords: 0, lastIndexAt: "", version: 1 },
     boardConfig: { projectColors: {}, archivedMilestones: [] },
     staleCounts: {},
+    chatUIState: { openTabs: [], activeTabId: null, tabOrder: [] },
   };
 }
 
@@ -178,6 +187,9 @@ try {
     if (!data.boardConfig) data.boardConfig = { projectColors: {}, archivedMilestones: [] };
     if (!data.boardConfig.archivedMilestones) data.boardConfig.archivedMilestones = [];
     if (!data.staleCounts) data.staleCounts = {};
+    if (!data.chatUIState) {
+      data.chatUIState = { openTabs: [], activeTabId: null, tabOrder: [] };
+    }
     // Silently discard leftover pipeline keys from older DB files
     delete (data as any).pipelineConfig;
     delete (data as any).pipelineRun;
