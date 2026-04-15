@@ -31,6 +31,7 @@ import { useChatStore } from '@/stores/chat-store';
 import { useChatHistory } from '@/hooks/use-chat-history';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
 import type { InteractionEvent } from '../../../../shared/types';
+import { extractChunkText } from '../../../../shared/chat-chunk';
 
 export function ChatPanel() {
   const conversationId = useChatStore((s) => s.conversationId);
@@ -57,27 +58,31 @@ export function ChatPanel() {
     es.onmessage = (ev) => {
       try {
         const chunk = JSON.parse(ev.data);
-        if (
-          chunk.type === 'text' &&
-          chunk.raw &&
-          typeof chunk.raw.text === 'string'
-        ) {
-          coalesceAssistantText(chunk.raw.text);
+        if (chunk.type === 'text') {
+          // Walk the canonical stream-json wire envelope through the shared
+          // parser so the server persistence path and the live render path
+          // can never drift. A guardrail in tests/chat-panel.test.ts bans
+          // the pre-fix shortcut.
+          const text = extractChunkText(chunk);
+          if (text) coalesceAssistantText(text);
         } else if (chunk.type === 'done') {
-          // Ask React Query to re-fetch the now-persisted events, then drop
-          // the live buffer. Order matters: invalidate first so the cache
-          // shows the fresh rows before the live bubble disappears.
+          // Release the streaming gate FIRST so that even if the query
+          // invalidation throws for some reason the Send button re-enables
+          // and the user isn't stuck behind a greyed-out input forever.
+          setStreaming(false);
           queryClient.invalidateQueries({
             queryKey: ['chat-history', conversationId],
           });
           clearLive();
-          setStreaming(false);
         }
         // Other chunk types (tool_call, tool_result, thinking, system) are
         // intentionally ignored in the live stream — they'll appear on the
         // next revalidation once the backend has persisted them.
-      } catch {
-        // Malformed chunk — skip it rather than killing the stream.
+      } catch (err) {
+        // Log loudly so the next regression is visible in devtools rather
+        // than silently swallowed the way the Bug-D investigation had to
+        // reverse-engineer from wire captures.
+        console.error('[chat-panel] onmessage error', err);
       }
     };
 

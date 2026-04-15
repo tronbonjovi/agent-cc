@@ -37,6 +37,7 @@ import type {
   InteractionRole,
   InteractionSource,
 } from "../../shared/types";
+import { getContentBlocks } from "../../shared/chat-chunk";
 
 /**
  * Sources that represent "chat" conversations for the task005 load API.
@@ -162,16 +163,6 @@ function extractThinking(raw: unknown): string | null {
     }
   }
   return null;
-}
-
-/** Defensive: reach into `raw.message.content` without crashing on junk. */
-function getContentBlocks(raw: unknown): Array<Record<string, any>> | null {
-  if (!raw || typeof raw !== "object") return null;
-  const message = (raw as { message?: unknown }).message;
-  if (!message || typeof message !== "object") return null;
-  const content = (message as { content?: unknown }).content;
-  if (!Array.isArray(content)) return null;
-  return content as Array<Record<string, any>>;
 }
 
 /**

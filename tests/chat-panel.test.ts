@@ -90,6 +90,54 @@ describe('chat-panel.tsx — source guardrails', () => {
     expect(src).not.toContain('appendAssistantChunk');
   });
 
+  it('reads text chunks through the shared chat-chunk parser (no raw.text shortcut)', () => {
+    // Regression guard: the pre-fix version read `chunk.raw.text` directly,
+    // which is always undefined for the real `{ type: "assistant", message:
+    // { content: [...] } }` wire shape, so the live bubble never rendered.
+    // The client and server must both walk the envelope through the shared
+    // `extractChunkText` helper so they cannot drift again.
+    expect(src).toContain('extractChunkText');
+    expect(src).toMatch(/from ['"][^'"]*shared\/chat-chunk['"]/);
+    // Isolate the onmessage handler and ban the shortcut only in that body;
+    // checking the whole file would trip on regex literals in surrounding
+    // comments or docstrings.
+    const onmessage = src.match(/es\.onmessage\s*=\s*\(ev\)\s*=>\s*\{[\s\S]*?\n\s{4}\};/);
+    expect(onmessage, 'onmessage handler not found').not.toBeNull();
+    expect(onmessage![0]).not.toMatch(/chunk\.raw\.text/);
+  });
+
+  it('logs onmessage parse errors loudly (no silent catch inside the SSE handler)', () => {
+    // Bug D was masked for an entire milestone by a bare `catch {}` in the
+    // onmessage handler. Any regression must surface in devtools rather than
+    // vanish into a swallow block — checked only in the onmessage body so we
+    // don't accidentally ban legitimate silent catches elsewhere (e.g. the
+    // "non-JSON error body" fallback in handleSubmit).
+    const onmessage = src.match(/es\.onmessage\s*=\s*\(ev\)\s*=>\s*\{[\s\S]*?\n\s{4}\};/);
+    expect(onmessage, 'onmessage handler not found').not.toBeNull();
+    const body = onmessage![0];
+    expect(body).toMatch(/catch\s*\(\s*\w+\s*\)\s*\{[\s\S]*?console\.error/);
+    expect(body).not.toMatch(/catch\s*\{/);
+  });
+
+  it('releases the streaming gate before running the done-handler side effects', () => {
+    // If `invalidateQueries` or `clearLive` ever throws on `done`, the Send
+    // button must still re-enable. Order: setStreaming(false) first, then
+    // the query/live-buffer bookkeeping.
+    const doneBranch = src.match(
+      /chunk\.type\s*===\s*['"]done['"][\s\S]*?\}\s*\n\s*(?:\/\/[^\n]*\n\s*)*\}/,
+    );
+    expect(doneBranch, 'done branch not found in onmessage handler').not.toBeNull();
+    const body = doneBranch![0];
+    const setStreamingIdx = body.indexOf('setStreaming(false)');
+    const invalidateIdx = body.indexOf('invalidateQueries');
+    const clearLiveIdx = body.indexOf('clearLive()');
+    expect(setStreamingIdx).toBeGreaterThan(-1);
+    expect(invalidateIdx).toBeGreaterThan(-1);
+    expect(clearLiveIdx).toBeGreaterThan(-1);
+    expect(setStreamingIdx).toBeLessThan(invalidateIdx);
+    expect(setStreamingIdx).toBeLessThan(clearLiveIdx);
+  });
+
   it('invalidates the chat-history query and clears live events on done', () => {
     // On SSE `done`, ChatPanel asks React Query to refetch the persisted
     // history and drops its in-flight buffer so the turn doesn't double-render.
