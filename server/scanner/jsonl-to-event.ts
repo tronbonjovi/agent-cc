@@ -98,17 +98,58 @@ export interface JsonlMapContext {
  * Convert parsed JSONL lines into `InteractionEvent[]`. Pure; no side
  * effects. Lines can be anything (strings, objects, garbage) — non-objects
  * and missing-field records are skipped.
+ *
+ * Two-pass resolution for tool_result → tool_call linking:
+ *
+ *   Pass 1 emits all events and, while walking assistant tool_use blocks,
+ *   records `toolUseId → eventId` in a map. tool_result events are emitted
+ *   with a synthetic placeholder `parentEventId` of the form
+ *   `tool-use:<toolUseId>` that pass 2 will resolve.
+ *
+ *   Pass 2 walks the emitted events, replaces every synthetic placeholder
+ *   with the real assistant-side event id from the map, or sets it to `null`
+ *   if no tool_use with that id was seen in the same file (bare tool_result).
+ *
+ * The synthetic placeholder is an internal detail of this function and never
+ * escapes — callers only ever see resolved ids or `null`.
  */
 export function jsonlLinesToEvents(
   lines: unknown[],
   context: JsonlMapContext,
 ): InteractionEvent[] {
+  // Pass 1: emit everything, recording tool_use → event id as we go.
   const out: InteractionEvent[] = [];
+  const toolUseToEventId = new Map<string, string>();
+
   for (const line of lines) {
     if (!isPlainRecord(line)) continue;
     const events = handleLine(line, context);
-    for (const e of events) out.push(e);
+    for (const e of events) {
+      if (
+        e.role === 'assistant' &&
+        e.content.type === 'tool_call' &&
+        e.content.toolUseId
+      ) {
+        // Don't overwrite if the same toolUseId somehow appears twice — the
+        // first tool_use wins, matching the natural reading order of a file.
+        if (!toolUseToEventId.has(e.content.toolUseId)) {
+          toolUseToEventId.set(e.content.toolUseId, e.id);
+        }
+      }
+      out.push(e);
+    }
   }
+
+  // Pass 2: resolve synthetic tool_result parent links to real event ids.
+  for (const e of out) {
+    const pid = e.parentEventId;
+    if (typeof pid === 'string' && pid.startsWith('tool-use:')) {
+      const toolUseId = pid.slice('tool-use:'.length);
+      const resolved = toolUseToEventId.get(toolUseId);
+      e.parentEventId = resolved ?? null;
+    }
+  }
+
   return out;
 }
 
@@ -294,10 +335,12 @@ function handleUser(
         output: block.content ?? null,
         isError: block.is_error === true,
       };
-      // Link back to the assistant's tool_call event. The assistant side
-      // emits those events with id `<parent-uuid>:tool:<idx>`, but that idx
-      // is not known here — so we derive the parent link from the stable
-      // tool_use_id instead. task002 can resolve it further if needed.
+      // Link back to the assistant's tool_call event. We don't know the real
+      // event id at this point (it's `<assistant-uuid>:tool:<idx>` from a
+      // possibly-unseen earlier record), so stamp a synthetic placeholder
+      // that the second pass in `jsonlLinesToEvents` will resolve against
+      // the toolUseId → eventId map. If no matching tool_use is found in the
+      // file, pass 2 will downgrade this to `null`.
       const parentEventId = toolUseId ? `tool-use:${toolUseId}` : null;
       events.push(
         makeEvent({

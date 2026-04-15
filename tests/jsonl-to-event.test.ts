@@ -132,21 +132,86 @@ describe('jsonlLinesToEvents — assistant tool_use', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Tool result → parentEventId via tool_use_id
+// 4. Tool result → parentEventId resolved to tool_call event id
 // ---------------------------------------------------------------------------
 describe('jsonlLinesToEvents — tool_result linking', () => {
-  it('emits a tool_result event with parentEventId derived from tool_use_id', () => {
+  it('emits a tool_result event whose parentEventId equals the real tool_call event id', () => {
+    const lines = [
+      {
+        type: 'assistant',
+        uuid: 'a-call',
+        timestamp: '2026-04-15T10:00:02.500Z',
+        message: {
+          role: 'assistant',
+          model: 'claude-opus-4-6',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'toolu_abc',
+              name: 'Read',
+              input: { file_path: '/tmp/x' },
+            },
+          ],
+          usage: { input_tokens: 5, output_tokens: 2 },
+        },
+      },
+      {
+        type: 'user',
+        uuid: 'u-2',
+        timestamp: '2026-04-15T10:00:03.000Z',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_abc',
+              content: 'file1.txt\nfile2.txt',
+              is_error: false,
+            },
+          ],
+        },
+      },
+    ];
+    const events = jsonlLinesToEvents(lines, CTX);
+    expect(events).toHaveLength(2);
+
+    // Look up the tool_call event actually emitted from the fixture — never
+    // hardcode its id shape. Whatever the mapper assigned it, the
+    // tool_result event must point at it.
+    const toolCall = events.find(
+      (e) => e.role === 'assistant' && e.content.type === 'tool_call',
+    );
+    const toolResult = events.find(
+      (e) => e.role === 'tool' && e.content.type === 'tool_result',
+    );
+    expect(toolCall).toBeDefined();
+    expect(toolResult).toBeDefined();
+
+    if (toolResult && toolResult.content.type === 'tool_result') {
+      expect(toolResult.content.toolUseId).toBe('toolu_abc');
+      expect(toolResult.content.isError).toBe(false);
+      expect(toolResult.content.output).toBe('file1.txt\nfile2.txt');
+    }
+    // The resolved parent link is the actual tool_call event id, not the
+    // synthetic `tool-use:<id>` placeholder used during pass 1.
+    expect(toolResult!.parentEventId).toBe(toolCall!.id);
+    expect(toolResult!.parentEventId).not.toContain('tool-use:');
+    expect(toolResult!.cost).toBeNull();
+  });
+
+  it('sets parentEventId: null when no matching tool_use exists in the file', () => {
+    // Bare tool_result — no assistant tool_use anywhere with this id.
     const line = {
       type: 'user',
-      uuid: 'u-2',
-      timestamp: '2026-04-15T10:00:03.000Z',
+      uuid: 'u-orphan',
+      timestamp: '2026-04-15T10:00:99.000Z',
       message: {
         role: 'user',
         content: [
           {
             type: 'tool_result',
-            tool_use_id: 'toolu_abc',
-            content: 'file1.txt\nfile2.txt',
+            tool_use_id: 'toolu_missing',
+            content: 'orphaned output',
             is_error: false,
           },
         ],
@@ -157,13 +222,11 @@ describe('jsonlLinesToEvents — tool_result linking', () => {
     const ev = events[0];
     expect(ev.role).toBe('tool');
     expect(ev.content.type).toBe('tool_result');
-    if (ev.content.type === 'tool_result') {
-      expect(ev.content.toolUseId).toBe('toolu_abc');
-      expect(ev.content.isError).toBe(false);
-      expect(ev.content.output).toBe('file1.txt\nfile2.txt');
+    // Must be null, never the synthetic placeholder.
+    expect(ev.parentEventId).toBeNull();
+    if (typeof ev.parentEventId === 'string') {
+      expect(ev.parentEventId).not.toContain('tool-use:');
     }
-    expect(ev.parentEventId).toBe('tool-use:toolu_abc');
-    expect(ev.cost).toBeNull();
   });
 });
 
