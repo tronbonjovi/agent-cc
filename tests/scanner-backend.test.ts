@@ -1,11 +1,12 @@
 /**
- * Scanner backend interface tests (M5 scanner-ingester task003).
+ * Scanner backend interface tests (M5 scanner-ingester task003 + task008).
  *
  * Guards the dual-path refactor:
  *   1. Default — with no env var, `getScannerBackend()` returns the
- *      legacy implementation (that's the safety net for M5 so task008's
- *      "flip the default" change is a single file edit).
- *   2. Opt-in — `SCANNER_BACKEND=store` returns the store backend.
+ *      store implementation (task008 flipped the default after task007's
+ *      parity gate closed).
+ *   2. Legacy rollback — `SCANNER_BACKEND=legacy` still returns the legacy
+ *      backend for one release cycle and logs a deprecation warning.
  *   3. Shape — both implementations expose every key listed in
  *      `SCANNER_BACKEND_METHODS`. Runtime guard against one side-drifting
  *      the interface (TS alone can catch most of this but only if the
@@ -15,7 +16,7 @@
  * That's task007 — do NOT add value-level equality checks here.
  */
 
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 
 import {
   getScannerBackend,
@@ -41,17 +42,17 @@ describe('scanner backend selector (task003)', () => {
   });
 
   describe('getScannerBackend()', () => {
-    it('defaults to the legacy backend when SCANNER_BACKEND is unset', () => {
+    it('defaults to the store backend when SCANNER_BACKEND is unset', () => {
       const backend = getScannerBackend();
-      expect(backend.name).toBe('legacy');
-      expect(backend).toBe(legacyBackend);
+      expect(backend.name).toBe('store');
+      expect(backend).toBe(storeBackend);
     });
 
-    it('defaults to legacy for unknown values (no silent opt-in)', () => {
-      // Typo protection — flipping to the store path should require the
-      // exact string, not any non-empty value.
+    it('defaults to store for unknown values (typo tolerance)', () => {
+      // Unknown values fall through to the default store backend rather
+      // than silently flipping to legacy.
       process.env.SCANNER_BACKEND = 'nonsense';
-      expect(getScannerBackend().name).toBe('legacy');
+      expect(getScannerBackend().name).toBe('store');
     });
 
     it('returns the store backend when SCANNER_BACKEND=store', () => {
@@ -61,14 +62,34 @@ describe('scanner backend selector (task003)', () => {
       expect(backend).toBe(storeBackend);
     });
 
-    it('case-insensitive and whitespace-tolerant', () => {
+    it('case-insensitive and whitespace-tolerant for store', () => {
       process.env.SCANNER_BACKEND = '  STORE ';
       expect(getScannerBackend().name).toBe('store');
     });
 
-    it('treats SCANNER_BACKEND=legacy explicitly', () => {
-      process.env.SCANNER_BACKEND = 'legacy';
-      expect(getScannerBackend().name).toBe('legacy');
+    it('treats SCANNER_BACKEND=legacy explicitly (rollback escape hatch)', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        process.env.SCANNER_BACKEND = 'legacy';
+        const backend = getScannerBackend();
+        expect(backend.name).toBe('legacy');
+        expect(backend).toBe(legacyBackend);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('logs a deprecation warning when SCANNER_BACKEND=legacy is used', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        process.env.SCANNER_BACKEND = 'legacy';
+        getScannerBackend();
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0][0]).toContain('SCANNER_BACKEND=legacy');
+        expect(warn.mock.calls[0][0]).toContain('deprecated');
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 

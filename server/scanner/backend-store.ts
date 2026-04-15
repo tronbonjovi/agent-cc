@@ -44,9 +44,10 @@
  *       - `stopReason` on assistant_text is always '' from the store
  *         because `InteractionCost` doesn't carry it.
  *
- * The legacy backend stays the default throughout M5 — any user setting
- * `SCANNER_BACKEND=store` today is opting into the gaps above; task008
- * only promotes the default once those are either closed or documented.
+ * As of task008 (M5 Phase 5) the store backend is the default; task007's
+ * parity gate signed off on the gaps above as known-and-documented. The
+ * legacy backend is retained for one release cycle behind
+ * `SCANNER_BACKEND=legacy` as a rollback escape hatch.
  *
  * Design notes (from task003, still current):
  *   - `listConversations` groups by `conversation_id`; sessions and

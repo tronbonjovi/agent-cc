@@ -14,9 +14,11 @@
  *                            `interactions-repo.ts`.
  *
  * Only one is active at a time. The active implementation is selected by the
- * `SCANNER_BACKEND` env var (values: `legacy` | `store`, default `legacy`).
- * During M5 the default stays `legacy` until task008 promotes `store` after
- * parity tests (task007) sign off.
+ * `SCANNER_BACKEND` env var (values: `legacy` | `store`, default `store`).
+ * Task008 (M5 Phase 5) promoted `store` to the default after the task007
+ * parity gate closed. `legacy` remains selectable for one release cycle as
+ * a rollback escape hatch and logs a deprecation warning when used; it will
+ * be deleted in the follow-up dispatch after manual smoke confirms `store`.
  *
  * This module intentionally contains ZERO logic beyond the factory — keeping
  * the interface and the selector in one file makes it trivial to grep for
@@ -124,9 +126,10 @@ import { legacyBackend } from './backend-legacy';
 import { storeBackend } from './backend-store';
 
 /**
- * Resolve the active scanner backend from `SCANNER_BACKEND`. Unknown or
- * missing values fall back to `legacy` so an accidental typo doesn't
- * silently flip production onto an experimental path.
+ * Resolve the active scanner backend from `SCANNER_BACKEND`. Default is
+ * `store`; `legacy` is retained for one release cycle as a rollback
+ * escape hatch and logs a deprecation warning on each resolution.
+ * Unknown or missing values fall through to `store`.
  *
  * Intentionally NOT memoized — tests flip the env var between calls, and
  * the lookup is just an env-var read. If that ever becomes a hot-path
@@ -143,6 +146,11 @@ import { storeBackend } from './backend-store';
  */
 export function getScannerBackend(): IScannerBackend {
   const raw = process.env.SCANNER_BACKEND?.toLowerCase().trim();
-  if (raw === 'store') return storeBackend;
-  return legacyBackend;
+  if (raw === 'legacy') {
+    console.warn(
+      '[scanner] SCANNER_BACKEND=legacy is deprecated and will be removed in the next release; unset the env var to use the default store backend.'
+    );
+    return legacyBackend;
+  }
+  return storeBackend;
 }

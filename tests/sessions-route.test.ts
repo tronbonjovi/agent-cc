@@ -641,6 +641,17 @@ function buildSevenKindTree(): SessionTree {
   };
 }
 
+// This test exercises the legacy scanner backend end-to-end through the
+// Express router: it mocks `session-scanner` + `session-cache` and writes
+// a real JSONL fixture that legacy path-based helpers read. Task008
+// flipped `SCANNER_BACKEND`'s default to `store`, so pin this file to the
+// legacy backend explicitly — legacy remains available for one release
+// cycle as a rollback escape hatch and is the right target for these
+// cache/fixture-based assertions. Store-side coverage of the same
+// timeline behaviors lives in scanner-backend-parity.test.ts.
+const __originalScannerBackend = process.env.SCANNER_BACKEND;
+process.env.SCANNER_BACKEND = "legacy";
+
 beforeAll(async () => {
   // Set up the fake CLAUDE_DIR structure so findSessionJsonl() resolves.
   fs.mkdirSync(TEST_PROJECT_DIR, { recursive: true });
@@ -666,6 +677,11 @@ afterAll(() => {
     fs.rmSync(CLAUDE_TEST_DIR, { recursive: true, force: true });
   } catch {
     // best-effort cleanup
+  }
+  if (__originalScannerBackend === undefined) {
+    delete process.env.SCANNER_BACKEND;
+  } else {
+    process.env.SCANNER_BACKEND = __originalScannerBackend;
   }
 });
 
