@@ -251,6 +251,102 @@ export function listConversations(): Array<{
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Helpers added by M5 scanner-ingester task003 (dual-path backend).
+// Kept scoped to what `backend-store.ts` needs today. Broader analytics
+// queries belong in later tasks (task004/005/006) once the parity gate is
+// green — avoid growing this file into a general-purpose query layer.
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-conversation rollup row returned by `listConversationRollups`. Enough
+ * fields to build a coarse `SessionData` shape from scanner-ingested data:
+ * count, boundary timestamps, a representative `sessionPath` (metadata),
+ * and total cost + token sums. Anything richer (firstMessage text, git
+ * branch, cwd) is not in the store schema and stays as a gap for task007
+ * to flag and task008 to decide on widening metadata vs keeping legacy.
+ */
+export interface ConversationRollupRow {
+  conversationId: string;
+  source: InteractionSource;
+  eventCount: number;
+  firstEvent: string | null;
+  lastEvent: string | null;
+  totalCostUsd: number;
+  totalTokensIn: number;
+  totalTokensOut: number;
+  /** Representative `sessionPath` from any event's `metadata_json`, or null. */
+  sessionPath: string | null;
+}
+
+interface RawRollupRow {
+  conversation_id: string;
+  source: string;
+  event_count: number;
+  first_event: string | null;
+  last_event: string | null;
+  total_cost_usd: number | null;
+  total_tokens_in: number | null;
+  total_tokens_out: number | null;
+  sample_metadata_json: string | null;
+}
+
+/**
+ * Group every event by `conversation_id` and return one rollup per
+ * conversation, used by the store-backed scanner backend to produce its
+ * session list. Cost/token aggregates parse `cost_json` via SQLite's
+ * `json_extract` — deterministic events (null cost_json) contribute 0,
+ * matching the cost indexer's convention.
+ *
+ * `sample_metadata_json` picks an arbitrary event from each group just so
+ * we can surface `sessionPath` without round-tripping every row; any
+ * ambiguity (e.g. different sidechain events carrying slightly different
+ * metadata) is resolved at the caller.
+ */
+export function listConversationRollups(): ConversationRollupRow[] {
+  const db = openDb();
+  const rows = db
+    .prepare(
+      `SELECT conversation_id,
+              source,
+              COUNT(*) AS event_count,
+              MIN(timestamp) AS first_event,
+              MAX(timestamp) AS last_event,
+              COALESCE(SUM(CAST(json_extract(cost_json, '$.usd') AS REAL)), 0) AS total_cost_usd,
+              COALESCE(SUM(CAST(json_extract(cost_json, '$.tokensIn') AS INTEGER)), 0) AS total_tokens_in,
+              COALESCE(SUM(CAST(json_extract(cost_json, '$.tokensOut') AS INTEGER)), 0) AS total_tokens_out,
+              MAX(metadata_json) AS sample_metadata_json
+       FROM events
+       GROUP BY conversation_id
+       ORDER BY last_event DESC`
+    )
+    .all() as RawRollupRow[];
+
+  return rows.map((r): ConversationRollupRow => {
+    let sessionPath: string | null = null;
+    if (r.sample_metadata_json !== null) {
+      try {
+        const meta = JSON.parse(r.sample_metadata_json) as Record<string, unknown>;
+        if (typeof meta.sessionPath === 'string') sessionPath = meta.sessionPath;
+      } catch {
+        // Malformed metadata row — ignore and leave sessionPath null rather
+        // than crashing the whole listing.
+      }
+    }
+    return {
+      conversationId: r.conversation_id,
+      source: r.source as InteractionSource,
+      eventCount: r.event_count,
+      firstEvent: r.first_event,
+      lastEvent: r.last_event,
+      totalCostUsd: r.total_cost_usd ?? 0,
+      totalTokensIn: r.total_tokens_in ?? 0,
+      totalTokensOut: r.total_tokens_out ?? 0,
+      sessionPath,
+    };
+  });
+}
+
 /**
  * Return a `{ source: count }` map across all events. Cheap aggregate the
  * dashboard uses to render per-stream activity totals.

@@ -3,12 +3,21 @@ import { spawn, execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { handleRouteError } from "../lib/route-errors";
-import { getCachedSessions, getCachedStats, removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
+import { removeCachedSession, restoreCachedSession } from "../scanner/session-scanner";
 import { CLAUDE_DIR, encodeProjectKey, dirExists, readMessageTimeline } from "../scanner/utils";
 import { SessionIdSchema, SessionListSchema, IdsArraySchema, DeepSearchSchema, validate, qstr, validateSafePath } from "./validation";
 import { TRASH_DIR, MAX_SESSIONS_RESPONSE } from "../config";
 import { deepSearch } from "../scanner/deep-search";
-import { getCostAnalytics, getFileHeatmap, getHealthAnalytics, getSessionCost, getStaleAnalytics } from "../scanner/session-analytics";
+import { getCostAnalytics, getFileHeatmap, getHealthAnalytics, getStaleAnalytics } from "../scanner/session-analytics";
+// Scanner data-read surface — see `server/scanner/backend.ts`. Every route
+// that reaches into JSONL-parsed data (session list, stats, message
+// timeline, per-session cost) goes through this factory so M5 task008 can
+// flip the implementation via `SCANNER_BACKEND=store` without touching
+// route code. The mutation endpoints (delete/undo) still hold references
+// to `removeCachedSession`/`restoreCachedSession` because the cache
+// invalidation contract is legacy-specific; the store backend rebuilds
+// its view on the next ingester tick.
+import { getScannerBackend } from "../scanner/backend";
 import { getSessionCommits } from "../scanner/commit-linker";
 import { getProjectDashboards } from "../scanner/project-dashboard";
 import { getSessionDiffs } from "../scanner/session-diffs";
@@ -20,7 +29,7 @@ import { getContinuationBrief } from "../scanner/continuation-detector";
 import { getBashKnowledgeBase, searchBashCommands } from "../scanner/bash-knowledge";
 import { getNerveCenterData } from "../scanner/nerve-center";
 import { sessionParseCache } from "../scanner/session-cache";
-import { parseSessionMessages, enrichMessagesWithTree } from "../scanner/session-parser";
+import { enrichMessagesWithTree } from "../scanner/session-parser";
 import type { SessionTree, SessionTreeNode, SubagentRootNode, TimelineMessageType } from "@shared/session-types";
 import { storage } from "../storage";
 import crypto from "crypto";
@@ -162,8 +171,8 @@ router.get("/api/sessions", (req: Request, res: Response) => {
 
   const { q, sort, order, hideEmpty, activeOnly, project, page, limit } = params;
 
-  let sessions = getCachedSessions();
-  const stats = getCachedStats();
+  let sessions = getScannerBackend().listSessions();
+  const stats = getScannerBackend().getStats();
 
   if (project) {
     // Find the project entity to get its real path, then encode for matching
@@ -251,7 +260,7 @@ router.get("/api/sessions/search", async (req: Request, res: Response) => {
   if (!params) return;
 
   try {
-    const sessions = getCachedSessions();
+    const sessions = getScannerBackend().listSessions();
     const summaries = storage.getSummaries();
     const result = await deepSearch({
       query: params.q,
@@ -271,25 +280,25 @@ router.get("/api/sessions/search", async (req: Request, res: Response) => {
 
 /** GET /api/sessions/analytics/costs — Cost analytics across all sessions */
 router.get("/api/sessions/analytics/costs", (_req: Request, res: Response) => {
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(getCostAnalytics(sessions));
 });
 
 /** GET /api/sessions/analytics/files — File heatmap */
 router.get("/api/sessions/analytics/files", (_req: Request, res: Response) => {
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(getFileHeatmap(sessions));
 });
 
 /** GET /api/sessions/analytics/health — Session health scores */
 router.get("/api/sessions/analytics/health", (_req: Request, res: Response) => {
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(getHealthAnalytics(sessions));
 });
 
 /** GET /api/sessions/analytics/stale — Stale session suggestions */
 router.get("/api/sessions/analytics/stale", (_req: Request, res: Response) => {
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(getStaleAnalytics(sessions));
 });
 
@@ -298,7 +307,7 @@ router.post("/api/sessions/context-loader", (req: Request, res: Response) => {
   const project = (req.body as { project?: string })?.project;
   if (!project) return res.status(400).json({ error: "project is required" });
 
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   const summaries = storage.getSummaries();
 
   // Find sessions for this project using encoding-based matching
@@ -350,13 +359,13 @@ router.post("/api/sessions/context-loader", (req: Request, res: Response) => {
 
 /** GET /api/sessions/analytics/projects — Project dashboards */
 router.get("/api/sessions/analytics/projects", (_req: Request, res: Response) => {
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(getProjectDashboards(sessions));
 });
 
 /** GET /api/sessions/analytics/digest — Weekly digest */
 router.get("/api/sessions/analytics/digest", (_req: Request, res: Response) => {
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(generateWeeklyDigest(sessions));
 });
 
@@ -430,7 +439,7 @@ router.patch("/api/sessions/workflows", (req: Request, res: Response) => {
 /** POST /api/sessions/workflows/run — Run auto-workflows manually */
 router.post("/api/sessions/workflows/run", async (_req: Request, res: Response) => {
   try {
-    const sessions = getCachedSessions();
+    const sessions = getScannerBackend().listSessions();
     const result = await runAutoWorkflows(sessions);
     res.json(result);
   } catch (err) {
@@ -465,7 +474,7 @@ router.patch("/api/sessions/:id/name", (req: Request, res: Response) => {
 router.get("/api/sessions/file-timeline", (req: Request, res: Response) => {
   const filePath = qstr(req.query.path);
   if (!filePath) return res.status(400).json({ error: "path parameter is required" });
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(getFileTimeline(sessions, filePath));
 });
 
@@ -475,7 +484,7 @@ router.post("/api/sessions/nl-query", async (req: Request, res: Response) => {
   const question = (req.body as { question?: string })?.question;
   if (!question || question.length < 3) return res.status(400).json({ error: "question is required (min 3 chars)" });
   try {
-    const sessions = getCachedSessions();
+    const sessions = getScannerBackend().listSessions();
     const result = await runNLQuery(question.slice(0, 500), sessions);
     res.json(result);
   } catch (err) {
@@ -485,13 +494,13 @@ router.post("/api/sessions/nl-query", async (req: Request, res: Response) => {
 
 /** GET /api/sessions/continuations — Unfinished work that needs attention */
 router.get("/api/sessions/continuations", async (_req: Request, res: Response) => {
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(await getContinuationBrief(sessions));
 });
 
 /** GET /api/sessions/analytics/bash — Bash command knowledge base */
 router.get("/api/sessions/analytics/bash", (_req: Request, res: Response) => {
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(getBashKnowledgeBase(sessions));
 });
 
@@ -499,14 +508,14 @@ router.get("/api/sessions/analytics/bash", (_req: Request, res: Response) => {
 router.get("/api/sessions/analytics/bash/search", (req: Request, res: Response) => {
   const q = qstr(req.query.q);
   if (!q) return res.status(400).json({ error: "q parameter required" });
-  const sessions = getCachedSessions();
+  const sessions = getScannerBackend().listSessions();
   res.json(searchBashCommands(sessions, q));
 });
 
 /** GET /api/sessions/nerve-center — Operations nerve center */
 router.get("/api/sessions/nerve-center", async (_req: Request, res: Response) => {
   try {
-    const sessions = getCachedSessions();
+    const sessions = getScannerBackend().listSessions();
     res.json(await getNerveCenterData(sessions));
   } catch (err) {
     handleRouteError(res, err, "routes/sessions/nerve-center");
@@ -528,7 +537,7 @@ router.get("/api/sessions/:id", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
-  const session = getCachedSessions().find(s => s.id === idResult.data);
+  const session = getScannerBackend().listSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ error: "Session not found" });
 
   const safePath = await validateSafePath(session.filePath);
@@ -636,7 +645,7 @@ router.get("/api/sessions/:id/messages", async (req: Request, res: Response) => 
   const limit = Math.min(500, Math.max(1, parseInt(qstr(req.query.limit) || "200", 10) || 200));
 
   const typesFilter = parseTypesFilter(qstr(req.query.types));
-  const { messages, totalMessages } = parseSessionMessages(safePath, offset, limit, typesFilter);
+  const { messages, totalMessages } = getScannerBackend().getSessionMessages(safePath, offset, limit, typesFilter);
 
   const wantTree = includesSection(qstr(req.query.include), "tree");
   if (wantTree) {
@@ -663,7 +672,7 @@ router.get("/api/sessions/:id/diffs", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
-  const session = getCachedSessions().find(s => s.id === idResult.data);
+  const session = getScannerBackend().listSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ error: "Session not found" });
 
   res.json(getSessionDiffs(session));
@@ -697,8 +706,8 @@ router.get("/api/sessions/:id/costs", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
-  const sessions = getCachedSessions();
-  const cost = getSessionCost(sessions, idResult.data);
+  const sessions = getScannerBackend().listSessions();
+  const cost = getScannerBackend().getSessionCost(sessions, idResult.data);
   if (!cost) return res.status(404).json({ error: "No cost data found" });
 
   res.json(cost);
@@ -709,7 +718,7 @@ router.get("/api/sessions/:id/commits", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
-  const session = getCachedSessions().find(s => s.id === idResult.data);
+  const session = getScannerBackend().listSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ error: "Session not found" });
 
   const commits = getSessionCommits(session);
@@ -732,7 +741,7 @@ router.delete("/api/sessions/:id", async (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
-  const session = getCachedSessions().find(s => s.id === idResult.data);
+  const session = getScannerBackend().listSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ error: "Session not found" });
 
   const trashPath = await trashSession(session.filePath);
@@ -755,7 +764,7 @@ router.delete("/api/sessions", async (req: Request, res: Response) => {
   const batch: DeleteRecord[] = [];
 
   for (const id of parsed) {
-    const session = getCachedSessions().find(s => s.id === id);
+    const session = getScannerBackend().listSessions().find(s => s.id === id);
     if (!session) { failed.push(id); continue; }
     const trashPath = await trashSession(session.filePath);
     if (trashPath) {
@@ -774,7 +783,7 @@ router.delete("/api/sessions", async (req: Request, res: Response) => {
 
 /** POST /api/sessions/delete-all — Delete all sessions (moves to trash), skips pinned */
 router.post("/api/sessions/delete-all", async (_req: Request, res: Response) => {
-  const sessions = [...getCachedSessions()];
+  const sessions = [...getScannerBackend().listSessions()];
   if (sessions.length === 0) return res.json({ deleted: 0, skipped: 0, canUndo: false });
 
   const pinnedSet = new Set(storage.getPinnedSessions());
@@ -824,7 +833,7 @@ router.post("/api/sessions/:id/open", (req: Request, res: Response) => {
   const idResult = SessionIdSchema.safeParse(req.params.id);
   if (!idResult.success) return res.status(400).json({ error: "Invalid session ID format" });
 
-  const session = getCachedSessions().find(s => s.id === idResult.data);
+  const session = getScannerBackend().listSessions().find(s => s.id === idResult.data);
   if (!session) return res.status(404).json({ error: "Session not found" });
 
   try {

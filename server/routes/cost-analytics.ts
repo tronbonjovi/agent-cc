@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { handleRouteError, NotFoundError } from "../lib/route-errors";
-import { getCostSummary, getSessionCostDetail } from "../scanner/cost-indexer";
+// Cost summary + per-session detail now route through the scanner backend
+// interface. The anatomy/models/cache/value endpoints below still read the
+// session parse cache directly because those aggregates depend on the
+// comprehensive `ParsedSession` shape — those aren't part of the backend
+// interface until M5 task004/006 reshape them.
+import { getScannerBackend } from "../scanner/backend";
 import { computeTokenAnatomy } from "../scanner/token-anatomy";
 import { computeModelIntelligence } from "../scanner/model-intelligence";
 import { computeCacheEfficiency } from "../scanner/cache-efficiency";
@@ -14,7 +19,7 @@ router.get("/api/analytics/costs", (_req, res) => {
   try {
     const rawDays = parseInt(_req.query.days as string, 10);
     const days = [7, 30, 90].includes(rawDays) ? rawDays : 30;
-    const summary = getCostSummary(days);
+    const summary = getScannerBackend().getCostSummary(days);
     res.json(summary);
   } catch (err) {
     handleRouteError(res, err, "routes/analytics/costs/summary");
@@ -24,7 +29,7 @@ router.get("/api/analytics/costs", (_req, res) => {
 /** GET /api/analytics/costs/session/:id — Detailed cost breakdown for one session */
 router.get("/api/analytics/costs/session/:id", (req, res) => {
   try {
-    const detail = getSessionCostDetail(req.params.id);
+    const detail = getScannerBackend().getSessionCostDetail(req.params.id);
     if (!detail) throw new NotFoundError("Session not found or has no cost data");
     res.json(detail);
   } catch (err) {

@@ -122,6 +122,7 @@ When adding integrations with external services:
 | `TELEGRAM_BOT_URL` | Telegram bot HTTP API URL | (disabled) |
 | `ALLOWED_ORIGINS` | Extra CORS origins for reverse proxy (comma-separated) | (none) |
 | `EXTRA_PROJECT_DIRS` | Extra project directories for scanner (comma-separated) | (none) |
+| `SCANNER_BACKEND` | Scanner data-read backend: `legacy` (parse JSONL on every request) or `store` (query `interactions.db`). Default stays `legacy` through M5 until task008 promotes `store` after task007 parity sign-off. | `legacy` |
 
 ## Tests
 
