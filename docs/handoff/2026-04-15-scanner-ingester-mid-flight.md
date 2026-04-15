@@ -1,8 +1,8 @@
-# Scanner-ingester mid-flight handoff (2026-04-15)
+# Scanner-ingester mid-flight handoff (2026-04-15, end of day)
 
 ## Where we are
 
-Milestone 5 (`scanner-ingester`) is **4/8 complete** on branch `feature/scanner-ingester`. Branch is NOT merged to `main`.
+Milestone 5 (`scanner-ingester`) is **6/8 complete** on branch `feature/scanner-ingester`. Branch is NOT merged to `main`. Phase 3 (Cost + dashboard) closed this session.
 
 ```
 f226d16 task001 — JSONL→InteractionEvent mapper
@@ -12,43 +12,44 @@ d58b23d task002 — sweep: shared INSERT_EVENT_SQL + real EXTRA_PROJECT_DIRS tes
 b714c3b task003 — dual-path backend (IScannerBackend + SCANNER_BACKEND flag)
 044fd7f task004 — backend-store implements analytics methods (parity)
 096d6a4 task004 — sweep: bounded queries in getCostSummary + tighter parity test isolation
+3f167e4 task005 — cost summary gains bySource dimension
+d682723 task006 — countBySource + AI-vs-deterministic card
 ```
 
-Tests: 5895 passing across 173 files. Typecheck clean. Pre-commit safety hook green.
+Tests: 5928 passing across 174 files. Typecheck clean. Pre-commit safety hook green.
 
 ## What's next
 
-Phase 3 — Cost + dashboard:
-- **task005** — Cost indexer gains `bySource` dimension (standard, files: `server/scanner/cost-indexer.ts`)
-- **task006** — AI vs deterministic cost card (standard, frontend dashboard component, depends on task005's API shape)
+Phase 4 — Parity gate (**solo, non-negotiable**):
+- **task007** — Scanner backend parity gate runner. Dependencies: task003 + task004 + task005 (all done). Runs a fixture-vs-fixture parity sweep across the full `IScannerBackend` surface comparing legacy vs store on the same source data. Six documented gaps must be explicitly skipped, not faked. Model on the existing `tests/scanner-backend-parity.test.ts` which already covers `getCostSummary` (including `bySource` + `countBySource` agreement) — task007 extends this pattern to every other backend method.
 
-TASK.md flags these as "stagger or run sequentially" — task006 depends on task005's API surface. Same pattern as Phase 2 (task003 → task004).
-
-After Phase 3:
-- Phase 4 — **task007** parity gate runner (non-negotiable before promotion). Should grep for `backend-store: parity gap` markers — currently zero stubs remain after task004, so the runner becomes a fixture-vs-fixture parity sweep over the full `IScannerBackend` surface, modeled on `tests/scanner-backend-parity.test.ts`.
+After Phase 4:
 - Phase 5 — **task008** promote `SCANNER_BACKEND=store` to default + retire legacy code paths. Manual smoke required before deletion.
 
 ## How to resume next session
 
 1. Open a fresh session in `~/dev/projects/agent-cc`
 2. Confirm you're on `feature/scanner-ingester` (`git status`)
-3. Run `/work-task scanner-ingester` — the orchestrator should present task005 as the next ready task
+3. Run `/work-task scanner-ingester` — the orchestrator should present task007 as the next ready task
 4. Read this handoff and the project memory (`project_scanner_ingester_progress.md`) before dispatching
-5. Sequential dispatch: task005 first, then task006 after review
+5. Task007 is **solo** — no parallel dispatch. Honor the review gate after it completes before starting task008.
 
 ## Things to remember
 
 - **Branch discipline:** stay on `feature/scanner-ingester`. Do not merge to main until task008.
-- **Honor review gates:** stop after each task for reviewer + user approval before dispatching the next.
-- **Sweep pattern:** non-blocking review nits get fixed in a small sweep commit before moving on, same as task002 + task004 sweeps.
-- **Parity is non-negotiable:** task007 is the gate before task008. Don't skip it.
+- **Honor review gates:** stop after task007 for reviewer + user approval before dispatching task008 (the cutover).
+- **Sweep pattern:** non-blocking review nits get fixed in a small sweep commit before moving on, same as task002 + task004 sweeps. No sweeps needed after task005 or task006.
+- **Parity is non-negotiable:** task007 is the gate. Don't skip it. Don't loosen the assertions.
 - **Six documented parity gaps** exist between legacy and store (see `backend-store.ts` module header + `tests/scanner-backend-parity.test.ts` header). They're tracked, not faked. Task007's runner should explicitly skip those fields, not assert equality on them.
-- **Deploy still pending from prior session:** `sudo systemctl restart agent-cc` was needed to pick up the optimistic-echo change from `5526705` (2026-04-15 wrap-up). If this wrap-up's deploy runs, that gets picked up too.
+- **Zero new parity gaps** were introduced by Phase 3 — task005 + task006 both passed strict parity review.
+- **Task contract hygiene:** task006's original contract had four landmines (stale endpoint name, missing upstream field, vitest client exclusion ignored, assumed non-existent directory). Rewrote in-session before dispatch — documented in the task file's Notes section. Task007's contract should be validated against real file paths at dispatch time before spinning up a subagent.
+- **Deploy pending:** this session's work needs `sudo systemctl restart agent-cc` to pick up the new dashboard card + backend changes on `acc.devbox`.
 
-## Files most relevant to task005/006
+## Files most relevant to task007
 
-- `server/scanner/cost-indexer.ts` — legacy cost indexer (the one task005 adds `bySource` to)
-- `server/scanner/event-reductions.ts` — pure reducers from task004; task005 likely extends `reduceCostSummary` / `reduceSessionCost` with source dimension
-- `shared/types.ts` — `CostSummary`, `SessionCostData` types (will need new `bySource` field)
-- `client/src/components/dashboard/` — task006's dashboard card lives here
-- `tests/scanner-backend-parity.test.ts` — parity test pattern to extend for new methods
+- `tests/scanner-backend-parity.test.ts` — existing parity test pattern, now covers `getCostSummary` with `bySource` + `countBySource`. Task007's runner should extend this to every `IScannerBackend` method.
+- `server/scanner/backend.ts` — `IScannerBackend` interface + `SCANNER_BACKEND_METHODS` array (the list task007 should iterate over)
+- `server/scanner/backend-store.ts` — module header lists the six documented parity gaps
+- `server/scanner/backend-legacy.ts` — pure delegation to legacy helpers
+- `server/scanner/event-reductions.ts` — pure reducers backing the store; covered by reducer tests in `tests/cost-indexer.test.ts`
+- `tests/fixtures/jsonl-samples/` — synthetic JSONL fixtures from task001; reuse these for the parity runner
