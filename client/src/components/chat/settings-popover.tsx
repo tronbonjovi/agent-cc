@@ -31,6 +31,7 @@
 
 import { useRef, useState, type ChangeEvent } from 'react';
 import { Plus, ChevronDown, ChevronRight, Check, Paperclip, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -266,10 +267,17 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
             }
           />
 
-          {/*
-            task006 slot — project context selector mounts here.
-          */}
-          <div data-testid="chat-settings-slot-task006" />
+          {/* Project context selector (task006) ---------------------------
+              When a project is selected, the server passes its path as
+              `cwd` to the Claude CLI so the model sees that project's
+              CLAUDE.md, git state, and file tree. "General" (the default)
+              leaves `cwd` unset so the CLI uses the server process's cwd. */}
+          <ProjectSelector
+            value={current.projectPath}
+            onChange={(next) =>
+              updateSettings(conversationId, { projectPath: next })
+            }
+          />
         </div>
       </PopoverContent>
     </Popover>
@@ -379,6 +387,99 @@ function SystemPromptSection({
           className="w-full resize-y rounded-md border border-input bg-background px-2 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Project context selector. "General" (no cwd) is always first; the rest of
+ * the list comes from `GET /api/projects` — the same scanner-discovered
+ * endpoint that powers the Library project page. We reuse it deliberately
+ * instead of adding a new endpoint: the composer's definition of "a
+ * project the user might want to chat about" is identical to the scanner's
+ * definition of a project entity.
+ *
+ * React Query handles caching — other consumers (`useProjects` in
+ * `hooks/use-projects.ts`) share the same cache key, so opening the popover
+ * a second time hits the cache rather than the network.
+ */
+interface ProjectListItem {
+  id: string;
+  name: string;
+  path: string;
+}
+
+function ProjectSelector({
+  value,
+  onChange,
+}: {
+  /** Currently selected project path; undefined means "General". */
+  value: string | undefined;
+  /** Called with the new path, or undefined to clear back to "General". */
+  onChange: (next: string | undefined) => void;
+}) {
+  // Shared cache key with `useProjects()` so we don't duplicate the fetch.
+  const { data } = useQuery<ProjectListItem[]>({
+    queryKey: ['/api/projects'],
+  });
+  const projects = Array.isArray(data) ? data : [];
+
+  // Resolve the label for the current selection. Falling back to the raw
+  // path (rather than a misleading default) mirrors displayNameFor() in the
+  // provider selector — an unrecognized path still renders truthfully.
+  const currentLabel = (() => {
+    if (!value) return 'General';
+    const match = projects.find((p) => p.path === value);
+    return match ? match.name : value;
+  })();
+
+  return (
+    <div
+      className="space-y-1.5"
+      data-testid="chat-settings-project"
+    >
+      <label className="text-xs font-medium text-muted-foreground">
+        Project context
+      </label>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full justify-between"
+            aria-label={`Project context: ${currentLabel}`}
+          >
+            <span className="truncate">{currentLabel}</span>
+            <ChevronDown className="h-3 w-3 opacity-60" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[14rem] max-h-[40vh] overflow-y-auto">
+          {/* "General" — no cwd. Always first so it's the obvious default. */}
+          <DropdownMenuItem
+            data-testid="chat-settings-project-item-general"
+            onSelect={() => onChange(undefined)}
+          >
+            <span className="flex-1">General</span>
+            {!value && <Check className="ml-2 h-3.5 w-3.5" />}
+          </DropdownMenuItem>
+          {projects.map((p) => {
+            const isActive = p.path === value;
+            return (
+              <DropdownMenuItem
+                key={p.id}
+                data-testid={`chat-settings-project-item-${p.id}`}
+                onSelect={() => onChange(p.path)}
+              >
+                <span className="flex-1 truncate" title={p.path}>
+                  {p.name}
+                </span>
+                {isActive && <Check className="ml-2 h-3.5 w-3.5" />}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

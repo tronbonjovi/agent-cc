@@ -173,6 +173,17 @@ export interface StreamingClaudeOptions {
    * milestone that exposes both flags.
    */
   systemPrompt?: string;
+  /**
+   * Optional working directory for the CLI subprocess. When provided, the
+   * child inherits this directory as its cwd — so `claude` sees that
+   * project's CLAUDE.md, git state, and file tree. When omitted (the
+   * composer's default "General" selection), we don't pass a cwd to
+   * `spawn`, which leaves the child inheriting the agent-cc server's own
+   * cwd — the same behavior chat had before the project selector existed.
+   * Wired from the popover project selector — see
+   * `chat-composer-controls-task006`.
+   */
+  cwd?: string;
 }
 
 /** A single parsed chunk yielded by runClaudeStreaming. */
@@ -234,6 +245,7 @@ export async function* runClaudeStreaming(
     model,
     effort,
     systemPrompt,
+    cwd,
   } = opts;
   // `thinking` and `webSearch` are intentionally destructured nowhere: the
   // CLI exposes no matching flag today (`claude --help` has neither
@@ -276,10 +288,18 @@ export async function* runClaudeStreaming(
     args.push("--append-system-prompt", systemPrompt);
   }
 
-  const child = spawn("claude", args, {
+  // Build spawn options. `cwd` is only present on the options object when
+  // the caller provided one — Node's `spawn` doesn't differentiate between
+  // missing and `undefined`, but the route-layer tests pin "no cwd on
+  // General" by inspecting the options object, so we keep the shape tight.
+  const spawnOpts: { env: typeof env; stdio: ["pipe", "pipe", "pipe"]; cwd?: string } = {
     env,
     stdio: ["pipe", "pipe", "pipe"],
-  });
+  };
+  if (cwd && cwd.length > 0) {
+    spawnOpts.cwd = cwd;
+  }
+  const child = spawn("claude", args, spawnOpts);
 
   // Queue-based bridge between event callbacks and the async generator.
   type Event =

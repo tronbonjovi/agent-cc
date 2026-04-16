@@ -216,10 +216,20 @@ export function ChatPanel() {
       // `model` in the body. Attachments are intentionally not forwarded —
       // they're stored in the settings override as a forward-compat
       // placeholder, but the runner has no file-injection plumbing yet.
+      // task006: `projectPath` joins the body. When the user picks a
+      // project in the settings popover, the server passes it as `cwd` to
+      // the CLI so Claude sees that project's CLAUDE.md / git / files.
       const settings = useChatSettingsStore
         .getState()
         .getSettings(conversationId);
-      const { model, effort, thinking, webSearch, systemPrompt } = settings;
+      const {
+        model,
+        effort,
+        thinking,
+        webSearch,
+        systemPrompt,
+        projectPath,
+      } = settings;
       const res = await fetch('/api/chat/prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -231,6 +241,7 @@ export function ChatPanel() {
           thinking,
           webSearch,
           systemPrompt,
+          projectPath,
         }),
       });
       if (!res.ok) {

@@ -81,6 +81,7 @@ router.post("/prompt", async (req: Request, res: Response) => {
     thinking,
     webSearch,
     systemPrompt,
+    projectPath,
   } = req.body ?? {};
   if (!conversationId || !text) {
     return res.status(400).json({ error: "conversationId and text required" });
@@ -106,6 +107,14 @@ router.post("/prompt", async (req: Request, res: Response) => {
   const systemPromptText: string | undefined =
     typeof systemPrompt === "string" && systemPrompt.length > 0
       ? systemPrompt
+      : undefined;
+  // task006: `projectPath` from the composer's project selector maps to the
+  // runner's `cwd` option. Empty string (client sent "General") or any
+  // non-string payload falls through to undefined, so the runner spawns
+  // without cwd and the CLI uses its default working directory.
+  const projectCwd: string | undefined =
+    typeof projectPath === "string" && projectPath.length > 0
+      ? projectPath
       : undefined;
 
   res.json({ ok: true });
@@ -136,6 +145,7 @@ router.post("/prompt", async (req: Request, res: Response) => {
         thinking: thinkingFlag,
         webSearch: webSearchFlag,
         systemPrompt: systemPromptText,
+        cwd: projectCwd,
       })) {
         // Capture session ID from CLI stream init envelope
         if (

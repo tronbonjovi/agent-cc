@@ -59,10 +59,13 @@ describe('settings-popover.tsx — task005 controls', () => {
     );
   });
 
-  it('leaves the task006 placeholder slot alone', () => {
-    // Task006 (project context) lands in a follow-up task — its slot must
-    // stay empty for now.
-    expect(src).toMatch(/data-testid=["']chat-settings-slot-task006["']/);
+  it('task006 placeholder slot has been replaced by the project selector', () => {
+    // When task005 shipped, the task006 slot was still the empty placeholder.
+    // Once task006 lands, the empty-div placeholder must be gone. The real
+    // selector test lives in chat-project-selector.test.ts.
+    expect(src).not.toMatch(
+      /data-testid=["']chat-settings-slot-task006["']\s*\/>/,
+    );
   });
 
   it('mounts an effort selector with low/medium/high options', () => {
