@@ -462,6 +462,24 @@ router.get("/conversations", (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/chat/conversations/all
+ * Returns EVERY conversation across every source — no chat-source filter.
+ * Added for chat-import-platforms task004 (unified conversation sidebar):
+ * the sidebar groups conversations by source so a user can see scanner-jsonl
+ * imports alongside native chat conversations and click through to open or
+ * import. Planned external sources (github-issue, telegram, …) aren't wired
+ * for ingestion yet, so their groups will render empty by design.
+ *
+ * Ordering: whatever `listConversations` returns (lastEvent DESC). Empty DB
+ * → `{ conversations: [] }` with a 200. The client still needs to render
+ * metadata-driven empty sections for planned sources; we don't pre-pad here.
+ */
+router.get("/conversations/all", (_req: Request, res: Response) => {
+  const conversations = listConversations();
+  res.json({ conversations });
+});
+
+/**
  * GET /api/chat/conversations/:id/events
  * Returns every event for the given conversation in timestamp-ASC order.
  * Unknown id → `{ events: [] }` with a 200 (no 404 — the frontend treats an
