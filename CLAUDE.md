@@ -122,6 +122,7 @@ When adding integrations with external services:
 | `TELEGRAM_BOT_URL` | Telegram bot HTTP API URL | (disabled) |
 | `ALLOWED_ORIGINS` | Extra CORS origins for reverse proxy (comma-separated) | (none) |
 | `EXTRA_PROJECT_DIRS` | Extra project directories for scanner (comma-separated) | (none) |
+| `OLLAMA_URL` | Default base URL for the built-in `ollama` provider (M11) | http://localhost:11434 |
 
 ## Tests
 
