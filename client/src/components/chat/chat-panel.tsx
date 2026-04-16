@@ -223,6 +223,7 @@ export function ChatPanel() {
         .getState()
         .getSettings(conversationId);
       const {
+        providerId,
         model,
         effort,
         thinking,
@@ -230,12 +231,22 @@ export function ChatPanel() {
         systemPrompt,
         projectPath,
       } = settings;
+      // M11 task008: include providerId so the server's router dispatches
+      // to the correct adapter. Without this, the composer's provider
+      // selector (task007) has no effect — the server would silently fall
+      // back to claude-code. When the store hasn't resolved providers yet
+      // (mid-load, pre-loadProviders) we pass the raw `providerId` value
+      // through as-is; the server already treats `undefined`, missing, or
+      // empty-string as "default to claude-code" (see server/routes/chat.ts
+      // `typeof providerIdRaw === "string" && providerIdRaw.length > 0`),
+      // so we don't need a client-side conditional spread here.
       const res = await fetch('/api/chat/prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId,
           text,
+          providerId,
           model,
           effort,
           thinking,
