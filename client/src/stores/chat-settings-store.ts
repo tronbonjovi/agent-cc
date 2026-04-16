@@ -27,7 +27,13 @@
 // — they're transient and don't need server round-trips.
 
 import { create } from 'zustand';
-import type { ChatGlobalDefaults, ChatSettings } from '../../../shared/types';
+import type {
+  ChatGlobalDefaults,
+  ChatSettings,
+  ProviderCapabilities,
+  ProviderConfig,
+} from '../../../shared/types';
+import { resolveProvider } from './builtin-providers';
 
 /** Persistence endpoint for the global-defaults layer. */
 const DEFAULTS_ENDPOINT = '/api/settings/chat-defaults';
@@ -78,6 +84,23 @@ interface ChatSettingsState {
   clearSettings: (conversationId: string) => void;
 
   /**
+   * Resolve the active provider config for a conversation. Looks up
+   * `getSettings(id).providerId` in the builtin-providers registry. Unknown
+   * ids fall back to the first builtin (see `resolveProvider`) so callers
+   * never handle `undefined`.
+   */
+  getActiveProvider: (conversationId: string) => ProviderConfig;
+
+  /**
+   * Shorthand for `getActiveProvider(id).capabilities`. The settings popover
+   * uses this selector to gate each control on the corresponding flag; the
+   * indirection lives on the store so a future `useCapabilitiesStore` hook
+   * (or React Query-backed capability fetch) can drop in without touching
+   * every consumer.
+   */
+  getCapabilities: (conversationId: string) => ProviderCapabilities;
+
+  /**
    * Hydrate `globalDefaults` from the server. Called once on app mount.
    * Silently tolerates missing / partial payloads — the initial in-memory
    * defaults are retained so the UI isn't wedged.
@@ -121,6 +144,17 @@ export const useChatSettingsStore = create<ChatSettingsState>((set, get) => ({
       delete next[conversationId];
       return { overrides: next };
     }),
+
+  getActiveProvider: (conversationId) => {
+    // Re-use getSettings for the merge — keeps all provider-id resolution
+    // behind the single defaults+override read path.
+    const providerId = get().getSettings(conversationId).providerId;
+    return resolveProvider(providerId);
+  },
+
+  getCapabilities: (conversationId) => {
+    return get().getActiveProvider(conversationId).capabilities;
+  },
 
   loadGlobalDefaults: async () => {
     try {

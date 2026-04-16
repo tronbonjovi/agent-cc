@@ -34,6 +34,13 @@ const MODEL_DROPDOWN_PATH = path.resolve(
   ROOT,
   'client/src/components/chat/model-dropdown.tsx',
 );
+// task007 moved the model catalog into builtin-providers.ts so the dropdown
+// can pick a list per-provider. The model-id + display-name guardrails below
+// follow the data to its new home.
+const BUILTIN_PROVIDERS_PATH = path.resolve(
+  ROOT,
+  'client/src/stores/builtin-providers.ts',
+);
 
 // ---------------------------------------------------------------------------
 // 1. Source-text guardrails on model-dropdown.tsx
@@ -47,19 +54,22 @@ describe('model-dropdown.tsx — source-text structure', () => {
     expect(src).toMatch(/export\s+(function|const)\s+ModelDropdown\b/);
   });
 
-  it('lists the three Claude Code model IDs required by the task contract', () => {
+  it('lists the three Claude Code model IDs in the builtin-providers registry', () => {
     // Real model IDs — user strictly wants real names shown (no preset
     // abstractions like "Fast/Balanced/Smart"), per
-    // feedback_no_model_abstraction.
-    expect(src).toContain('claude-opus-4-6');
-    expect(src).toContain('claude-sonnet-4-6');
-    expect(src).toContain('claude-haiku-4-5-20251001');
+    // feedback_no_model_abstraction. task007 moved the catalog into
+    // builtin-providers.ts, so the ids live there now.
+    const registrySrc = fs.readFileSync(BUILTIN_PROVIDERS_PATH, 'utf-8');
+    expect(registrySrc).toContain('claude-opus-4-6');
+    expect(registrySrc).toContain('claude-sonnet-4-6');
+    expect(registrySrc).toContain('claude-haiku-4-5-20251001');
   });
 
   it('shows human-readable display names for each model', () => {
-    expect(src).toMatch(/Claude Opus 4\.6/);
-    expect(src).toMatch(/Claude Sonnet 4\.6/);
-    expect(src).toMatch(/Claude Haiku 4\.5/);
+    const registrySrc = fs.readFileSync(BUILTIN_PROVIDERS_PATH, 'utf-8');
+    expect(registrySrc).toMatch(/Claude Opus 4\.6/);
+    expect(registrySrc).toMatch(/Claude Sonnet 4\.6/);
+    expect(registrySrc).toMatch(/Claude Haiku 4\.5/);
   });
 
   it('reads the currently-selected model from the settings store', () => {

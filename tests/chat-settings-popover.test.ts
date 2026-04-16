@@ -32,6 +32,13 @@ const SETTINGS_POPOVER_PATH = path.resolve(
   'client/src/components/chat/settings-popover.tsx',
 );
 const SHARED_TYPES_PATH = path.resolve(ROOT, 'shared/types.ts');
+// task007 moved the provider catalog out of settings-popover.tsx into the
+// builtin-providers registry module. The "claude-code as initial provider"
+// source-text pin follows the data to its new home.
+const BUILTIN_PROVIDERS_PATH = path.resolve(
+  ROOT,
+  'client/src/stores/builtin-providers.ts',
+);
 
 // ---------------------------------------------------------------------------
 // 1. Source-text guardrails on settings-popover.tsx
@@ -92,12 +99,14 @@ describe('settings-popover.tsx — source-text structure', () => {
     expect(src).toMatch(/<Plus\b/);
   });
 
-  it('hardcodes claude-code as the initial available provider', () => {
+  it('hardcodes claude-code as the initial available provider (via builtin-providers registry)', () => {
     // The task contract stipulates only Claude Code is offered for this
     // milestone. Additional providers land in M11 — until then, asserting
-    // the id anchors the behavior.
-    expect(src).toContain('claude-code');
-    expect(src).toMatch(/Claude Code/);
+    // the id anchors the behavior. task007 moved the catalog into
+    // builtin-providers.ts; both the id and the display name live there.
+    const registrySrc = fs.readFileSync(BUILTIN_PROVIDERS_PATH, 'utf-8');
+    expect(registrySrc).toContain('claude-code');
+    expect(registrySrc).toMatch(/Claude Code/);
   });
 
   it('leaves placeholder slots for task005 / task006 additional controls', () => {

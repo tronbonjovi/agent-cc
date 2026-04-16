@@ -1,6 +1,7 @@
 // client/src/components/chat/model-dropdown.tsx
 //
-// Composer model selector — chat-composer-controls task003.
+// Composer model selector — chat-composer-controls task003 (origin) +
+// task007 (capability-aware catalog).
 //
 // Shows the currently-selected model as a pill in the composer's left zone
 // and lets the user switch models via a shadcn DropdownMenu. Selection is
@@ -8,17 +9,20 @@
 // next POST to `/api/chat/prompt` reads that value and forwards it to the
 // CLI via `--model <id>`.
 //
-// Model list intentionally hard-codes real Claude Code model IDs rather
-// than exposing preset labels like "Fast / Balanced / Smart" — per
-// `feedback_no_model_abstraction`, the user strictly wants real names
-// shown. The display name is what humans see in the menu; the id is what
-// the CLI receives on the wire.
+// Model list is provider-scoped — task007 moved the model catalog into
+// `builtin-providers.ts` so the dropdown can resolve the active provider
+// and pick the right list. Claude Code is the only builtin today; future
+// providers (OpenAI-compatible, etc.) ship with their own catalog keyed by
+// provider id.
+//
+// Per `feedback_no_model_abstraction` we show real model ids / display
+// names, never preset labels like "Fast / Balanced / Smart".
 //
 // When the user hasn't picked a model yet, `getSettings(id).model` falls
-// through to the global default (`claude-sonnet-4-6` in the server-side
-// `defaultChatDefaults`). If the resolved id isn't in our local list
-// (e.g. the user set a custom id via a future settings UI), we show it
-// raw so they're not misled into thinking nothing is selected.
+// through to the global default. If the resolved id isn't in the active
+// provider's catalog (e.g. the user set a custom id via a future settings
+// UI, or the provider has no catalog), we show it raw so they're not misled
+// into thinking nothing is selected.
 
 import { ChevronDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,32 +33,31 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { useChatSettingsStore } from '@/stores/chat-settings-store';
+import {
+  MODEL_CATALOGS,
+  type ModelEntry,
+} from '@/stores/builtin-providers';
 
-// ---------------------------------------------------------------------------
-// Model catalog
-//
-// Kept as a plain `const` array so the list is trivially testable from
-// the source-text guardrail tests and so adding a model is a one-line diff.
-// Display names use the short "Claude Opus 4.6" form the user sees on
-// claude.ai; ids are the wire-level strings accepted by `claude --model`.
-// ---------------------------------------------------------------------------
-interface ModelEntry {
-  id: string;
-  displayName: string;
+/**
+ * Pick the catalog for a provider id. Returns an empty array when the
+ * provider has no registered catalog so the caller can render an explicit
+ * empty state rather than crashing on a map over undefined.
+ */
+function catalogFor(providerId: string): ReadonlyArray<ModelEntry> {
+  return MODEL_CATALOGS[providerId] ?? [];
 }
 
-const CLAUDE_CODE_MODELS: ReadonlyArray<ModelEntry> = [
-  { id: 'claude-opus-4-6', displayName: 'Claude Opus 4.6' },
-  { id: 'claude-sonnet-4-6', displayName: 'Claude Sonnet 4.6' },
-  { id: 'claude-haiku-4-5-20251001', displayName: 'Claude Haiku 4.5' },
-];
-
-/** Resolve a model id to its human-readable display name. */
-function displayNameFor(modelId: string): string {
-  const entry = CLAUDE_CODE_MODELS.find((m) => m.id === modelId);
-  // Fall through to the raw id for unknown values so the user sees
-  // *something* real rather than a misleading default.
-  return entry ? entry.displayName : modelId;
+/**
+ * Resolve a model id to its display name within the active provider's
+ * catalog. Falls through to the raw id for unknown values so the user sees
+ * *something* real rather than a misleading default.
+ */
+function displayNameFor(
+  catalog: ReadonlyArray<ModelEntry>,
+  modelId: string,
+): string {
+  const entry = catalog.find((m) => m.id === modelId);
+  return entry ? entry.name : modelId;
 }
 
 interface ModelDropdownProps {
@@ -67,13 +70,20 @@ interface ModelDropdownProps {
  * per-conversation model override on the chat settings store.
  */
 export function ModelDropdown({ conversationId }: ModelDropdownProps) {
-  // Subscribe to the whole store so model changes on the active tab trigger
-  // a re-render of the trigger label. `getSettings` is a pure merge of
+  // Subscribe to the whole store so model/provider changes trigger a
+  // re-render of the trigger label. `getSettings` is a pure merge of
   // globalDefaults + overrides — cheap to call on every render.
   const getSettings = useChatSettingsStore((s) => s.getSettings);
   const updateSettings = useChatSettingsStore((s) => s.updateSettings);
-  const currentModel = getSettings(conversationId).model;
-  const currentDisplay = displayNameFor(currentModel);
+  const current = getSettings(conversationId);
+  const { providerId, model: currentModel } = current;
+  const catalog = catalogFor(providerId);
+  const currentDisplay = displayNameFor(catalog, currentModel);
+
+  // Empty catalog → the provider either hasn't registered any models yet or
+  // is still loading them. We keep the dropdown mounted (for layout
+  // continuity) but show a "No models available" hint inside the menu.
+  const isEmpty = catalog.length === 0;
 
   return (
     <DropdownMenu>
@@ -91,31 +101,40 @@ export function ModelDropdown({ conversationId }: ModelDropdownProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[12rem]">
-        {CLAUDE_CODE_MODELS.map((m) => {
-          const isActive = m.id === currentModel;
-          return (
-            <DropdownMenuItem
-              key={m.id}
-              data-testid={`chat-composer-model-item-${m.id}`}
-              onSelect={() => {
-                // Persist the selection on the per-conversation override.
-                // No network round-trip — the settings store is transient
-                // per-tab; the next POST /api/chat/prompt reads this value
-                // and forwards it to the CLI.
-                updateSettings(conversationId, { model: m.id });
-              }}
-            >
-              <span className="flex-1">{m.displayName}</span>
-              {isActive && <Check className="ml-2 h-3.5 w-3.5" />}
-            </DropdownMenuItem>
-          );
-        })}
+        {isEmpty ? (
+          <div
+            className="px-2 py-1.5 text-xs text-muted-foreground"
+            data-testid="chat-composer-model-empty"
+          >
+            No models available
+          </div>
+        ) : (
+          catalog.map((m) => {
+            const isActive = m.id === currentModel;
+            return (
+              <DropdownMenuItem
+                key={m.id}
+                data-testid={`chat-composer-model-item-${m.id}`}
+                onSelect={() => {
+                  // Persist the selection on the per-conversation override.
+                  // No network round-trip — the settings store is transient
+                  // per-tab; the next POST /api/chat/prompt reads this value
+                  // and forwards it to the CLI.
+                  updateSettings(conversationId, { model: m.id });
+                }}
+              >
+                <span className="flex-1">{m.name}</span>
+                {isActive && <Check className="ml-2 h-3.5 w-3.5" />}
+              </DropdownMenuItem>
+            );
+          })
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-// Exported so the source-text guardrails can poke at the catalog shape and
-// future tests (or a global defaults UI) can enumerate the available models
-// without duplicating the list.
-export const claudeCodeModels = CLAUDE_CODE_MODELS;
+// Back-compat re-export: task003 exposed `claudeCodeModels` as a source-text
+// anchor. Point it at the registry so old tests (which grep for the name)
+// still resolve and new consumers have one blessed place to look.
+export const claudeCodeModels = MODEL_CATALOGS['claude-code'];

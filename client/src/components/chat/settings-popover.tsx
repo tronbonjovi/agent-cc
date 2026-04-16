@@ -1,33 +1,27 @@
 // client/src/components/chat/settings-popover.tsx
 //
-// Composer settings popover — chat-composer-controls task004.
+// Composer settings popover — chat-composer-controls task004 (shell) +
+// task005 (controls) + task006 (project selector) + task007 (capability
+// gating & temperature slider).
 //
 // The + button in the composer opens this popover. It's the container for
-// per-conversation settings; task005 adds effort / thinking / web search /
-// system prompt controls inside it, and task006 adds the project context
-// selector. For this task we own only:
+// per-conversation settings. Ownership layers:
 //
 //   1. The Popover shell (shadcn Popover / PopoverTrigger / PopoverContent).
 //   2. The + button, which lives inside PopoverTrigger and carries the
-//      `data-testid="chat-composer-plus"` mount that task002 set up. Moving
-//      the testid here (off the stub Button in chat-panel.tsx) means the
-//      click opens the popover instead of being a no-op.
-//   3. The provider selector — first control in the popover. Shadcn's
-//      DropdownMenu primitive matches the visual language already used by
-//      ModelDropdown.
-//
-// Provider catalog is intentionally hardcoded to a single entry (Claude
-// Code) for this milestone. The provider-system milestone (M11) will add
-// server-side CRUD and populate this list dynamically. The ProviderConfig
-// type in shared/types.ts is already the contract M11 builds against, so
-// this catalog can grow without breaking the popover or the capability
-// system (task007).
-//
-// Provider change resets the model to the provider's default. That's a UX
-// safety net: keeping the currently-selected model when switching to a
-// provider that doesn't support it would send an invalid id to the CLI on
-// the next prompt. We perform the reset in a single `updateSettings` call
-// so the per-conversation override merges atomically.
+//      `data-testid="chat-composer-plus"` mount that task002 set up.
+//   3. The provider selector — first control in the popover. Enumerates
+//      BUILTIN_PROVIDERS from the registry module so the capability system
+//      and the model dropdown stay in lock-step.
+//   4. Capability-gated controls — each control renders only if the active
+//      provider's capability flag for it is true. Switching providers
+//      updates `caps` through the store selector and the controls show/hide
+//      automatically. See `builtin-providers.ts` for the capability source
+//      of truth.
+//   5. Provider-change cascade — when the user picks a different provider,
+//      if the current model isn't in that provider's catalog we reset to
+//      the provider's default. Atomic `updateSettings({ providerId, model })`
+//      avoids a half-configured override leaking into a POST.
 
 import { useRef, useState, type ChangeEvent } from 'react';
 import { Plus, ChevronDown, ChevronRight, Check, Paperclip, X } from 'lucide-react';
@@ -45,49 +39,20 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { useChatSettingsStore } from '@/stores/chat-settings-store';
+import {
+  BUILTIN_PROVIDERS,
+  defaultModelFor,
+  isModelInCatalog,
+} from '@/stores/builtin-providers';
 import type { ProviderConfig } from '../../../../shared/types';
-
-// ---------------------------------------------------------------------------
-// Provider catalog
-//
-// Kept as a plain `const` array so tests can poke at the shape and so
-// adding a provider is a one-line diff. `defaultModel` is not part of
-// ProviderConfig (it's a UX hint, not a backend detail) so we carry it on
-// a local entry type that wraps the config.
-// ---------------------------------------------------------------------------
-interface ProviderEntry {
-  config: ProviderConfig;
-  /** Model id selected when the user switches to this provider. */
-  defaultModel: string;
-}
-
-const AVAILABLE_PROVIDERS: ReadonlyArray<ProviderEntry> = [
-  {
-    config: {
-      id: 'claude-code',
-      name: 'Claude Code',
-      type: 'claude-cli',
-      auth: { type: 'oauth' },
-      capabilities: {
-        thinking: true,
-        effort: true,
-        webSearch: true,
-        systemPrompt: true,
-        fileAttachments: true,
-        projectContext: true,
-      },
-    },
-    defaultModel: 'claude-sonnet-4-6',
-  },
-];
 
 /** Resolve a provider id to its human-readable name. */
 function displayNameFor(providerId: string): string {
-  const entry = AVAILABLE_PROVIDERS.find((p) => p.config.id === providerId);
+  const entry = BUILTIN_PROVIDERS.find((p) => p.id === providerId);
   // Fall through to the raw id for unknown values — matches the pattern in
   // model-dropdown.tsx, where unfamiliar ids render as-is rather than a
   // misleading default.
-  return entry ? entry.config.name : providerId;
+  return entry ? entry.name : providerId;
 }
 
 interface SettingsPopoverProps {
@@ -105,18 +70,34 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
   // merge — cheap on every render.
   const getSettings = useChatSettingsStore((s) => s.getSettings);
   const updateSettings = useChatSettingsStore((s) => s.updateSettings);
+  const getCapabilities = useChatSettingsStore((s) => s.getCapabilities);
   const current = getSettings(conversationId);
   const currentProviderId = current.providerId;
   const currentDisplay = displayNameFor(currentProviderId);
+  // Capability flags drive per-control visibility below. Reading through
+  // the store selector (not directly from BUILTIN_PROVIDERS) means a future
+  // "custom provider" that the user added via M11's CRUD flows will light
+  // up automatically — the store already knows how to resolve it.
+  const caps = getCapabilities(conversationId);
 
-  const handleProviderSelect = (entry: ProviderEntry) => {
+  const handleProviderSelect = (provider: ProviderConfig) => {
+    // Provider-change cascade: if the current model is still valid for the
+    // new provider's catalog, keep it. Otherwise reset to the new
+    // provider's default. When the new provider has no catalog at all,
+    // defaultModelFor returns undefined — in that case we clear to an
+    // empty string so the composer visibly shows "no model" rather than
+    // silently re-using an incompatible id.
+    const keepModel = isModelInCatalog(provider.id, current.model);
+    const nextModel = keepModel
+      ? current.model
+      : (defaultModelFor(provider.id) ?? '');
     // Atomic merge: providerId + model in one write so the override never
     // lands in a half-configured state. If we split this into two writes,
     // a fast re-render between them could fire a POST with the old
     // provider + new model (or vice versa).
     updateSettings(conversationId, {
-      providerId: entry.config.id,
-      model: entry.defaultModel,
+      providerId: provider.id,
+      model: nextModel,
     });
   };
 
@@ -161,15 +142,15 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-[14rem]">
-                {AVAILABLE_PROVIDERS.map((entry) => {
-                  const isActive = entry.config.id === currentProviderId;
+                {BUILTIN_PROVIDERS.map((provider) => {
+                  const isActive = provider.id === currentProviderId;
                   return (
                     <DropdownMenuItem
-                      key={entry.config.id}
-                      data-testid={`chat-settings-provider-item-${entry.config.id}`}
-                      onSelect={() => handleProviderSelect(entry)}
+                      key={provider.id}
+                      data-testid={`chat-settings-provider-item-${provider.id}`}
+                      onSelect={() => handleProviderSelect(provider)}
                     >
-                      <span className="flex-1">{entry.config.name}</span>
+                      <span className="flex-1">{provider.name}</span>
                       {isActive && <Check className="ml-2 h-3.5 w-3.5" />}
                     </DropdownMenuItem>
                   );
@@ -186,108 +167,153 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
           */}
 
           {/* Effort selector ----------------------------------------------
-              Claude CLI (`--effort <level>`) accepts low / medium / high /
-              xhigh / max; we surface only the three most common. Rendered
-              as a three-button segmented control so the visible-choices
-              pattern reads faster than a dropdown at this scale. */}
-          <div
-            className="space-y-1.5"
-            data-testid="chat-settings-effort"
-          >
-            <label className="text-xs font-medium text-muted-foreground">
-              Effort
-            </label>
-            <EffortSegmented
-              value={current.effort ?? 'medium'}
-              onChange={(level) =>
-                updateSettings(conversationId, { effort: level })
-              }
-            />
-          </div>
+              Gated on caps.effort — task007. Claude CLI (`--effort <level>`)
+              accepts low / medium / high / xhigh / max; we surface only the
+              three most common as a segmented control. */}
+          {caps.effort && (
+            <div
+              className="space-y-1.5"
+              data-testid="chat-settings-effort"
+            >
+              <label className="text-xs font-medium text-muted-foreground">
+                Effort
+              </label>
+              <EffortSegmented
+                value={current.effort ?? 'medium'}
+                onChange={(level) =>
+                  updateSettings(conversationId, { effort: level })
+                }
+              />
+            </div>
+          )}
 
           {/* Extended thinking toggle -------------------------------------
-              No CLI flag today — this is store-only state, forwarded to the
-              server but silently dropped at the runner boundary. The toggle
-              still exists because we want the UX in place for the capability
-              system (future milestone) to light up when provider plumbing
-              lands. */}
-          <label
-            className="flex cursor-pointer items-center justify-between gap-3 rounded-md py-1"
-            data-testid="chat-settings-thinking"
-          >
-            <span className="text-sm">Extended thinking</span>
-            <input
-              type="checkbox"
-              checked={Boolean(current.thinking)}
-              onChange={(e) =>
-                updateSettings(conversationId, { thinking: e.target.checked })
-              }
-              className="h-4 w-4 cursor-pointer rounded border-input text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </label>
+              Gated on caps.thinking — task007. No CLI flag today — this is
+              store-only state, forwarded to the server but silently dropped
+              at the runner boundary. */}
+          {caps.thinking && (
+            <label
+              className="flex cursor-pointer items-center justify-between gap-3 rounded-md py-1"
+              data-testid="chat-settings-thinking"
+            >
+              <span className="text-sm">Extended thinking</span>
+              <input
+                type="checkbox"
+                checked={Boolean(current.thinking)}
+                onChange={(e) =>
+                  updateSettings(conversationId, { thinking: e.target.checked })
+                }
+                className="h-4 w-4 cursor-pointer rounded border-input text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </label>
+          )}
 
           {/* Web search toggle --------------------------------------------
-              Same shape as Extended thinking — store-only, no CLI flag. */}
-          <label
-            className="flex cursor-pointer items-center justify-between gap-3 rounded-md py-1"
-            data-testid="chat-settings-web-search"
-          >
-            <span className="text-sm">Web search</span>
-            <input
-              type="checkbox"
-              checked={Boolean(current.webSearch)}
-              onChange={(e) =>
-                updateSettings(conversationId, { webSearch: e.target.checked })
-              }
-              className="h-4 w-4 cursor-pointer rounded border-input text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </label>
+              Gated on caps.webSearch — task007. Same shape as Extended
+              thinking — store-only, no CLI flag. */}
+          {caps.webSearch && (
+            <label
+              className="flex cursor-pointer items-center justify-between gap-3 rounded-md py-1"
+              data-testid="chat-settings-web-search"
+            >
+              <span className="text-sm">Web search</span>
+              <input
+                type="checkbox"
+                checked={Boolean(current.webSearch)}
+                onChange={(e) =>
+                  updateSettings(conversationId, { webSearch: e.target.checked })
+                }
+                className="h-4 w-4 cursor-pointer rounded border-input text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </label>
+          )}
+
+          {/* Temperature slider -------------------------------------------
+              Gated on caps.temperature — task007. OpenAI-compatible
+              providers take a 0-2 sampling temperature; the Claude CLI does
+              not, so the slider is hidden for Claude Code and visible for
+              OpenAI-compatible providers that set the flag true. Uses a
+              native <input type="range"> to keep the popover lightweight;
+              shadcn's Slider primitive would drag in more radix state than
+              we need here. */}
+          {caps.temperature && (
+            <div
+              className="space-y-1.5"
+              data-testid="chat-settings-temperature"
+            >
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Temperature
+                </label>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {(current.temperature ?? 1).toFixed(1)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.1"
+                value={current.temperature ?? 1}
+                onChange={(e) =>
+                  updateSettings(conversationId, {
+                    temperature: parseFloat(e.target.value),
+                  })
+                }
+                className="w-full cursor-pointer"
+              />
+            </div>
+          )}
 
           {/* System prompt (collapsible) ----------------------------------
-              Hidden by default so the popover stays short at a glance; the
-              textarea is the loudest control visually and most users won't
-              touch it on most conversations. Click the header to expand. */}
-          <SystemPromptSection
-            value={current.systemPrompt ?? ''}
-            onChange={(next) =>
-              updateSettings(conversationId, { systemPrompt: next })
-            }
-          />
+              Gated on caps.systemPrompt — task007. Hidden by default so the
+              popover stays short at a glance; the textarea is the loudest
+              control visually and most users won't touch it. */}
+          {caps.systemPrompt && (
+            <SystemPromptSection
+              value={current.systemPrompt ?? ''}
+              onChange={(next) =>
+                updateSettings(conversationId, { systemPrompt: next })
+              }
+            />
+          )}
 
           {/* File attachments ---------------------------------------------
-              Paths only — file contents are NOT uploaded. Full context
-              injection is deferred until we decide how to fit attachments
-              inside the provider's token budget. Each selected file's path
-              is stored on the conversation's override so subsequent prompts
-              can decide what to do with them. */}
-          <AttachmentControl
-            paths={current.attachments ?? []}
-            onChange={(next) =>
-              updateSettings(conversationId, { attachments: next })
-            }
-          />
+              Gated on caps.fileAttachments — task007. Paths only — file
+              contents are NOT uploaded. */}
+          {caps.fileAttachments && (
+            <AttachmentControl
+              paths={current.attachments ?? []}
+              onChange={(next) =>
+                updateSettings(conversationId, { attachments: next })
+              }
+            />
+          )}
 
           {/* Project context selector (task006) ---------------------------
-              When a project is selected, the server passes its path as
-              `cwd` to the Claude CLI so the model sees that project's
-              CLAUDE.md, git state, and file tree. "General" (the default)
-              leaves `cwd` unset so the CLI uses the server process's cwd. */}
-          <ProjectSelector
-            value={current.projectPath}
-            onChange={(next) =>
-              updateSettings(conversationId, { projectPath: next })
-            }
-          />
+              Gated on caps.projectContext — task007. When a project is
+              selected, the server passes its path as `cwd` to the Claude
+              CLI so the model sees that project's CLAUDE.md, git state,
+              and file tree. */}
+          {caps.projectContext && (
+            <ProjectSelector
+              value={current.projectPath}
+              onChange={(next) =>
+                updateSettings(conversationId, { projectPath: next })
+              }
+            />
+          )}
         </div>
       </PopoverContent>
     </Popover>
   );
 }
 
-// Exported so source-text guardrail tests can inspect the catalog shape and
-// future tests / a global defaults UI can enumerate providers without
-// duplicating the list.
-export const availableProviders = AVAILABLE_PROVIDERS;
+// Back-compat re-export: task004 exposed `availableProviders` as a
+// source-text anchor. task007 moved the catalog into builtin-providers.ts;
+// we re-export the same list under the old name so any consumer / test
+// still resolves a valid reference.
+export const availableProviders = BUILTIN_PROVIDERS;
 
 // ---------------------------------------------------------------------------
 // Subcomponents (task005)
