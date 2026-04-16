@@ -379,6 +379,170 @@ describe("DELETE /api/providers/:id", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// oauthConfig support on CRUD schemas — chat-provider-system task006
+// ---------------------------------------------------------------------------
+//
+// task004 shipped the OAuth helpers (`/auth`, `/auth/callback`, `/disconnect`,
+// `/status`) but intentionally deferred extending `ProviderCreateSchema` and
+// `ProviderUpdateSchema` to accept `oauthConfig`. This block drives that
+// extension: creating an `oauth`-type provider must accept the `oauthConfig`
+// sub-object on POST, and omitting it (when `auth.type === 'oauth'`) must
+// 400.
+
+describe("POST /api/providers — oauthConfig", () => {
+  beforeEach(resetDB);
+
+  it("accepts an oauth provider with a full oauthConfig payload", async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/providers")
+      .send({
+        name: "OAuthed",
+        type: "openai-compatible",
+        baseUrl: "https://api.example.com",
+        auth: {
+          type: "oauth",
+          oauthConfig: {
+            authUrl: "https://example.com/oauth/authorize",
+            tokenUrl: "https://example.com/oauth/token",
+            clientId: "abc123",
+            clientSecret: "super-secret",
+            scopes: ["read", "write"],
+          },
+        },
+        capabilities: { temperature: true },
+      });
+    expect(res.status).toBe(201);
+    // Wire form must not echo the clientSecret (scrubbed by toPublic).
+    expect(JSON.stringify(res.body)).not.toContain("super-secret");
+    // Stored form retains everything for server-side OAuth calls.
+    const stored = getDB().providers.find((p) => p.id === res.body.id);
+    expect(stored?.auth.type).toBe("oauth");
+    expect(stored?.auth.oauthConfig?.authUrl).toBe(
+      "https://example.com/oauth/authorize",
+    );
+    expect(stored?.auth.oauthConfig?.tokenUrl).toBe(
+      "https://example.com/oauth/token",
+    );
+    expect(stored?.auth.oauthConfig?.clientId).toBe("abc123");
+    expect(stored?.auth.oauthConfig?.clientSecret).toBe("super-secret");
+    expect(stored?.auth.oauthConfig?.scopes).toEqual(["read", "write"]);
+  });
+
+  it("accepts an oauth provider without clientSecret or scopes (confidential-optional)", async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/providers")
+      .send({
+        name: "PublicClient",
+        type: "openai-compatible",
+        baseUrl: "https://api.example.com",
+        auth: {
+          type: "oauth",
+          oauthConfig: {
+            authUrl: "https://example.com/oauth/authorize",
+            tokenUrl: "https://example.com/oauth/token",
+            clientId: "public-client-id",
+          },
+        },
+        capabilities: { temperature: true },
+      });
+    expect(res.status).toBe(201);
+  });
+
+  it("rejects an oauth provider that omits oauthConfig", async () => {
+    // auth.type === 'oauth' requires oauthConfig — otherwise the OAuth
+    // routes have nothing to redirect the browser to, and the settings UI
+    // would have shipped a useless record.
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/providers")
+      .send({
+        name: "HalfOAuth",
+        type: "openai-compatible",
+        baseUrl: "https://api.example.com",
+        auth: { type: "oauth" },
+        capabilities: { temperature: true },
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/oauth/i);
+  });
+
+  it("rejects an oauth payload missing a required oauthConfig field", async () => {
+    // Missing `clientId` — the schema must enforce all three required OAuth
+    // endpoint/client fields together.
+    const app = buildApp();
+    const res = await request(app)
+      .post("/api/providers")
+      .send({
+        name: "NoClientId",
+        type: "openai-compatible",
+        baseUrl: "https://api.example.com",
+        auth: {
+          type: "oauth",
+          oauthConfig: {
+            authUrl: "https://example.com/oauth/authorize",
+            tokenUrl: "https://example.com/oauth/token",
+          },
+        },
+        capabilities: { temperature: true },
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/clientId|oauthConfig/i);
+  });
+});
+
+describe("PUT /api/providers/:id — oauthConfig", () => {
+  beforeEach(resetDB);
+
+  it("allows editing oauthConfig fields on an existing oauth provider", async () => {
+    const app = buildApp();
+    const created = await request(app)
+      .post("/api/providers")
+      .send({
+        name: "Editable OAuth",
+        type: "openai-compatible",
+        baseUrl: "https://api.example.com",
+        auth: {
+          type: "oauth",
+          oauthConfig: {
+            authUrl: "https://example.com/oauth/authorize",
+            tokenUrl: "https://example.com/oauth/token",
+            clientId: "original",
+          },
+        },
+        capabilities: { temperature: true },
+      });
+    expect(created.status).toBe(201);
+    const id = created.body.id;
+
+    const res = await request(app)
+      .put(`/api/providers/${id}`)
+      .send({
+        auth: {
+          type: "oauth",
+          oauthConfig: {
+            authUrl: "https://example.com/v2/authorize",
+            tokenUrl: "https://example.com/v2/token",
+            clientId: "rotated",
+            clientSecret: "new-secret",
+            scopes: ["offline_access"],
+          },
+        },
+      });
+    expect(res.status).toBe(200);
+
+    const stored = getDB().providers.find((p) => p.id === id);
+    expect(stored?.auth.oauthConfig?.authUrl).toBe(
+      "https://example.com/v2/authorize",
+    );
+    expect(stored?.auth.oauthConfig?.clientId).toBe("rotated");
+    expect(stored?.auth.oauthConfig?.clientSecret).toBe("new-secret");
+    expect(stored?.auth.oauthConfig?.scopes).toEqual(["offline_access"]);
+  });
+});
+
 describe("defaults — DB seed + OLLAMA_URL", () => {
   it("ships claude-code and ollama as the default providers", () => {
     const seed = defaultProviders();

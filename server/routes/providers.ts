@@ -32,9 +32,23 @@ const router = Router();
 // Schemas
 // ---------------------------------------------------------------------------
 
+// OAuth provider parameters captured at create/edit time — the client
+// collects these in the provider-manager form. `clientSecret` and `scopes`
+// are optional (public clients / default-scope providers). `authUrl`,
+// `tokenUrl`, and `clientId` are required whenever `auth.type === 'oauth'`
+// (enforced by the refine below).
+const OAuthConfigSchema = z.object({
+  authUrl: z.string().trim().min(1, "oauthConfig.authUrl is required"),
+  tokenUrl: z.string().trim().min(1, "oauthConfig.tokenUrl is required"),
+  clientId: z.string().trim().min(1, "oauthConfig.clientId is required"),
+  clientSecret: z.string().optional(),
+  scopes: z.array(z.string()).optional(),
+});
+
 const AuthSchema = z.object({
   type: z.enum(["none", "api-key", "oauth"]),
   apiKey: z.string().optional(),
+  oauthConfig: OAuthConfigSchema.optional(),
 });
 
 const CapabilitiesSchema = z
@@ -64,6 +78,16 @@ const ProviderCreateSchema = z
     {
       message: "baseUrl is required for openai-compatible providers",
       path: ["baseUrl"],
+    },
+  )
+  .refine(
+    // An `oauth` auth-type is only useful if the caller also supplies the
+    // OAuth discovery parameters. Without them, the /auth endpoint has no
+    // authorize URL to redirect to and the UI has no form to edit later.
+    (v) => v.auth.type !== "oauth" || Boolean(v.auth.oauthConfig),
+    {
+      message: "oauthConfig is required when auth.type is oauth",
+      path: ["auth", "oauthConfig"],
     },
   );
 
@@ -163,6 +187,12 @@ router.post("/api/providers", (req, res) => {
   if (parsed.auth.type === "api-key" && parsed.auth.apiKey) {
     created.auth.apiKey = parsed.auth.apiKey;
   }
+  if (parsed.auth.type === "oauth" && parsed.auth.oauthConfig) {
+    // Persist the full oauthConfig (including clientSecret). `toPublic()`
+    // scrubs clientSecret on the wire — storage keeps it for the token
+    // exchange in the callback route.
+    created.auth.oauthConfig = { ...parsed.auth.oauthConfig };
+  }
 
   const db = getDB();
   if (!db.providers) db.providers = [];
@@ -211,6 +241,20 @@ router.put("/api/providers/:id", (req, res) => {
         nextAuth.apiKey = parsed.auth.apiKey;
       } else if (existing.auth.type === "api-key" && existing.auth.apiKey) {
         nextAuth.apiKey = existing.auth.apiKey;
+      }
+    }
+    if (parsed.auth.type === "oauth") {
+      // Accept fresh oauthConfig on edits; fall through to the stored value
+      // so callers can PUT other fields without re-sending the config.
+      if (parsed.auth.oauthConfig) {
+        nextAuth.oauthConfig = { ...parsed.auth.oauthConfig };
+      } else if (existing.auth.oauthConfig) {
+        nextAuth.oauthConfig = existing.auth.oauthConfig;
+      }
+      // Preserve any stored access/refresh tokens across edits — the PUT is
+      // for provider config, not for revoking an active session.
+      if (existing.auth.oauthTokens) {
+        nextAuth.oauthTokens = existing.auth.oauthTokens;
       }
     }
     updated.auth = nextAuth;

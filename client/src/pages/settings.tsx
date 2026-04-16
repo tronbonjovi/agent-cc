@@ -31,6 +31,11 @@ import {
 } from "lucide-react";
 import { HealthThresholdsSettings } from "@/components/settings-health-thresholds";
 import { WorkflowConfigPanel } from "@/components/settings/workflow-config-panel";
+import { ProviderManager } from "@/components/settings/provider-manager";
+import { useProviderModels } from "@/hooks/use-provider-models";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import type { ChatGlobalDefaults, ProviderConfig } from "@shared/types";
 
 // ---- Shared utilities ----
 
@@ -614,6 +619,212 @@ function ConfigFilesTab() {
   );
 }
 
+// ---- Tab: Chat (providers + defaults) ----
+//
+// Two stacked sections: the ProviderManager (providers CRUD + OAuth) and a
+// Global Chat Defaults form that writes `/api/settings/chat-defaults`. The
+// defaults form reuses `useProviderModels` for its model dropdown so the
+// user can only pick models the currently-selected provider actually
+// exposes — keeping the server-side routing layer honest at form time
+// rather than at send time.
+
+function ChatDefaultsPanel() {
+  const qc = useQueryClient();
+  const { data: providers } = useQuery<ProviderConfig[]>({
+    queryKey: ["/api/providers"],
+  });
+  const { data: defaults, isLoading } = useQuery<ChatGlobalDefaults>({
+    queryKey: ["/api/settings/chat-defaults"],
+    staleTime: 60_000,
+  });
+
+  const [providerId, setProviderId] = useState("");
+  const [model, setModel] = useState("");
+  const [effort, setEffort] = useState("medium");
+  const [temperature, setTemperature] = useState<string>("1");
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (defaults) {
+      setProviderId(defaults.providerId);
+      setModel(defaults.model);
+      setEffort(defaults.effort ?? "medium");
+      setTemperature(
+        defaults.temperature !== undefined
+          ? String(defaults.temperature)
+          : "1",
+      );
+      setDirty(false);
+    }
+  }, [defaults]);
+
+  // Models for the currently-selected default provider. We reuse the hook
+  // the composer uses so cache hits are shared across the app — opening
+  // settings doesn't double-fetch what the composer just loaded.
+  const { models } = useProviderModels(providerId);
+
+  const save = useMutation({
+    mutationFn: async (payload: ChatGlobalDefaults) => {
+      const res = await fetch("/api/settings/chat-defaults", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed: ${res.status}`);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/settings/chat-defaults"] });
+      setDirty(false);
+      toast.success("Chat defaults saved");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const handleSave = () => {
+    if (!providerId || !model) {
+      toast.error("Provider and model are required");
+      return;
+    }
+    const tempNum = parseFloat(temperature);
+    const payload: ChatGlobalDefaults = {
+      providerId,
+      model,
+      effort: effort || undefined,
+    };
+    if (!Number.isNaN(tempNum)) payload.temperature = tempNum;
+    save.mutate(payload);
+  };
+
+  if (isLoading) {
+    return <div className="text-muted-foreground text-sm">Loading...</div>;
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Global Chat Defaults
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Starting values for every new conversation. Tabs can override
+            these per-conversation via the composer popover.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Default Provider */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Default Provider</label>
+            <select
+              value={providerId}
+              onChange={(e) => {
+                setProviderId(e.target.value);
+                setDirty(true);
+              }}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {(providers ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Default Model */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Default Model</label>
+            <select
+              value={model}
+              onChange={(e) => {
+                setModel(e.target.value);
+                setDirty(true);
+              }}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {/* Show the stored model even if discovery hasn't returned it
+                  — avoids wiping the field while the probe is in flight. */}
+              {model && !models.some((m) => m.id === model) && (
+                <option value={model}>{model}</option>
+              )}
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Default Effort */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Default Effort</label>
+            <select
+              value={effort}
+              onChange={(e) => {
+                setEffort(e.target.value);
+                setDirty(true);
+              }}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+
+          {/* Default Temperature */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">
+              Default Temperature
+            </label>
+            <Input
+              type="number"
+              min="0"
+              max="2"
+              step="0.1"
+              value={temperature}
+              onChange={(e) => {
+                setTemperature(e.target.value);
+                setDirty(true);
+              }}
+              className="font-mono text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={!dirty || save.isPending}
+          >
+            Save
+          </Button>
+          {dirty && (
+            <span className="text-xs text-muted-foreground">
+              Unsaved changes
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChatTab() {
+  return (
+    <div className="space-y-6">
+      <ProviderManager />
+      <ChatDefaultsPanel />
+    </div>
+  );
+}
+
 // ---- Main Settings Page ----
 
 export default function Settings() {
@@ -662,6 +873,7 @@ export default function Settings() {
           <TabsList>
             <TabsTrigger value="general" className="whitespace-nowrap">General</TabsTrigger>
             <TabsTrigger value="scan-paths" className="whitespace-nowrap">Scan Paths</TabsTrigger>
+            <TabsTrigger value="chat" className="whitespace-nowrap">Chat</TabsTrigger>
             <TabsTrigger value="workflows" className="whitespace-nowrap">Workflows</TabsTrigger>
             <TabsTrigger value="config-files" className="whitespace-nowrap">
               Config Files ({configs?.length || 0})
@@ -675,6 +887,10 @@ export default function Settings() {
 
         <TabsContent value="scan-paths" className="mt-4">
           <ScanPathsTab />
+        </TabsContent>
+
+        <TabsContent value="chat" className="mt-4">
+          <ChatTab />
         </TabsContent>
 
         <TabsContent value="workflows" className="mt-4">
