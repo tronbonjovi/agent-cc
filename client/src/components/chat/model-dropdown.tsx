@@ -1,7 +1,8 @@
 // client/src/components/chat/model-dropdown.tsx
 //
 // Composer model selector — chat-composer-controls task003 (origin) +
-// task007 (capability-aware catalog).
+// task007 (capability-aware catalog) + chat-provider-system task005
+// (dynamic discovery).
 //
 // Shows the currently-selected model as a pill in the composer's left zone
 // and lets the user switch models via a shadcn DropdownMenu. Selection is
@@ -9,20 +10,26 @@
 // next POST to `/api/chat/prompt` reads that value and forwards it to the
 // CLI via `--model <id>`.
 //
-// Model list is provider-scoped — task007 moved the model catalog into
-// `builtin-providers.ts` so the dropdown can resolve the active provider
-// and pick the right list. Claude Code is the only builtin today; future
-// providers (OpenAI-compatible, etc.) ship with their own catalog keyed by
-// provider id.
+// Model list source — task005 swapped the backing store from a hardcoded
+// client-side MODEL_CATALOGS lookup to a live `useProviderModels(id)` query
+// against `GET /api/providers/:id/models`. The server branches per provider
+// type: Claude Code returns a known set, Ollama hits `/api/tags`, OpenAI-
+// compatible hits `/v1/models`. Results cache for 60s on both sides so the
+// dropdown opens instantly on subsequent renders.
 //
 // Per `feedback_no_model_abstraction` we show real model ids / display
 // names, never preset labels like "Fast / Balanced / Smart".
 //
-// When the user hasn't picked a model yet, `getSettings(id).model` falls
-// through to the global default. If the resolved id isn't in the active
-// provider's catalog (e.g. the user set a custom id via a future settings
-// UI, or the provider has no catalog), we show it raw so they're not misled
-// into thinking nothing is selected.
+// States the dropdown can land in:
+//
+//   - **loading** — hook's `isLoading` is true; show a disabled trigger
+//     labeled "Loading models..." so the user knows something's pending.
+//   - **error** — the fetch failed (provider offline, non-2xx); show the
+//     current model id on the trigger (truthful fallback) and render an
+//     "Unavailable" hint inside the menu.
+//   - **empty** — query succeeded but returned []; show "No models
+//     available" in the menu so the user knows it's not a loading glitch.
+//   - **populated** — render model items; current selection gets a check.
 
 import { ChevronDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,26 +44,20 @@ import {
   MODEL_CATALOGS,
   type ModelEntry,
 } from '@/stores/builtin-providers';
+import { useProviderModels, type ProviderModel } from '@/hooks/use-provider-models';
 
 /**
- * Pick the catalog for a provider id. Returns an empty array when the
- * provider has no registered catalog so the caller can render an explicit
- * empty state rather than crashing on a map over undefined.
- */
-function catalogFor(providerId: string): ReadonlyArray<ModelEntry> {
-  return MODEL_CATALOGS[providerId] ?? [];
-}
-
-/**
- * Resolve a model id to its display name within the active provider's
- * catalog. Falls through to the raw id for unknown values so the user sees
- * *something* real rather than a misleading default.
+ * Resolve a model id to its display name within the discovered catalog.
+ * Falls through to the raw id for unknown values so the user sees
+ * *something* real rather than a misleading default. Matches the
+ * `feedback_no_model_abstraction` stance — truthful raw id is better than
+ * a synthetic "Default" label.
  */
 function displayNameFor(
-  catalog: ReadonlyArray<ModelEntry>,
+  models: ReadonlyArray<ProviderModel>,
   modelId: string,
 ): string {
-  const entry = catalog.find((m) => m.id === modelId);
+  const entry = models.find((m) => m.id === modelId);
   return entry ? entry.name : modelId;
 }
 
@@ -77,13 +78,23 @@ export function ModelDropdown({ conversationId }: ModelDropdownProps) {
   const updateSettings = useChatSettingsStore((s) => s.updateSettings);
   const current = getSettings(conversationId);
   const { providerId, model: currentModel } = current;
-  const catalog = catalogFor(providerId);
-  const currentDisplay = displayNameFor(catalog, currentModel);
 
-  // Empty catalog → the provider either hasn't registered any models yet or
-  // is still loading them. We keep the dropdown mounted (for layout
-  // continuity) but show a "No models available" hint inside the menu.
-  const isEmpty = catalog.length === 0;
+  // Pull the discovered model list. `staleTime: 60_000` in the hook means
+  // the cache is warm across most dropdown opens; the first mount after a
+  // provider switch briefly shows the loading state.
+  const { models, isLoading, error } = useProviderModels(providerId);
+
+  const currentDisplay = displayNameFor(models, currentModel);
+
+  // Trigger-label resolution. When we're still loading and have nothing
+  // cached, the store-recorded id (which may have been set from the M10
+  // static defaults) is the most truthful label we can show. We explicitly
+  // call out the loading state on aria-label for screen readers.
+  const triggerLabel = isLoading && models.length === 0
+    ? 'Loading models...'
+    : currentDisplay;
+
+  const isEmpty = !isLoading && !error && models.length === 0;
 
   return (
     <DropdownMenu>
@@ -94,14 +105,28 @@ export function ModelDropdown({ conversationId }: ModelDropdownProps) {
           size="sm"
           className="shrink-0 gap-1"
           data-testid="chat-composer-model"
-          aria-label={`Model: ${currentDisplay}`}
+          aria-label={`Model: ${triggerLabel}`}
         >
-          <span className="truncate">{currentDisplay}</span>
+          <span className="truncate">{triggerLabel}</span>
           <ChevronDown className="h-3 w-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[12rem]">
-        {isEmpty ? (
+        {isLoading ? (
+          <div
+            className="px-2 py-1.5 text-xs text-muted-foreground"
+            data-testid="chat-composer-model-loading"
+          >
+            Loading models...
+          </div>
+        ) : error ? (
+          <div
+            className="px-2 py-1.5 text-xs text-muted-foreground"
+            data-testid="chat-composer-model-error"
+          >
+            Models unavailable
+          </div>
+        ) : isEmpty ? (
           <div
             className="px-2 py-1.5 text-xs text-muted-foreground"
             data-testid="chat-composer-model-empty"
@@ -109,7 +134,7 @@ export function ModelDropdown({ conversationId }: ModelDropdownProps) {
             No models available
           </div>
         ) : (
-          catalog.map((m) => {
+          models.map((m) => {
             const isActive = m.id === currentModel;
             return (
               <DropdownMenuItem
@@ -136,5 +161,8 @@ export function ModelDropdown({ conversationId }: ModelDropdownProps) {
 
 // Back-compat re-export: task003 exposed `claudeCodeModels` as a source-text
 // anchor. Point it at the registry so old tests (which grep for the name)
-// still resolve and new consumers have one blessed place to look.
-export const claudeCodeModels = MODEL_CATALOGS['claude-code'];
+// still resolve and new consumers have one blessed place to look. The
+// registry stays the M10 static fallback used by settings-popover — task007
+// cascading logic still depends on it for pre-switch model-compat checks.
+export const claudeCodeModels: ReadonlyArray<ModelEntry> =
+  MODEL_CATALOGS['claude-code'] ?? [];

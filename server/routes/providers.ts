@@ -18,6 +18,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { getDB, save } from "../db";
 import { validate } from "./validation";
+import { discoverModels } from "../providers/model-discovery";
 import type { ProviderConfig } from "@shared/types";
 
 const router = Router();
@@ -194,6 +195,26 @@ router.put("/api/providers/:id", (req, res) => {
   db.providers[idx] = updated;
   save();
   res.json(toPublic(updated));
+});
+
+/**
+ * Discover models offered by a provider — task005.
+ *
+ * Reads the provider record (with its server-side secret) and hands it to
+ * `discoverModels`. Failures inside discovery degrade to an empty array, so
+ * callers always see a consistent shape. Unknown provider ids return 404 —
+ * the client's `useProviderModels` hook keys on the provider id, so a
+ * cleaner error than "empty array" helps surface misconfiguration.
+ */
+router.get("/api/providers/:id/models", async (req, res) => {
+  const { id } = req.params;
+  const db = getDB();
+  const provider = (db.providers ?? []).find((p) => p.id === id);
+  if (!provider) {
+    return res.status(404).json({ error: "Provider not found" });
+  }
+  const models = await discoverModels(provider);
+  res.json(models);
 });
 
 router.delete("/api/providers/:id", (req, res) => {
