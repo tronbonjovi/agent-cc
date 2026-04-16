@@ -1049,3 +1049,53 @@ export interface ChatTabState {
   tabOrder: string[];
 }
 
+// ---------------------------------------------------------------------------
+// Chat composer settings — chat-composer-controls milestone (task001)
+// ---------------------------------------------------------------------------
+//
+// Two layers:
+//
+//   - `ChatGlobalDefaults` lives on the server in `DBData.chatDefaults`. New
+//     conversations inherit this shape as their starting configuration. The
+//     user edits it via `GET/PUT /api/settings/chat-defaults`.
+//   - `ChatSettings` is the resolved shape the composer actually uses for a
+//     given conversation — `globalDefaults ∪ overrides[conversationId]`. The
+//     client-side Zustand store (`chat-settings-store.ts`) holds both layers
+//     and exposes `getSettings(conversationId)` for reads.
+//
+// Per-tab changes are transient (in-memory only, survive tab switches but
+// die on reload) — intentionally out-of-scope to persist for this first
+// milestone. Only the global defaults round-trip through the server.
+
+/**
+ * Composer configuration for a single conversation. A field set here wins
+ * over the matching field in `ChatGlobalDefaults`. Fields are optional on
+ * purpose: most are provider-specific (e.g. `effort` is Claude Code only,
+ * `temperature` is OpenAI-compatible only).
+ */
+export interface ChatSettings {
+  /** Provider identifier, e.g. "claude-code", "ollama", or a custom ID. */
+  providerId: string;
+  /** Model identifier, e.g. "claude-sonnet-4-6", "llama3.2:8b". */
+  model: string;
+  /** "low" | "medium" | "high" — Claude Code only. */
+  effort?: string;
+  /** Extended thinking toggle — model-dependent. */
+  thinking?: boolean;
+  /** Web search toggle — Claude Code only. */
+  webSearch?: boolean;
+  /** Custom system prompt appended to the provider's default. */
+  systemPrompt?: string;
+  /** Project context cwd. `null`/undefined means "General" (no project). */
+  projectPath?: string;
+  /** Sampling temperature 0–2 — OpenAI-compatible providers only. */
+  temperature?: number;
+}
+
+/**
+ * Global defaults for new conversations. Same shape as `ChatSettings` — the
+ * alias exists so call-sites can express intent ("this is the global
+ * defaults record, not a per-conversation resolved value").
+ */
+export type ChatGlobalDefaults = ChatSettings;
+

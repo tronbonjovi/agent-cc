@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
-import { defaultAppSettings } from "../db";
+import { defaultAppSettings, defaultChatDefaults, getDB, save } from "../db";
 import { validate } from "./validation";
 import { clearProjectDirsCache } from "../scanner/utils";
+import type { ChatGlobalDefaults } from "@shared/types";
 
 const ThresholdPairSchema = z.object({
   yellow: z.number().positive(),
@@ -66,6 +67,45 @@ router.post("/api/settings/reset", (_req, res) => {
     scanPaths: { ...defaultAppSettings.scanPaths },
   });
   res.json(updated);
+});
+
+// ---------------------------------------------------------------------------
+// Chat composer defaults — chat-composer-controls task001
+// ---------------------------------------------------------------------------
+//
+// `providerId` and `model` are the only strictly required fields. Everything
+// else is optional because it's provider-specific (effort / webSearch are
+// Claude Code only, temperature is OpenAI-compatible only, etc.). The shape
+// mirrors the `ChatSettings` interface in `shared/types.ts`.
+//
+// PUT is idempotent — it *replaces* the full defaults object, it does not
+// merge. Callers should send the entire shape they want persisted.
+
+const ChatDefaultsSchema = z.object({
+  providerId: z.string().trim().min(1, "providerId must be a non-empty string"),
+  model: z.string().trim().min(1, "model must be a non-empty string"),
+  effort: z.string().trim().min(1).optional(),
+  thinking: z.boolean().optional(),
+  webSearch: z.boolean().optional(),
+  systemPrompt: z.string().optional(),
+  projectPath: z.string().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+});
+
+router.get("/api/settings/chat-defaults", (_req, res) => {
+  const db = getDB();
+  const defaults = db?.chatDefaults ?? { ...defaultChatDefaults };
+  res.json(defaults);
+});
+
+router.put("/api/settings/chat-defaults", (req, res) => {
+  const parsed = validate(ChatDefaultsSchema, req.body, res);
+  if (!parsed) return;
+  const db = getDB();
+  const next: ChatGlobalDefaults = { ...parsed };
+  db.chatDefaults = next;
+  save();
+  res.json(next);
 });
 
 export default router;

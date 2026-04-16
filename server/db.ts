@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, TerminalPanelState, CostRecord, CostIndexState, ChatTabState } from "@shared/types";
+import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, TerminalPanelState, CostRecord, CostIndexState, ChatTabState, ChatGlobalDefaults } from "@shared/types";
 
 const dataDir = process.env.AGENT_CC_DATA
   ? path.resolve(process.env.AGENT_CC_DATA)
@@ -51,7 +51,22 @@ export interface DBData {
    * from scanner-discovered ones. Added in chat-scanner-unification task002.
    */
   chatSessions: Record<string, { sessionId: string; title: string; createdAt: string }>;
+  /**
+   * Global chat composer defaults — new conversations inherit these on open.
+   * Per-conversation overrides are held client-side in the Zustand settings
+   * store; only the global layer round-trips through the server via
+   * `GET/PUT /api/settings/chat-defaults`. Added in chat-composer-controls
+   * task001.
+   */
+  chatDefaults: ChatGlobalDefaults;
 }
+
+/** Migration-safe default chat composer settings. */
+export const defaultChatDefaults: ChatGlobalDefaults = {
+  providerId: "claude-code",
+  model: "claude-sonnet-4-6",
+  effort: "medium",
+};
 
 export const defaultAppSettings: AppSettings = {
   appName: "Agent CC",
@@ -104,6 +119,7 @@ function defaultData(): DBData {
     staleCounts: {},
     chatUIState: { openTabs: [], activeTabId: null, tabOrder: [] },
     chatSessions: {},
+    chatDefaults: { ...defaultChatDefaults },
   };
 }
 
@@ -200,6 +216,9 @@ try {
     }
     if (!data.chatSessions) {
       data.chatSessions = {};
+    }
+    if (!data.chatDefaults) {
+      data.chatDefaults = { ...defaultChatDefaults };
     }
     // Silently discard leftover pipeline keys from older DB files
     delete (data as any).pipelineConfig;
