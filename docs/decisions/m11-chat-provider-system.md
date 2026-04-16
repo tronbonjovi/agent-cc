@@ -114,3 +114,96 @@ Running log of mid-task decisions, scope shifts, and gaps surfaced during M11 ex
 - **Consequences:** Test remains accurate. Pattern to remember: new dependencies on `db.providers` may require fixture updates in unrelated tests.
 
 ---
+
+## task006 — closed the OAuth CRUD schema gap
+
+- **Context:** task004 deferred extending `ProviderCreateSchema`/`ProviderUpdateSchema` to accept `oauthConfig` since the UI that would use it didn't exist yet.
+- **Decision:** task006 extended both schemas. `OAuthConfigSchema` requires `authUrl`, `tokenUrl`, `clientId`; `clientSecret` and `scopes` optional. `auth.type === 'oauth'` now requires `oauthConfig` on create. PUT preserves stored `oauthTokens` across edits.
+- **Consequences:** OAuth providers creatable via HTTP API + UI. Deferred gap closed in the same milestone.
+
+---
+
+## task006 — single add/edit Dialog vs separate components
+
+- **Context:** Add and edit forms have identical field sets.
+- **Decision:** One Dialog component with an `editing: Provider | null` flag. Client Secret (like API key) is masked on edit with a placeholder hint; blank means "keep existing."
+- **Consequences:** Less code, consistent UX. Server PUT handler already falls through to stored values for blank secrets.
+
+---
+
+## task006 — OAuth connect: open new tab, refetch status on interval
+
+- **Context:** OAuth popup callback closes itself. Parent window needs to know when connection succeeds.
+- **Decision:** `window.open(authUrl, '_blank', 'noopener')` + refetch `/status` after a 3s delay. No window-close detection, no BroadcastChannel, no polling loop.
+- **Consequences:** Simple. If user takes longer than 3s to complete OAuth, they re-visit Settings or focus-change to see the connected state. Acceptable for single-user devbox.
+
+---
+
+## task007 — rewired composer, made `builtin-providers.ts` fixture-only
+
+- **Context:** M10 introduced static `BUILTIN_PROVIDERS`/`MODEL_CATALOGS` helpers. task005 partially rewired `model-dropdown.tsx`; task007 finished the job.
+- **Decision:** Runtime client code no longer imports from `builtin-providers.ts`. File retained in reduced form as a test fixture (4 test suites still reference model IDs / display names). Added a module header documenting obsolete-in-runtime status and redirecting future changes to `server/db.ts` (seeder) and `server/providers/model-discovery.ts` (Claude known set).
+- **Consequences:** Provider and model data flow end-to-end from server. Tests keep their fixture. Future cleanup: rewrite those 4 test suites to import from the new server-side sources, then delete the file entirely.
+
+---
+
+## task007 — degraded `getActiveProvider` / `getCapabilities` mid-load
+
+- **Context:** Before `loadProviders()` resolves, the store has an empty providers list but the popover may already be rendering.
+- **Decision:** `getActiveProvider` returns `undefined` when no match; `getCapabilities` returns `{}` so every gated control (`caps.thinking`, `caps.effort`, etc.) reads falsy and hides. Trigger label shows the stored provider id verbatim.
+- **Consequences:** No crashes during mid-load. Brief UI flicker: gated controls hidden for a tick, then fill in. Acceptable.
+
+---
+
+## task007 — "(unavailable)" hint is cache-only, not on-demand
+
+- **Context:** The provider selector should show which providers have no models available. Firing `useProviderModels` for every provider on every popover open would mean N discovery requests on each render.
+- **Decision:** `ProviderMenuItem` reads React Query's **cached** model list only. Hint appears when the cache has a result; otherwise nothing. No forced fetch.
+- **Consequences:** First popover open for a fresh session shows no hints for non-selected providers. Hints populate after either (a) user switches providers once, or (b) user visits Settings (which pre-warms via `useProviderModels` per row). Explicit tradeoff — eagerness would thrash the API on dropdown open.
+
+---
+
+## task007 — modified `chat-capability-visibility.test.ts` outside `filesTouch`
+
+- **Context:** 4 M10-era assertions in that test pinned pre-rewire behaviors (`getActiveProvider` reads from `BUILTIN_PROVIDERS`, `model-dropdown` imports from `builtin-providers`). M11 semantics reverse both.
+- **Decision:** Updated the 4 assertions to M11 semantics (providers slice seeded in `resetStore`, fallback is `claude-code` not "first builtin", import pin swapped to `useProviderModels` + negative assertion on old import). Flagged explicitly in task report. Same pattern M10's task007 used when it moved catalogs into `builtin-providers.ts`.
+- **Consequences:** Tests still enforce the intended invariants, just for the new architecture. Pattern to remember: when a prior milestone's test pins a now-reversed behavior, update the pin rather than contorting the new code.
+
+---
+
+## Post-Phase-3 open gap — composer `providerId` not wired into chat-panel POST
+
+- **Context:** `chat-panel.tsx` sends `POST /api/chat/prompt` without a `providerId` field. Server defaults to `'claude-code'` (from task003). The composer's provider selector updates the store but the store's `providerId` never reaches the server.
+- **Decision:** Not fixed in task007 — `chat-panel.tsx` was not in `filesTouch`. Folded into task008 via user-approved scope expansion (`chat-panel.tsx` added to task008's filesTouch).
+- **Consequences:** Until task008, the provider selector was cosmetic. Fix is ~5 lines: read `providerId` from the settings store for the active conversation, include in the POST body. Closed in task008 (commit `716927d`).
+
+---
+
+## task008 — flat body with always-present `providerId` vs conditional spread
+
+- **Context:** Contract said "omit `providerId` on mid-load." A conditional-spread POST body (`{ ...(providerId && { providerId }) }`) would match that intent exactly.
+- **Decision:** Kept a flat object — `providerId` always present, value sourced from the settings store's `INITIAL_DEFAULTS` which seeds `'claude-code'` on first mount. The server's existing `typeof providerIdRaw === "string" && providerIdRaw.length > 0` gate defaults empty values back to `'claude-code'`.
+- **Rejected alternative:** Conditional spread broke 3 pre-existing regex guardrails (`[^}]*` patterns in other tests that refuse nested `{}` inside the body).
+- **Consequences:** Same observable outcome as "field omitted on mid-load" (server falls back to claude-code either way). Zero test blast radius. `ChatSettings.providerId` is a non-optional field, so the always-present shape matches the type contract cleanly.
+
+---
+
+## task008 — E2E uses mocked modules, bypasses supertest for error-chunk assertions
+
+- **Context:** Full SSE streaming through supertest is awkward to assert on chunk-by-chunk.
+- **Decision:** `vi.mock()` the three backend modules (`claude-runner`, `openai-adapter`, `oauth`). For the "Provider not found" case, import `routeToProvider` directly and assert the emitted error chunk shape; the HTTP-side assertion just confirms no adapter was called.
+- **Consequences:** Tests are fast and deterministic. Trade-off: the E2E validates handler logic end-to-end, but the actual Claude CLI and OpenAI network calls aren't exercised (in-memory mocks stand in). Real provider connectivity needs manual smoke or a future integration suite with real endpoints.
+
+---
+
+## M11 summary — shipped scope
+
+- **All 8 tasks merged on `feature/chat-provider-system`:** CRUD + storage (001), OpenAI adapter (002), model discovery (005), OAuth (004), provider-aware routing (003), settings UI (006), composer wiring (007), E2E + providerId wiring (008).
+- **Test coverage added:** ~128 new tests across the milestone (23 CRUD + 13 adapter + 14 discovery + 26 OAuth + 13 routing + 38 settings UI + 16 composer wiring + 19 E2E). Full suite: 6590/6590 passing.
+- **Gaps deliberately left for post-M11:**
+  - **OpenAI chat history on reload** — accepted as a session-scoped limitation for M11. Persistence is a post-milestone design question.
+  - **Token-aware history cap** — `HISTORY_CAP = 50` messages; a token-estimator is a cheap follow-up.
+  - **`builtin-providers.ts` full deletion** — reduced to test-fixture-only, 4 test suites still reference it. Post-M11 cleanup: rewrite those tests against `server/providers/model-discovery.ts` + `server/db.ts` seeder, then delete.
+  - **"(unavailable)" hint eagerness** — only fires when React Query has a cached model list. Eager cross-provider discovery would thrash the API on every popover open. Current behavior is the explicit trade-off.
+
+---
