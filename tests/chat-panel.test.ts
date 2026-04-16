@@ -81,7 +81,13 @@ describe('chat-panel.tsx — source guardrails', () => {
   });
 
   it('sends conversationId and text in the POST body', () => {
-    expect(src).toMatch(/JSON\.stringify\(\s*\{\s*conversationId\s*,\s*text\s*\}/);
+    // chat-composer-controls-task003 added an optional `model` field to the
+    // POST body. The guardrail now just pins that conversationId and text
+    // are present alongside whatever trailing settings fields the composer
+    // is forwarding today.
+    expect(src).toMatch(
+      /JSON\.stringify\(\s*\{\s*conversationId\s*,\s*text\b[\s\S]*?\}\s*\)/,
+    );
   });
 
   it('coalesces text chunks via coalesceAssistantText', () => {

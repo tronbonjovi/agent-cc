@@ -73,10 +73,16 @@ router.post("/prompt", async (req: Request, res: Response) => {
   if (!(await isClaudeAvailable())) {
     return res.status(503).json({ error: "Claude CLI not installed" });
   }
-  const { conversationId, text } = req.body ?? {};
+  const { conversationId, text, model } = req.body ?? {};
   if (!conversationId || !text) {
     return res.status(400).json({ error: "conversationId and text required" });
   }
+  // `model` is optional: the composer sends the user's per-conversation
+  // selection from `useChatSettingsStore.getSettings(id).model`; legacy
+  // clients that don't know about the field just omit it and the CLI
+  // falls back to its default. See chat-composer-controls-task003.
+  const modelId: string | undefined =
+    typeof model === "string" && model.length > 0 ? model : undefined;
 
   res.json({ ok: true });
 
@@ -101,6 +107,7 @@ router.post("/prompt", async (req: Request, res: Response) => {
       for await (const chunk of runClaudeStreaming({
         prompt: text,
         sessionId: existingSessionId,
+        model: modelId,
       })) {
         // Capture session ID from CLI stream init envelope
         if (

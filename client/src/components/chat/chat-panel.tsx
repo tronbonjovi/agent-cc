@@ -24,10 +24,12 @@ import { Plus, Mic } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { useChatStore, shouldShowThinking } from '@/stores/chat-store';
+import { useChatSettingsStore } from '@/stores/chat-settings-store';
 import { useChatHistory } from '@/hooks/use-chat-history';
 import { useActiveConversationId } from '@/hooks/use-active-conversation-id';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
 import { ChatTabBar } from '@/components/chat/chat-tab-bar';
+import { ModelDropdown } from '@/components/chat/model-dropdown';
 import { parseSlashCommand, dispatchCommand } from '@/lib/chat-commands';
 import { mergeChatEvents } from '@/lib/chat-event-merge';
 import type { InteractionEvent } from '../../../../shared/types';
@@ -203,10 +205,18 @@ export function ChatPanel() {
     });
 
     try {
+      // Read the per-conversation model from the settings store and forward
+      // it to the server. The server falls back to the CLI default when this
+      // field is omitted (legacy clients), but the composer dropdown always
+      // resolves to *some* id because getSettings merges globalDefaults —
+      // see model-dropdown.tsx.
+      const model = useChatSettingsStore
+        .getState()
+        .getSettings(conversationId).model;
       const res = await fetch('/api/chat/prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, text }),
+        body: JSON.stringify({ conversationId, text, model }),
       });
       if (!res.ok) {
         // Server rejected the prompt (e.g. 503 when the Claude CLI isn't
@@ -289,19 +299,12 @@ export function ChatPanel() {
         className="border-t p-3 flex items-end gap-2"
         data-testid="chat-composer"
       >
-        {/* Left zone: model selector stub */}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          data-testid="chat-composer-model"
-          onClick={() => {
-            /* task003 wires the dropdown */
-          }}
-        >
-          Model
-        </Button>
+        {/* Left zone: model selector (task003). ModelDropdown owns the
+            `data-testid="chat-composer-model"` mount that task002 set up,
+            reads the current model from `useChatSettingsStore`, and writes
+            selections back via `updateSettings`. The POST body below picks
+            up the resolved model from the store on submit. */}
+        <ModelDropdown conversationId={conversationId} />
 
         {/* Center: multi-line input. min-h keeps the composer from looking
             cramped; rows={1} lets it start single-line and expand naturally

@@ -133,6 +133,14 @@ export interface StreamingClaudeOptions {
    * stores for subsequent prompts.
    */
   sessionId?: string;
+  /**
+   * Optional Claude model ID to use for this turn (e.g. `claude-opus-4-6`,
+   * `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`). When provided, the
+   * CLI receives `--model <id>` and uses that model; when omitted, the CLI
+   * falls back to its configured default. Wired through from the composer
+   * model dropdown — see `chat-composer-controls-task003`.
+   */
+  model?: string;
 }
 
 /** A single parsed chunk yielded by runClaudeStreaming. */
@@ -186,7 +194,7 @@ function classifyStreamLine(line: unknown): StreamChunk["type"] {
 export async function* runClaudeStreaming(
   opts: StreamingClaudeOptions,
 ): AsyncGenerator<StreamChunk> {
-  const { prompt, timeoutMs = 60000, signal, sessionId } = opts;
+  const { prompt, timeoutMs = 60000, signal, sessionId, model } = opts;
 
   const env = buildClaudeEnv();
   // `--verbose` is mandatory when combining `-p` (print mode) with
@@ -204,6 +212,12 @@ export async function* runClaudeStreaming(
   // first turn — the CLI will allocate a fresh session ID.
   if (sessionId) {
     args.push("--resume", sessionId);
+  }
+  // When a model is provided, pin this turn to that model via `--model`. When
+  // omitted, the CLI uses its configured default. Wired from the composer
+  // model dropdown — see `chat-composer-controls-task003`.
+  if (model) {
+    args.push("--model", model);
   }
 
   const child = spawn("claude", args, {
