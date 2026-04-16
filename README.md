@@ -6,9 +6,9 @@ Built by a solo developer learning software engineering with AI as primary codin
 
 ## Core Features
 
-The Session Intelligence engine is the backbone — it ingests AI coding session data into a unified SQLite store and builds hierarchical session trees. Analytics, cost tracking, and chat all read from that store. Ecosystem Discovery scans your environment for projects, tools, and configs. The rest are standalone workspace and management tools.
+The Session Intelligence engine is the backbone — it parses Claude Code JSONL session files and builds hierarchical session trees. Analytics, cost tracking, and chat all read from the same parsed cache. Ecosystem Discovery scans your environment for projects, tools, and configs. The rest are standalone workspace and management tools.
 
-**Session Intelligence** `Live` — The deep engine. Parses JSONL session files, extracts messages, tool calls, costs, file changes, and metadata. Builds hierarchical session trees linking parent sessions to subagent sessions. Ingests incrementally into SQLite with byte-offset resumption.
+**Session Intelligence** `Live` — The deep engine. Parses JSONL session files from `~/.claude/projects/`, extracts messages, tool calls, costs, file changes, and metadata. Builds hierarchical session trees linking parent sessions to subagent sessions. Byte-offset incremental parsing for efficient re-scans.
 
 **Ecosystem Discovery** `Live` — Fleet of filesystem scanners that discover what exists in your environment: projects, skills, plugins, MCP servers, agents, configs, markdown files, tasks, Docker services, and git remotes. Produces an entity graph that feeds the dashboard, library, and graph visualization.
 
@@ -18,7 +18,7 @@ The Session Intelligence engine is the backbone — it ingests AI coding session
 
 **Board** `Needs Work` — Cross-project kanban board with four columns, milestone grouping, dependency flags, and session linking. Two-way sync with [workflow-framework](https://github.com/tronbonjovi/workflow-framework) markdown task files.
 
-**Chat** `Live` — Integrated multi-tab chat panel. Conversations persist in SQLite. Slash commands route to server-side workflows (no shell access from chat input). Claude Code hooks stream inline. Import past sessions as chat tabs. Conversation sidebar with source filtering.
+**Chat** `Live` — Integrated multi-tab chat panel with provider routing. Claude Code CLI and any OpenAI-compatible API (Ollama, OpenAI, Groq, Together, etc.) work out of the box. OAuth 2.0 flow for subscription-based providers, api-key for pay-per-token, none for local. Per-conversation settings (model, effort, thinking, system prompt, project context). Slash commands route to server-side workflows (no shell access from chat input). Claude Code lifecycle hooks stream inline via `POST /api/chat/hook-event`.
 
 **Terminal** `Live` — VS Code-style embedded terminal with multiple tabs, split view, persistent state, and theme-aware rendering.
 
@@ -46,7 +46,7 @@ For production deployment, see [SETUP.md](SETUP.md).
 ## Tech Stack
 
 **Frontend:** React 18, TanStack Query, Tailwind CSS, Radix UI, React Flow, xterm.js
-**Backend:** Express 5, better-sqlite3, chokidar, Zod
+**Backend:** Express 5, chokidar, Zod
 **Build:** Vite + esbuild, TypeScript throughout
 
 ## Security & Privacy

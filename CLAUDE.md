@@ -4,14 +4,28 @@
 
 ```bash
 npm install
-npm run dev        # starts on http://localhost:5100
-npm run check      # TypeScript type-check
-npm test           # run all tests
+npm run dev        # starts on http://localhost:5100 (hot reload)
+npm run check      # TypeScript type-check (must pass before commit)
+npm test           # run all tests (includes new-user-safety guard)
+npm run build      # production build
 ```
 
 ## Architecture
 
 Express.js backend + React frontend (TypeScript), served from a single process. Session data is read from `~/.claude/projects/` JSONL files. Persistent state stored in `~/.agent-cc/agent-cc.json`.
+
+## Chat System
+
+Two backends live behind a unified streaming interface:
+
+- **Claude Code CLI** (`server/routes/chat.ts` → `runClaudeStreaming`): spawns `claude -p`, uses `--session-id` for history, writes JSONL the scanner picks up.
+- **OpenAI-compatible** (`server/providers/openai-adapter.ts` → `runOpenAIStreaming`): HTTP `/v1/chat/completions`, stateless, full history-per-request.
+
+Routing happens in `server/providers/router.ts::routeToProvider()` — looks up provider config from `db.providers`, resolves credentials (api-key direct, oauth via `getValidToken`, or none), and yields `StreamChunk` in the same shape regardless of backend.
+
+Built-in providers: `claude-code`, `ollama` (honors `OLLAMA_URL` env). Additional providers configurable via Settings → Chat, persisted in `db.providers`. `oauthTokens`/`clientSecret`/`apiKey` stripped from wire responses.
+
+Model discovery: `server/providers/model-discovery.ts` hits `/api/tags` (Ollama), `/v1/models` (OpenAI-compat), known set (Claude). 60s TTL cache that does NOT cache failures.
 
 ## Safety Rules
 
@@ -36,15 +50,6 @@ Express.js backend + React frontend (TypeScript), served from a single process. 
 9. **No screenshots in git.** `docs/screenshots/` is gitignored. Screenshots contain live user data and must never be committed. Also watch for encoded path forms like `C--Users-username` (Claude project key format).
 
 10. **Do not crawl `archive/`.** Historical specs, plans, task files, and brainstorms from Apr 3→12 live in `archive/` (gitignored, skipped by ripgrep). For history, use `git log` and `CHANGELOG.md`. Explicit `Read` on a known archive path is fine — just don't search/glob it when exploring the repo.
-
-## Key Commands
-
-```bash
-npm run dev          # dev server with hot reload
-npm run check        # TypeScript type-check (must pass before commit)
-npm test             # all tests including new-user-safety checks
-npm run build        # production build
-```
 
 ## Deployment
 
@@ -72,6 +77,7 @@ server/
   routes/          # Express API routes
   scanner/         # JSONL parsers, analytics, AI features
   board/           # Kanban board (aggregator, validator, events, ingest)
+  providers/       # Chat provider routing (Claude CLI + OpenAI-compatible)
   db.ts            # JSON database with atomic writes
   storage.ts       # Storage abstraction layer
 shared/
@@ -83,9 +89,13 @@ client/
 tests/             # Vitest tests
 ```
 
-## Adding AI Features (claude -p)
+## Adding AI Features
 
-When adding features that use `claude -p`:
+Two paths depending on what you're building:
+
+**Chat-style user-facing features** — add a provider via the Chat System (see above) or reuse `server/providers/router.ts`. Don't spawn `claude -p` directly for chat.
+
+**Internal one-shot AI features** (summarization, queries, analysis) — use `claude -p`:
 
 1. Remove `CLAUDECODE` from env: `delete env.CLAUDECODE`
 2. Add `isClaudeAvailable()` check in the route handler

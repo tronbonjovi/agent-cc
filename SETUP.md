@@ -44,12 +44,13 @@ npm start
 
 ---
 
-## Docker
+## Docker (optional)
+
+A `Dockerfile` is included for building container images. No `docker-compose.yml` ships with the repo — the primary deployment method is bare-metal systemd (see `scripts/deploy.sh`).
 
 ```bash
-git clone https://github.com/tronbonjovi/agent-cc.git
-cd agent-cc
-docker compose up -d --build
+docker build -t agent-cc .
+docker run -p 5100:5100 -v ~/.claude:/home/node/.claude:ro -v ~/.agent-cc:/data agent-cc
 ```
 
 ---
