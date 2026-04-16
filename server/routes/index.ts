@@ -25,6 +25,7 @@ import chatRouter from "./chat";
 import chatTabsRouter from "./chat-tabs";
 import chatWorkflowsRouter from "./chat-workflows";
 import hookBridgeRouter from "./hook-bridge";
+import providersRouter from "./providers";
 import terminalRouter from "./terminal";
 import { createBoardRouter } from "./board";
 import { boardEvents } from "../board/events";
@@ -92,6 +93,7 @@ export async function registerRoutes(_server: Server, app: Express): Promise<voi
   app.use("/api/chat", chatTabsRouter);
   app.use("/api/chat", chatWorkflowsRouter);
   app.use("/api/chat", hookBridgeRouter);
+  app.use(providersRouter);
   app.use(terminalRouter);
   app.use(createBoardRouter(boardEvents));
 

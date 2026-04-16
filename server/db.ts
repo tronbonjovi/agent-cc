@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, TerminalPanelState, CostRecord, CostIndexState, ChatTabState, ChatGlobalDefaults } from "@shared/types";
+import type { Entity, Relationship, MarkdownBackup, AppSettings, CustomNode, CustomEdge, EntityOverride, SessionSummary, PromptTemplate, WorkflowConfig, SessionNote, TerminalPanelState, CostRecord, CostIndexState, ChatTabState, ChatGlobalDefaults, ProviderConfig } from "@shared/types";
 
 const dataDir = process.env.AGENT_CC_DATA
   ? path.resolve(process.env.AGENT_CC_DATA)
@@ -59,6 +59,14 @@ export interface DBData {
    * task001.
    */
   chatDefaults: ChatGlobalDefaults;
+  /**
+   * Configured chat providers. Ships with two built-in entries
+   * (`claude-code`, `ollama`) that cannot be deleted — users add more
+   * OpenAI-compatible providers through the settings UI. CRUD lives in
+   * `server/routes/providers.ts`; API keys are server-only and masked in
+   * every response. Added in chat-provider-system task001.
+   */
+  providers: ProviderConfig[];
 }
 
 /** Migration-safe default chat composer settings. */
@@ -67,6 +75,44 @@ export const defaultChatDefaults: ChatGlobalDefaults = {
   model: "claude-sonnet-4-6",
   effort: "medium",
 };
+
+/**
+ * Default provider list — seeded on fresh DBs and re-added by the migration
+ * guard below if a legacy DB is missing the `providers` field. The Ollama
+ * entry's `baseUrl` honors `OLLAMA_URL` so devs running Ollama on a non-
+ * default port (or a remote host) can override without editing the DB.
+ */
+export function defaultProviders(): ProviderConfig[] {
+  return [
+    {
+      id: "claude-code",
+      name: "Claude Code",
+      type: "claude-cli",
+      auth: { type: "none" },
+      capabilities: {
+        thinking: true,
+        effort: true,
+        webSearch: true,
+        systemPrompt: true,
+        fileAttachments: true,
+        projectContext: true,
+      },
+      builtin: true,
+    },
+    {
+      id: "ollama",
+      name: "Ollama",
+      type: "openai-compatible",
+      baseUrl: process.env.OLLAMA_URL || "http://localhost:11434",
+      auth: { type: "none" },
+      capabilities: {
+        temperature: true,
+        systemPrompt: true,
+      },
+      builtin: true,
+    },
+  ];
+}
 
 export const defaultAppSettings: AppSettings = {
   appName: "Agent CC",
@@ -120,6 +166,7 @@ function defaultData(): DBData {
     chatUIState: { openTabs: [], activeTabId: null, tabOrder: [] },
     chatSessions: {},
     chatDefaults: { ...defaultChatDefaults },
+    providers: defaultProviders(),
   };
 }
 
@@ -219,6 +266,18 @@ try {
     }
     if (!data.chatDefaults) {
       data.chatDefaults = { ...defaultChatDefaults };
+    }
+    if (!data.providers || !Array.isArray(data.providers)) {
+      data.providers = defaultProviders();
+    } else {
+      // Guarantee built-ins are present — if a legacy DB was hand-edited to
+      // delete `claude-code` or `ollama`, re-seed them so the rest of the
+      // app (chat composer, provider dropdown) always has a baseline.
+      for (const p of defaultProviders()) {
+        if (!data.providers.some((x) => x.id === p.id)) {
+          data.providers.push(p);
+        }
+      }
     }
     // Silently discard leftover pipeline keys from older DB files
     delete (data as any).pipelineConfig;

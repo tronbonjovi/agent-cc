@@ -1163,10 +1163,23 @@ export interface ProviderConfig {
    * What kind of auth the provider uses. The secret itself stays server-side
    * — the client only sees the `type` so the settings UI can render an
    * appropriate indicator / editor.
+   *
+   * `apiKey` is a server-only field — it is MASKED in API responses (last 4
+   * chars only) and never sent to the client verbatim. Clients that want to
+   * leave the key untouched during an update should send the masked form
+   * back, which the server detects and skips.
    */
   auth: {
     type: "none" | "api-key" | "oauth";
+    apiKey?: string;
   };
   capabilities: ProviderCapabilities;
+  /**
+   * Marks built-in providers (claude-code, ollama) that ship with every DB.
+   * The CRUD layer refuses to delete providers where `builtin === true`, and
+   * refuses to mutate `id` or `type` on them — users can still tweak the
+   * name, base URL, auth, and capabilities.
+   */
+  builtin?: boolean;
 }
 
