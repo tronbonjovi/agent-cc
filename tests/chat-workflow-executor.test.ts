@@ -1,7 +1,7 @@
 /**
  * Tests for the chat workflow executor (task004 — chat-workflows-tabs).
  *
- * The executor is the Archon-pattern guard for chat input: chat ONLY ever
+ * The executor is the security guard for chat input: chat ONLY ever
  * dispatches AI prompts or named workflows from a hardcoded registry. This
  * test file exercises the registry lookup + the single built-in `echo`
  * workflow, and pins the source-text security guardrail (no child_process,
