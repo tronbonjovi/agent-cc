@@ -123,6 +123,13 @@ function resetStore() {
     },
     overrides: {},
     loaded: false,
+    // M11 chat-provider-system task007: the store now backs `getActiveProvider`
+    // with a live `providers` slice fetched from `GET /api/providers` rather
+    // than the static BUILTIN_PROVIDERS registry. Tests that exercise the
+    // selector must seed this slice — we use the M10 registry as a fixture so
+    // the pre-M11 assertions stay meaningful.
+    providers: [...BUILTIN_PROVIDERS],
+    providersLoaded: true,
   });
 }
 
@@ -135,21 +142,22 @@ describe('chat settings store — capability selectors', () => {
     const provider = useChatSettingsStore
       .getState()
       .getActiveProvider('conv-1');
-    expect(provider.id).toBe('claude-code');
+    expect(provider?.id).toBe('claude-code');
   });
 
-  it('getActiveProvider falls back to the first builtin for unknown providerId', () => {
-    // Simulate an override with a provider id we don't know about (e.g. the
-    // user configured a custom provider in a future milestone, then the
-    // builtin was removed). The selector must not throw — return the first
-    // builtin as a safety net.
+  it('getActiveProvider falls back to claude-code for unknown providerId (M11)', () => {
+    // M11: the fallback is explicitly to the `claude-code` built-in (not "the
+    // first entry in some array") — the auto-seeder guarantees it's always
+    // present after the first GET /api/providers resolves. If claude-code is
+    // missing AND the requested id doesn't match, the selector returns
+    // undefined and callers render the degraded mode.
     useChatSettingsStore
       .getState()
       .updateSettings('conv-1', { providerId: 'ghost' });
     const provider = useChatSettingsStore
       .getState()
       .getActiveProvider('conv-1');
-    expect(provider.id).toBe(BUILTIN_PROVIDERS[0].id);
+    expect(provider?.id).toBe('claude-code');
   });
 
   it('getCapabilities returns the active provider capability flags', () => {
@@ -336,8 +344,15 @@ describe('settings-popover.tsx — capability-gated controls', () => {
 describe('model-dropdown.tsx — provider-keyed catalog', () => {
   const src = fs.readFileSync(MODEL_DROPDOWN_PATH, 'utf-8');
 
-  it('imports from builtin-providers (single source of truth)', () => {
-    expect(src).toMatch(/from\s+['"][^'"]*builtin-providers['"]/);
+  it('uses the live useProviderModels hook (M11 — no static catalog import)', () => {
+    // M11 chat-provider-system task007: the dropdown no longer imports the
+    // static BUILTIN_PROVIDERS / MODEL_CATALOGS registry; it reads the model
+    // list from `useProviderModels(providerId)` which hits the server-side
+    // discovery endpoint. The hook import is the load-bearing signal — if a
+    // future refactor reintroduces a hardcoded catalog import, this pin
+    // catches it.
+    expect(src).toMatch(/\buseProviderModels\b/);
+    expect(src).not.toMatch(/from\s+['"][^'"]*builtin-providers['"]/);
   });
 
   it('resolves the provider id from settings to pick a catalog', () => {

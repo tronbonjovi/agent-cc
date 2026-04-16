@@ -2,7 +2,8 @@
 //
 // Composer settings popover — chat-composer-controls task004 (shell) +
 // task005 (controls) + task006 (project selector) + task007 (capability
-// gating & temperature slider).
+// gating & temperature slider) + chat-provider-system M11 task007 (live
+// provider wiring — this edit).
 //
 // The + button in the composer opens this popover. It's the container for
 // per-conversation settings. Ownership layers:
@@ -10,22 +11,27 @@
 //   1. The Popover shell (shadcn Popover / PopoverTrigger / PopoverContent).
 //   2. The + button, which lives inside PopoverTrigger and carries the
 //      `data-testid="chat-composer-plus"` mount that task002 set up.
-//   3. The provider selector — first control in the popover. Enumerates
-//      BUILTIN_PROVIDERS from the registry module so the capability system
-//      and the model dropdown stay in lock-step.
+//   3. The provider selector — first control in the popover. Reads from
+//      `store.providers` (hydrated via `loadProviders()` against
+//      `GET /api/providers`) so user-added providers from the Settings page
+//      appear here automatically.
 //   4. Capability-gated controls — each control renders only if the active
 //      provider's capability flag for it is true. Switching providers
 //      updates `caps` through the store selector and the controls show/hide
-//      automatically. See `builtin-providers.ts` for the capability source
-//      of truth.
+//      automatically. When no provider resolves (mid-load, or a stale
+//      providerId), `getCapabilities` returns `{}` — every flag is falsy,
+//      every gated control hides. Degraded but safe.
 //   5. Provider-change cascade — when the user picks a different provider,
-//      if the current model isn't in that provider's catalog we reset to
-//      the provider's default. Atomic `updateSettings({ providerId, model })`
-//      avoids a half-configured override leaking into a POST.
+//      we atomically reset `model` to empty alongside the new `providerId`.
+//      The model dropdown owns the "select-first-available-model-after-
+//      provider-change" responsibility because it's the only layer that
+//      can see the new provider's live model list. See
+//      `model-dropdown.tsx` for the selection-reset logic.
 
+import { useEffect } from 'react';
 import { useRef, useState, type ChangeEvent } from 'react';
 import { Plus, ChevronDown, ChevronRight, Check, Paperclip, X } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -39,21 +45,8 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
 import { useChatSettingsStore } from '@/stores/chat-settings-store';
-import {
-  BUILTIN_PROVIDERS,
-  defaultModelFor,
-  isModelInCatalog,
-} from '@/stores/builtin-providers';
 import type { ProviderConfig } from '../../../../shared/types';
-
-/** Resolve a provider id to its human-readable name. */
-function displayNameFor(providerId: string): string {
-  const entry = BUILTIN_PROVIDERS.find((p) => p.id === providerId);
-  // Fall through to the raw id for unknown values — matches the pattern in
-  // model-dropdown.tsx, where unfamiliar ids render as-is rather than a
-  // misleading default.
-  return entry ? entry.name : providerId;
-}
+import type { ProviderModel } from '@/hooks/use-provider-models';
 
 interface SettingsPopoverProps {
   /** The conversation this popover controls. */
@@ -71,35 +64,82 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
   const getSettings = useChatSettingsStore((s) => s.getSettings);
   const updateSettings = useChatSettingsStore((s) => s.updateSettings);
   const getCapabilities = useChatSettingsStore((s) => s.getCapabilities);
+  // M11: provider list now comes from the API — not a static import. The
+  // `providers` slice is subscribed (not read via `.getState()`) so provider
+  // changes on the Settings page re-render this popover automatically.
+  const providers = useChatSettingsStore((s) => s.providers);
+  const providersLoaded = useChatSettingsStore((s) => s.providersLoaded);
+  const loadProviders = useChatSettingsStore((s) => s.loadProviders);
+
+  // Idempotent load on mount. Zustand actions are stable references, so the
+  // effect deps array only ever runs once per popover instance. Guarding on
+  // `providersLoaded` avoids a second fetch if the hook re-mounts (e.g. tab
+  // switch) after the first load already succeeded.
+  useEffect(() => {
+    if (!providersLoaded) {
+      void loadProviders();
+    }
+  }, [providersLoaded, loadProviders]);
+
   const current = getSettings(conversationId);
   const currentProviderId = current.providerId;
-  const currentDisplay = displayNameFor(currentProviderId);
-  // Capability flags drive per-control visibility below. Reading through
-  // the store selector (not directly from BUILTIN_PROVIDERS) means a future
-  // "custom provider" that the user added via M11's CRUD flows will light
-  // up automatically — the store already knows how to resolve it.
+  // Capability flags drive per-control visibility below. The selector
+  // returns {} when no provider resolves (empty list, or deleted id with no
+  // claude-code seed yet), so every gated control safely hides until the
+  // API load completes.
   const caps = getCapabilities(conversationId);
 
+  // Resolve the trigger label from the live list. Unknown ids render as the
+  // raw id so the user sees *something* real — matches the truthful-fallback
+  // pattern in model-dropdown.tsx.
+  const currentProvider = providers.find((p) => p.id === currentProviderId);
+  const currentDisplay = currentProvider?.name ?? currentProviderId;
+
+  // React Query client for peeking at cached model lists without triggering
+  // a fetch. Used by the provider-change handler to compare the current
+  // model against the new provider's catalog at click time — if the new
+  // provider's models are already cached (common — the Settings page or a
+  // previous open of this popover pre-warmed them), we can pick a compatible
+  // model immediately. Uncached providers get the model cleared to empty;
+  // model-dropdown.tsx auto-selects the first entry once its query resolves.
+  const queryClient = useQueryClient();
+
   const handleProviderSelect = (provider: ProviderConfig) => {
-    // Provider-change cascade: if the current model is still valid for the
-    // new provider's catalog, keep it. Otherwise reset to the new
-    // provider's default. When the new provider has no catalog at all,
-    // defaultModelFor returns undefined — in that case we clear to an
-    // empty string so the composer visibly shows "no model" rather than
-    // silently re-using an incompatible id.
-    const keepModel = isModelInCatalog(provider.id, current.model);
-    const nextModel = keepModel
-      ? current.model
-      : (defaultModelFor(provider.id) ?? '');
+    // Provider-change cascade (M11 version): unlike M10 — where we had a
+    // static MODEL_CATALOGS map — we no longer have synchronous access to
+    // every provider's model list. Two paths:
+    //
+    //   a) The new provider's models are already cached in React Query
+    //      (same key useProviderModels uses). Pick the current model if
+    //      it's in the cached list, else the first cached model.
+    //   b) Not cached. Clear model to empty string; the model dropdown
+    //      auto-selects the first available entry once its query resolves
+    //      (see model-dropdown.tsx's selection-reset effect).
+    //
     // Atomic merge: providerId + model in one write so the override never
-    // lands in a half-configured state. If we split this into two writes,
-    // a fast re-render between them could fire a POST with the old
-    // provider + new model (or vice versa).
+    // lands half-configured. A fast re-render between two separate writes
+    // could fire a POST with the old provider + new model (or vice versa).
+    const cachedModels = queryClient.getQueryData<ProviderModel[]>([
+      '/api/providers',
+      provider.id,
+      'models',
+    ]);
+    let nextModel = '';
+    if (Array.isArray(cachedModels) && cachedModels.length > 0) {
+      const keep = cachedModels.find((m) => m.id === current.model);
+      nextModel = keep ? current.model : cachedModels[0].id;
+    }
     updateSettings(conversationId, {
       providerId: provider.id,
       model: nextModel,
     });
   };
+
+  // Empty-state copy: no providers configured after load completes. The
+  // server auto-seeds claude-code + ollama on startup, so this should only
+  // fire if /api/providers returned an empty array (misconfiguration) or
+  // the fetch failed. Either way, the user's next step is the Settings page.
+  const providersEmpty = providersLoaded && providers.length === 0;
 
   return (
     <Popover>
@@ -136,25 +176,30 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
                   size="sm"
                   className="w-full justify-between"
                   aria-label={`Provider: ${currentDisplay}`}
+                  disabled={providersEmpty}
                 >
                   <span className="truncate">{currentDisplay}</span>
                   <ChevronDown className="h-3 w-3 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-[14rem]">
-                {BUILTIN_PROVIDERS.map((provider) => {
-                  const isActive = provider.id === currentProviderId;
-                  return (
-                    <DropdownMenuItem
+                {providersEmpty ? (
+                  <div
+                    className="px-2 py-1.5 text-xs text-muted-foreground"
+                    data-testid="chat-settings-provider-empty"
+                  >
+                    No providers configured. Add one in Settings.
+                  </div>
+                ) : (
+                  providers.map((provider) => (
+                    <ProviderMenuItem
                       key={provider.id}
-                      data-testid={`chat-settings-provider-item-${provider.id}`}
+                      provider={provider}
+                      isActive={provider.id === currentProviderId}
                       onSelect={() => handleProviderSelect(provider)}
-                    >
-                      <span className="flex-1">{provider.name}</span>
-                      {isActive && <Check className="ml-2 h-3.5 w-3.5" />}
-                    </DropdownMenuItem>
-                  );
-                })}
+                    />
+                  ))
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -309,20 +354,67 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
   );
 }
 
-// Back-compat re-export: task004 exposed `availableProviders` as a
-// source-text anchor. task007 moved the catalog into builtin-providers.ts;
-// we re-export the same list under the old name so any consumer / test
-// still resolves a valid reference.
-export const availableProviders = BUILTIN_PROVIDERS;
-
 // ---------------------------------------------------------------------------
-// Subcomponents (task005)
+// Subcomponents (task005 + M11 task007)
 //
 // Extracted inline (same file) rather than living in their own modules
 // because each one is a thin presentational wrapper around a primitive and
 // only ever used by this popover. If a second consumer shows up, split
 // them out — until then, fewer files is better than more.
 // ---------------------------------------------------------------------------
+
+/**
+ * One row in the provider dropdown. Extracted as a component so we can call
+ * the `useProviderModels` hook per-provider and flag providers whose model
+ * endpoint returns empty/error as "(unavailable)". The hook's React Query
+ * cache means repeated opens of the popover don't re-hit the endpoint for
+ * every provider — hits go against the same 60s cache as the model dropdown.
+ *
+ * Why we need this at all: a provider with no reachable models (Ollama
+ * stopped, misconfigured baseUrl) can still be *selected*, but the user
+ * won't be able to pick a model afterwards. Calling it out in the list up
+ * front prevents the confusing "I picked a provider but the model dropdown
+ * is empty" loop.
+ */
+function ProviderMenuItem({
+  provider,
+  isActive,
+  onSelect,
+}: {
+  provider: ProviderConfig;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  // Peek at the cached model list; we don't want to block the item's render
+  // on a network round-trip. If the cache is warm (previous popover open or
+  // Settings page pre-warm) we show the "(unavailable)" hint; if not, the
+  // hint stays off until the user opens the popover once — acceptable
+  // tradeoff vs. firing N fetches every open.
+  const queryClient = useQueryClient();
+  const cached = queryClient.getQueryData<ProviderModel[]>([
+    '/api/providers',
+    provider.id,
+    'models',
+  ]);
+  const isUnavailable = Array.isArray(cached) && cached.length === 0;
+
+  return (
+    <DropdownMenuItem
+      data-testid={`chat-settings-provider-item-${provider.id}`}
+      onSelect={onSelect}
+    >
+      <span className="flex-1 truncate">
+        {provider.name}
+        {isUnavailable && (
+          <span className="ml-1 text-xs text-muted-foreground">
+            (unavailable)
+          </span>
+        )}
+      </span>
+      {isActive && <Check className="ml-2 h-3.5 w-3.5" />}
+    </DropdownMenuItem>
+  );
+}
 
 /**
  * Three-button segmented selector for reasoning effort. Low / Medium / High

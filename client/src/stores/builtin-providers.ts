@@ -1,33 +1,31 @@
 // client/src/stores/builtin-providers.ts
 //
-// Single source of truth for provider configs and per-provider model
-// catalogs. Used by:
+// STATUS (post-M11): **test-fixture-only**. No runtime client code imports
+// from this module anymore. The composer's provider list comes from
+// `GET /api/providers` via `chat-settings-store.loadProviders()`, and the
+// model list comes from `GET /api/providers/:id/models` via
+// `useProviderModels(providerId)`.
 //
-//   - `chat-settings-store.ts` — `getActiveProvider` / `getCapabilities`
-//     selectors read from BUILTIN_PROVIDERS.
-//   - `settings-popover.tsx` — provider selector enumerates BUILTIN_PROVIDERS
-//     and uses `defaultModelFor` when resetting the model on provider change.
-//   - `model-dropdown.tsx` — indexes into MODEL_CATALOGS by the current
-//     provider id to render the right model list.
+// Kept alive because the M10 test suites
+// (`tests/chat-capability-visibility.test.ts`, `tests/chat-model-dropdown.test.ts`,
+// `tests/chat-settings-popover.test.ts`, `tests/chat-composer-e2e.test.ts`)
+// reference this file as a structural fixture — they read the source text to
+// pin model-id / display-name invariants ("claude-code is present", "Claude
+// Sonnet 4.6 is listed"). Deleting this module would break those pins without
+// a corresponding behavior change in the product; keeping it here is cheap.
 //
-// Why this module (rather than keeping it in the store file, or in
-// settings-popover.tsx):
+// If you're looking at this file because you need to change a provider or
+// model list in the UI:
+//   - Provider list → the built-in auto-seeder in `server/db.ts` owns the
+//     shipping list. Add your provider there, restart, and it surfaces
+//     through `GET /api/providers`.
+//   - Model list → `server/providers/model-discovery.ts`. Claude Code's
+//     known set is hardcoded there; Ollama and OpenAI-compatible providers
+//     auto-discover from their respective endpoints.
 //
-//   - The store needs the registry for its selectors, but keeping the
-//     registry inside the store file forces the popover + dropdown to
-//     import it through the store — dragging zustand in as a hard dep for
-//     consumers that only want the data.
-//   - The popover held AVAILABLE_PROVIDERS inline (task004) but the model
-//     dropdown held CLAUDE_CODE_MODELS inline (task003). Leaving them in
-//     two places means the capability system can't tell which models a
-//     provider offers. Consolidating into this module makes
-//     `defaultModelFor(providerId)` trivial and keeps task007's cascade
-//     (incompatible-model reset on provider switch) from having to
-//     cross-reference two files.
-//   - M11 will populate providers from the server. When that lands, this
-//     module will migrate to a hook that hydrates from `/api/providers` —
-//     callers already only reach for the exports here, so the swap is a
-//     single-file change.
+// The helpers below (`resolveProvider`, `defaultModelFor`, `isModelInCatalog`)
+// are retained for the same reason as the arrays: test-suite fixtures. They
+// are no longer called from runtime client code.
 
 import type { ProviderConfig } from '../../../shared/types';
 
@@ -38,14 +36,12 @@ export interface ModelEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Provider registry
+// Provider registry (test fixture)
 // ---------------------------------------------------------------------------
 //
-// Claude Code is the only builtin today. Capability flags are all true
-// because the Claude CLI supports every composer control we've built. If a
-// future provider lands here, set only the flags it genuinely supports —
-// missing/false flags hide the corresponding control in the popover via
-// `getCapabilities`.
+// Claude Code with all capabilities true. Matches the `claude-code` entry
+// the server auto-seeds on first startup — so tests that read either the
+// static fixture here or the seeded DB get the same answer.
 
 export const BUILTIN_PROVIDERS: ReadonlyArray<ProviderConfig> = [
   {
@@ -62,20 +58,18 @@ export const BUILTIN_PROVIDERS: ReadonlyArray<ProviderConfig> = [
       projectContext: true,
       // Temperature is OpenAI-compatible territory — the Claude CLI doesn't
       // expose a --temperature flag, so the flag is intentionally omitted
-      // (treated as "not supported"). When an OpenAI-compatible provider
-      // ships in M11, flip this flag true in its entry.
+      // (treated as "not supported").
     },
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Model catalogs
+// Model catalogs (test fixture)
 // ---------------------------------------------------------------------------
 //
-// Keyed by provider id so the dropdown can index directly. A provider with
-// no catalog entry (or an empty array) renders an empty-state in the
-// dropdown — future-proof for providers that defer their model list to a
-// server-side discovery endpoint.
+// Mirrors what `server/providers/model-discovery.ts` returns for Claude Code.
+// If the server's known set changes, update this fixture too so the pinning
+// tests stay in sync.
 
 export const MODEL_CATALOGS: Record<string, ReadonlyArray<ModelEntry>> = {
   'claude-code': [
@@ -86,17 +80,16 @@ export const MODEL_CATALOGS: Record<string, ReadonlyArray<ModelEntry>> = {
 };
 
 // ---------------------------------------------------------------------------
-// Lookup helpers
+// Lookup helpers (test fixture)
 // ---------------------------------------------------------------------------
 
 /**
  * Resolve a provider id to its config. Falls back to the first builtin when
- * the id is unknown so downstream code (the popover, the store selectors)
- * never sees `undefined`. Matches the "truthful fallback" pattern used by
- * displayNameFor in model-dropdown.tsx / settings-popover.tsx — but for the
- * capabilities layer, returning the first builtin is safer than returning a
- * synthetic empty config (a provider with no capabilities would hide every
- * control and leave the composer useless).
+ * the id is unknown so downstream code never sees `undefined`.
+ *
+ * OBSOLETE in runtime client code — use
+ * `useChatSettingsStore.getState().getActiveProvider(conversationId)` instead,
+ * which resolves against the live `providers` slice.
  */
 export function resolveProvider(providerId: string): ProviderConfig {
   const hit = BUILTIN_PROVIDERS.find((p) => p.id === providerId);
@@ -105,9 +98,11 @@ export function resolveProvider(providerId: string): ProviderConfig {
 
 /**
  * Return the first model id in the provider's catalog, or undefined if the
- * provider has no catalog registered. Used by the popover's provider-change
- * handler to reset ChatSettings.model to a sensible default when the user
- * picks a different provider.
+ * provider has no catalog registered.
+ *
+ * OBSOLETE in runtime client code — model selection reset after a provider
+ * change is owned by `model-dropdown.tsx`'s selection-reset effect, which
+ * uses the live `useProviderModels(providerId)` list.
  */
 export function defaultModelFor(providerId: string): string | undefined {
   const catalog = MODEL_CATALOGS[providerId];
@@ -116,10 +111,10 @@ export function defaultModelFor(providerId: string): string | undefined {
 }
 
 /**
- * True when the given model id is present in the provider's catalog. The
- * popover uses this to decide whether a provider change needs to reset the
- * model — if the current model is already valid for the new provider, we
- * leave it alone.
+ * True when the given model id is present in the provider's catalog.
+ *
+ * OBSOLETE in runtime client code — compatibility checks use the live model
+ * list from React Query's cache (see settings-popover.tsx).
  */
 export function isModelInCatalog(
   providerId: string,
