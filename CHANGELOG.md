@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Chat–scanner unification spec and roadmap (Milestone 8)** — design spec identifying the SQLite event store as an architectural misstep (chat built a parallel data world instead of extending the scanner pipeline). Roadmap with 5 tasks across 4 phases: JSONL scanner backend, chat JSONL output + server strip, frontend rewire, SQLite demolition, integration test. Removes `interactions.db`, `InteractionEvent` model, `better-sqlite3` dependency, and ~12 files. Chat sessions will produce JSONL like normal CLI sessions and flow through the existing scanner.
+
+### Added
 - **Chat import and platform foundations (Milestone 7 COMPLETE, 6/6)** — closes M7 `chat-import-platforms` and the entire integrated chat system (milestones 3–7). `SOURCE_METADATA` registry with wiring status, display name, icon, and category for 9 sources (5 wired + 4 planned: github-issue, telegram, discord, imessage). `POST /api/chat/import` clones scanner conversations into chat tabs with source reclassification and provenance metadata. Import picker modal in the chat tab bar. `ConversationSidebar` left-rail grouping conversations by source with click-to-open (chat) and click-to-import (scanner). Filter chips (All / AI / Deterministic / External) above the sidebar. Planned-source placeholder cards. Import E2E integration test. 194 test files / 6320 tests.
 
 ### Known Issues
