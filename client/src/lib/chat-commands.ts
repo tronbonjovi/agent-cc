@@ -3,7 +3,7 @@
 // Client-side slash command parser and dispatcher shipped in
 // chat-workflows-tabs-task003.
 //
-// Archon pattern — read before touching this file:
+// Security model — read before touching this file:
 //
 //   The chat input is AI-only. Deterministic operations only reach the
 //   system through explicit workflow names routed via a server-side

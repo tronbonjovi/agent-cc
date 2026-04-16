@@ -156,7 +156,7 @@ export function ChatPanel() {
     // (or `onerror`), so this naturally re-opens once the turn completes.
     if (isStreaming) return;
 
-    // Archon slash-command interceptor (task003). If the input parses as
+    // Slash-command interceptor (task003). If the input parses as
     // `/<name> <args>` we dispatch it to the server-side workflow
     // executor FIRST. Three outcomes:
     //

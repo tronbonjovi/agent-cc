@@ -15,7 +15,7 @@
  *
  *   3. Source-text guardrail — `server/hooks-bridge.ts` must NEVER import or
  *      reference subprocess APIs. This is an event-adapter, not a command
- *      runner; the Archon-pattern hygiene from task003/task004 applies
+ *      runner; the AI-only-input hygiene from task003/task004 applies
  *      identically here.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -219,8 +219,8 @@ describe('hooks-bridge — source-text security guardrail', () => {
   // The hook bridge is a pure event-adapter: it accepts JSON, builds an
   // InteractionEvent, persists + broadcasts it. It must NEVER spawn a
   // subprocess, evaluate a string as code, or otherwise execute arbitrary
-  // commands. Archon-pattern: lock this in with a source-text test so a
-  // future refactor can't regress without breaking CI.
+  // commands. Security invariant: lock this in with a source-text test so
+  // a future refactor can't regress without breaking CI.
   it('server/hooks-bridge.ts does not reference child_process, spawn, exec, eval, or Function(', () => {
     const src = fs.readFileSync(
       path.resolve(__dirname, '..', 'server/hooks-bridge.ts'),

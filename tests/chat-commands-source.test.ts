@@ -1,7 +1,7 @@
 /**
  * Source-text guardrail for the client-side slash command dispatcher.
  *
- * Archon security regression guard: the client must never shell out. Its
+ * Security regression guard: the client must never shell out. Its
  * only job is to parse the input into a `{ name, args, raw }` payload and
  * POST it as JSON to `/api/chat/workflow`. The server decides whether a
  * workflow exists and what to run — the client has zero execution
@@ -23,7 +23,7 @@ const CHAT_COMMANDS_PATH = path.resolve(
   'client/src/lib/chat-commands.ts',
 );
 
-describe('chat-commands.ts — Archon security guardrail', () => {
+describe('chat-commands.ts — security guardrail', () => {
   const src = fs.readFileSync(CHAT_COMMANDS_PATH, 'utf-8');
 
   it('does not reference child_process, exec, spawn, or shell', () => {

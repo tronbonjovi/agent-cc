@@ -2,7 +2,7 @@
  * Parser + dispatcher tests for the client-side slash command router shipped
  * in chat-workflows-tabs-task003.
  *
- * Archon pattern: the chat input is AI-only. Slash commands are intercepted
+ * Security model: the chat input is AI-only. Slash commands are intercepted
  * on the client, parsed into a structured `{ name, args, raw }` payload, and
  * POSTed as JSON to `/api/chat/workflow`. The client does NOT hold a static
  * registry of workflow names — the server is the source of truth and returns
@@ -131,7 +131,7 @@ describe('dispatchCommand', () => {
   });
 
   it('returns { handled: false } when the server responds 404 (unknown workflow)', async () => {
-    // 404 is the Archon fall-through signal: the server does not recognise
+    // 404 is the fall-through signal: the server does not recognise
     // this workflow name, so the caller should POST the raw input to the
     // AI prompt endpoint instead.
     vi.stubGlobal(

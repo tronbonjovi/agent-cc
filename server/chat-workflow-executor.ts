@@ -1,8 +1,10 @@
 /**
  * Chat workflow executor — chat-workflows-tabs / task004.
  *
- * The Archon security pattern for chat input: chat can ONLY trigger AI
- * prompts or named entries from this hardcoded registry. This module owns
+ * Security model for chat input: the chat panel can ONLY trigger AI
+ * prompts or named entries from this hardcoded registry — no shell
+ * access, no subprocesses, no dynamic code paths from user input. This
+ * module owns
  * the registry lookup and the single built-in workflow (`echo`) that ships
  * with M6. It is called from `server/routes/chat-workflows.ts`, which is
  * the only place that exposes a request → runWorkflow path.
@@ -57,7 +59,7 @@ async function* runEchoWorkflow(args: string): AsyncGenerator<WorkflowStep> {
 /**
  * The registry. Hardcoded at module-load time — never mutated, never
  * populated from request input. New workflows require a code change + a
- * PR review, which is the whole point of the Archon pattern.
+ * PR review, which is the whole point of the allow-list model.
  */
 const WORKFLOWS: Record<string, (args: string) => AsyncGenerator<WorkflowStep>> = {
   echo: runEchoWorkflow,
