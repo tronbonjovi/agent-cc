@@ -14,6 +14,7 @@ import { TerminalPanel } from "./terminal-panel";
 import { ChatPanel } from "./chat/chat-panel";
 import { useLayoutStore } from "@/stores/layout-store";
 import { useTerminalGroupStore } from "@/stores/terminal-group-store";
+import { useChatTabsStore } from "@/stores/chat-tabs-store";
 // react-resizable-panels v4.x API: Group + Panel + Separator,
 // `orientation` instead of `direction`.
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
@@ -101,6 +102,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
   // so TerminalPanel's collapsed-render (toolbar-only) fits exactly
   // with no blank gap above or below.
   const TERMINAL_COLLAPSED_PX = 32;
+
+  // Hydrate the chat-tabs store once on mount. This is a top-level
+  // concern because multiple chat surfaces (the side panel, task002's tab
+  // bar, eventually a full-page chat view) all read from the same store —
+  // loading here guarantees whichever mounts first sees persisted tabs.
+  // chat-workflows-tabs-task001.
+  const loadChatTabs = useChatTabsStore((s) => s.load);
+  const chatTabsLoaded = useChatTabsStore((s) => s.loaded);
+  useEffect(() => {
+    if (!chatTabsLoaded) {
+      void loadChatTabs();
+    }
+    // Run once on mount — the store itself guards against double-loads via
+    // the `loaded` flag, but keeping deps empty keeps intent obvious.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sync the Panel's size to the store's collapsed flag. The grab
   // handle never touches this — only the toolbar chevron does.

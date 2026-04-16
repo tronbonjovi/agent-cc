@@ -67,6 +67,36 @@ interface ActiveSub {
 }
 const activeStreams = new Map<string, ActiveSub[]>();
 
+/**
+ * Fan an SSE chunk out to every active subscriber on a conversation.
+ *
+ * Added for task004 (chat-workflows-tabs) so `server/routes/chat-workflows.ts`
+ * can push `{ type: 'workflow_event', event }` frames without opening its
+ * own SSE channel — workflows reuse the existing `/api/chat/stream/:id`
+ * connection that the chat panel already holds open.
+ *
+ * No-op when no subscribers are attached (the workflow still persists the
+ * event via `insertEvent`, so the next history revalidation hydrates it).
+ * `try/catch` on each write tolerates half-closed sockets: fan-out prunes
+ * dead subscribers on the next tick via the `req.on('close')` handler
+ * installed in the `/stream/:id` route.
+ */
+export function broadcastChatEvent(
+  conversationId: string,
+  chunk: unknown,
+): void {
+  const subs = activeStreams.get(conversationId);
+  if (!subs) return;
+  const payload = `data: ${JSON.stringify(chunk)}\n\n`;
+  for (const sub of subs) {
+    try {
+      sub.res.write(payload);
+    } catch {
+      // subscriber closed — fan-out loop will prune on next tick
+    }
+  }
+}
+
 const router = Router();
 
 /**

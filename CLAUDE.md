@@ -209,6 +209,39 @@ ROADMAP.md description is still used as static milestone metadata (body text), b
 - `tests/workflow-bridge.test.ts` — integration tests for the bridge
 - `tests/task-scanner.test.ts` — scanner unit tests
 
+## Hook Event Bridge
+
+Agent CC exposes `POST /api/chat/hook-event` so Claude Code lifecycle hooks (configured in `~/.claude/settings.json`) can surface inline in the integrated chat panel as `chat-hook` InteractionEvents. The bridge is a pure event-adapter: it validates the payload, persists a `system / hook_fire` event, and broadcasts it over the active chat tab's SSE channel. Events fall back to a synthetic `hook-background` conversation when no chat tab is active.
+
+Configure your `~/.claude/settings.json` to POST hook metadata into the bridge:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://localhost:5100/api/chat/hook-event -H 'Content-Type: application/json' -d '{\"hook\":\"PostToolUse\",\"tool\":\"${CLAUDE_TOOL_NAME}\"}'"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The only required field is `hook` (non-empty string). Any other fields you include land in the event's `content.data` verbatim — stuff the payload with whatever context your hook command knows about.
+
+**SECURITY WARNING — no auth.** The endpoint has no authentication. It's intended for single-user devbox usage against the default `127.0.0.1:5100` bind. **MUST NOT** be exposed to the public internet without adding an auth layer. High-frequency hooks (e.g., `PostToolUse` on every tool call) can also generate thousands of events per minute — if that becomes a problem, add a rate limiter or drop the hook matcher pattern.
+
+Key files:
+- `server/hooks-bridge.ts` — `recordHookEvent(payload)` pure module
+- `server/routes/hook-bridge.ts` — HTTP surface at `/api/chat/hook-event`
+- `tests/hooks-bridge.test.ts` — validation, routing, and no-subprocess guardrail
+
 ## Pre-commit Hook (PII Guard)
 
 A git pre-commit hook runs `new-user-safety.test.ts` before every commit. If PII is detected, the commit is blocked.

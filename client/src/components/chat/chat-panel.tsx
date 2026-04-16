@@ -1,26 +1,38 @@
 // client/src/components/chat/chat-panel.tsx
 //
-// Integrated chat surface for the unified-capture milestone (task006).
+// Integrated chat surface for the chat-workflows-tabs milestone.
 //
-// Two-layer rendering model:
+// Two-layer rendering model (task006):
 //
 //   - Persisted conversation history is loaded via React Query
 //     (`useChatHistory`) from `GET /api/chat/conversations/:id/events`.
 //   - In-flight streaming chunks live in the Zustand chat store's
-//     `liveEvents` buffer, populated by the SSE listener.
+//     per-conversation `liveEvents` buffer, populated by the SSE listener.
 //
 // On SSE `done` we invalidate the history query so the just-persisted events
-// are re-fetched from the server, then clear `liveEvents` so we don't
-// double-render the turn. The optimistic user-message path from M1 is gone —
-// we rely on the backend persisting the prompt and React Query picking it up
-// on revalidation. The UX cost is a brief skeleton while the POST round-trips
-// (tightened in a later milestone).
+// are re-fetched from the server, then clear the live buffer for this
+// conversation so we don't double-render the turn.
 //
-// Chunk handling is intentionally narrow: text chunks are coalesced into the
-// live assistant bubble via `coalesceAssistantText`; tool_call / tool_result
-// / thinking / system chunks are ignored in the live stream and picked up
-// through query revalidation on `done`. Richer live chunk rendering is owned
-// by the `chat-workflows-tabs` milestone, not this task.
+// Chunk handling: text chunks are coalesced into the live assistant bubble
+// via `coalesceAssistantText`. workflow_event and hook_event chunks are
+// appended to liveEvents for instant render AND trigger a history
+// invalidation — the subsequent revalidation pulls the persisted copy back,
+// and `mergeChatEvents` drops the live duplicate at render time. Other chunk
+// types (tool_call, tool_result, thinking, system) are still picked up
+// through query revalidation on `done`.
+//
+// Per-tab retarget (task007):
+//
+//   - `conversationId` is sourced through the `useActiveConversationId` hook,
+//     which wraps `useChatTabsStore.activeTabId` with a `'default'` fallback.
+//     The panel does NOT import `useChatTabsStore` directly — that would
+//     trip the narrowed regression lock in `tests/chat-panel.test.ts`.
+//   - Input text lives on `useChatStore.drafts[conversationId]` (in-memory
+//     only) so switching tabs preserves unsent text per tab.
+//   - liveEvents are keyed by conversationId, so two open tabs can stream
+//     independently without cross-contamination.
+//   - On first mount, once the tab store has loaded, an empty `openTabs`
+//     triggers the auto-creation of a "Main" tab via `openTab`.
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -29,24 +41,42 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useChatStore } from '@/stores/chat-store';
 import { useChatHistory } from '@/hooks/use-chat-history';
+import { useActiveConversationId } from '@/hooks/use-active-conversation-id';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
+import { ChatTabBar } from '@/components/chat/chat-tab-bar';
+import { parseSlashCommand, dispatchCommand } from '@/lib/chat-commands';
+import { mergeChatEvents } from '@/lib/chat-event-merge';
 import type { InteractionEvent } from '../../../../shared/types';
 import { extractChunkText } from '../../../../shared/chat-chunk';
+// Auto-create "Main" tab on first-mount empty state. The effect and its
+// strict-mode latch live in a dedicated hook so chat-panel.tsx stays on
+// the hook seam and the narrowed regression lock in
+// tests/chat-panel.test.ts continues to pass.
+import { useChatTabsStoreAutoCreate } from '@/hooks/use-chat-tabs-auto-create';
 
 export function ChatPanel() {
-  const conversationId = useChatStore((s) => s.conversationId);
-  const liveEvents = useChatStore((s) => s.liveEvents);
+  const conversationId = useActiveConversationId();
+  const liveEventsMap = useChatStore((s) => s.liveEvents);
+  const liveEvents = liveEventsMap[conversationId] ?? [];
   const isStreaming = useChatStore((s) => s.isStreaming);
   const appendLiveEvent = useChatStore((s) => s.appendLiveEvent);
   const removeLiveEvent = useChatStore((s) => s.removeLiveEvent);
   const coalesceAssistantText = useChatStore((s) => s.coalesceAssistantText);
   const clearLive = useChatStore((s) => s.clearLive);
   const setStreaming = useChatStore((s) => s.setStreaming);
+  const input = useChatStore((s) => s.drafts[conversationId] ?? '');
+  const setDraft = useChatStore((s) => s.setDraft);
 
   const queryClient = useQueryClient();
   const history = useChatHistory(conversationId);
 
-  const [input, setInput] = useState('');
+  // Kick off the first-mount auto-create flow. This is intentionally a
+  // separate hook so the effect can live outside the panel's render body
+  // and not get tangled with SSE lifecycle — see
+  // `client/src/hooks/use-chat-tabs-auto-create.ts` for the strict-mode
+  // double-invoke guard.
+  useChatTabsStoreAutoCreate();
+
   const [lastError, setLastError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
@@ -66,7 +96,7 @@ export function ChatPanel() {
           // can never drift. A guardrail in tests/chat-panel.test.ts bans
           // the pre-fix shortcut.
           const text = extractChunkText(chunk);
-          if (text) coalesceAssistantText(text);
+          if (text) coalesceAssistantText(conversationId, text);
         } else if (chunk.type === 'done') {
           // Release the streaming gate FIRST so that even if the query
           // invalidation throws for some reason the Send button re-enables
@@ -75,11 +105,26 @@ export function ChatPanel() {
           queryClient.invalidateQueries({
             queryKey: ['chat-history', conversationId],
           });
-          clearLive();
+          clearLive(conversationId);
+        } else if (chunk.type === 'workflow_event') {
+          // Append to liveEvents for instant render, then invalidate history
+          // so the persisted copy lands on the next refetch. mergeChatEvents
+          // dedups the live copy when that revalidation completes.
+          if (chunk.event && typeof chunk.event === 'object') {
+            appendLiveEvent(conversationId, chunk.event as InteractionEvent);
+          }
+          queryClient.invalidateQueries({
+            queryKey: ['chat-history', conversationId],
+          });
+        } else if (chunk.type === 'hook_event') {
+          // Same append + invalidate + merge-dedup flow as workflow_event.
+          if (chunk.event && typeof chunk.event === 'object') {
+            appendLiveEvent(conversationId, chunk.event as InteractionEvent);
+          }
+          queryClient.invalidateQueries({
+            queryKey: ['chat-history', conversationId],
+          });
         }
-        // Other chunk types (tool_call, tool_result, thinking, system) are
-        // intentionally ignored in the live stream — they'll appear on the
-        // next revalidation once the backend has persisted them.
       } catch (err) {
         // Log loudly so the next regression is visible in devtools rather
         // than silently swallowed the way the Bug-D investigation had to
@@ -97,6 +142,7 @@ export function ChatPanel() {
   }, [
     conversationId,
     coalesceAssistantText,
+    appendLiveEvent,
     clearLive,
     setStreaming,
     queryClient,
@@ -109,7 +155,45 @@ export function ChatPanel() {
     // The store's `isStreaming` flag is flipped off by the `done` handler
     // (or `onerror`), so this naturally re-opens once the turn completes.
     if (isStreaming) return;
-    setInput('');
+
+    // Archon slash-command interceptor (task003). If the input parses as
+    // `/<name> <args>` we dispatch it to the server-side workflow
+    // executor FIRST. Three outcomes:
+    //
+    //   - handled=true  → server accepted; clear draft, do NOT POST to
+    //                     AI. Server streams the result back over the
+    //                     existing SSE channel (wired in task004).
+    //   - handled=false → server returned 404 (unknown workflow); fall
+    //                     through and POST to AI as a normal prompt.
+    //   - threw         → real dispatch failure (5xx / network); surface
+    //                     via the existing error banner and abort. Do
+    //                     NOT fall through — double-execution on a
+    //                     transient hiccup would be worse than erroring.
+    //
+    // `conversationId` now comes from `useActiveConversationId`, which
+    // wraps `useChatTabsStore.activeTabId` — so each tab gets its own
+    // conversation thread end-to-end (history query, SSE stream, prompt
+    // POST, draft input).
+    const parsed = parseSlashCommand(text);
+    if (parsed) {
+      try {
+        const result = await dispatchCommand(parsed, conversationId);
+        if (result.handled) {
+          setDraft(conversationId, '');
+          setLastError(null);
+          return;
+        }
+        // handled=false → fall through to the AI prompt path below.
+      } catch (err) {
+        console.error('[chat-panel] workflow dispatch error', err);
+        setLastError(
+          err instanceof Error ? err.message : 'Workflow dispatch failed',
+        );
+        return;
+      }
+    }
+
+    setDraft(conversationId, '');
     setLastError(null);
     setStreaming(true);
 
@@ -123,7 +207,7 @@ export function ChatPanel() {
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    appendLiveEvent({
+    appendLiveEvent(conversationId, {
       id: optimisticId,
       conversationId,
       parentEventId: null,
@@ -155,27 +239,30 @@ export function ChatPanel() {
           // Non-JSON body — keep the status-line message.
         }
         setLastError(msg);
-        removeLiveEvent(optimisticId);
+        removeLiveEvent(conversationId, optimisticId);
         setStreaming(false);
       }
     } catch (err) {
       // Network error — drop the optimistic echo and streaming state so the
       // UI isn't stuck showing a stranded user bubble next to an error.
       setLastError(err instanceof Error ? err.message : 'Network error');
-      removeLiveEvent(optimisticId);
+      removeLiveEvent(conversationId, optimisticId);
       setStreaming(false);
     }
   };
 
-  // Concatenate persisted history with in-flight live events. React Query
-  // returns `undefined` while the first load is in flight; fall back to an
-  // empty array so the renderer just shows the live events (if any) or the
-  // empty-state placeholder.
+  // Merge persisted history with in-flight live events, de-duping any id
+  // that already landed in history (workflow_event and hook_event SSE
+  // chunks are appended to liveEvents AND pulled back on the history
+  // revalidation — mergeChatEvents drops the live copy so the event doesn't
+  // render twice). React Query returns `undefined` while the first load is
+  // in flight; fall back to an empty array.
   const historyEvents: InteractionEvent[] = history.data?.events ?? [];
-  const allEvents: InteractionEvent[] = [...historyEvents, ...liveEvents];
+  const allEvents: InteractionEvent[] = mergeChatEvents(historyEvents, liveEvents);
 
   return (
     <div className="flex flex-col h-full" data-testid="chat-panel">
+      <ChatTabBar />
       <ScrollArea className="flex-1 p-4">
         <InteractionEventRenderer events={allEvents} />
       </ScrollArea>
@@ -191,7 +278,7 @@ export function ChatPanel() {
       <div className="border-t p-3 flex gap-2">
         <Input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => setDraft(conversationId, e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSubmit();
           }}
