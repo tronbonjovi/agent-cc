@@ -29,7 +29,8 @@
 // the next prompt. We perform the reset in a single `updateSettings` call
 // so the per-conversation override merges atomically.
 
-import { Plus, ChevronDown, Check } from 'lucide-react';
+import { useRef, useState, type ChangeEvent } from 'react';
+import { Plus, ChevronDown, ChevronRight, Check, Paperclip, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -177,11 +178,93 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
           </div>
 
           {/*
-            task005 slot — effort / thinking / web search / system prompt
-            controls mount here. Leaving a placeholder div so the layout has
-            a predictable structure for the subsequent task to diff against.
+            task005 controls — effort / thinking / web search / system prompt
+            / attachments. Each control writes its field through
+            updateSettings so state is per-conversation and the composer's
+            POST body picks them up on submit (see chat-panel.tsx).
           */}
-          <div data-testid="chat-settings-slot-task005" />
+
+          {/* Effort selector ----------------------------------------------
+              Claude CLI (`--effort <level>`) accepts low / medium / high /
+              xhigh / max; we surface only the three most common. Rendered
+              as a three-button segmented control so the visible-choices
+              pattern reads faster than a dropdown at this scale. */}
+          <div
+            className="space-y-1.5"
+            data-testid="chat-settings-effort"
+          >
+            <label className="text-xs font-medium text-muted-foreground">
+              Effort
+            </label>
+            <EffortSegmented
+              value={current.effort ?? 'medium'}
+              onChange={(level) =>
+                updateSettings(conversationId, { effort: level })
+              }
+            />
+          </div>
+
+          {/* Extended thinking toggle -------------------------------------
+              No CLI flag today — this is store-only state, forwarded to the
+              server but silently dropped at the runner boundary. The toggle
+              still exists because we want the UX in place for the capability
+              system (future milestone) to light up when provider plumbing
+              lands. */}
+          <label
+            className="flex cursor-pointer items-center justify-between gap-3 rounded-md py-1"
+            data-testid="chat-settings-thinking"
+          >
+            <span className="text-sm">Extended thinking</span>
+            <input
+              type="checkbox"
+              checked={Boolean(current.thinking)}
+              onChange={(e) =>
+                updateSettings(conversationId, { thinking: e.target.checked })
+              }
+              className="h-4 w-4 cursor-pointer rounded border-input text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </label>
+
+          {/* Web search toggle --------------------------------------------
+              Same shape as Extended thinking — store-only, no CLI flag. */}
+          <label
+            className="flex cursor-pointer items-center justify-between gap-3 rounded-md py-1"
+            data-testid="chat-settings-web-search"
+          >
+            <span className="text-sm">Web search</span>
+            <input
+              type="checkbox"
+              checked={Boolean(current.webSearch)}
+              onChange={(e) =>
+                updateSettings(conversationId, { webSearch: e.target.checked })
+              }
+              className="h-4 w-4 cursor-pointer rounded border-input text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </label>
+
+          {/* System prompt (collapsible) ----------------------------------
+              Hidden by default so the popover stays short at a glance; the
+              textarea is the loudest control visually and most users won't
+              touch it on most conversations. Click the header to expand. */}
+          <SystemPromptSection
+            value={current.systemPrompt ?? ''}
+            onChange={(next) =>
+              updateSettings(conversationId, { systemPrompt: next })
+            }
+          />
+
+          {/* File attachments ---------------------------------------------
+              Paths only — file contents are NOT uploaded. Full context
+              injection is deferred until we decide how to fit attachments
+              inside the provider's token budget. Each selected file's path
+              is stored on the conversation's override so subsequent prompts
+              can decide what to do with them. */}
+          <AttachmentControl
+            paths={current.attachments ?? []}
+            onChange={(next) =>
+              updateSettings(conversationId, { attachments: next })
+            }
+          />
 
           {/*
             task006 slot — project context selector mounts here.
@@ -197,3 +280,189 @@ export function SettingsPopover({ conversationId }: SettingsPopoverProps) {
 // future tests / a global defaults UI can enumerate providers without
 // duplicating the list.
 export const availableProviders = AVAILABLE_PROVIDERS;
+
+// ---------------------------------------------------------------------------
+// Subcomponents (task005)
+//
+// Extracted inline (same file) rather than living in their own modules
+// because each one is a thin presentational wrapper around a primitive and
+// only ever used by this popover. If a second consumer shows up, split
+// them out — until then, fewer files is better than more.
+// ---------------------------------------------------------------------------
+
+/**
+ * Three-button segmented selector for reasoning effort. Low / Medium / High
+ * match the CLI's `--effort` values exactly; xhigh and max are intentionally
+ * omitted from the UI (they're rarely useful for chat and the row already
+ * fills the popover width).
+ */
+function EffortSegmented({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (level: string) => void;
+}) {
+  const LEVELS: ReadonlyArray<{ id: string; label: string }> = [
+    { id: 'low', label: 'Low' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'high', label: 'High' },
+  ];
+  return (
+    <div
+      className="grid grid-cols-3 gap-1 rounded-md border border-input bg-background p-0.5"
+      role="radiogroup"
+      aria-label="Reasoning effort"
+    >
+      {LEVELS.map((lvl) => {
+        const active = value === lvl.id;
+        return (
+          <button
+            key={lvl.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            data-testid={`chat-settings-effort-${lvl.id}`}
+            onClick={() => onChange(lvl.id)}
+            className={
+              'rounded-sm px-2 py-1 text-xs font-medium transition-colors ' +
+              (active
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground')
+            }
+          >
+            {lvl.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Collapsible "System prompt" section. Hidden by default — the header
+ * toggles visibility of the textarea. We keep the open/closed state local
+ * to this component because it's pure UX chrome; the textarea's *value*
+ * lives in the settings store and survives remount.
+ */
+function SystemPromptSection({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        data-testid="chat-settings-system-prompt-toggle"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between rounded-md px-1 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+      >
+        <span>System prompt</span>
+        {open ? (
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        ) : (
+          <ChevronRight className="h-3 w-3 opacity-60" />
+        )}
+      </button>
+      {open && (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          data-testid="chat-settings-system-prompt"
+          placeholder="Custom instructions for this conversation..."
+          rows={3}
+          className="w-full resize-y rounded-md border border-input bg-background px-2 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * File attachment control. An "Attach file" button triggers a hidden
+ * <input type="file" multiple>; the list of selected paths renders below
+ * with per-item X buttons. We use `file.name` as the path because browser
+ * security prevents us from seeing the full host path; for pass-through
+ * to the CLI (a future enhancement) this will need the picker to be
+ * backed by a server-side file browser.
+ */
+function AttachmentControl({
+  paths,
+  onChange,
+}: {
+  paths: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const added: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files.item(i);
+      if (f && !paths.includes(f.name)) added.push(f.name);
+    }
+    if (added.length > 0) onChange([...paths, ...added]);
+    // Reset the native input so re-selecting the same file triggers change.
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const removeAt = (idx: number) => {
+    const next = paths.filter((_, i) => i !== idx);
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-1.5" data-testid="chat-settings-attachments">
+      <label className="text-xs font-medium text-muted-foreground">
+        Attachments
+      </label>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full justify-start"
+        onClick={() => inputRef.current?.click()}
+      >
+        <Paperclip className="mr-2 h-3.5 w-3.5" />
+        Attach file
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        onChange={handleFiles}
+        className="hidden"
+        data-testid="chat-settings-attachments-input"
+      />
+      {paths.length > 0 && (
+        <ul className="space-y-1">
+          {paths.map((p, idx) => (
+            <li
+              key={`${p}-${idx}`}
+              className="flex items-center justify-between gap-2 rounded-md bg-muted px-2 py-1 text-xs"
+            >
+              <span className="truncate" title={p}>
+                {p}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeAt(idx)}
+                aria-label={`Remove ${p}`}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

@@ -141,6 +141,38 @@ export interface StreamingClaudeOptions {
    * model dropdown — see `chat-composer-controls-task003`.
    */
   model?: string;
+  /**
+   * Optional reasoning effort level. Claude CLI (verified 2026-04-16) accepts
+   * low / medium / high / xhigh / max via `--effort <level>`. The composer
+   * exposes low / medium / high only; higher values can be added to the UI
+   * later without a runner change. Wired from the popover effort selector
+   * — see `chat-composer-controls-task005`.
+   */
+  effort?: string;
+  /**
+   * Optional extended-thinking flag. Accepted on the runner boundary for
+   * forward-compat with the settings store, but NOT forwarded to the CLI
+   * today — `claude --help` has no `--thinking` flag. Kept as a typed
+   * option so the route/handler can pass it through without coercion; a
+   * future runner can wire it to whatever plumbing the CLI eventually
+   * exposes (API parameter, provider-specific flag, etc).
+   */
+  thinking?: boolean;
+  /**
+   * Optional web-search flag. Same shape as `thinking` — accepted by the
+   * runner for forward-compat, but NOT forwarded to the CLI today (no
+   * `--web-search` flag exists).
+   */
+  webSearch?: boolean;
+  /**
+   * Optional custom system prompt appended to the CLI's default. Maps to
+   * `--append-system-prompt <prompt>`. Using *append* (not `--system-prompt`)
+   * is deliberate — the CLI's default system prompt wires up the core
+   * Claude Code tools, so overwriting it would break the session. Users
+   * wanting to fully replace the system prompt can do so in a future
+   * milestone that exposes both flags.
+   */
+  systemPrompt?: string;
 }
 
 /** A single parsed chunk yielded by runClaudeStreaming. */
@@ -194,7 +226,20 @@ function classifyStreamLine(line: unknown): StreamChunk["type"] {
 export async function* runClaudeStreaming(
   opts: StreamingClaudeOptions,
 ): AsyncGenerator<StreamChunk> {
-  const { prompt, timeoutMs = 60000, signal, sessionId, model } = opts;
+  const {
+    prompt,
+    timeoutMs = 60000,
+    signal,
+    sessionId,
+    model,
+    effort,
+    systemPrompt,
+  } = opts;
+  // `thinking` and `webSearch` are intentionally destructured nowhere: the
+  // CLI exposes no matching flag today (`claude --help` has neither
+  // --thinking nor --web-search). They land on the options type only so
+  // the route layer can forward them through the boundary without
+  // coercion, ready to be wired up when provider capabilities evolve.
 
   const env = buildClaudeEnv();
   // `--verbose` is mandatory when combining `-p` (print mode) with
@@ -218,6 +263,17 @@ export async function* runClaudeStreaming(
   // model dropdown — see `chat-composer-controls-task003`.
   if (model) {
     args.push("--model", model);
+  }
+  // Reasoning effort — `--effort <level>`. Only push when set; an unset
+  // effort lets the CLI use its configured default. See task005.
+  if (effort) {
+    args.push("--effort", effort);
+  }
+  // Custom system prompt appended to the CLI's default — see task005.
+  // Guard against empty strings so an accidental "" override doesn't turn
+  // into a zero-length flag value.
+  if (systemPrompt && systemPrompt.length > 0) {
+    args.push("--append-system-prompt", systemPrompt);
   }
 
   const child = spawn("claude", args, {

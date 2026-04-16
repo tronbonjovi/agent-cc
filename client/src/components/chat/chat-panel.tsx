@@ -206,18 +206,32 @@ export function ChatPanel() {
     });
 
     try {
-      // Read the per-conversation model from the settings store and forward
-      // it to the server. The server falls back to the CLI default when this
-      // field is omitted (legacy clients), but the composer dropdown always
-      // resolves to *some* id because getSettings merges globalDefaults —
-      // see model-dropdown.tsx.
-      const model = useChatSettingsStore
+      // Read the full per-conversation settings bundle from the store and
+      // forward every field the server knows about. The server falls back
+      // to the CLI default when any field is omitted (legacy clients), but
+      // the composer always resolves to *some* value because getSettings
+      // merges globalDefaults — see model-dropdown.tsx + settings-popover.tsx.
+      //
+      // task005: `effort`, `thinking`, `webSearch`, `systemPrompt` join
+      // `model` in the body. Attachments are intentionally not forwarded —
+      // they're stored in the settings override as a forward-compat
+      // placeholder, but the runner has no file-injection plumbing yet.
+      const settings = useChatSettingsStore
         .getState()
-        .getSettings(conversationId).model;
+        .getSettings(conversationId);
+      const { model, effort, thinking, webSearch, systemPrompt } = settings;
       const res = await fetch('/api/chat/prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, text, model }),
+        body: JSON.stringify({
+          conversationId,
+          text,
+          model,
+          effort,
+          thinking,
+          webSearch,
+          systemPrompt,
+        }),
       });
       if (!res.ok) {
         // Server rejected the prompt (e.g. 503 when the Claude CLI isn't

@@ -73,7 +73,15 @@ router.post("/prompt", async (req: Request, res: Response) => {
   if (!(await isClaudeAvailable())) {
     return res.status(503).json({ error: "Claude CLI not installed" });
   }
-  const { conversationId, text, model } = req.body ?? {};
+  const {
+    conversationId,
+    text,
+    model,
+    effort,
+    thinking,
+    webSearch,
+    systemPrompt,
+  } = req.body ?? {};
   if (!conversationId || !text) {
     return res.status(400).json({ error: "conversationId and text required" });
   }
@@ -83,6 +91,22 @@ router.post("/prompt", async (req: Request, res: Response) => {
   // falls back to its default. See chat-composer-controls-task003.
   const modelId: string | undefined =
     typeof model === "string" && model.length > 0 ? model : undefined;
+  // task005: optional composer settings. Each field is narrowed by shape
+  // before we hand it to the runner so a malformed client body can't
+  // smuggle garbage into the subprocess argv. The runner re-gates each
+  // value (`if (effort)` etc) before turning it into a flag, so these
+  // guards are just a first filter — truthy-but-invalid values (e.g. a
+  // non-string effort) get coerced to undefined here.
+  const effortLevel: string | undefined =
+    typeof effort === "string" && effort.length > 0 ? effort : undefined;
+  const thinkingFlag: boolean | undefined =
+    typeof thinking === "boolean" ? thinking : undefined;
+  const webSearchFlag: boolean | undefined =
+    typeof webSearch === "boolean" ? webSearch : undefined;
+  const systemPromptText: string | undefined =
+    typeof systemPrompt === "string" && systemPrompt.length > 0
+      ? systemPrompt
+      : undefined;
 
   res.json({ ok: true });
 
@@ -108,6 +132,10 @@ router.post("/prompt", async (req: Request, res: Response) => {
         prompt: text,
         sessionId: existingSessionId,
         model: modelId,
+        effort: effortLevel,
+        thinking: thinkingFlag,
+        webSearch: webSearchFlag,
+        systemPrompt: systemPromptText,
       })) {
         // Capture session ID from CLI stream init envelope
         if (

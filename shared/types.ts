@@ -1090,6 +1090,13 @@ export interface ChatSettings {
   projectPath?: string;
   /** Sampling temperature 0–2 — OpenAI-compatible providers only. */
   temperature?: number;
+  /**
+   * File paths attached to this conversation. Task005 stores paths only —
+   * full content injection (e.g. reading + appending each file to the
+   * prompt) is a future enhancement, gated on figuring out how far to push
+   * each provider's context window without blowing the token budget.
+   */
+  attachments?: string[];
 }
 
 /**
