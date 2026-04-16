@@ -36,6 +36,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+// react-resizable-panels v4.x API: Group + Panel + Separator — same aliases
+// as client/src/components/layout.tsx so this nested group stays consistent
+// with the outer layout surface.
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +48,7 @@ import { useChatHistory } from '@/hooks/use-chat-history';
 import { useActiveConversationId } from '@/hooks/use-active-conversation-id';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
 import { ChatTabBar } from '@/components/chat/chat-tab-bar';
+import { ConversationSidebar } from '@/components/chat/conversation-sidebar';
 import { parseSlashCommand, dispatchCommand } from '@/lib/chat-commands';
 import { mergeChatEvents } from '@/lib/chat-event-merge';
 import type { InteractionEvent } from '../../../../shared/types';
@@ -260,35 +265,52 @@ export function ChatPanel() {
   const historyEvents: InteractionEvent[] = history.data?.events ?? [];
   const allEvents: InteractionEvent[] = mergeChatEvents(historyEvents, liveEvents);
 
+  // task004 (chat-import-platforms): the chat panel is now a two-column
+  // horizontal split — ConversationSidebar on the left, the existing tab bar
+  // + message area + input on the right. The sidebar is nested inside
+  // ChatPanel rather than hoisted into layout.tsx so the rest of the app
+  // (terminal column, main nav) doesn't need to know about it.
   return (
-    <div className="flex flex-col h-full" data-testid="chat-panel">
-      <ChatTabBar />
-      <ScrollArea className="flex-1 p-4">
-        <InteractionEventRenderer events={allEvents} />
-      </ScrollArea>
-      {lastError && (
-        <div
-          className="border-t border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-          role="alert"
-          data-testid="chat-error-banner"
-        >
-          {lastError}
-        </div>
-      )}
-      <div className="border-t p-3 flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setDraft(conversationId, e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSubmit();
-          }}
-          placeholder="Message Claude..."
-          disabled={isStreaming}
-        />
-        <Button onClick={handleSubmit} disabled={isStreaming}>
-          Send
-        </Button>
-      </div>
+    <div className="flex h-full flex-col" data-testid="chat-panel">
+      <PanelGroup orientation="horizontal" className="flex-1 min-h-0">
+        <Panel defaultSize="25%" minSize="15%" maxSize="45%">
+          <ConversationSidebar />
+        </Panel>
+        <PanelResizeHandle className="group w-1.5 bg-border hover:bg-accent/50 transition-colors flex items-center justify-center cursor-col-resize">
+          <div className="h-10 w-0.5 rounded-full bg-muted-foreground/20 group-hover:bg-muted-foreground/40" />
+        </PanelResizeHandle>
+        <Panel minSize="40%">
+          <div className="flex h-full flex-col">
+            <ChatTabBar />
+            <ScrollArea className="flex-1 p-4">
+              <InteractionEventRenderer events={allEvents} />
+            </ScrollArea>
+            {lastError && (
+              <div
+                className="border-t border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                role="alert"
+                data-testid="chat-error-banner"
+              >
+                {lastError}
+              </div>
+            )}
+            <div className="border-t p-3 flex gap-2">
+              <Input
+                value={input}
+                onChange={(e) => setDraft(conversationId, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSubmit();
+                }}
+                placeholder="Message Claude..."
+                disabled={isStreaming}
+              />
+              <Button onClick={handleSubmit} disabled={isStreaming}>
+                Send
+              </Button>
+            </div>
+          </div>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 }
