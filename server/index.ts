@@ -7,7 +7,6 @@ import { startWatcher } from "./scanner/watcher";
 import { storage } from "./storage";
 import { attachTerminalWebSocket } from "./terminal";
 import { shutdownChatStreams } from "./routes/chat";
-import { startIngester, stopIngester } from "./scanner/ingester";
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -115,7 +114,6 @@ if (cliArgs.includes("--report")) {
       log(`received ${signal}, shutting down`);
       shutdownChatStreams();
       terminalManager.shutdown();
-      stopIngester();
       httpServer.close(() => process.exit(0));
       const safetyTimer = setTimeout(() => {
         log("graceful shutdown timeout — forcing exit");
@@ -158,15 +156,5 @@ if (cliArgs.includes("--report")) {
         startWatcher(); // start watcher anyway so future changes are tracked
       });
 
-    // Start the scanner-ingester (M5 task002). Runs an initial ingest pass
-    // against ~/.claude/projects (+ EXTRA_PROJECT_DIRS) and arms fs.watch for
-    // incremental upserts. Wrapped in try/catch so a bad home doesn't crash
-    // startup — graceful degradation per project rules.
-    try {
-      startIngester();
-      log("Scanner ingester started");
-    } catch (err) {
-      console.error("Failed to start scanner ingester:", err);
-    }
   })();
 }

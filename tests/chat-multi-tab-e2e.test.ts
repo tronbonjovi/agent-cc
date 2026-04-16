@@ -43,8 +43,8 @@ import os from "os";
 import path from "path";
 
 // ---------------------------------------------------------------------------
-// Hoisted setup — runs before module imports so db.ts / interactions-db.ts
-// resolve their data paths against an isolated tmp directory.
+// Hoisted setup — runs before module imports so db.ts resolves its data
+// path against an isolated tmp directory.
 // ---------------------------------------------------------------------------
 const { tempDir, originalEnv } = vi.hoisted(() => {
   const fsMod = require("fs") as typeof import("fs");
@@ -83,7 +83,6 @@ vi.mock("../server/scanner/claude-runner", () => {
 // Imports must come AFTER the hoisted setup + mocks above.
 import chatRouter from "../server/routes/chat";
 import chatTabsRouter from "../server/routes/chat-tabs";
-import { closeDb } from "../server/interactions-db";
 
 // ---------------------------------------------------------------------------
 // App wiring — minimal Express instance with only the routers under test.
@@ -176,9 +175,6 @@ describe.skipIf(skipReal)("chat multi-tab E2E (mocked claude-runner)", () => {
   });
 
   afterAll(() => {
-    // Close the SQLite handle before deleting the directory so Windows
-    // handle semantics don't leave a ghost file behind.
-    closeDb();
     if (originalEnv === undefined) {
       delete process.env.AGENT_CC_DATA;
     } else {

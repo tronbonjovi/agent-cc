@@ -4,10 +4,9 @@
  * Covers three surfaces:
  *
  *   1. `recordHookEvent()` pure module behaviour — builds a correctly-typed
- *      `chat-hook` InteractionEvent, routes it to the active tab (or the
- *      synthetic `hook-background` conversation when none is set), persists
- *      it via `insertEvent`, and broadcasts a `{ type: 'hook_event', event }`
- *      chunk that parallels task004's `workflow_event` frame.
+ *      event, routes it to the active tab (or the synthetic `hook-background`
+ *      conversation when none is set), and broadcasts a `{ type: 'hook_event',
+ *      event }` chunk over SSE.
  *
  *   2. POST /api/chat/hook-event HTTP surface — 200 on well-formed payloads,
  *      400 on malformed ones, and payload data survives round-trip into
@@ -15,8 +14,7 @@
  *
  *   3. Source-text guardrail — `server/hooks-bridge.ts` must NEVER import or
  *      reference subprocess APIs. This is an event-adapter, not a command
- *      runner; the AI-only-input hygiene from task003/task004 applies
- *      identically here.
+ *      runner.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
@@ -24,26 +22,15 @@ import request from 'supertest';
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Mocks must be declared before importing the SUT so vitest can hoist them.
-vi.mock('../server/interactions-repo', () => {
-  return {
-    insertEvent: vi.fn(),
-  };
-});
-
 vi.mock('../server/routes/chat', () => {
   return {
-    // The chat router itself is unused here — we mount the hook-bridge router
-    // directly. We only need the named `broadcastChatEvent` export because
-    // `server/hooks-bridge.ts` imports it.
     default: {},
     broadcastChatEvent: vi.fn(),
     shutdownChatStreams: vi.fn(),
   };
 });
 
-// Seedable mock for the DB accessor — each test stubs the return value to
-// simulate whatever `chatUIState.activeTabId` it needs.
+// Seedable mock for the DB accessor.
 vi.mock('../server/db', () => {
   return {
     getDB: vi.fn(),
@@ -52,12 +39,10 @@ vi.mock('../server/db', () => {
 
 import { recordHookEvent } from '../server/hooks-bridge';
 import hookBridgeRouter from '../server/routes/hook-bridge';
-import { insertEvent } from '../server/interactions-repo';
 import { broadcastChatEvent } from '../server/routes/chat';
 import { getDB } from '../server/db';
-import type { InteractionEvent, SystemContent } from '../shared/types';
+import type { SystemContent } from '../shared/types';
 
-const mockedInsertEvent = insertEvent as unknown as ReturnType<typeof vi.fn>;
 const mockedBroadcast = broadcastChatEvent as unknown as ReturnType<typeof vi.fn>;
 const mockedGetDB = getDB as unknown as ReturnType<typeof vi.fn>;
 
@@ -76,8 +61,6 @@ function buildApp() {
 }
 
 beforeEach(() => {
-  mockedInsertEvent.mockReset();
-  mockedInsertEvent.mockImplementation(() => {});
   mockedBroadcast.mockReset();
   mockedGetDB.mockReset();
   seedActiveTab(null);
@@ -90,11 +73,9 @@ describe('recordHookEvent — event shape', () => {
 
     expect(ev.source).toBe('chat-hook');
     expect(ev.role).toBe('system');
-    expect(ev.cost).toBeNull();
     expect(ev.content.type).toBe('system');
     const sys = ev.content as SystemContent;
     expect(sys.subtype).toBe('hook_fire');
-    // Populated id + parseable timestamp.
     expect(typeof ev.id).toBe('string');
     expect(ev.id.length).toBeGreaterThan(0);
     expect(Number.isNaN(Date.parse(ev.timestamp))).toBe(false);
@@ -116,25 +97,14 @@ describe('recordHookEvent — conversation routing', () => {
 });
 
 describe('recordHookEvent — side effects', () => {
-  it('persists the event via insertEvent exactly once', () => {
-    seedActiveTab('tab-xyz');
-    const ev = recordHookEvent({ hook: 'PostToolUse' });
-
-    expect(mockedInsertEvent).toHaveBeenCalledTimes(1);
-    const persisted = mockedInsertEvent.mock.calls[0][0] as InteractionEvent;
-    expect(persisted.id).toBe(ev.id);
-    expect(persisted.source).toBe('chat-hook');
-    expect(persisted.conversationId).toBe('tab-xyz');
-  });
-
-  it('broadcasts a { type: "hook_event", event } chunk — parallel to task004', () => {
+  it('broadcasts a { type: "hook_event", event } chunk', () => {
     seedActiveTab('tab-xyz');
     const ev = recordHookEvent({ hook: 'PostToolUse' });
 
     expect(mockedBroadcast).toHaveBeenCalledTimes(1);
     const [convId, chunk] = mockedBroadcast.mock.calls[0] as [
       string,
-      { type: string; event: InteractionEvent },
+      { type: string; event: { id: string; source: string } },
     ];
     expect(convId).toBe('tab-xyz');
     expect(chunk.type).toBe('hook_event');
@@ -179,7 +149,6 @@ describe('POST /api/chat/hook-event — HTTP surface', () => {
     expect(typeof res.body.id).toBe('string');
     expect(res.body.id.length).toBeGreaterThan(0);
 
-    expect(mockedInsertEvent).toHaveBeenCalledTimes(1);
     expect(mockedBroadcast).toHaveBeenCalledTimes(1);
   });
 
@@ -188,7 +157,6 @@ describe('POST /api/chat/hook-event — HTTP surface', () => {
     const res = await request(app).post('/api/chat/hook-event').send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBeTruthy();
-    expect(mockedInsertEvent).not.toHaveBeenCalled();
     expect(mockedBroadcast).not.toHaveBeenCalled();
   });
 
@@ -216,11 +184,6 @@ describe('POST /api/chat/hook-event — HTTP surface', () => {
 });
 
 describe('hooks-bridge — source-text security guardrail', () => {
-  // The hook bridge is a pure event-adapter: it accepts JSON, builds an
-  // InteractionEvent, persists + broadcasts it. It must NEVER spawn a
-  // subprocess, evaluate a string as code, or otherwise execute arbitrary
-  // commands. Security invariant: lock this in with a source-text test so
-  // a future refactor can't regress without breaking CI.
   it('server/hooks-bridge.ts does not reference child_process, spawn, exec, eval, or Function(', () => {
     const src = fs.readFileSync(
       path.resolve(__dirname, '..', 'server/hooks-bridge.ts'),

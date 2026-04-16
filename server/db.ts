@@ -44,6 +44,13 @@ export interface DBData {
    * default is applied below).
    */
   chatUIState: ChatTabState;
+  /**
+   * Maps conversationId → sessionId for chat-originated sessions. When a chat
+   * prompt creates a Claude CLI session, the session ID is captured from the
+   * stream init and stored here so the sidebar can distinguish chat sessions
+   * from scanner-discovered ones. Added in chat-scanner-unification task002.
+   */
+  chatSessions: Record<string, { sessionId: string; title: string; createdAt: string }>;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -96,6 +103,7 @@ function defaultData(): DBData {
     boardConfig: { projectColors: {}, archivedMilestones: [] },
     staleCounts: {},
     chatUIState: { openTabs: [], activeTabId: null, tabOrder: [] },
+    chatSessions: {},
   };
 }
 
@@ -189,6 +197,9 @@ try {
     if (!data.staleCounts) data.staleCounts = {};
     if (!data.chatUIState) {
       data.chatUIState = { openTabs: [], activeTabId: null, tabOrder: [] };
+    }
+    if (!data.chatSessions) {
+      data.chatSessions = {};
     }
     // Silently discard leftover pipeline keys from older DB files
     delete (data as any).pipelineConfig;

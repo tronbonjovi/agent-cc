@@ -1,38 +1,22 @@
 // client/src/components/chat/chat-panel.tsx
 //
-// Integrated chat surface for the chat-workflows-tabs milestone.
+// Integrated chat surface — chat-scanner-unification task003.
 //
-// Two-layer rendering model (task006):
+// Two-layer rendering model:
 //
 //   - Persisted conversation history is loaded via React Query
-//     (`useChatHistory`) from `GET /api/chat/conversations/:id/events`.
+//     (`useChatHistory`) from the scanner session messages endpoint.
 //   - In-flight streaming chunks live in the Zustand chat store's
 //     per-conversation `liveEvents` buffer, populated by the SSE listener.
 //
-// On SSE `done` we invalidate the history query so the just-persisted events
-// are re-fetched from the server, then clear the live buffer for this
-// conversation so we don't double-render the turn.
+// On SSE `done` we invalidate the history query so the scanner-parsed events
+// are re-fetched, then clear the live buffer for this conversation so we
+// don't double-render the turn.
 //
-// Chunk handling: text chunks are coalesced into the live assistant bubble
-// via `coalesceAssistantText`. workflow_event and hook_event chunks are
-// appended to liveEvents for instant render AND trigger a history
-// invalidation — the subsequent revalidation pulls the persisted copy back,
-// and `mergeChatEvents` drops the live duplicate at render time. Other chunk
-// types (tool_call, tool_result, thinking, system) are still picked up
-// through query revalidation on `done`.
-//
-// Per-tab retarget (task007):
-//
-//   - `conversationId` is sourced through the `useActiveConversationId` hook,
-//     which wraps `useChatTabsStore.activeTabId` with a `'default'` fallback.
-//     The panel does NOT import `useChatTabsStore` directly — that would
-//     trip the narrowed regression lock in `tests/chat-panel.test.ts`.
-//   - Input text lives on `useChatStore.drafts[conversationId]` (in-memory
-//     only) so switching tabs preserves unsent text per tab.
-//   - liveEvents are keyed by conversationId, so two open tabs can stream
-//     independently without cross-contamination.
-//   - On first mount, once the tab store has loaded, an empty `openTabs`
-//     triggers the auto-creation of a "Main" tab via `openTab`.
+// Per-tab retarget:
+//   - `conversationId` is the sessionId in the unified model.
+//   - Input text lives on `useChatStore.drafts[conversationId]` (in-memory).
+//   - liveEvents are keyed by conversationId.
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';

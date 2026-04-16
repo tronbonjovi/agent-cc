@@ -18,13 +18,12 @@
  * event would silently swallow the prompt instead.
  *
  * Fire-and-forget async runner: we write 202 immediately, then iterate the
- * workflow generator, persist each yielded event, and broadcast it over
- * the existing chat SSE stream. Errors are logged but do not re-throw —
- * the HTTP response is already closed.
+ * workflow generator and broadcast each yielded event over the existing chat
+ * SSE stream. Errors are logged but do not re-throw — the HTTP response is
+ * already closed.
  */
 import { Router, type Request, type Response } from 'express';
 import { runWorkflow, isKnownWorkflow } from '../chat-workflow-executor';
-import { insertEvent } from '../interactions-repo';
 import { broadcastChatEvent } from './chat';
 
 const router = Router();
@@ -61,25 +60,10 @@ router.post('/workflow', async (req: Request, res: Response) => {
   // waits for `workflow_event` frames to arrive.
   res.status(202).json({ ok: true });
 
-  // Fire-and-forget runner. We deliberately do not `await` this from the
-  // handler — the response is already sent and we don't want the event
-  // loop to keep the request open while the workflow drains.
-  //
-  // Each iteration: persist → broadcast. Persistence is wrapped in its
-  // own try/catch so a DB hiccup on event N doesn't prevent events N+1..
-  // from reaching their SSE subscribers. Broadcast always runs even when
-  // insertEvent throws; the test suite asserts this.
+  // Fire-and-forget runner. Each iteration broadcasts over SSE.
   (async () => {
     try {
       for await (const event of runWorkflow(workflow, args, conversationId)) {
-        try {
-          insertEvent(event);
-        } catch (err) {
-          console.error(
-            `[chat-workflow] insertEvent failed for ${workflow}/${conversationId}:`,
-            (err as Error).message ?? err,
-          );
-        }
         broadcastChatEvent(conversationId, {
           type: 'workflow_event',
           event,

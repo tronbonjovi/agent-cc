@@ -59,7 +59,7 @@ interface RunClaudeOpts {
 /** Build the argument array for claude CLI */
 export function buildClaudeArgs(opts: Pick<RunClaudeOpts, "model" | "maxTurns">): string[] {
   const { model = "haiku", maxTurns = 1 } = opts;
-  return ["-p", "--model", model, "--max-turns", String(maxTurns), "--no-session-persistence"];
+  return ["-p", "--model", model, "--max-turns", String(maxTurns)];
 }
 
 /** Build a clean environment for claude subprocess */
@@ -182,7 +182,6 @@ export async function* runClaudeStreaming(
   const args = [
     "-p",
     prompt,
-    "--no-session-persistence",
     "--output-format",
     "stream-json",
     "--verbose",
