@@ -44,10 +44,11 @@ describe('use-chat-history.ts — source guardrails', () => {
     );
   });
 
-  it('6. fetches from /api/sessions/${conversationId}/messages', () => {
-    // Now fetches from the scanner session messages endpoint.
+  it('6. fetches from /api/sessions/${sessionId}/messages', () => {
+    // Fetches from the scanner session messages endpoint using the
+    // resolved sessionId (looked up from the chatSessions mapping).
     expect(src).toMatch(
-      /\/api\/sessions\/\$\{conversationId\}\/messages/,
+      /\/api\/sessions\/\$\{sessionId\}\/messages/,
     );
   });
 

@@ -160,17 +160,18 @@ describe("chat-scanner unification: session ID capture", () => {
       .send({ conversationId: testConversationId, text: "hi" });
     expect(res.status).toBe(200);
 
-    // Wait for the fire-and-forget streaming to complete and write to db
+    // Wait for the fire-and-forget streaming to complete and write to db.
+    // The mapping is keyed by conversationId (tab ID), not CLI session ID.
     await waitFor(() => {
       const db = getDB();
-      return !!db.chatSessions?.[testSessionId];
+      return !!db.chatSessions?.[testConversationId];
     });
 
     const db = getDB();
     expect(db.chatSessions).toBeDefined();
-    expect(db.chatSessions[testSessionId]).toBeDefined();
-    expect(db.chatSessions[testSessionId].sessionId).toBe(testSessionId);
-    expect(typeof db.chatSessions[testSessionId].createdAt).toBe("string");
+    expect(db.chatSessions[testConversationId]).toBeDefined();
+    expect(db.chatSessions[testConversationId].sessionId).toBe(testSessionId);
+    expect(typeof db.chatSessions[testConversationId].createdAt).toBe("string");
   });
 });
 

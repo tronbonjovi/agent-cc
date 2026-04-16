@@ -97,7 +97,7 @@ router.post("/prompt", async (req: Request, res: Response) => {
           try {
             const db = getDB();
             const sid = (chunk as any).raw.session_id as string;
-            db.chatSessions[sid] = {
+            db.chatSessions[conversationId] = {
               sessionId: sid,
               title: text.slice(0, 80),
               createdAt: new Date().toISOString(),

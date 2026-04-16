@@ -134,15 +134,33 @@ export function useChatHistory(conversationId: string) {
   return useQuery<ChatHistoryResult>({
     queryKey: ['chat-history', conversationId],
     queryFn: async () => {
-      // Try fetching from the scanner session messages endpoint.
-      // The conversationId is the sessionId in the unified model.
+      // Resolve the tab's conversationId to a CLI session ID via the
+      // chatSessions mapping. The tab UUID and CLI session UUID are
+      // independent — the mapping bridges them.
+      let sessionId = conversationId;
+      try {
+        const tabRes = await fetch('/api/chat/sessions');
+        if (tabRes.ok) {
+          const tabBody = await tabRes.json();
+          const sessions: Array<{ conversationId: string; sessionId: string }> =
+            tabBody.sessions ?? [];
+          const match = sessions.find((s) => s.conversationId === conversationId);
+          if (match?.sessionId) {
+            sessionId = match.sessionId;
+          }
+        }
+      } catch {
+        // Mapping lookup failed — fall through with the tab ID as-is.
+      }
+
+      // Fetch the message timeline from the scanner session endpoint.
       const res = await fetch(
-        `/api/sessions/${conversationId}/messages?limit=500`,
+        `/api/sessions/${sessionId}/messages?limit=500`,
       );
       if (!res.ok) {
         // 404 means the session doesn't exist yet (new chat tab, no prompt
         // sent). Return empty so the live SSE buffer renders alone.
-        if (res.status === 404) {
+        if (res.status === 404 || res.status === 400) {
           return { events: [] };
         }
         throw new Error(`Failed to load chat history: ${res.status}`);
