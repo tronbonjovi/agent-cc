@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Chat evolution roadmap (Milestones 9-11, 24 tasks)** — brainstormed and documented the next phase of chat development across three milestones: chat-ux-cleanup (fix conversation continuity, streaming, markdown rendering, sidebar removal, collapse bars), chat-composer-controls (Claude.ai-style model dropdown, settings popover, capability-aware controls), and chat-provider-system (generic multi-provider backend supporting Claude Code + any OpenAI-compatible API including Ollama, OpenAI, Groq, etc. with API key and OAuth auth). Design spec at `docs/superpowers/specs/2026-04-16-chat-evolution-design.md`. All task contracts written with full instructions, file lists, tests, and acceptance criteria. No implementation yet — documentation-only session.
+
+### Removed
+- Stale roadmap drafts: `codebase-cleanup-audit.md`, `walkthrough-2026-04-13.md`, `2026-04-14-integrated-chat-system.md` (all completed or superseded)
+
 ### Changed
 - **Chat–scanner unification COMPLETE (Milestone 8, 5/5)** — removed the SQLite event store (`interactions.db`) and unified chat sessions with the scanner pipeline. Chat sessions now produce JSONL like normal CLI sessions, and the scanner reads them directly. JSONL-backed `IScannerBackend` replaces the SQLite store backend. `better-sqlite3` dependency removed. 14 server/shared files deleted, 9 test files deleted, ~6900 net lines removed. Live chat streaming works end-to-end: optimistic echo, SSE text streaming, session ID capture from CLI init, history loads from scanner on refresh. 183 test files / 6115 tests passing.
 
