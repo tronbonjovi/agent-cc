@@ -1,8 +1,34 @@
 # Agent CC
 
-**Agent Control Center** — a local dashboard for visualizing and managing your agentic coding ecosystem. Auto-discovers projects, MCP servers, skills, plugins, sessions, agents, and their relationships.
+**Agent Control Center** — a personal platform for AI-assisted software development. Ties together session intelligence, analytics, project management, workflow tools, and a built-in workspace. Currently built around Claude Code, with plans to support additional AI development tools.
 
-Currently built around [Claude Code](https://docs.anthropic.com/en/docs/claude-code), with plans to support additional agentic systems in the future.
+Built by a solo developer learning software engineering with AI as primary coding partner.
+
+## Core Features
+
+The Session Intelligence engine is the backbone — it ingests AI coding session data into a unified SQLite store and builds hierarchical session trees. Analytics, cost tracking, and chat all read from that store. Ecosystem Discovery scans your environment for projects, tools, and configs. The rest are standalone workspace and management tools.
+
+**Session Intelligence** `Live` — The deep engine. Parses JSONL session files, extracts messages, tool calls, costs, file changes, and metadata. Builds hierarchical session trees linking parent sessions to subagent sessions. Ingests incrementally into SQLite with byte-offset resumption.
+
+**Ecosystem Discovery** `Live` — Fleet of filesystem scanners that discover what exists in your environment: projects, skills, plugins, MCP servers, agents, configs, markdown files, tasks, Docker services, and git remotes. Produces an entity graph that feeds the dashboard, library, and graph visualization.
+
+**Analytics** `Live` — Cost breakdowns by session, model, source, and time period. Time-series charts for tokens, cache efficiency, model distribution, tool usage, and file heatmaps. Session deep-dive with message timeline, tool call rendering, and filterable message search. AI-vs-deterministic savings tracking.
+
+**Nerve Center** `Needs Work` — Interactive node-link force graph showing all discovered entities and their relationships. Color-coded by type, draggable, zoomable, with entity type filtering.
+
+**Board** `Needs Work` — Cross-project kanban board with four columns, milestone grouping, dependency flags, and session linking. Two-way sync with [workflow-framework](https://github.com/tronbonjovi/workflow-framework) markdown task files.
+
+**Chat** `Live` — Integrated multi-tab chat panel. Conversations persist in SQLite. Slash commands route to server-side workflows (no shell access from chat input). Claude Code hooks stream inline. Import past sessions as chat tabs. Conversation sidebar with source filtering.
+
+**Terminal** `Live` — VS Code-style embedded terminal with multiple tabs, split view, persistent state, and theme-aware rendering.
+
+**Library** `Needs Work` — Management interface for skills, plugins, MCP servers, agents, and prompts. Discovery from GitHub. Install/uninstall for library items. Bash knowledge base with indexed shell commands.
+
+**Editor** `Needs Work` — Markdown editor for CLAUDE.md, memory files, and READMEs. Split edit/preview, version history with diff and restore, CLAUDE.md validation, overlap detection across files.
+
+**Workflow Builder** `Planned` — Visual infinite canvas with node-based directed graph workflow system.
+
+**File Explorer** `Planned` — Custom file browser integrated with the workspace.
 
 ## Quick Start
 
@@ -15,60 +41,22 @@ npm run dev
 
 Open [http://localhost:5100](http://localhost:5100). Everything is auto-discovered from your `~/.claude/` directory.
 
-For production, Agent CC runs bare metal via systemd. See [SETUP.md](SETUP.md) for detailed installation and deployment.
+For production deployment, see [SETUP.md](SETUP.md).
 
-## Requirements
+## Tech Stack
 
-- **Node.js 18+**
-- **Claude Code** installed (the dashboard reads from `~/.claude/`)
-- **git** (optional, used for the update feature)
+**Frontend:** React 18, TanStack Query, Tailwind CSS, Radix UI, React Flow, xterm.js
+**Backend:** Express 5, better-sqlite3, chokidar, Zod
+**Build:** Vite + esbuild, TypeScript throughout
 
-## What It Does
-
-- **Project discovery** — finds all Claude Code projects, per-project cost/health/session aggregation
-- **Session intelligence** — deep search across message content, AI summaries, cost analytics, file heatmap, health scores
-- **Operations nerve center** — real-time service health, cost pacing, attention items, overnight activity
-- **Continuation intelligence** — detects unfinished work, uncommitted changes, abandoned sessions with one-click resume
-- **MCP server management** — every `.mcp.json` across all projects in one view
-- **Bash knowledge base** — every shell command indexed and searchable with success rates
-- **Decision log** — AI-extracted architectural decisions from past sessions
-- **Natural language query** — ask questions about your analytics data
-- **Session delegation** — continue sessions via embedded terminal or external CLI
-- **14 themes** — Dark, Light, Glass, Anthropic Light/Dark, Catppuccin Mocha, Nord, Dracula, Tokyo Night, Solarized Dark, and more. Each theme has its own aesthetic profile controlling glow, borders, elevation, and animation
-- **Live monitoring** — real-time active sessions, context usage, cost estimates, agent tracking (integrated into Dashboard)
-- **Graph visualization** — interactive ecosystem map with AI-assisted suggestions
-- **Markdown editor** — edit `CLAUDE.md` and memory files with version history
-- **Embedded terminal** — VS Code-style bottom panel with xterm.js, multiple tabs, split view
-- **Task management** — cross-project kanban board with milestone grouping, dependency tracking, info radiator cards, session linking, and two-way sync with [workflow-framework](https://github.com/tronbonjovi/workflow-framework) task files
-
-## Pages
-
-| Page | What it shows |
-|------|---------------|
-| Dashboard | Live session monitoring, entity counts, system health, recent activity (includes live session tracking) |
-| Board | Cross-project kanban board — info radiator cards with session data, dependency flags, move controls, session linking |
-| Projects | Project discovery hub (redirects to Board with project context) |
-| MCP Servers | Every MCP server from `.mcp.json` files |
-| Skills | User-invocable and system skills |
-| Plugins | Installed and available plugins |
-| Markdown | CLAUDE.md, memory files, READMEs with inline editing |
-| Sessions | Deep search, AI summaries, cost, diffs, notes, pins, delegation |
-| Messages | Message history + prompt templates (consolidated view) |
-| Agents | Agent definitions and execution logs |
-| Graph | Interactive node graph with custom nodes and AI suggestions |
-| Analytics | Usage stats, cost tracking, filesystem activity, GitHub discovery (includes activity timeline) |
-| Settings | Claude Code settings, permissions, MCP configs |
-
-## Security and Privacy
+## Security & Privacy
 
 Runs entirely on your local machine. No cloud, no telemetry, no external databases.
 
 - Binds to `127.0.0.1` only
 - All API input validated with Zod
 - File-reading routes use `realpath` path traversal guards
-- Shell commands sanitized — no user input passed unsanitized
 - Secrets (env vars with "secret", "password", "token", "key") are redacted
-- Data stored locally as plain JSON in `~/.agent-cc/`
 
 ## Configuration
 
@@ -77,17 +65,8 @@ Runs entirely on your local machine. No cloud, no telemetry, no external databas
 | `PORT` | `5100` | Server port |
 | `HOST` | `127.0.0.1` | Bind address |
 | `AGENT_CC_DATA` | `~/.agent-cc/` | Data directory |
-| `NERVE_CENTER_SERVICES` | `Agent CC:5100` | Services to monitor (`name:port,name:port`) |
-| `ALLOWED_ORIGINS` | _(none)_ | Extra CORS origins for reverse proxy (comma-separated) |
-| `EXTRA_PROJECT_DIRS` | _(none)_ | Extra project directories for scanner (comma-separated) |
 
-See [SETUP.md](SETUP.md) for the full list of environment variables.
-
-## Tech Stack
-
-**Frontend:** React 18, TanStack Query, Tailwind CSS, Radix UI, React Flow
-**Backend:** Express 5, chokidar, Zod
-**Build:** Vite + esbuild, TypeScript throughout
+See [SETUP.md](SETUP.md) for the full list of environment variables and deployment options.
 
 ## Development
 
@@ -97,3 +76,9 @@ npm run check        # TypeScript type-check
 npm test             # run all tests
 npm run build        # production build
 ```
+
+## Requirements
+
+- **Node.js 18+**
+- **Claude Code** installed (reads from `~/.claude/`)
+- **git** (optional, used for the update feature)
