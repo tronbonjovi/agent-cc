@@ -41,7 +41,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { X, Plus, Download } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 
 import { useChatTabsStore } from '@/stores/chat-tabs-store';
 import { useChatStore } from '@/stores/chat-store';
@@ -51,7 +51,6 @@ import {
   type OrderedTab,
 } from '@/lib/chat-tab-order';
 import { Button } from '@/components/ui/button';
-import { ImportSessionModal } from '@/components/chat/import-session-modal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -152,10 +151,6 @@ export function ChatTabBar() {
   // reachable from clicking the X on a chip. `pendingCloseId` holds the
   // tab we're asking the user to confirm; null means no dialog is open.
   const [pendingCloseId, setPendingCloseId] = useState<string | null>(null);
-
-  // Import-session modal state (chat-import-platforms-task003). Opened
-  // by the Import button next to the `+` new-tab button.
-  const [importOpen, setImportOpen] = useState(false);
 
   // A tiny drag-activation distance keeps the click-to-switch UX responsive
   // — without it, even tiny pointer jitter on a plain click is treated as a
@@ -289,18 +284,6 @@ export function ChatTabBar() {
       >
         <Plus className="h-4 w-4" />
       </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        aria-label="Import session"
-        onClick={() => setImportOpen(true)}
-        className="shrink-0 h-9 px-2 rounded-none"
-        data-testid="chat-tab-import"
-      >
-        <Download className="h-4 w-4" />
-      </Button>
-      <ImportSessionModal open={importOpen} onOpenChange={setImportOpen} />
       {/* Close-confirm dialog — only rendered when a dirty tab is pending.
           The open state is driven by `pendingCloseId`; the Cancel path
           nulls it, the Discard path calls `performClose` which clears the

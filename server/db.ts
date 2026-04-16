@@ -45,12 +45,12 @@ export interface DBData {
    */
   chatUIState: ChatTabState;
   /**
-   * Maps Claude CLI session IDs to chat tab IDs. Populated when integrated
-   * chat dispatches a prompt via `runClaudeStreaming` — the CLI's `system/init`
-   * envelope carries the session ID, which we capture and store here so the
-   * scanner can later correlate the JSONL file back to the originating chat tab.
+   * Maps conversationId → sessionId for chat-originated sessions. When a chat
+   * prompt creates a Claude CLI session, the session ID is captured from the
+   * stream init and stored here so the sidebar can distinguish chat sessions
+   * from scanner-discovered ones. Added in chat-scanner-unification task002.
    */
-  chatSessions: Record<string, { tabId: string; startedAt: string }>;
+  chatSessions: Record<string, { sessionId: string; title: string; createdAt: string }>;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -198,7 +198,9 @@ try {
     if (!data.chatUIState) {
       data.chatUIState = { openTabs: [], activeTabId: null, tabOrder: [] };
     }
-    if (!data.chatSessions) data.chatSessions = {};
+    if (!data.chatSessions) {
+      data.chatSessions = {};
+    }
     // Silently discard leftover pipeline keys from older DB files
     delete (data as any).pipelineConfig;
     delete (data as any).pipelineRun;

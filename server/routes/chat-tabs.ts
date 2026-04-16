@@ -72,6 +72,27 @@ function validateChatTabState(body: unknown): ChatTabState | { error: string } {
   };
 }
 
+/**
+ * GET /api/chat/sessions — list chat-originated sessions.
+ *
+ * Returns the `chatSessions` mapping from the JSON DB so the sidebar can
+ * show which sessions were started from the chat UI. Newest first.
+ */
+router.get("/sessions", (_req: Request, res: Response) => {
+  const db = getDB();
+  const raw = db?.chatSessions ?? {};
+  // Convert to an array sorted newest-first for the sidebar.
+  const sessions = Object.entries(raw)
+    .map(([conversationId, entry]) => ({
+      conversationId,
+      sessionId: entry.sessionId,
+      title: entry.title,
+      createdAt: entry.createdAt,
+    }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  res.json({ sessions });
+});
+
 router.get("/tabs", (_req: Request, res: Response) => {
   const db = getDB();
   // Graceful degradation — return the default even if a legacy DB record

@@ -1,99 +1,72 @@
 // client/src/components/chat/conversation-sidebar.tsx
 //
-// Unified conversation sidebar — chat-import-platforms task004 (+ task005
-// filter chips and richer placeholders).
+// Chat session sidebar — chat-scanner-unification task003.
 //
-// Left rail inside ChatPanel that lists every conversation across every
-// source (chat-ai, chat-slash, chat-hook, chat-workflow, scanner-jsonl, plus
-// the planned externals: github-issue, telegram, discord, imessage). Groups
-// rows by source using the SOURCE_METADATA registry (task001) and renders
-// one collapsible section per source.
+// Simplified from the old multi-source grouping sidebar to a flat list of
+// chat-originated sessions. Sessions come from two places:
+//   1. Open tabs (from the chat-tabs store) — always shown at the top.
+//   2. Chat-originated sessions (from GET /api/chat/sessions) — the
+//      chatSessions mapping in db.ts, newest first.
 //
-// Click handling lives in @/lib/conversation-grouping as a pure function
-// (`handleConversationClick`) so it's unit-testable without mounting the
-// component — vitest excludes the client/ directory, so all testable logic
-// must either live as source-text guardrails (tests/conversation-sidebar
-// .test.ts) or as pure helpers (tests/conversation-grouping.test.ts).
-//
-// Filter logic (`filterSourcesByMode`) and the active-chip variant helper
-// (`pickFilterVariant`) also live in @/lib/conversation-grouping for the
-// same reason — task005 introduces them and unit-tests them in
-// tests/conversation-grouping.test.ts.
+// The old InteractionSource grouping, planned-source placeholders, filter
+// chips, and import modal are all removed. The sidebar is now a simple
+// session list.
 
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import {
-  SOURCE_METADATA,
-  getWiredSources,
-  getPlannedSources,
-  type SourceMetadata,
-} from '../../../../shared/source-metadata';
 import { useChatTabsStore } from '@/stores/chat-tabs-store';
-import {
-  groupConversationsBySource,
-  handleConversationClick,
-  filterSourcesByMode,
-  type ConversationSummary,
-  type FilterMode,
-} from '@/lib/conversation-grouping';
-import { SourceFilter } from '@/components/chat/source-filter';
-import type { InteractionSource } from '../../../../shared/types';
 
 /**
- * Response shape for `GET /api/chat/conversations/all`. Mirrors the server
- * route in server/routes/chat.ts — kept local so the client never reaches
- * across the server/ boundary for types.
+ * Shape returned by GET /api/chat/sessions — one entry per chat-originated
+ * session from the chatSessions mapping in db.ts.
  */
-interface AllConversationsResponse {
-  conversations: ConversationSummary[];
+interface ChatSessionEntry {
+  conversationId: string;
+  sessionId: string;
+  title: string;
+  createdAt: string;
 }
 
-async function fetchAllConversations(): Promise<AllConversationsResponse> {
-  const res = await fetch('/api/chat/conversations/all');
+interface ChatSessionsResponse {
+  sessions: ChatSessionEntry[];
+}
+
+async function fetchChatSessions(): Promise<ChatSessionsResponse> {
+  const res = await fetch('/api/chat/sessions');
   if (!res.ok) {
-    throw new Error(`GET /api/chat/conversations/all failed: ${res.status}`);
+    throw new Error(`GET /api/chat/sessions failed: ${res.status}`);
   }
   return res.json();
 }
 
 export function ConversationSidebar() {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['all-conversations'],
-    queryFn: fetchAllConversations,
-    // Fresh enough — the sidebar doesn't need aggressive revalidation;
-    // task006's E2E will verify that imports refresh on demand.
+    queryKey: ['chat-sessions'],
+    queryFn: fetchChatSessions,
     staleTime: 15_000,
   });
 
-  const openTab = useChatTabsStore((s) => s.openTab);
+  const tabs = useChatTabsStore((s) => s.tabs);
+  const activeId = useChatTabsStore((s) => s.activeTabId);
   const setActiveTab = useChatTabsStore((s) => s.setActiveTab);
+  const openTab = useChatTabsStore((s) => s.openTab);
 
-  // Click-dispatch error is surfaced inline so a failed import doesn't
-  // silently drop the user's click. Kept as local state — the sidebar isn't
-  // wired into the panel's error banner path yet.
-  const [clickError, setClickError] = useState<string | null>(null);
+  const sessions = data?.sessions ?? [];
 
-  // Filter mode is local ephemeral UI state — refresh-on-mount is fine,
-  // there's no requirement to persist this across tab switches.
-  const [filter, setFilter] = useState<FilterMode>('all');
+  // Build a set of conversation IDs that are already open as tabs so we
+  // can skip them in the "recent sessions" list below.
+  const openTabIds = new Set(tabs.map((t) => t.conversationId));
 
-  const grouped = groupConversationsBySource(data?.conversations ?? []);
+  // Recent sessions that are NOT already open as tabs.
+  const recentSessions = sessions.filter(
+    (s) => !openTabIds.has(s.conversationId),
+  );
 
-  const visibleWired = filterSourcesByMode(getWiredSources(), filter);
-  const visiblePlanned = filterSourcesByMode(getPlannedSources(), filter);
-
-  const onRowClick = async (conv: ConversationSummary) => {
-    setClickError(null);
+  const handleSessionClick = async (conversationId: string, title: string) => {
     try {
-      await handleConversationClick(conv, {
-        fetch: fetch as unknown as Parameters<typeof handleConversationClick>[1]['fetch'],
-        openTab,
-        setActiveTab,
-      });
+      await openTab(conversationId, title);
+      await setActiveTab(conversationId);
     } catch (err) {
       console.error('[conversation-sidebar] click failed', err);
-      setClickError(err instanceof Error ? err.message : 'Click failed');
     }
   };
 
@@ -102,157 +75,80 @@ export function ConversationSidebar() {
       className="h-full w-full overflow-y-auto border-r bg-muted/20 text-sm"
       data-testid="conversation-sidebar"
     >
+      {/* Open tabs section */}
       <div className="sticky top-0 z-10 border-b bg-background/95 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Conversations
+        Chat Sessions
       </div>
-      <SourceFilter mode={filter} onChange={setFilter} />
+
+      {tabs.length > 0 && (
+        <div className="border-b">
+          <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            Open tabs
+          </div>
+          <ul>
+            {tabs.map((tab) => (
+              <li key={tab.conversationId}>
+                <button
+                  type="button"
+                  className={`block w-full truncate px-4 py-1.5 text-left text-xs hover:bg-muted/60 ${
+                    tab.conversationId === activeId
+                      ? 'bg-muted/40 text-foreground font-medium'
+                      : 'text-muted-foreground'
+                  }`}
+                  onClick={() => handleSessionClick(tab.conversationId, tab.title)}
+                  data-testid={`sidebar-tab-${tab.conversationId}`}
+                >
+                  {tab.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Recent chat sessions section */}
+      <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+        Recent sessions
+      </div>
+
       {isLoading && (
         <div className="px-3 py-2 text-xs text-muted-foreground" role="status">
-          Loading…
+          Loading...
         </div>
       )}
       {isError && (
         <div className="px-3 py-2 text-xs text-destructive" role="alert">
-          Failed to load conversations
+          Failed to load sessions
         </div>
       )}
-      {clickError && (
-        <div className="px-3 py-2 text-xs text-destructive" role="alert">
-          {clickError}
+
+      {!isLoading && !isError && recentSessions.length === 0 && (
+        <div className="px-4 py-2 text-xs italic text-muted-foreground">
+          No recent sessions
         </div>
       )}
-      {visibleWired.map((meta) => (
-        <SidebarSection
-          key={meta.id}
-          meta={meta}
-          conversations={grouped[meta.id] ?? []}
-          onClick={onRowClick}
-          disabled={false}
-          defaultOpen={true}
-        />
-      ))}
-      {visiblePlanned.map((meta) => (
-        <PlannedSourcePlaceholder key={meta.id} meta={meta} />
-      ))}
-    </aside>
-  );
-}
 
-// ---------------------------------------------------------------------------
-// PlannedSourcePlaceholder — task005.
-//
-// Replaces the old inline "Coming soon" string with a small, intentional
-// card so the planned externals look like roadmap surface area instead of
-// broken sections. Stays minimal on purpose: display name, short tagline,
-// no docs link (deferred — would need a roadmap route the app doesn't
-// expose yet).
-//
-// The `data-source` attribute lets the source-text guardrail tests pin the
-// rendering pattern without mounting React, and `data-testid` matches the
-// pattern the contract specified for downstream E2E tests in task006.
-// ---------------------------------------------------------------------------
-
-function PlannedSourcePlaceholder({ meta }: { meta: SourceMetadata }) {
-  return (
-    <div
-      className="border-b px-4 py-3 text-xs text-muted-foreground opacity-70"
-      data-testid={`placeholder-${meta.id}`}
-      data-source={meta.id}
-    >
-      <div className="mb-1 font-medium text-foreground">{meta.displayName}</div>
-      <div>Integration planned. See roadmap for status.</div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SidebarSection — one collapsible group per (wired) source.
-//
-// Renders even when `conversations` is empty so the user can see every
-// wired source registered in SOURCE_METADATA at a glance. Planned sources
-// no longer flow through here as of task005 — they get their own
-// PlannedSourcePlaceholder card instead.
-//
-// `disabled` is preserved on the row for forward compatibility (if the
-// future imessage/discord ingestion lights up, the row UI is already wired
-// to grey out partial states), and the `disabled={true}` source-text token
-// the guardrail test pins lives on PlannedSourcePlaceholder via the
-// SourceFilter chips that get aria-pressed instead.
-// ---------------------------------------------------------------------------
-
-interface SidebarSectionProps {
-  meta: SourceMetadata;
-  conversations: ConversationSummary[];
-  onClick: (conv: ConversationSummary) => void;
-  disabled: boolean;
-  defaultOpen: boolean;
-}
-
-function SidebarSection({
-  meta,
-  conversations,
-  onClick,
-  disabled,
-  defaultOpen,
-}: SidebarSectionProps) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div
-      className={`border-b ${disabled ? 'opacity-60' : ''}`}
-      data-testid={`sidebar-section-${meta.id}`}
-      data-source={meta.id}
-    >
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-muted/40"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        {open ? (
-          <ChevronDown className="h-3 w-3 shrink-0" />
-        ) : (
-          <ChevronRight className="h-3 w-3 shrink-0" />
-        )}
-        <span className="flex-1 truncate">{meta.displayName}</span>
-        <span className="text-muted-foreground" data-testid={`count-${meta.id}`}>
-          ({conversations.length})
-        </span>
-      </button>
-      {open && conversations.length > 0 && (
-        <ul className="pb-1">
-          {conversations.map((conv) => (
-            <li key={conv.conversationId}>
+      {recentSessions.length > 0 && (
+        <ul>
+          {recentSessions.map((session) => (
+            <li key={session.conversationId}>
               <button
                 type="button"
-                className="block w-full truncate px-6 py-1.5 text-left text-xs hover:bg-muted/60 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                onClick={() => onClick(conv)}
-                disabled={disabled}
-                data-testid={`conv-row-${conv.conversationId}`}
-                data-source={conv.source}
+                className="block w-full truncate px-4 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/60"
+                onClick={() =>
+                  handleSessionClick(session.conversationId, session.title)
+                }
+                data-testid={`sidebar-session-${session.conversationId}`}
               >
-                {conv.conversationId.slice(0, 12)}
-                <span className="ml-2 text-muted-foreground">
-                  {conv.eventCount}
-                </span>
+                <div className="truncate">{session.title}</div>
+                <div className="text-xs text-muted-foreground/60">
+                  {new Date(session.createdAt).toLocaleDateString()}
+                </div>
               </button>
             </li>
           ))}
         </ul>
       )}
-      {open && conversations.length === 0 && (
-        <div className="px-6 pb-2 text-xs italic text-muted-foreground">
-          {disabled ? 'Coming soon' : 'No conversations'}
-        </div>
-      )}
-    </div>
+    </aside>
   );
 }
-
-// Safety net: silence unused-import warnings when the SOURCE_METADATA import
-// is only used via `getWiredSources` / `getPlannedSources`. The registry is
-// the single source of truth the guardrail test locks on.
-export const __SIDEBAR_METADATA_REF = SOURCE_METADATA;
-// Also surface the InteractionSource type alias so it isn't type-only-dead
-// across future edits — keeps the tests that look for type imports honest.
-export type __SidebarSource = InteractionSource;
