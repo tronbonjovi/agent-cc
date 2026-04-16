@@ -20,19 +20,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-// react-resizable-panels v4.x API: Group + Panel + Separator — same aliases
-// as client/src/components/layout.tsx so this nested group stays consistent
-// with the outer layout surface.
-import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useChatStore } from '@/stores/chat-store';
+import { useChatStore, shouldShowThinking } from '@/stores/chat-store';
 import { useChatHistory } from '@/hooks/use-chat-history';
 import { useActiveConversationId } from '@/hooks/use-active-conversation-id';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
 import { ChatTabBar } from '@/components/chat/chat-tab-bar';
-import { ConversationSidebar } from '@/components/chat/conversation-sidebar';
 import { parseSlashCommand, dispatchCommand } from '@/lib/chat-commands';
 import { mergeChatEvents } from '@/lib/chat-event-merge';
 import type { InteractionEvent } from '../../../../shared/types';
@@ -249,52 +244,89 @@ export function ChatPanel() {
   const historyEvents: InteractionEvent[] = history.data?.events ?? [];
   const allEvents: InteractionEvent[] = mergeChatEvents(historyEvents, liveEvents);
 
-  // task004 (chat-import-platforms): the chat panel is now a two-column
-  // horizontal split — ConversationSidebar on the left, the existing tab bar
-  // + message area + input on the right. The sidebar is nested inside
-  // ChatPanel rather than hoisted into layout.tsx so the rest of the app
-  // (terminal column, main nav) doesn't need to know about it.
+  // task005 (chat-ux-cleanup): show a pulsing-dots indicator between the
+  // optimistic user echo and the first assistant envelope. The Claude CLI
+  // emits whole assistant-message envelopes on a 5-10s cadence (not tokens,
+  // see reference_claude_cli_streaming), so progressive-bubble streaming is
+  // architecturally impossible — the indicator is the UX fix for dead air.
+  const showThinking = shouldShowThinking(isStreaming, liveEventsMap, conversationId);
+
+  // task007 (chat-ux-cleanup): chat panel is now a single column — the
+  // in-panel ConversationSidebar was removed because it duplicated the tab
+  // bar and wasted ~25% of panel width. "Recent sessions" moved to a
+  // history popover on the collapse bar in layout.tsx. Structure is now:
+  // tab bar → messages → input, with no horizontal PanelGroup wrapper.
   return (
     <div className="flex h-full flex-col" data-testid="chat-panel">
-      <PanelGroup orientation="horizontal" className="flex-1 min-h-0">
-        <Panel defaultSize="25%" minSize="15%" maxSize="45%">
-          <ConversationSidebar />
-        </Panel>
-        <PanelResizeHandle className="group w-1.5 bg-border hover:bg-accent/50 transition-colors flex items-center justify-center cursor-col-resize">
-          <div className="h-10 w-0.5 rounded-full bg-muted-foreground/20 group-hover:bg-muted-foreground/40" />
-        </PanelResizeHandle>
-        <Panel minSize="40%">
-          <div className="flex h-full flex-col">
-            <ChatTabBar />
-            <ScrollArea className="flex-1 p-4">
-              <InteractionEventRenderer events={allEvents} />
-            </ScrollArea>
-            {lastError && (
-              <div
-                className="border-t border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-                role="alert"
-                data-testid="chat-error-banner"
-              >
-                {lastError}
-              </div>
-            )}
-            <div className="border-t p-3 flex gap-2">
-              <Input
-                value={input}
-                onChange={(e) => setDraft(conversationId, e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSubmit();
-                }}
-                placeholder="Message Claude..."
-                disabled={isStreaming}
-              />
-              <Button onClick={handleSubmit} disabled={isStreaming}>
-                Send
-              </Button>
-            </div>
-          </div>
-        </Panel>
-      </PanelGroup>
+      <ChatTabBar />
+      <ScrollArea className="flex-1 p-4">
+        <InteractionEventRenderer events={allEvents} />
+        {showThinking && <ThinkingIndicator />}
+      </ScrollArea>
+      {lastError && (
+        <div
+          className="border-t border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          role="alert"
+          data-testid="chat-error-banner"
+        >
+          {lastError}
+        </div>
+      )}
+      <div className="border-t p-3 flex gap-2">
+        <Input
+          value={input}
+          onChange={(e) => setDraft(conversationId, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSubmit();
+          }}
+          placeholder="Message Claude..."
+          disabled={isStreaming}
+        />
+        <Button onClick={handleSubmit} disabled={isStreaming}>
+          Send
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ThinkingIndicator — dead-air UX fix (task005)
+//
+// Styled like an assistant TextBubble (same bg-card + border + rounded-lg
+// padding) so it reads as "an assistant message in progress". Three spans
+// with staggered `animationDelay` produce the classic "..." wave using
+// Tailwind's `animate-pulse` (opacity-based — bounce/scale are banned per
+// feedback_no_bounce_animations). Left-aligned via `self-start` and lives
+// in the ScrollArea so the existing auto-scroll-to-bottom picks it up.
+//
+// Kept inline here (not a new file) because it's small and only ever used
+// by ChatPanel. If a second consumer shows up, extract to its own file.
+// ---------------------------------------------------------------------------
+function ThinkingIndicator() {
+  return (
+    <div
+      className="flex flex-col max-w-[80%] self-start items-start mt-3"
+      data-testid="chat-thinking-indicator"
+      aria-label="Assistant is thinking"
+      role="status"
+    >
+      <div className="rounded-lg px-3 py-2 text-sm bg-card text-card-foreground border border-border">
+        <div className="flex items-center gap-1">
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground animate-pulse"
+            style={{ animationDelay: '0ms' }}
+          />
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground animate-pulse"
+            style={{ animationDelay: '150ms' }}
+          />
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground animate-pulse"
+            style={{ animationDelay: '300ms' }}
+          />
+        </div>
+      </div>
     </div>
   );
 }

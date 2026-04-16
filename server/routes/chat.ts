@@ -80,12 +80,28 @@ router.post("/prompt", async (req: Request, res: Response) => {
 
   res.json({ ok: true });
 
+  // Look up a previously captured CLI session ID for this conversation so we
+  // can resume it. When present, the CLI continues the existing JSONL session
+  // (full prior context + same file); when absent (first message), the CLI
+  // allocates a fresh session and we capture its ID from the init envelope
+  // below. Fixes chat-ux-cleanup-task002 — without this, every turn spawned
+  // a new session so prior messages were invisible and unreferenced by Claude.
+  let existingSessionId: string | undefined;
+  try {
+    existingSessionId = getDB().chatSessions[conversationId]?.sessionId;
+  } catch {
+    // DB read failed — fall through with undefined (acts like first turn).
+  }
+
   // Fire-and-forget streaming to every subscriber of this conversationId.
   // The CLI writes its own JSONL session file — no server-side persistence
   // needed. We just fan out raw chunks over SSE for the chat UI.
   (async () => {
     try {
-      for await (const chunk of runClaudeStreaming({ prompt: text })) {
+      for await (const chunk of runClaudeStreaming({
+        prompt: text,
+        sessionId: existingSessionId,
+      })) {
         // Capture session ID from CLI stream init envelope
         if (
           chunk &&

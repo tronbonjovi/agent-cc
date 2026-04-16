@@ -177,3 +177,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   getDraft: (conversationId) => get().drafts[conversationId] ?? '',
 }));
+
+// ---------------------------------------------------------------------------
+// shouldShowThinking — pure-logic selector for the M9 thinking indicator.
+//
+// Exported standalone (not on the store) so it can be unit-tested in vitest
+// without round-tripping through zustand state. The panel consumes it by
+// reading the two store slices it needs (`isStreaming` and `liveEvents`)
+// and calling this function with the active conversationId.
+//
+// Returns true iff:
+//   - a turn is in flight (`isStreaming === true`), AND
+//   - no ASSISTANT-role event has landed in this conversation's live buffer
+//     yet. The optimistic user echo (role: 'user') MUST NOT count — that
+//     lands immediately on Send and the indicator's whole job is to cover
+//     the echo → first-envelope gap.
+//
+// System-role events (hook_fire, info notes) also do NOT count as the
+// indicator's exit condition; the user is still waiting for the model to
+// say something, and a stray system note mid-wait shouldn't flicker the
+// dots off. Only assistant-role events hide the indicator.
+// ---------------------------------------------------------------------------
+export function shouldShowThinking(
+  isStreaming: boolean,
+  liveEvents: Record<string, InteractionEvent[]>,
+  conversationId: string,
+): boolean {
+  if (!isStreaming) return false;
+  const events = liveEvents[conversationId] ?? [];
+  const hasAssistantEvent = events.some((e) => e.role === 'assistant');
+  return !hasAssistantEvent;
+}

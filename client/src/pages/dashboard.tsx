@@ -18,7 +18,6 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 import { PageContainer } from "@/components/page-container";
-import { AiVsDeterministicCard } from "@/components/dashboard/ai-vs-deterministic-card";
 import type { EntityType, ActiveSession, AgentExecution } from "@shared/types";
 import { relativeTime as _relativeTime, shortModel, getTypeColor } from "@/lib/utils";
 
@@ -297,10 +296,6 @@ export default function Dashboard() {
       {/* Active Sessions — scrollable region */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="w-[85%] max-w-[1400px] mx-auto space-y-3 py-2">
-          {/* AI vs Deterministic card — task006. Sits above the session list
-              in the same centered column so the active-sessions block stays
-              full-width and uncentered-from-its-own-anchor. */}
-          <AiVsDeterministicCard />
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Active Sessions</h2>
             <Popover>

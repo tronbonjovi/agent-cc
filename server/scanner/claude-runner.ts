@@ -121,6 +121,18 @@ export interface StreamingClaudeOptions {
   prompt: string;
   timeoutMs?: number; // default 60000
   signal?: AbortSignal;
+  /**
+   * Optional Claude CLI session UUID to resume. When provided, `--resume <id>`
+   * is added to the CLI argv so the CLI continues an existing conversation
+   * (appending turns to the same JSONL file) instead of spawning a fresh
+   * session. Used by the chat route to preserve conversation context across
+   * prompts on the same tab — see `chat-ux-cleanup-task002`.
+   *
+   * Omit for the first message of a conversation; the CLI will generate a new
+   * session ID and emit it via the stream init envelope, which the caller then
+   * stores for subsequent prompts.
+   */
+  sessionId?: string;
 }
 
 /** A single parsed chunk yielded by runClaudeStreaming. */
@@ -174,7 +186,7 @@ function classifyStreamLine(line: unknown): StreamChunk["type"] {
 export async function* runClaudeStreaming(
   opts: StreamingClaudeOptions,
 ): AsyncGenerator<StreamChunk> {
-  const { prompt, timeoutMs = 60000, signal } = opts;
+  const { prompt, timeoutMs = 60000, signal, sessionId } = opts;
 
   const env = buildClaudeEnv();
   // `--verbose` is mandatory when combining `-p` (print mode) with
@@ -186,6 +198,13 @@ export async function* runClaudeStreaming(
     "stream-json",
     "--verbose",
   ];
+  // When a sessionId is provided, ask the CLI to resume that conversation so
+  // the model has full prior context and the new turn is appended to the same
+  // JSONL file (which the scanner then reads back as history). Omit for the
+  // first turn — the CLI will allocate a fresh session ID.
+  if (sessionId) {
+    args.push("--resume", sessionId);
+  }
 
   const child = spawn("claude", args, {
     env,

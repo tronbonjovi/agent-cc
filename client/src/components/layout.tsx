@@ -1,8 +1,10 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { useScanStatus } from "@/hooks/use-entities";
 import { useAppSettings } from "@/hooks/use-settings";
 import { useBreakpoint, isMobile } from "@/hooks/use-breakpoint";
@@ -30,9 +32,33 @@ import {
   BookOpen,
   Menu,
   MessageSquare,
+  History,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import React from "react";
+
+/**
+ * Chat session entry returned from GET /api/chat/sessions. Matches the
+ * shape in server/routes/chat.ts (the chatSessions mapping in db.ts).
+ */
+interface ChatSessionEntry {
+  conversationId: string;
+  sessionId: string;
+  title: string;
+  createdAt: string;
+}
+
+interface ChatSessionsResponse {
+  sessions: ChatSessionEntry[];
+}
+
+async function fetchChatSessions(): Promise<ChatSessionsResponse> {
+  const res = await fetch("/api/chat/sessions");
+  if (!res.ok) {
+    throw new Error(`GET /api/chat/sessions failed: ${res.status}`);
+  }
+  return res.json();
+}
 
 interface NavItem {
   path: string;
@@ -103,6 +129,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
   // with no blank gap above or below.
   const TERMINAL_COLLAPSED_PX = 32;
 
+  // task006: chat panel uses the same always-mounted pattern. When
+  // collapsed the panel clamps to a thin vertical bar (~32px) holding the
+  // chevron — same visual weight as the terminal's collapsed toolbar,
+  // rotated to the vertical axis. The ChatPanel subtree stays mounted
+  // across collapse toggles so SSE subscriptions + tab state are never
+  // torn down.
+  const CHAT_COLLAPSED_PX = 32;
+  const chatPanelRef = useRef<PanelImperativeHandle | null>(null);
+
   // Hydrate the chat-tabs store once on mount. This is a top-level
   // concern because multiple chat surfaces (the side panel, task002's tab
   // bar, eventually a full-page chat view) all read from the same store —
@@ -135,6 +170,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
     // imperative resize.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminalCollapsed]);
+
+  // task006: same pattern for the chat panel. The chat Panel itself
+  // stays mounted in both states; only its width flips between the
+  // stored expanded width and the bar-width clamp. Dep array excludes
+  // `chatPanelWidth` for the same reason as above — we never want a
+  // drag-driven width change to re-fire this effect and snap the Panel
+  // back.
+  useEffect(() => {
+    const ref = chatPanelRef.current;
+    if (!ref) return;
+    if (chatPanelCollapsed) {
+      ref.resize(CHAT_COLLAPSED_PX);
+    } else {
+      ref.resize(chatPanelWidth);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatPanelCollapsed]);
 
   // Reset sidebar state when breakpoint changes (unless user manually toggled within same tier)
   useEffect(() => {
@@ -441,32 +493,205 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </PanelGroup>
           </main>
         </Panel>
-        {!chatPanelCollapsed && (
-          <>
-            <PanelResizeHandle className="group w-1.5 bg-border hover:bg-accent/50 transition-colors flex items-center justify-center cursor-col-resize">
-              <div className="h-10 w-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
-            </PanelResizeHandle>
-            <Panel
-              defaultSize={chatPanelWidth}
-              minSize={240}
-              maxSize={800}
-              onResize={(panelSize) => {
-                const px = Math.round(panelSize.inPixels);
-                if (Number.isFinite(px) && px !== chatPanelWidth) {
-                  setChatPanelWidth(px);
-                }
-              }}
+        {/*
+          task006 — chat panel uses always-mounted collapse bar (mirrors
+          terminal-panel pattern above). Structural conditionals that
+          unmount the Panel tear down ChatPanel's SSE subscriptions + tab
+          state on every collapse toggle; the always-mounted + imperative
+          resize pattern keeps React identity stable.
+
+          The resize handle hides (w-0 / pointer-events-none / opacity-0)
+          when collapsed so the only way to open/close is the chevron in
+          the vertical bar. When expanded, no maxSize constraint — the
+          panel is fully fluid per `feedback_no_layout_constraints`.
+        */}
+        <PanelResizeHandle
+          className={cn(
+            "group bg-border transition-colors flex items-center justify-center",
+            chatPanelCollapsed
+              ? "w-0 pointer-events-none opacity-0"
+              : "w-1.5 hover:bg-accent/50 cursor-col-resize",
+          )}
+        >
+          {!chatPanelCollapsed && (
+            <div className="h-10 w-0.5 bg-muted-foreground/20 rounded-full group-hover:bg-muted-foreground/40 transition-colors" />
+          )}
+        </PanelResizeHandle>
+        <Panel
+          panelRef={chatPanelRef}
+          defaultSize={chatPanelCollapsed ? CHAT_COLLAPSED_PX : chatPanelWidth}
+          minSize={chatPanelCollapsed ? CHAT_COLLAPSED_PX : 0}
+          maxSize={chatPanelCollapsed ? CHAT_COLLAPSED_PX : undefined}
+          groupResizeBehavior="preserve-pixel-size"
+          onResize={(panelSize) => {
+            // When collapsed the Panel is clamped at CHAT_COLLAPSED_PX —
+            // don't persist that as the user's expanded width.
+            if (chatPanelCollapsed) return;
+            const px = Math.round(panelSize.inPixels);
+            if (Number.isFinite(px) && px !== chatPanelWidth) {
+              setChatPanelWidth(px);
+            }
+          }}
+        >
+          <div
+            data-testid="chat-panel-slot"
+            className="h-full flex border-l bg-background overflow-hidden"
+          >
+            {/*
+              Vertical collapse bar — always visible, ~32px wide. The
+              chevron flips on state: ChevronRight (>) when collapsed →
+              click expands; ChevronLeft (<) when expanded → click
+              collapses. Same border/background treatment as the terminal
+              toolbar (bg-muted/30, border), just rotated to the vertical
+              axis.
+            */}
+            <div
+              data-testid="chat-collapse-bar"
+              className="flex flex-col items-center w-8 shrink-0 bg-muted/30 border-r py-2 gap-1"
+              style={{ width: CHAT_COLLAPSED_PX }}
             >
-              <div
-                data-testid="chat-panel-slot"
-                className="h-full border-l bg-background overflow-hidden"
+              <button
+                onClick={() => toggleChatPanel()}
+                aria-pressed={!chatPanelCollapsed}
+                aria-label={chatPanelCollapsed ? "Expand chat panel" : "Collapse chat panel"}
+                title={chatPanelCollapsed ? "Expand chat panel" : "Collapse chat panel"}
+                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
               >
-                <ChatPanel />
-              </div>
-            </Panel>
-          </>
-        )}
+                {chatPanelCollapsed ? (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                )}
+              </button>
+              {/*
+                Chat history popover — task007 replaces the deleted in-panel
+                sidebar with this lightweight trigger. Visible in BOTH
+                collapsed and expanded states (per contract) because it
+                lives on the always-rendered collapse bar.
+              */}
+              <ChatHistoryPopover />
+            </div>
+            {/*
+              ChatPanel itself stays ALWAYS mounted — toggling its
+              visibility via CSS keeps the SSE EventSource alive + tab
+              store wiring intact across collapse flips. A structural
+              conditional (`{!collapsed && <ChatPanel/>}`) would tear
+              down the EventSource on every collapse, which is the exact
+              anti-pattern `reference_always_mounted_collapse` warns
+              against. We use Tailwind's `hidden` utility to toggle
+              display:none — React keeps the subtree mounted.
+            */}
+            <div
+              className={cn(
+                "flex-1 min-w-0 overflow-hidden",
+                chatPanelCollapsed && "hidden",
+              )}
+            >
+              <ChatPanel />
+            </div>
+          </div>
+        </Panel>
       </PanelGroup>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ChatHistoryPopover — task007 (chat-ux-cleanup)
+//
+// Small history icon on the chat collapse bar. Clicking opens a popover with
+// recent chat sessions (title + date); clicking a session routes through the
+// tab store's openTab() so it becomes a real tab in the chat surface.
+//
+// Why inline fetch (not a shared hook)? There's no pre-existing
+// useChatSessions hook — the deleted ConversationSidebar held an inline
+// fetch for the same endpoint. Extracting to a hook for one caller was out
+// of scope for this task; if a second caller appears, promote then.
+//
+// Why a sub-component (not inline JSX)? The popover needs local open-state
+// so session clicks can close it. Keeping that state out of the Layout
+// render body avoids pointless re-renders of the whole layout on popover
+// open/close.
+// ---------------------------------------------------------------------------
+function ChatHistoryPopover() {
+  const [open, setOpen] = useState(false);
+  const openTab = useChatTabsStore((s) => s.openTab);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["chat-sessions"],
+    queryFn: fetchChatSessions,
+    staleTime: 15_000,
+    enabled: open, // Only fetch when the user actually opens the popover.
+  });
+
+  const sessions = data?.sessions ?? [];
+
+  const handleClick = async (conversationId: string, title: string) => {
+    try {
+      await openTab(conversationId, title);
+      setOpen(false);
+    } catch (err) {
+      console.error("[chat-history-popover] openTab failed", err);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          data-testid="chat-history-trigger"
+          aria-label="Recent chat sessions"
+          title="Recent chat sessions"
+          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+        >
+          <History className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="left"
+        align="start"
+        className="w-72 p-0 max-h-96 overflow-y-auto"
+      >
+        <div className="sticky top-0 border-b bg-background/95 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Recent chat sessions
+        </div>
+        {isLoading && (
+          <div className="px-3 py-2 text-xs text-muted-foreground" role="status">
+            Loading...
+          </div>
+        )}
+        {isError && (
+          <div className="px-3 py-2 text-xs text-destructive" role="alert">
+            Failed to load sessions
+          </div>
+        )}
+        {!isLoading && !isError && sessions.length === 0 && (
+          <div className="px-3 py-2 text-xs italic text-muted-foreground">
+            No recent sessions
+          </div>
+        )}
+        {sessions.length > 0 && (
+          <ul>
+            {sessions.map((s) => (
+              <li key={s.conversationId}>
+                <button
+                  type="button"
+                  onClick={() => handleClick(s.conversationId, s.title)}
+                  className="block w-full text-left px-3 py-2 text-xs hover:bg-muted/60 border-b last:border-b-0"
+                  data-testid={`chat-history-item-${s.conversationId}`}
+                >
+                  <div className="truncate font-medium text-foreground">
+                    {s.title}
+                  </div>
+                  <div className="text-xs text-muted-foreground/70">
+                    {new Date(s.createdAt).toLocaleDateString()}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
