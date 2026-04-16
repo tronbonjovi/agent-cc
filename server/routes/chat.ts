@@ -19,8 +19,10 @@
  * (returns 503 when not installed, per CLAUDE.md safety rule #4).
  */
 import { Router, type Request, type Response } from "express";
-import { runClaudeStreaming, isClaudeAvailable } from "../scanner/claude-runner";
+import { isClaudeAvailable } from "../scanner/claude-runner";
+import { routeToProvider } from "../providers/router";
 import { getDB, save } from "../db";
+import type { ProviderMessage } from "../providers/types";
 
 // In-memory conversation → subscribed SSE responses.
 // The skeleton makes no effort to persist, fan-out is best-effort.
@@ -70,21 +72,35 @@ export function broadcastChatEvent(
 const router = Router();
 
 router.post("/prompt", async (req: Request, res: Response) => {
-  if (!(await isClaudeAvailable())) {
-    return res.status(503).json({ error: "Claude CLI not installed" });
-  }
   const {
     conversationId,
     text,
+    providerId: providerIdRaw,
     model,
     effort,
     thinking,
     webSearch,
     systemPrompt,
     projectPath,
+    temperature,
   } = req.body ?? {};
   if (!conversationId || !text) {
     return res.status(400).json({ error: "conversationId and text required" });
+  }
+  // Provider selection. Default to the built-in Claude Code provider so
+  // legacy clients (pre-M11) keep working without sending `providerId`.
+  const providerId: string =
+    typeof providerIdRaw === "string" && providerIdRaw.length > 0
+      ? providerIdRaw
+      : "claude-code";
+
+  // Claude CLI availability is only relevant when the target provider
+  // actually shells out to `claude`. OpenAI-compatible providers (Ollama,
+  // OpenAI, etc.) must still work on machines where the Claude CLI isn't
+  // installed. We look up the provider by id to decide whether to gate.
+  const targetProvider = getDB().providers?.find((p) => p.id === providerId);
+  if (targetProvider?.type === "claude-cli" && !(await isClaudeAvailable())) {
+    return res.status(503).json({ error: "Claude CLI not installed" });
   }
   // `model` is optional: the composer sends the user's per-conversation
   // selection from `useChatSettingsStore.getSettings(id).model`; legacy
@@ -116,6 +132,12 @@ router.post("/prompt", async (req: Request, res: Response) => {
     typeof projectPath === "string" && projectPath.length > 0
       ? projectPath
       : undefined;
+  // Temperature is OpenAI-compatible only — Claude CLI ignores it. Guarded
+  // so a non-number value doesn't smuggle through to the adapter.
+  const temperatureValue: number | undefined =
+    typeof temperature === "number" && Number.isFinite(temperature)
+      ? temperature
+      : undefined;
 
   res.json({ ok: true });
 
@@ -132,20 +154,37 @@ router.post("/prompt", async (req: Request, res: Response) => {
     // DB read failed — fall through with undefined (acts like first turn).
   }
 
+  // TODO(task006/task007): Assemble conversation history for OpenAI-compatible
+  // providers from server-side durable state. The scanner reads Claude CLI
+  // JSONL files so it's not a source for HTTP-provider conversations, and the
+  // chat route does not currently persist assistant turns outside the CLI
+  // path. Wiring a cross-provider conversation log is a follow-up task — for
+  // now we pass an empty history, meaning OpenAI-compatible conversations
+  // lose context on page reload. Documented in the task003 report.
+  const providerHistory: ProviderMessage[] = [];
+
   // Fire-and-forget streaming to every subscriber of this conversationId.
-  // The CLI writes its own JSONL session file — no server-side persistence
-  // needed. We just fan out raw chunks over SSE for the chat UI.
+  // Claude CLI conversations rely on the CLI's own JSONL session file for
+  // continuity; OpenAI-compatible conversations carry the full message
+  // array in each request. The router picks the right adapter based on
+  // provider.type — SSE fan-out is identical either way.
   (async () => {
     try {
-      for await (const chunk of runClaudeStreaming({
+      for await (const chunk of routeToProvider({
+        providerId,
         prompt: text,
-        sessionId: existingSessionId,
-        model: modelId,
-        effort: effortLevel,
-        thinking: thinkingFlag,
-        webSearch: webSearchFlag,
-        systemPrompt: systemPromptText,
-        cwd: projectCwd,
+        conversationId,
+        settings: {
+          model: modelId,
+          effort: effortLevel,
+          thinking: thinkingFlag,
+          webSearch: webSearchFlag,
+          systemPrompt: systemPromptText,
+          sessionId: existingSessionId,
+          cwd: projectCwd,
+          temperature: temperatureValue,
+        },
+        history: providerHistory,
       })) {
         // Capture session ID from CLI stream init envelope
         if (

@@ -72,9 +72,25 @@ vi.mock("../server/scanner/claude-runner", () => {
   };
 });
 
-// Mock db module for session ID capture tests
+// Mock db module for session ID capture tests.
+// Includes a minimal `providers` seed so the provider-aware chat route
+// (chat-provider-system task003) can look up `claude-code` and dispatch to
+// the Claude CLI adapter. Without this the router would short-circuit with
+// a "Provider not found" chunk and skip the init-envelope handler.
 vi.mock("../server/db", () => {
-  const data: any = { chatSessions: {} };
+  const data: any = {
+    chatSessions: {},
+    providers: [
+      {
+        id: "claude-code",
+        name: "Claude Code",
+        type: "claude-cli",
+        auth: { type: "none" },
+        capabilities: {},
+        builtin: true,
+      },
+    ],
+  };
   return {
     getDB: vi.fn(() => data),
     save: vi.fn(),
