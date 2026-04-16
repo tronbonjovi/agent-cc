@@ -28,19 +28,12 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 
-// Mock claude-runner + interactions-repo BEFORE importing the route —
-// otherwise the real modules would touch the database and try to spawn
-// the CLI just to import chat.ts.
+// Mock claude-runner BEFORE importing the route — otherwise the real module
+// would try to spawn the CLI just to import chat.ts.
 vi.mock("../server/scanner/claude-runner", () => ({
   isClaudeAvailable: vi.fn(async () => true),
   runClaudeStreaming: vi.fn(),
   resetClaudeAvailabilityCache: vi.fn(),
-}));
-
-vi.mock("../server/interactions-repo", () => ({
-  insertEvent: vi.fn(),
-  listConversations: vi.fn(() => []),
-  getEventsByConversation: vi.fn(() => []),
 }));
 
 import chatRouter, { shutdownChatStreams } from "../server/routes/chat";
