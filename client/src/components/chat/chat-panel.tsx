@@ -20,9 +20,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Plus, Mic } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useChatStore, shouldShowThinking } from '@/stores/chat-store';
 import { useChatHistory } from '@/hooks/use-chat-history';
 import { useActiveConversationId } from '@/hooks/use-active-conversation-id';
@@ -272,18 +272,91 @@ export function ChatPanel() {
           {lastError}
         </div>
       )}
-      <div className="border-t p-3 flex gap-2">
-        <Input
+      {/*
+        Composer (chat-composer-controls task002)
+        ───────────────────────────────────────────
+        Three-zone layout modeled on Claude.ai:
+          - Left:   model selector stub (task003 replaces with a real dropdown)
+          - Center: multi-line <textarea> that grows with content
+          - Right:  plus button (task004), send button, mic icon (disabled)
+
+        Layout-only change — behavior preserved: Enter submits, Shift+Enter
+        inserts a newline, send still triggers handleSubmit. The stubs
+        expose data-testid mounting points so subsequent tasks don't have
+        to perform brittle structural traversal.
+      */}
+      <div
+        className="border-t p-3 flex items-end gap-2"
+        data-testid="chat-composer"
+      >
+        {/* Left zone: model selector stub */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          data-testid="chat-composer-model"
+          onClick={() => {
+            /* task003 wires the dropdown */
+          }}
+        >
+          Model
+        </Button>
+
+        {/* Center: multi-line input. min-h keeps the composer from looking
+            cramped; rows={1} lets it start single-line and expand naturally
+            via the user's line breaks. resize-none suppresses the native
+            drag-handle so the composer stays visually clean. */}
+        <textarea
           value={input}
           onChange={(e) => setDraft(conversationId, e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSubmit();
+            // Enter submits; Shift+Enter inserts a newline. Preserving the
+            // single-line submit behavior matches every other chat surface
+            // users have muscle memory for.
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit();
+            }
           }}
           placeholder="Message Claude..."
           disabled={isStreaming}
+          rows={1}
+          className="flex-1 min-h-[36px] max-h-48 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
-        <Button onClick={handleSubmit} disabled={isStreaming}>
+
+        {/* Right zone: plus button, send, mic */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          data-testid="chat-composer-plus"
+          aria-label="Attach"
+          onClick={() => {
+            /* task004 wires the popover */
+          }}
+        >
+          <Plus />
+        </Button>
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isStreaming}
+          data-testid="chat-composer-send"
+        >
           Send
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="shrink-0 text-muted-foreground"
+          data-testid="chat-composer-mic"
+          aria-label="Voice input (not available)"
+          disabled
+        >
+          <Mic />
         </Button>
       </div>
     </div>

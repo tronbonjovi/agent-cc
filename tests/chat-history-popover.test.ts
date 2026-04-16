@@ -101,11 +101,13 @@ describe('chat-panel.tsx — sidebar stripped', () => {
   });
 
   it('still renders ChatTabBar, messages ScrollArea, and composer input', () => {
-    // Single-column layout: tab bar → messages → input. The component names
-    // themselves are the regression lock.
+    // Single-column layout: tab bar → messages → composer. The component
+    // names themselves are the regression lock. task002 (chat-composer-
+    // controls) swapped the single-line <Input> for a multi-line <textarea>
+    // so prompts can span multiple lines.
     expect(src).toContain('<ChatTabBar');
     expect(src).toMatch(/<ScrollArea\b/);
-    expect(src).toMatch(/<Input\b/);
+    expect(src).toMatch(/<textarea\b/);
   });
 });
 

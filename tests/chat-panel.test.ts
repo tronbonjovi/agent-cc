@@ -56,10 +56,13 @@ describe('chat-panel.tsx — source guardrails', () => {
     );
   });
 
-  it('imports the shadcn ScrollArea, Button, and Input UI primitives', () => {
+  it('imports the shadcn ScrollArea and Button UI primitives', () => {
+    // task002 (chat-composer-controls) replaced the single-line <Input>
+    // with a multi-line <textarea> so prompts can span multiple lines.
+    // The Input import is therefore no longer required here; the textarea
+    // check lives in tests/chat-composer-layout.test.ts.
     expect(src).toMatch(/from ['"]@\/components\/ui\/scroll-area['"]/);
     expect(src).toMatch(/from ['"]@\/components\/ui\/button['"]/);
-    expect(src).toMatch(/from ['"]@\/components\/ui\/input['"]/);
   });
 
   it('opens an EventSource against the relative /api/chat/stream/:id path', () => {
