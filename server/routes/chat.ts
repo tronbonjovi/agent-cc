@@ -20,6 +20,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import { runClaudeStreaming, isClaudeAvailable } from "../scanner/claude-runner";
+import { getDB, save } from "../db";
 
 // In-memory conversation → subscribed SSE responses.
 // The skeleton makes no effort to persist, fan-out is best-effort.
@@ -85,6 +86,27 @@ router.post("/prompt", async (req: Request, res: Response) => {
   (async () => {
     try {
       for await (const chunk of runClaudeStreaming({ prompt: text })) {
+        // Capture session ID from CLI stream init envelope
+        if (
+          chunk &&
+          typeof chunk === "object" &&
+          (chunk as any).type === "system" &&
+          (chunk as any).raw?.subtype === "init" &&
+          (chunk as any).raw?.session_id
+        ) {
+          try {
+            const db = getDB();
+            const sid = (chunk as any).raw.session_id as string;
+            db.chatSessions[sid] = {
+              sessionId: sid,
+              title: text.slice(0, 80),
+              createdAt: new Date().toISOString(),
+            };
+            save();
+          } catch (e) {
+            console.warn("[chat] failed to store session ID:", e);
+          }
+        }
         const subs = activeStreams.get(conversationId) ?? [];
         for (const sub of subs) {
           sub.res.write(`data: ${JSON.stringify(chunk)}\n\n`);
