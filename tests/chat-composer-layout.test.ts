@@ -142,13 +142,15 @@ describe('chat-panel.tsx — composer layout (task002)', () => {
     expect(region).not.toMatch(/\bactive:scale-/);
   });
 
-  it('imports Plus and Mic icons from lucide-react', () => {
-    // Icon mounts are part of the contract — pin the import so future edits
-    // don't silently swap to text labels.
+  it('imports the Mic icon from lucide-react', () => {
+    // Mic stays mounted in chat-panel (disabled voice button). Plus moved
+    // out in task004 — it now lives on the SettingsPopover trigger inside
+    // `settings-popover.tsx`, so the panel no longer imports it. Pin Mic
+    // here; a Plus guardrail lives in `chat-settings-popover.test.ts`
+    // where the icon actually renders now.
     expect(src).toMatch(
-      /import\s*\{[^}]*\b(Plus|Mic)\b[^}]*\}\s*from\s*['"]lucide-react['"]/,
+      /import\s*\{[^}]*\bMic\b[^}]*\}\s*from\s*['"]lucide-react['"]/,
     );
-    expect(src).toMatch(/\bPlus\b/);
     expect(src).toMatch(/\bMic\b/);
   });
 });

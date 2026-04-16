@@ -20,7 +20,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Mic } from 'lucide-react';
+import { Mic } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { useChatStore, shouldShowThinking } from '@/stores/chat-store';
@@ -30,6 +30,7 @@ import { useActiveConversationId } from '@/hooks/use-active-conversation-id';
 import { InteractionEventRenderer } from '@/components/chat/interaction-event-renderer';
 import { ChatTabBar } from '@/components/chat/chat-tab-bar';
 import { ModelDropdown } from '@/components/chat/model-dropdown';
+import { SettingsPopover } from '@/components/chat/settings-popover';
 import { parseSlashCommand, dispatchCommand } from '@/lib/chat-commands';
 import { mergeChatEvents } from '@/lib/chat-event-merge';
 import type { InteractionEvent } from '../../../../shared/types';
@@ -328,20 +329,12 @@ export function ChatPanel() {
           className="flex-1 min-h-[36px] max-h-48 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
 
-        {/* Right zone: plus button, send, mic */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="shrink-0"
-          data-testid="chat-composer-plus"
-          aria-label="Attach"
-          onClick={() => {
-            /* task004 wires the popover */
-          }}
-        >
-          <Plus />
-        </Button>
+        {/* Right zone: settings popover (owns the + trigger button with
+            data-testid="chat-composer-plus"), send, mic. task004 replaced
+            the stub + Button with <SettingsPopover>, which mounts its own
+            Button inside PopoverTrigger — clicking it opens the per-
+            conversation settings surface. */}
+        <SettingsPopover conversationId={conversationId} />
         <Button
           type="button"
           onClick={handleSubmit}

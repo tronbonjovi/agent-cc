@@ -1099,3 +1099,67 @@ export interface ChatSettings {
  */
 export type ChatGlobalDefaults = ChatSettings;
 
+// ---------------------------------------------------------------------------
+// Provider configuration — chat-composer-controls task004
+// ---------------------------------------------------------------------------
+//
+// `ProviderConfig` is the stable interface that the capability system
+// (task007) and the provider-system milestone (M11) build against. Defining
+// it now — even though only Claude Code is hardcoded in the UI today — means
+// M11 can ship server-side provider CRUD without breaking changes here.
+//
+// Auth note: credential fields (`apiKey`, `oauthConfig`) are intentionally
+// OMITTED from the client-side type. The client only sees `auth.type` so it
+// knows what kind of auth is configured; the secret itself lives server-side
+// and never crosses the wire.
+
+/**
+ * Capability flags describing what a provider supports. Drives task007's
+ * show/hide logic on the settings popover so controls unavailable for the
+ * selected provider stay hidden. All fields optional because a missing flag
+ * is treated as "not supported" — safer default than assuming support.
+ */
+export interface ProviderCapabilities {
+  /** Extended thinking (hidden reasoning) — Claude Code only today. */
+  thinking?: boolean;
+  /** Reasoning effort (low / medium / high) — Claude Code only. */
+  effort?: boolean;
+  /** Web search tool — Claude Code only. */
+  webSearch?: boolean;
+  /** Sampling temperature — OpenAI-compatible providers only. */
+  temperature?: boolean;
+  /** Custom system prompt append. */
+  systemPrompt?: boolean;
+  /** Attaching files to a prompt. */
+  fileAttachments?: boolean;
+  /** Project context (cwd) selection. */
+  projectContext?: boolean;
+}
+
+/**
+ * One provider the user can route a conversation through. The `id` is the
+ * durable key referenced by `ChatSettings.providerId`; `name` is the human
+ * label shown in the provider selector.
+ */
+export interface ProviderConfig {
+  id: string;
+  name: string;
+  /**
+   * Shape of backend the provider talks to. `claude-cli` shells out to
+   * `claude -p`; `openai-compatible` POSTs to an OpenAI-style chat
+   * completions endpoint (Ollama, vLLM, etc.).
+   */
+  type: "claude-cli" | "openai-compatible";
+  /** Base URL for HTTP providers (ignored by `claude-cli`). */
+  baseUrl?: string;
+  /**
+   * What kind of auth the provider uses. The secret itself stays server-side
+   * — the client only sees the `type` so the settings UI can render an
+   * appropriate indicator / editor.
+   */
+  auth: {
+    type: "none" | "api-key" | "oauth";
+  };
+  capabilities: ProviderCapabilities;
+}
+
