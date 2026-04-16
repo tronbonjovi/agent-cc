@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- **Chat–scanner unification spec and roadmap (Milestone 8)** — design spec identifying the SQLite event store as an architectural misstep (chat built a parallel data world instead of extending the scanner pipeline). Roadmap with 5 tasks across 4 phases: JSONL scanner backend, chat JSONL output + server strip, frontend rewire, SQLite demolition, integration test. Removes `interactions.db`, `InteractionEvent` model, `better-sqlite3` dependency, and ~12 files. Chat sessions will produce JSONL like normal CLI sessions and flow through the existing scanner.
+### Changed
+- **Chat–scanner unification COMPLETE (Milestone 8, 5/5)** — removed the SQLite event store (`interactions.db`) and unified chat sessions with the scanner pipeline. Chat sessions now produce JSONL like normal CLI sessions, and the scanner reads them directly. JSONL-backed `IScannerBackend` replaces the SQLite store backend. `better-sqlite3` dependency removed. 14 server/shared files deleted, 9 test files deleted, ~6900 net lines removed. Live chat streaming works end-to-end: optimistic echo, SSE text streaming, session ID capture from CLI init, history loads from scanner on refresh. 183 test files / 6115 tests passing.
 
 ### Added
 - **Chat import and platform foundations (Milestone 7 COMPLETE, 6/6)** — closes M7 `chat-import-platforms` and the entire integrated chat system (milestones 3–7). `SOURCE_METADATA` registry with wiring status, display name, icon, and category for 9 sources (5 wired + 4 planned: github-issue, telegram, discord, imessage). `POST /api/chat/import` clones scanner conversations into chat tabs with source reclassification and provenance metadata. Import picker modal in the chat tab bar. `ConversationSidebar` left-rail grouping conversations by source with click-to-open (chat) and click-to-import (scanner). Filter chips (All / AI / Deterministic / External) above the sidebar. Planned-source placeholder cards. Import E2E integration test. 194 test files / 6320 tests.

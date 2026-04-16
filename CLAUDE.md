@@ -87,11 +87,11 @@ tests/             # Vitest tests
 
 When adding features that use `claude -p`:
 
-1. Add `--no-session-persistence` flag to prevent polluting user's session list
-2. Remove `CLAUDECODE` from env: `delete env.CLAUDECODE`
-3. Add `isClaudeAvailable()` check in the route handler
-4. Handle errors gracefully — return 500 with descriptive message
-5. Set reasonable timeouts (60s for queries, 300s for summarization)
+1. Remove `CLAUDECODE` from env: `delete env.CLAUDECODE`
+2. Add `isClaudeAvailable()` check in the route handler
+3. Handle errors gracefully — return 500 with descriptive message
+4. Set reasonable timeouts (60s for queries, 300s for summarization)
+5. Chat-originated sessions intentionally omit `--no-session-persistence` so the CLI writes JSONL that the scanner picks up. Non-chat AI features (summarization, queries) should still use `--no-session-persistence` to avoid polluting the session list.
 
 ## Tool Call Efficiency
 
