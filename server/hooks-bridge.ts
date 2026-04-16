@@ -1,17 +1,15 @@
 /**
  * Hook event bridge (task005 — chat-workflows-tabs).
  *
- * Adapts Claude Code `settings.json` hook fires into `chat-hook` source
- * `InteractionEvent`s. The hook-command itself (configured in the user's
- * `~/.claude/settings.json`) POSTs a JSON payload to
- * `POST /api/chat/hook-event`; this module turns that payload into a
- * persisted + broadcast event on whichever chat tab is currently active.
+ * Adapts Claude Code `settings.json` hook fires into SSE broadcast events
+ * on whichever chat tab is currently active. The hook-command itself
+ * (configured in the user's `~/.claude/settings.json`) POSTs a JSON payload
+ * to `POST /api/chat/hook-event`; this module turns that payload into a
+ * broadcast event.
  *
  * Routing rule: events always go to `chatUIState.activeTabId` when one is
  * set, and fall back to the synthetic `hook-background` conversation when
- * no tab is active. The `hook-background` id is NOT a real tab — it just
- * lets us keep a coherent history for hooks that fire outside any UI
- * session (e.g. from a CLI session running in parallel).
+ * no tab is active.
  *
  * ARCHON HYGIENE: this module must NEVER start a subprocess or evaluate
  * user-supplied strings as code. It's a pure event-adapter. A source-text
@@ -20,10 +18,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import type {
-  InteractionEvent,
   SystemContent,
 } from '../shared/types';
-import { insertEvent } from './interactions-repo';
 import { broadcastChatEvent } from './routes/chat';
 import { getDB } from './db';
 
@@ -40,23 +36,27 @@ export interface HookPayload {
   [key: string]: unknown;
 }
 
+/** Shape of the SSE payload broadcast for hook events. */
+export interface HookBroadcastEvent {
+  id: string;
+  conversationId: string;
+  timestamp: string;
+  source: 'chat-hook';
+  role: 'system';
+  content: SystemContent;
+}
+
 /**
- * Build, persist, and broadcast a single `chat-hook` event from a hook
- * payload. Returns the event so the HTTP route can surface its id back to
- * the caller (useful when hook commands want to correlate their fire with a
- * specific persisted row).
+ * Build and broadcast a single `chat-hook` event from a hook payload.
+ * Returns the event so the HTTP route can surface its id back to the caller.
  *
- * Three side effects in this order:
+ * Two side effects in this order:
  *   1. Resolve the target conversation id from `chatUIState.activeTabId`,
  *      falling back to `hook-background` when no tab is active.
- *   2. `insertEvent` — persist to the interactions store so the history
- *      query picks it up on the next revalidation.
- *   3. `broadcastChatEvent` — fan out a `{ type: 'hook_event', event }`
- *      chunk over the existing SSE channel, parallel to task004's
- *      `workflow_event` frame. Clients use this as a revalidation trigger
- *      (rich mid-stream rendering is deferred to task006).
+ *   2. `broadcastChatEvent` — fan out a `{ type: 'hook_event', event }`
+ *      chunk over the existing SSE channel.
  */
-export function recordHookEvent(payload: HookPayload): InteractionEvent {
+export function recordHookEvent(payload: HookPayload): HookBroadcastEvent {
   const db = getDB();
   const conversationId = db.chatUIState?.activeTabId ?? 'hook-background';
 
@@ -74,18 +74,15 @@ export function recordHookEvent(payload: HookPayload): InteractionEvent {
     data: payload,
   };
 
-  const event: InteractionEvent = {
+  const event: HookBroadcastEvent = {
     id: randomUUID(),
     conversationId,
-    parentEventId: null,
     timestamp: new Date().toISOString(),
     source: 'chat-hook',
     role: 'system',
     content,
-    cost: null,
   };
 
-  insertEvent(event);
   broadcastChatEvent(conversationId, { type: 'hook_event', event });
 
   return event;

@@ -44,6 +44,13 @@ export interface DBData {
    * default is applied below).
    */
   chatUIState: ChatTabState;
+  /**
+   * Maps Claude CLI session IDs to chat tab IDs. Populated when integrated
+   * chat dispatches a prompt via `runClaudeStreaming` — the CLI's `system/init`
+   * envelope carries the session ID, which we capture and store here so the
+   * scanner can later correlate the JSONL file back to the originating chat tab.
+   */
+  chatSessions: Record<string, { tabId: string; startedAt: string }>;
 }
 
 export const defaultAppSettings: AppSettings = {
@@ -96,6 +103,7 @@ function defaultData(): DBData {
     boardConfig: { projectColors: {}, archivedMilestones: [] },
     staleCounts: {},
     chatUIState: { openTabs: [], activeTabId: null, tabOrder: [] },
+    chatSessions: {},
   };
 }
 
@@ -190,6 +198,7 @@ try {
     if (!data.chatUIState) {
       data.chatUIState = { openTabs: [], activeTabId: null, tabOrder: [] };
     }
+    if (!data.chatSessions) data.chatSessions = {};
     // Silently discard leftover pipeline keys from older DB files
     delete (data as any).pipelineConfig;
     delete (data as any).pipelineRun;

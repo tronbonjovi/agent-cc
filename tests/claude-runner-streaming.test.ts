@@ -212,7 +212,7 @@ describe("runClaudeStreaming", () => {
     else process.env.CLAUDECODE = prev;
   });
 
-  it("passes --no-session-persistence and stream-json flags", async () => {
+  it("passes stream-json flags without --no-session-persistence", async () => {
     const child = makeFakeChild();
     spawnMock.mockReturnValue(child);
 
@@ -235,7 +235,8 @@ describe("runClaudeStreaming", () => {
     expect(cmd).toBe("claude");
     expect(args).toContain("-p");
     expect(args).toContain("hello");
-    expect(args).toContain("--no-session-persistence");
+    // --no-session-persistence was removed so the CLI writes its own JSONL
+    expect(args).not.toContain("--no-session-persistence");
     expect(args).toContain("--output-format");
     expect(args).toContain("stream-json");
     // Regression: `claude -p --output-format stream-json` exits 1 without

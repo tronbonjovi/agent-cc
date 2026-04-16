@@ -5,8 +5,8 @@
  *
  *   1. Seed scanner-jsonl events via the real repo layer
  *   2. POST /api/chat/import → clone into a new chat-ai conversation
- *   3. GET /api/chat/conversations/:id/events → load back the imported events
- *   4. GET /api/chat/conversations/all → verify both conversations appear
+ *   3. Read back events via the repo layer directly (the HTTP conversation
+ *      listing routes were removed in the chat-scanner-unification milestone)
  *
  * Only the DB and routes are exercised — no mocks. The chat-import route is
  * a synchronous clone so there is no polling/waitFor needed.
@@ -22,8 +22,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { closeDb } from '../server/interactions-db';
-import { insertEventsBatch } from '../server/interactions-repo';
-import chatRouter from '../server/routes/chat';
+import {
+  insertEventsBatch,
+  getEventsByConversation,
+  listConversations,
+} from '../server/interactions-repo';
 import chatImportRouter from '../server/routes/chat-import';
 import type { InteractionEvent } from '../shared/types';
 
@@ -85,20 +88,12 @@ function seedConversation(conversationId: string, count: number): InteractionEve
   return events;
 }
 
-/** Build an Express app with both the chat and chat-import routers mounted. */
+/** Build an Express app with the chat-import router mounted. */
 function buildApp() {
   const app = express();
   app.use(express.json());
-  app.use('/api/chat', chatRouter);
   app.use('/api/chat', chatImportRouter);
   return app;
-}
-
-interface ConversationListItem {
-  conversationId: string;
-  source: string;
-  eventCount: number;
-  lastEvent: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,44 +118,30 @@ describe('chat-import E2E', () => {
 
     const newId: string = importRes.body.newConversationId;
 
-    // 2. Load back via GET /api/chat/conversations/:id/events
-    const eventsRes = await request(app).get(
-      `/api/chat/conversations/${newId}/events`,
-    );
-
-    expect(eventsRes.status).toBe(200);
-    const imported = eventsRes.body.events as InteractionEvent[];
+    // 2. Load back via the repo layer directly (HTTP routes removed)
+    const imported = getEventsByConversation(newId);
     expect(imported).toHaveLength(4);
 
     // 3. Full parity: content, role, and ordering match the originals.
-    //    IDs are fresh, source is reclassified, metadata has provenance.
     for (let i = 0; i < seeded.length; i++) {
       const orig = seeded[i];
       const clone = imported[i];
 
-      // Content round-trips exactly
       expect(clone.content).toEqual(orig.content);
-      // Role preserved
       expect(clone.role).toBe(orig.role);
-      // Timestamp preserved (ordering is identical)
       expect(clone.timestamp).toBe(orig.timestamp);
-      // Source reclassified to chat-ai
       expect(clone.source).toBe('chat-ai');
-      // Fresh conversation ID
       expect(clone.conversationId).toBe(newId);
-      // Fresh event IDs — no collision with originals
       expect(clone.id).not.toBe(orig.id);
-      // Provenance metadata stamped
       const meta = clone.metadata as Record<string, unknown>;
       expect(meta.importedFrom).toBe(srcId);
       expect(typeof meta.importedAt).toBe('string');
-      // Original metadata keys survive the merge
       expect(meta.sessionPath).toBe('/fake/session.jsonl');
       expect(meta.seq).toBe(i);
     }
   });
 
-  it('leaves the original conversation untouched and both appear in /conversations/all', async () => {
+  it('leaves the original conversation untouched and both appear in listConversations', async () => {
     const srcId = 'e2e-untouched-src';
     const seeded = seedConversation(srcId, 3);
     const app = buildApp();
@@ -172,12 +153,8 @@ describe('chat-import E2E', () => {
     expect(importRes.status).toBe(200);
     const newId: string = importRes.body.newConversationId;
 
-    // Original events unchanged
-    const origRes = await request(app).get(
-      `/api/chat/conversations/${srcId}/events`,
-    );
-    expect(origRes.status).toBe(200);
-    const origEvents = origRes.body.events as InteractionEvent[];
+    // Original events unchanged — read via repo directly
+    const origEvents = getEventsByConversation(srcId);
     expect(origEvents).toHaveLength(3);
     for (let i = 0; i < seeded.length; i++) {
       expect(origEvents[i].id).toBe(seeded[i].id);
@@ -186,11 +163,8 @@ describe('chat-import E2E', () => {
       expect(origEvents[i].content).toEqual(seeded[i].content);
     }
 
-    // Both conversations appear in the unified list with correct sources
-    const allRes = await request(app).get('/api/chat/conversations/all');
-    expect(allRes.status).toBe(200);
-    const conversations = allRes.body.conversations as ConversationListItem[];
-
+    // Both conversations appear in the repo's conversation list
+    const conversations = listConversations();
     const srcEntry = conversations.find((c) => c.conversationId === srcId);
     const newEntry = conversations.find((c) => c.conversationId === newId);
 
