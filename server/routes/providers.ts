@@ -19,6 +19,11 @@ import { randomUUID } from "node:crypto";
 import { getDB, save } from "../db";
 import { validate } from "./validation";
 import { discoverModels } from "../providers/model-discovery";
+import {
+  generateAuthUrl,
+  exchangeCode,
+  consumeAuthState,
+} from "../providers/oauth";
 import type { ProviderConfig } from "@shared/types";
 
 const router = Router();
@@ -96,14 +101,33 @@ function isMaskedKey(value: string | undefined): boolean {
   return value.startsWith("sk-...") || value === "••••••";
 }
 
-/** Public (wire) shape — strips secret fields so they never reach the client. */
+/** Public (wire) shape — strips secret fields so they never reach the client.
+ *
+ * For api-key auth we echo the masked `sk-...<last4>` form so the settings
+ * UI can show "a key is set". For oauth we forward the non-secret parts of
+ * `oauthConfig` (authUrl, tokenUrl, clientId, scopes) so the UI can render
+ * the connection form, but we ALWAYS strip:
+ *
+ *   - `oauthTokens` (access + refresh) — the whole point of server-side
+ *     token storage is that clients never see them.
+ *   - `clientSecret` — it's a credential, same security model as apiKey.
+ *
+ * Connection state is surfaced via the separate `/status` endpoint rather
+ * than a boolean on this record; keeps the CRUD shape stable and means the
+ * UI polls the more specific endpoint when it cares about "is this
+ * provider actually logged in right now". */
 function toPublic(p: ProviderConfig): ProviderConfig {
   const publicAuth: ProviderConfig["auth"] = { type: p.auth.type };
   if (p.auth.type === "api-key") {
     publicAuth.apiKey = maskApiKey(p.auth.apiKey);
   }
-  // Deliberately omit oauth secret fields — `auth.type` alone is enough for
-  // the UI to render an "OAuth configured" badge.
+  if (p.auth.type === "oauth" && p.auth.oauthConfig) {
+    // Strip clientSecret; pass through the rest so the UI can show which
+    // endpoint/clientId is configured.
+    const { clientSecret: _clientSecret, ...publicCfg } = p.auth.oauthConfig;
+    publicAuth.oauthConfig = publicCfg;
+  }
+  // `oauthTokens` is never copied onto publicAuth — it stays server-side.
   return {
     id: p.id,
     name: p.name,
@@ -215,6 +239,154 @@ router.get("/api/providers/:id/models", async (req, res) => {
   }
   const models = await discoverModels(provider);
   res.json(models);
+});
+
+// ---------------------------------------------------------------------------
+// OAuth — task004
+// ---------------------------------------------------------------------------
+//
+// The flow is orchestrated from the browser:
+//
+//   1. User clicks "Sign in" in the settings popover.
+//   2. Client calls GET /api/providers/:id/auth, receives { authUrl }, and
+//      opens it in a popup (or the same tab).
+//   3. Provider redirects back to /api/providers/:id/auth/callback with
+//      ?code&state. We validate state, exchange the code, persist the
+//      tokens, and return a self-closing HTML page.
+//   4. Subsequent API calls thread the access token via getValidToken() at
+//      the chat route layer (wired in a later task).
+//
+// The callback URL is built dynamically from the inbound request so it
+// matches whatever host the user's browser is hitting (dev: localhost:5100,
+// production: whatever acc.devbox resolves to). This assumes the OAuth app
+// at the provider was registered with the matching redirect URL.
+
+/** Build the self-URL for the OAuth callback endpoint. */
+function callbackUrlFor(req: import("express").Request, providerId: string): string {
+  const host = req.get("host") ?? "localhost:5100";
+  return `${req.protocol}://${host}/api/providers/${providerId}/auth/callback`;
+}
+
+/**
+ * GET /api/providers/:id/auth
+ *
+ * Returns the authorization URL the client should navigate to. Generating
+ * the URL also seeds the in-memory CSRF store so the callback can later
+ * validate that the `state` round-tripped came from us.
+ */
+router.get("/api/providers/:id/auth", (req, res) => {
+  const { id } = req.params;
+  const db = getDB();
+  const provider = (db.providers ?? []).find((p) => p.id === id);
+  if (!provider) {
+    return res.status(404).json({ error: "Provider not found" });
+  }
+  if (provider.auth.type !== "oauth" || !provider.auth.oauthConfig) {
+    return res
+      .status(400)
+      .json({ error: "Provider is not configured for OAuth" });
+  }
+  try {
+    const authUrl = generateAuthUrl(provider, callbackUrlFor(req, id));
+    res.json({ authUrl });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
+});
+
+/**
+ * GET /api/providers/:id/auth/callback
+ *
+ * The provider redirects the browser here with `?code&state`. We validate
+ * state against the CSRF store, exchange the code for tokens, persist them,
+ * and return an HTML page that closes the popup (or shows a note if the
+ * browser disallows window.close()).
+ */
+router.get("/api/providers/:id/auth/callback", async (req, res) => {
+  const { id } = req.params;
+  const code = typeof req.query.code === "string" ? req.query.code : "";
+  const state = typeof req.query.state === "string" ? req.query.state : "";
+
+  if (!state) {
+    return res.status(400).json({ error: "Missing state parameter" });
+  }
+  if (!code) {
+    return res.status(400).json({ error: "Missing code parameter" });
+  }
+  if (!consumeAuthState(state, id)) {
+    return res.status(400).json({ error: "Invalid or expired state" });
+  }
+
+  const db = getDB();
+  const idx = (db.providers ?? []).findIndex((p) => p.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: "Provider not found" });
+  }
+  const provider = db.providers[idx];
+  if (provider.auth.type !== "oauth" || !provider.auth.oauthConfig) {
+    return res
+      .status(400)
+      .json({ error: "Provider is not configured for OAuth" });
+  }
+
+  try {
+    const tokens = await exchangeCode(provider, code, callbackUrlFor(req, id));
+    db.providers[idx] = {
+      ...provider,
+      auth: { ...provider.auth, oauthTokens: tokens },
+    };
+    save();
+    res
+      .status(200)
+      .type("html")
+      .send(
+        `<!DOCTYPE html><html><body><p>Connected! You can close this tab.</p><script>window.close()</script></body></html>`,
+      );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(502).json({ error: `OAuth exchange failed: ${msg}` });
+  }
+});
+
+/**
+ * POST /api/providers/:id/disconnect
+ *
+ * Clears stored tokens so `getValidToken` will throw until the user signs
+ * in again. Leaves the provider's `oauthConfig` alone — disconnecting is
+ * reversible by signing back in, without re-entering URLs / clientId.
+ */
+router.post("/api/providers/:id/disconnect", (req, res) => {
+  const { id } = req.params;
+  const db = getDB();
+  const idx = (db.providers ?? []).findIndex((p) => p.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: "Provider not found" });
+  }
+  const existing = db.providers[idx];
+  const nextAuth: ProviderConfig["auth"] = { ...existing.auth };
+  delete nextAuth.oauthTokens;
+  db.providers[idx] = { ...existing, auth: nextAuth };
+  save();
+  res.json({ connected: false });
+});
+
+/**
+ * GET /api/providers/:id/status
+ *
+ * Cheap boolean — true iff we have a token record stored. Expiration is
+ * handled transparently by `getValidToken` on next use, so we don't check
+ * `expiresAt` here; reporting "connected" when the token is refreshable is
+ * the more useful signal for the UI.
+ */
+router.get("/api/providers/:id/status", (req, res) => {
+  const { id } = req.params;
+  const db = getDB();
+  const provider = (db.providers ?? []).find((p) => p.id === id);
+  if (!provider) {
+    return res.status(404).json({ error: "Provider not found" });
+  }
+  res.json({ connected: Boolean(provider.auth.oauthTokens) });
 });
 
 router.delete("/api/providers/:id", (req, res) => {

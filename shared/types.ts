@@ -1168,10 +1168,36 @@ export interface ProviderConfig {
    * chars only) and never sent to the client verbatim. Clients that want to
    * leave the key untouched during an update should send the masked form
    * back, which the server detects and skips.
+   *
+   * `oauthConfig` holds the OAuth 2.0 discovery-style parameters needed to
+   * run the authorization code flow (auth/token URLs, client credentials,
+   * scopes). `clientSecret` is server-only — the `toPublic()` wire scrubber
+   * strips it from responses alongside `apiKey` and `oauthTokens`.
+   *
+   * `oauthTokens` is the server-only store of the access + refresh token pair
+   * plus the absolute expiry timestamp in ms. It is NEVER included in API
+   * responses — the `/status` route flattens it to a boolean. The chat route
+   * layer calls `getValidToken(provider)` which transparently refreshes when
+   * the access token is near expiry.
    */
   auth: {
     type: "none" | "api-key" | "oauth";
     apiKey?: string;
+    oauthConfig?: {
+      authUrl: string;
+      tokenUrl: string;
+      clientId: string;
+      /** Some OAuth providers require a secret (confidential client). */
+      clientSecret?: string;
+      scopes?: string[];
+    };
+    /** Server-only — never surfaces in API responses. */
+    oauthTokens?: {
+      accessToken: string;
+      refreshToken: string;
+      /** Absolute epoch ms when the access token expires. */
+      expiresAt: number;
+    };
   };
   capabilities: ProviderCapabilities;
   /**
