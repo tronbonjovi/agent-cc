@@ -7,6 +7,7 @@
 // and import from here via the `@/lib/conversation-grouping` alias.
 
 import type { InteractionSource } from '../../../shared/types';
+import type { SourceMetadata } from '../../../shared/source-metadata';
 
 /**
  * Shape returned by `GET /api/chat/conversations/all` — mirrors the row shape
@@ -112,4 +113,57 @@ export async function handleConversationClick(
   }
 
   // planned sources (github-issue, telegram, discord, imessage): no-op.
+}
+
+// ---------------------------------------------------------------------------
+// Filter-chip support — chat-import-platforms task005.
+//
+// The ConversationSidebar exposes a small filter row above the source
+// sections. The active mode hides all sections whose `category` doesn't
+// match. Logic lives here (not inside the component) so vitest can exercise
+// the branches without rendering React — `client/` is excluded from the
+// vitest include glob, see `reference_vitest_client_excluded` in memory.
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical ordering of filter chips. Both the SourceFilter component and the
+ * filter helper iterate this same tuple, so the chip layout and the option
+ * coverage stay in lockstep automatically. `as const` keeps it a literal
+ * tuple so TypeScript can derive `FilterMode` from it without drift.
+ */
+export const FILTER_MODES = ['all', 'ai', 'deterministic', 'external'] as const;
+
+export type FilterMode = (typeof FILTER_MODES)[number];
+
+/**
+ * Filter a list of source metadata by the active filter mode.
+ *
+ * `mode === 'all'` is the no-op identity case — the input is returned as-is
+ * (a fresh slice is unnecessary; callers don't mutate). Every other mode
+ * keeps only the sources whose `category` matches the mode literal.
+ *
+ * Note: this works on whichever input list the caller supplies. The sidebar
+ * calls it once for `getWiredSources()` and once for `getPlannedSources()`,
+ * which keeps the wired/planned grouping intact while still respecting the
+ * filter chips.
+ */
+export function filterSourcesByMode(
+  sources: SourceMetadata[],
+  mode: FilterMode,
+): SourceMetadata[] {
+  if (mode === 'all') return sources;
+  return sources.filter((s) => s.category === mode);
+}
+
+/**
+ * Pick the shadcn Button variant for a single filter chip given the
+ * currently-active mode. Trivial branching, but extracted so the source
+ * guardrail tests can pin the active-state behavior without reaching into
+ * className strings.
+ */
+export function pickFilterVariant(
+  current: FilterMode,
+  option: FilterMode,
+): 'default' | 'ghost' {
+  return current === option ? 'default' : 'ghost';
 }

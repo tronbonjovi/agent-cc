@@ -13,9 +13,14 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   groupConversationsBySource,
   handleConversationClick,
+  filterSourcesByMode,
+  pickFilterVariant,
+  FILTER_MODES,
   type ConversationSummary,
   type ConversationClickDeps,
+  type FilterMode,
 } from '@/lib/conversation-grouping';
+import { getWiredSources, getPlannedSources } from '@shared/source-metadata';
 
 /** Build a ConversationSummary with sensible defaults. */
 function conv(
@@ -160,5 +165,101 @@ describe('handleConversationClick', () => {
     await handleConversationClick(conv('tg-1', 'telegram'), deps);
     expect(fetchFn).not.toHaveBeenCalled();
     expect(openTab).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterSourcesByMode — task005
+//
+// Pure helper that the ConversationSidebar uses to hide source sections that
+// don't match the active filter chip. Extracted as its own function so the
+// branch logic is unit-testable without mounting React (vitest excludes
+// client/, see reference_vitest_client_excluded).
+// ---------------------------------------------------------------------------
+
+describe('filterSourcesByMode', () => {
+  it('exposes the canonical FILTER_MODES tuple in the documented order', () => {
+    // Lock in the ordering — the SourceFilter component iterates this same
+    // tuple, and the chip layout reads left-to-right as "All / AI /
+    // Deterministic / External".
+    expect(FILTER_MODES).toEqual(['all', 'ai', 'deterministic', 'external']);
+  });
+
+  it('mode="all" returns the full input unchanged', () => {
+    const wired = getWiredSources();
+    const out = filterSourcesByMode(wired, 'all');
+    expect(out).toEqual(wired);
+  });
+
+  it('mode="ai" returns only ai-category sources', () => {
+    const wired = getWiredSources();
+    const out = filterSourcesByMode(wired, 'ai');
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.every((s) => s.category === 'ai')).toBe(true);
+    // Spot-check: chat-ai and scanner-jsonl are both 'ai' in the registry.
+    const ids = out.map((s) => s.id);
+    expect(ids).toContain('chat-ai');
+    expect(ids).toContain('scanner-jsonl');
+  });
+
+  it('mode="deterministic" filters wired sources to slash/hook/workflow', () => {
+    const wired = getWiredSources();
+    const out = filterSourcesByMode(wired, 'deterministic');
+    expect(out.every((s) => s.category === 'deterministic')).toBe(true);
+    const ids = out.map((s) => s.id);
+    expect(ids).toContain('chat-slash');
+    expect(ids).toContain('chat-hook');
+    expect(ids).toContain('chat-workflow');
+    expect(ids).not.toContain('chat-ai');
+  });
+
+  it('mode="external" applied to wired sources returns []', () => {
+    // No wired source is `external` today — externals are all `planned`.
+    expect(filterSourcesByMode(getWiredSources(), 'external')).toEqual([]);
+  });
+
+  it('mode="external" applied to planned sources returns the full planned list', () => {
+    const planned = getPlannedSources();
+    const out = filterSourcesByMode(planned, 'external');
+    expect(out).toEqual(planned);
+    expect(out.every((s) => s.category === 'external')).toBe(true);
+  });
+
+  it('mode="ai" applied to planned sources returns []', () => {
+    // Sanity: hides the entire planned section when filter is "ai" so the
+    // sidebar collapses to wired AI sources only.
+    expect(filterSourcesByMode(getPlannedSources(), 'ai')).toEqual([]);
+  });
+
+  it('does not mutate its input array', () => {
+    const wired = getWiredSources();
+    const snapshot = [...wired];
+    filterSourcesByMode(wired, 'ai');
+    expect(wired).toEqual(snapshot);
+  });
+});
+
+describe('pickFilterVariant', () => {
+  it('returns "default" when the option matches the current mode', () => {
+    expect(pickFilterVariant('ai', 'ai')).toBe('default');
+  });
+
+  it('returns "ghost" when the option does not match', () => {
+    expect(pickFilterVariant('ai', 'deterministic')).toBe('ghost');
+  });
+
+  it('treats "all" as the default mode and matches itself', () => {
+    expect(pickFilterVariant('all', 'all')).toBe('default');
+    expect(pickFilterVariant('all', 'ai')).toBe('ghost');
+  });
+
+  it('covers every FILTER_MODES entry without throwing', () => {
+    const modes: FilterMode[] = [...FILTER_MODES];
+    for (const current of modes) {
+      for (const option of modes) {
+        const v = pickFilterVariant(current, option);
+        expect(v === 'default' || v === 'ghost').toBe(true);
+      }
+    }
   });
 });

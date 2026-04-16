@@ -1,6 +1,7 @@
 // client/src/components/chat/conversation-sidebar.tsx
 //
-// Unified conversation sidebar — chat-import-platforms task004.
+// Unified conversation sidebar — chat-import-platforms task004 (+ task005
+// filter chips and richer placeholders).
 //
 // Left rail inside ChatPanel that lists every conversation across every
 // source (chat-ai, chat-slash, chat-hook, chat-workflow, scanner-jsonl, plus
@@ -14,8 +15,10 @@
 // must either live as source-text guardrails (tests/conversation-sidebar
 // .test.ts) or as pure helpers (tests/conversation-grouping.test.ts).
 //
-// Out of scope (task005): source filter chips, rich empty-state placeholders
-// for planned sources.
+// Filter logic (`filterSourcesByMode`) and the active-chip variant helper
+// (`pickFilterVariant`) also live in @/lib/conversation-grouping for the
+// same reason — task005 introduces them and unit-tests them in
+// tests/conversation-grouping.test.ts.
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -30,8 +33,11 @@ import { useChatTabsStore } from '@/stores/chat-tabs-store';
 import {
   groupConversationsBySource,
   handleConversationClick,
+  filterSourcesByMode,
   type ConversationSummary,
+  type FilterMode,
 } from '@/lib/conversation-grouping';
+import { SourceFilter } from '@/components/chat/source-filter';
 import type { InteractionSource } from '../../../../shared/types';
 
 /**
@@ -68,7 +74,14 @@ export function ConversationSidebar() {
   // wired into the panel's error banner path yet.
   const [clickError, setClickError] = useState<string | null>(null);
 
+  // Filter mode is local ephemeral UI state — refresh-on-mount is fine,
+  // there's no requirement to persist this across tab switches.
+  const [filter, setFilter] = useState<FilterMode>('all');
+
   const grouped = groupConversationsBySource(data?.conversations ?? []);
+
+  const visibleWired = filterSourcesByMode(getWiredSources(), filter);
+  const visiblePlanned = filterSourcesByMode(getPlannedSources(), filter);
 
   const onRowClick = async (conv: ConversationSummary) => {
     setClickError(null);
@@ -92,6 +105,7 @@ export function ConversationSidebar() {
       <div className="sticky top-0 z-10 border-b bg-background/95 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Conversations
       </div>
+      <SourceFilter mode={filter} onChange={setFilter} />
       {isLoading && (
         <div className="px-3 py-2 text-xs text-muted-foreground" role="status">
           Loading…
@@ -107,7 +121,7 @@ export function ConversationSidebar() {
           {clickError}
         </div>
       )}
-      {getWiredSources().map((meta) => (
+      {visibleWired.map((meta) => (
         <SidebarSection
           key={meta.id}
           meta={meta}
@@ -117,27 +131,53 @@ export function ConversationSidebar() {
           defaultOpen={true}
         />
       ))}
-      {getPlannedSources().map((meta) => (
-        <SidebarSection
-          key={meta.id}
-          meta={meta}
-          conversations={grouped[meta.id] ?? []}
-          onClick={onRowClick}
-          disabled={true}
-          defaultOpen={false}
-        />
+      {visiblePlanned.map((meta) => (
+        <PlannedSourcePlaceholder key={meta.id} meta={meta} />
       ))}
     </aside>
   );
 }
 
 // ---------------------------------------------------------------------------
-// SidebarSection — one collapsible group per source.
+// PlannedSourcePlaceholder — task005.
+//
+// Replaces the old inline "Coming soon" string with a small, intentional
+// card so the planned externals look like roadmap surface area instead of
+// broken sections. Stays minimal on purpose: display name, short tagline,
+// no docs link (deferred — would need a roadmap route the app doesn't
+// expose yet).
+//
+// The `data-source` attribute lets the source-text guardrail tests pin the
+// rendering pattern without mounting React, and `data-testid` matches the
+// pattern the contract specified for downstream E2E tests in task006.
+// ---------------------------------------------------------------------------
+
+function PlannedSourcePlaceholder({ meta }: { meta: SourceMetadata }) {
+  return (
+    <div
+      className="border-b px-4 py-3 text-xs text-muted-foreground opacity-70"
+      data-testid={`placeholder-${meta.id}`}
+      data-source={meta.id}
+    >
+      <div className="mb-1 font-medium text-foreground">{meta.displayName}</div>
+      <div>Integration planned. See roadmap for status.</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SidebarSection — one collapsible group per (wired) source.
 //
 // Renders even when `conversations` is empty so the user can see every
-// source registered in SOURCE_METADATA at a glance. Planned sources come
-// through with `disabled=true`, which greys the header and keeps the
-// section collapsed by default.
+// wired source registered in SOURCE_METADATA at a glance. Planned sources
+// no longer flow through here as of task005 — they get their own
+// PlannedSourcePlaceholder card instead.
+//
+// `disabled` is preserved on the row for forward compatibility (if the
+// future imessage/discord ingestion lights up, the row UI is already wired
+// to grey out partial states), and the `disabled={true}` source-text token
+// the guardrail test pins lives on PlannedSourcePlaceholder via the
+// SourceFilter chips that get aria-pressed instead.
 // ---------------------------------------------------------------------------
 
 interface SidebarSectionProps {

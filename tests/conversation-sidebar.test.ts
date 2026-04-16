@@ -1,20 +1,23 @@
 // tests/conversation-sidebar.test.ts
 //
 // Source-text guardrails for the ConversationSidebar component shipped in
-// chat-import-platforms task004. Vitest excludes the client/ directory, so
-// we can't render this component — the strategy (per
-// `reference_vitest_client_excluded`) is to pin the structural invariants
-// with regex assertions on the TSX file itself.
+// chat-import-platforms task004 and extended in task005. Vitest excludes
+// the client/ directory, so we can't render this component — the strategy
+// (per `reference_vitest_client_excluded`) is to pin the structural
+// invariants with regex assertions on the TSX file itself.
 //
 // The interaction logic has a dedicated pure-function test in
 // `tests/conversation-grouping.test.ts`; this file just locks in:
 //
-//   1. the sidebar iterates both `getWiredSources()` and `getPlannedSources()`
+//   1. the sidebar iterates both wired AND planned sources (task004) — and
+//      after task005 it routes them through `filterSourcesByMode` first
 //   2. it imports from the SOURCE_METADATA registry (task001)
 //   3. it calls `handleConversationClick` from the grouping helper
 //   4. it uses `useChatTabsStore` for openTab / setActiveTab
 //   5. it wires an `all-conversations` React Query against the task004 endpoint
 //   6. ChatPanel mounts the sidebar as a left rail inside a PanelGroup
+//   7. task005: it mounts <SourceFilter /> and renders planned sources via
+//      <PlannedSourcePlaceholder /> instead of the wired SidebarSection
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
@@ -43,8 +46,12 @@ describe('conversation-sidebar.tsx — source guardrails', () => {
   it('iterates both wired AND planned sources so every section renders', () => {
     // Planned sources must render even with zero conversations — the sidebar
     // is the registry surface for future integrations, not just current data.
+    // After task005 the iteration goes through `filterSourcesByMode` so the
+    // chips can hide non-matching categories, but both source lists must
+    // still be the inputs.
     expect(src).toMatch(/getWiredSources\(\)/);
     expect(src).toMatch(/getPlannedSources\(\)/);
+    expect(src).toContain('filterSourcesByMode');
   });
 
   it('uses useChatTabsStore for openTab and setActiveTab', () => {
@@ -81,11 +88,32 @@ describe('conversation-sidebar.tsx — source guardrails', () => {
     expect(codeOnly).toMatch(/SidebarSection/);
   });
 
-  it('marks planned sources with disabled=true on the section button row', () => {
-    // Prevents accidentally wiring planned sources to the same click path
-    // as wired ones — the pure dispatch function already no-ops, but the
-    // UI also needs to grey them out.
-    expect(src).toMatch(/disabled=\{true\}/);
+  it('renders planned sources via PlannedSourcePlaceholder, not SidebarSection', () => {
+    // task005: planned externals (github-issue, telegram, discord, imessage)
+    // get a richer empty-state card instead of an empty collapsible. The
+    // placeholder must exist as its own component reference so we can lock
+    // the routing in at the source level — the pure dispatch helper already
+    // no-ops on these sources, but the UI also needs to clearly mark them
+    // as "not wired yet" without looking broken.
+    const codeOnly = src
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
+    expect(codeOnly).toMatch(/PlannedSourcePlaceholder/);
+    expect(codeOnly).toMatch(/visiblePlanned\.map/);
+    // And visibleWired feeds the regular SidebarSection path.
+    expect(codeOnly).toMatch(/visibleWired\.map/);
+  });
+
+  it('mounts <SourceFilter /> wired to local filter state', () => {
+    // task005: filter chips above the sidebar. The component lives in
+    // @/components/chat/source-filter and the local `filter` state must
+    // round-trip through onChange. Pinned as source text because the
+    // filter helper is unit-tested separately.
+    expect(src).toMatch(/from ['"]@\/components\/chat\/source-filter['"]/);
+    expect(src).toMatch(/<SourceFilter\b/);
+    expect(src).toMatch(/useState<FilterMode>/);
+    expect(src).toMatch(/mode=\{filter\}/);
+    expect(src).toMatch(/onChange=\{setFilter\}/);
   });
 
   it('imports the ConversationSummary type from the grouping helper (no local any drift)', () => {
